@@ -37153,356 +37153,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/integrations": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Configured integrations and their health; unconfigured ports use mocks */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Integrations */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              items: components["schemas"]["IntegrationConnection"][];
-              ports: string[];
-            };
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/integrations/{port}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /**
-     * Choose the provider for a port (credentials are stored in the secret store, not here)
-     * @description integrations.connection.manage. A vetting port (ADR-0094) also needs a fresh step-up, and takes only a provider this build knows; the mock is refused in production. Audited.
-     */
-    put: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          port:
-            | "comms.email"
-            | "comms.sms"
-            | "comms.push"
-            | "workforce.idsp"
-            | "workforce.dbs_ebulk"
-            | "workforce.dbs_update_service"
-            | "workforce.nmc_register";
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": {
-            provider: string;
-            /** @default {} */
-            settings?: {
-              [key: string]: string | number | boolean;
-            };
-            /** @default null */
-            secretRef?: string | null;
-          };
-        };
-      };
-      responses: {
-        /** @description Saved */
-        204: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content?: never;
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    post?: never;
-    /**
-     * Switch a vetting port off
-     * @description integrations.connection.manage, with a fresh step-up. Vetting ports only (ADR-0094): checks then go back to manual entry; checks already made stay on the staff file. Audited.
-     */
-    delete: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          port:
-            | "workforce.idsp"
-            | "workforce.dbs_ebulk"
-            | "workforce.dbs_update_service"
-            | "workforce.nmc_register";
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Off */
-        204: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content?: never;
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/integrations/quarantine": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Inbound partner data that failed validation, waiting for a decision */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Queue */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              items: components["schemas"]["QuarantineItem"][];
-            };
-          };
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/integrations/quarantine/{id}/resolve": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Discard a quarantined item, or mark it handled by hand */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          id: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: {
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            resolution: "discarded" | "handled_manually";
-            note: string;
-          };
-        };
-      };
-      responses: {
-        /** @description Resolved */
-        204: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content?: never;
-        };
-        /** @description Not signed in */
-        401: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not a member, missing permission, MFA not set up or step-up needed */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Not found or outside your access */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description The request did not validate */
-        422: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/v1/integrations/hr-link/staleness": {
     parameters: {
       query?: never;
@@ -38588,7 +38238,7 @@ export interface paths {
     put?: never;
     /**
      * Withdraw a wrong leaving date from the HR platform (step-up)
-     * @description Refused while Thapsus-HR still gives the date (raised for review instead). When access has already ended, gives back sign-in and the roles that leaving ended, from now.
+     * @description Refused while Thapsus-HR still gives the date (raised for review instead), and once the member's access has ended (409 hr_link_access_ended: reinstatement is the member lifecycle's).
      */
     post: {
       parameters: {
@@ -38831,6 +38481,356 @@ export interface paths {
             [name: string]: unknown;
           };
           content?: never;
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Configured integrations and their health; unconfigured ports use mocks */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Integrations */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              items: components["schemas"]["IntegrationConnection"][];
+              ports: string[];
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/{port}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Choose the provider for a port (credentials are stored in the secret store, not here)
+     * @description integrations.connection.manage. A vetting port (ADR-0094) also needs a fresh step-up, and takes only a provider this build knows; the mock is refused in production. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          port:
+            | "comms.email"
+            | "comms.sms"
+            | "comms.push"
+            | "workforce.idsp"
+            | "workforce.dbs_ebulk"
+            | "workforce.dbs_update_service"
+            | "workforce.nmc_register";
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            provider: string;
+            /** @default {} */
+            settings?: {
+              [key: string]: string | number | boolean;
+            };
+            /** @default null */
+            secretRef?: string | null;
+          };
+        };
+      };
+      responses: {
+        /** @description Saved */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    /**
+     * Switch a vetting port off
+     * @description integrations.connection.manage, with a fresh step-up. Vetting ports only (ADR-0094): checks then go back to manual entry; checks already made stay on the staff file. Audited.
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          port:
+            | "workforce.idsp"
+            | "workforce.dbs_ebulk"
+            | "workforce.dbs_update_service"
+            | "workforce.nmc_register";
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Off */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/quarantine": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inbound partner data that failed validation, waiting for a decision */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Queue */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              items: components["schemas"]["QuarantineItem"][];
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/quarantine/{id}/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Discard a quarantined item, or mark it handled by hand */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            resolution: "discarded" | "handled_manually";
+            note: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Resolved */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
         };
       };
     };
@@ -51994,6 +51994,808 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicine-lists/{list}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * One of the organisation's medicine lists (for example psychotropic)
+     * @description medicines.list.manage, medicines.record.manage or medicines.emar.administer. Exact dm+d products only (ADR-0082).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          list: components["schemas"]["MedicineListName"];
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The list, removed products included */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add a dm+d product to one of the organisation's medicine lists
+     * @description medicines.list.manage. The exact dm+d product (VMP); never by ingredient or name. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          list: components["schemas"]["MedicineListName"];
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewMedicineListItem"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineListItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicine-list-items/{id}/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Remove a product from a medicine list, with a reason
+     * @description medicines.list.manage, with the version read. The removal is kept. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RemoveMedicineListItem"];
+        };
+      };
+      responses: {
+        /** @description Removed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineListItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/prn-protocols": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A person's PRN protocols, with the prescriber's limits from each entry
+     * @description medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Protocols, withdrawn ones included */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PrnProtocolList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a PRN protocol for one of the person's when-required medicines
+     * @description medicines.record.manage in the person's scope. For a current when-required entry; the signs that mean it may be needed, what to try first, the order among the person's medicines for the same purpose, the agreement with the prescriber or pharmacist and a review within the rate table's days. One open protocol per medicine. The dose, most in 24 hours and interval stay the entry's. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewPrnProtocol"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PrnProtocol"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/prn-protocols/{id}/change": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Change or review a PRN protocol, with a reason
+     * @description medicines.record.manage in the person's scope, with the version read; every version is kept. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangePrnProtocol"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PrnProtocol"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/prn-protocols/{id}/withdraw": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Withdraw a PRN protocol, with a reason
+     * @description medicines.record.manage in the person's scope, with the version read. Doses after it count as given without a protocol. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["WithdrawPrnProtocol"];
+        };
+      };
+      responses: {
+        /** @description Withdrawn */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PrnProtocol"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicine-administrations/{id}/prn-outcome": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the outcome of a when-required dose
+     * @description medicines.emar.administer or medicines.record.manage, in the person's scope. For a when-required dose that was given or taken, seen after the dose and not in the future; a correction names the outcome it corrects, with a reason. Resending the same id returns the same record. Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordPrnOutcome"];
+        };
+      };
+      responses: {
+        /** @description Already recorded with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PrnOutcome"];
+          };
+        };
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PrnOutcome"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/prn-outcomes/outstanding": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A person's when-required doses whose outcome is due and not recorded
+     * @description medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Due `medicines.prn.outcome_check_minutes` after the dose.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Outstanding outcomes, oldest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutstandingPrnOutcomes"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/medicines/prn-frequency": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The PRN frequency report for a home (information only)
+     * @description medicines.record.manage at the home. For each person and when-required medicine in the period (UK dates, inclusive, at most `medicines.prn_report.max_days`): doses given or taken, days with doses, the most in one day, doses with no protocol in use, outcomes and those outstanding; psychotropic by the entry's tag or the organisation's list. People are counted at their current home. A count for the prescriber and pharmacist, never a judgement. Audited with ids only.
+     */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+          psychotropicOnly?: "true" | "false";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The report */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PrnFrequencyReport"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -73431,29 +74233,6 @@ export interface components {
       /** Format: uuid */
       reviewTaskId: string | null;
     };
-    IntegrationConnection: {
-      port: string;
-      provider: string;
-      status: string;
-      settings: {
-        [key: string]: unknown;
-      };
-      hasSecret: boolean;
-      lastHealthAt: string | null;
-      lastError: string | null;
-    };
-    QuarantineItem: {
-      /** Format: uuid */
-      id: string;
-      port: string;
-      provider: string;
-      externalId: string | null;
-      receivedAt: string;
-      problems: {
-        path: string;
-        message: string;
-      }[];
-    };
     HrLinkStaleness: {
       linked: boolean;
       stale: boolean;
@@ -73575,12 +74354,34 @@ export interface components {
     HrLeavingWithdrawn: {
       /** @enum {boolean} */
       withdrawn: true;
-      accessRestored: boolean;
     };
     HrCopiesReleased: {
       released: number;
       /** @enum {string} */
       mode: "drift" | "disconnected";
+    };
+    IntegrationConnection: {
+      port: string;
+      provider: string;
+      status: string;
+      settings: {
+        [key: string]: unknown;
+      };
+      hasSecret: boolean;
+      lastHealthAt: string | null;
+      lastError: string | null;
+    };
+    QuarantineItem: {
+      /** Format: uuid */
+      id: string;
+      port: string;
+      provider: string;
+      externalId: string | null;
+      receivedAt: string;
+      problems: {
+        path: string;
+        message: string;
+      }[];
     };
     SupportAccessRequest: {
       /** Format: uuid */
@@ -76808,6 +77609,201 @@ export interface components {
       /** Format: uuid */
       id: string;
       reason: string;
+    };
+    MedicineList: {
+      list: components["schemas"]["MedicineListName"];
+      items: components["schemas"]["MedicineListItem"][];
+    };
+    /** @enum {string} */
+    MedicineListName: "time_critical" | "paracetamol" | "bisphosphonate" | "psychotropic";
+    MedicineListItem: {
+      /** Format: uuid */
+      id: string;
+      list: components["schemas"]["MedicineListName"];
+      vmpId: string;
+      productName: string;
+      reason: string | null;
+      /** Format: date-time */
+      removedAt: string | null;
+      removedReason: string | null;
+      version: number;
+    };
+    NewMedicineListItem: {
+      vmpId: string;
+      productName: string;
+      reason: string | null;
+    };
+    RemoveMedicineListItem: {
+      reason: string;
+      version: number;
+    };
+    PrnProtocolList: {
+      items: components["schemas"]["PrnProtocol"][];
+    };
+    PrnProtocol: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      medicationId: string;
+      /** Format: uuid */
+      medicineId: string;
+      medicineName: string;
+      purpose: string;
+      triggers: string[];
+      nonDrugAlternatives: string[];
+      purposeGroup: string | null;
+      orderOfUse: number | null;
+      expectedEffect: string;
+      agreedWithName: string;
+      /** @enum {string} */
+      agreedWithRole: "prescriber" | "pharmacist";
+      /** Format: date */
+      agreedOn: string;
+      /** Format: date */
+      reviewOn: string;
+      limits: {
+        dose: string | null;
+        maxPer24h: number | null;
+        minimumIntervalMinutes: number | null;
+        indication: string | null;
+      };
+      psychotropic: boolean;
+      /** Format: date */
+      withdrawnOn: string | null;
+      withdrawnReason: string | null;
+      changeReason: string | null;
+      /** @enum {string} */
+      status:
+        | "in_use"
+        | "review_overdue"
+        | "medicine_stopped"
+        | "not_when_required_now"
+        | "withdrawn";
+      statusWords: string;
+      version: number;
+    };
+    NewPrnProtocol: {
+      /** Format: uuid */
+      medicationId: string;
+      purpose: string;
+      triggers: string[];
+      nonDrugAlternatives: string[];
+      purposeGroup: string | null;
+      orderOfUse: number | null;
+      expectedEffect: string;
+      agreedWithName: string;
+      /** @enum {string} */
+      agreedWithRole: "prescriber" | "pharmacist";
+      /** Format: date */
+      agreedOn: string;
+      /** Format: date */
+      reviewOn: string;
+    };
+    ChangePrnProtocol: {
+      purpose: string;
+      triggers: string[];
+      nonDrugAlternatives: string[];
+      purposeGroup: string | null;
+      orderOfUse: number | null;
+      expectedEffect: string;
+      agreedWithName: string;
+      /** @enum {string} */
+      agreedWithRole: "prescriber" | "pharmacist";
+      /** Format: date */
+      agreedOn: string;
+      /** Format: date */
+      reviewOn: string;
+      reason: string;
+      version: number;
+    };
+    WithdrawPrnProtocol: {
+      reason: string;
+      version: number;
+    };
+    PrnOutcome: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      administrationId: string;
+      outcome: components["schemas"]["PrnOutcomeValue"];
+      outcomeWords: string;
+      note: string | null;
+      /** Format: date-time */
+      observedAt: string;
+      /** Format: uuid */
+      recordedBy: string;
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+    };
+    /** @enum {string} */
+    PrnOutcomeValue:
+      | "effective"
+      | "partly_effective"
+      | "not_effective"
+      | "person_asleep"
+      | "could_not_assess";
+    RecordPrnOutcome: {
+      /** Format: uuid */
+      id: string;
+      outcome: components["schemas"]["PrnOutcomeValue"];
+      note: string | null;
+      /** Format: date-time */
+      observedAt: string;
+      /** @default null */
+      correction: {
+        /** Format: uuid */
+        supersedesId: string;
+        reason: string;
+      } | null;
+    };
+    OutstandingPrnOutcomes: {
+      items: {
+        /** Format: uuid */
+        administrationId: string;
+        /** Format: uuid */
+        entryId: string;
+        medicineName: string;
+        /** Format: date-time */
+        givenAt: string;
+        /** Format: date-time */
+        dueAt: string;
+      }[];
+    };
+    PrnFrequencyReport: {
+      /** Format: date */
+      from: string;
+      /** Format: date */
+      to: string;
+      note: string;
+      items: {
+        /** Format: uuid */
+        personId: string;
+        name: string;
+        /** Format: uuid */
+        medicineId: string;
+        medicineName: string;
+        psychotropic: boolean;
+        doses: number;
+        daysWithDoses: number;
+        mostInOneDay: number;
+        withoutProtocol: number;
+        underOverdueProtocol: number;
+        outcomes: {
+          effective?: number;
+          partly_effective?: number;
+          not_effective?: number;
+          person_asleep?: number;
+          could_not_assess?: number;
+        };
+        outcomesOutstanding: number;
+      }[];
     };
     SubProcessorOverview: {
       noticeDays: number;

@@ -1,7 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MockThapsusHr } from "../src/integrations/thapsus-hr";
-import { ageSession, createHarness, type Harness, markSessionsVerified } from "./support/harness";
+import { ageSession, createHarness, type Harness } from "./support/harness";
 
 /**
  * Withdrawing a wrong leaving date from Thapsus-HR, and alerts raised once (INTG-014;
@@ -135,7 +135,7 @@ describe("hazard HZ-133 a wrong leaving date is withdrawn by a person, never whi
     entry.leavingDate = null;
     const r = await withdraw(STAYER);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ withdrawn: true, accessRestored: false });
+    expect(await r.json()).toEqual({ withdrawn: true });
     const [file] = await owner<{ left_on: string | null }>(
       "SELECT left_on FROM staff_profile WHERE id = $1",
       [STAYER],
@@ -156,69 +156,40 @@ describe("hazard HZ-133 a wrong leaving date is withdrawn by a person, never whi
     expect(again?.leaving_on).toBe(ukDay(9));
   });
 
-  it("gives back sign-in and roles after access ended, only through someone who manages members", async () => {
-    const [before] = await owner<{ status: string }>(
-      "SELECT status FROM tenant_user WHERE id = $1",
-      [LEAVER_MEMBER],
-    );
-    expect(before?.status).toBe("left");
+  // Batch 3c decision: 0129 makes leaving final, so access is given back only by reinstatement on
+  // app.change_membership (the member lifecycle rework). Until then the withdrawal is refused.
+  it("refuses a withdrawal once access has ended, saying what to do, and changes nothing", async () => {
     const entry = mock.employeesById.get("emp_leaver") as unknown as Record<string, unknown>;
     entry.leavingDate = null;
-    // Someone who manages staff files but not members.
-    await owner(
-      `WITH r AS (INSERT INTO role (key, name, scope_kind, permissions)
-         VALUES ('staff_files_only', 'Staff files only', 'tenant', '{workforce.staff_file.manage}')
-         RETURNING id)
-       INSERT INTO role_assignment (tenant_user_id, role_id) SELECT $1, id FROM r`,
-      [DEMO.users.nurse.id],
-    );
-    await h.db
-      .pool("harbour_auth")
-      .query(
-        "UPDATE auth.user SET two_factor_enabled = true, email_verified = true WHERE email = $1",
-        [DEMO.users.nurse.email],
-      );
-    await markSessionsVerified(h.db.pool("harbour_auth"));
-    const filesOnly = await withdraw(LEAVER, "nurse");
-    expect(filesOnly.status).toBe(403);
-    expect(await codeOf(filesOnly)).toBe("hr_link_needs_user_manager");
-    // The Registered Manager manages members at their home only: across the organisation, the owner.
-    const home = await withdraw(LEAVER);
-    expect(await codeOf(home)).toBe("hr_link_needs_user_manager");
     const r = await withdraw(LEAVER, "owner");
-    expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ withdrawn: true, accessRestored: true });
-    const [after] = await owner<{ status: string }>(
+    expect(r.status).toBe(409);
+    const body = (await r.json()) as { code: string; title: string; detail: string };
+    expect(body.code).toBe("hr_link_access_ended");
+    expect(body.title).toMatch(/access has already ended/);
+    expect(body.detail).toMatch(/reinstate them once reinstatement is available/);
+    expect(body.detail).toMatch(/invite them again/);
+    const [member] = await owner<{ status: string }>(
       "SELECT status FROM tenant_user WHERE id = $1",
       [LEAVER_MEMBER],
     );
-    expect(after?.status).toBe("active");
-    const roles = await owner(
-      "SELECT 1 FROM role_assignment WHERE tenant_user_id = $1 AND valid_to IS NULL AND deleted_at IS NULL",
-      [LEAVER_MEMBER],
-    );
-    expect(roles).toHaveLength(1);
-    const boxed = await owner<{ ends: boolean }>(
-      "SELECT valid_to > now() + interval '29 days' AS ends FROM role_assignment ra JOIN role r ON r.id = ra.role_id WHERE ra.tenant_user_id = $1 AND r.key = 'team_leader' AND ra.reason = 'Leaving withdrawn'",
-      [LEAVER_MEMBER],
-    );
-    expect(boxed).toEqual([{ ends: true }]);
-    const audit = await owner<{ reason: string }>(
-      "SELECT reason FROM audit_event WHERE action = 'integrations.hr_link.leaving_withdrawn' AND resource_id = $1",
+    expect(member?.status).toBe("left");
+    const leaving = await owner(
+      "SELECT 1 FROM leaver_record WHERE staff_profile_id = $1 AND deleted_at IS NULL",
       [LEAVER],
     );
-    expect(audit).toEqual([{ reason: "date_entered_in_error" }]);
+    expect(leaving).toHaveLength(1);
+    const audit = await owner(
+      "SELECT 1 FROM audit_event WHERE action = 'integrations.hr_link.leaving_withdrawn' AND resource_id = $1",
+      [LEAVER],
+    );
+    expect(audit).toHaveLength(0);
   });
 
-  it("ends access again when Thapsus-HR gives a reinstated member a real leaving, and says so once", async () => {
+  it("hazard HZ-133 keeps a member who has left without access while Thapsus-HR shows them active", async () => {
     const entry = mock.employeesById.get("emp_leaver") as unknown as Record<string, unknown>;
-    entry.leavingDate = ukDay(-1);
+    entry.leavingDate = null;
     await sync();
     await sync();
-    const tasks = await owner<{ priority: string }>(
-      "SELECT priority FROM task WHERE kind = 'integrations.hr_link.leaving_resent' AND status = 'open'",
-    );
-    expect(tasks).toEqual([{ priority: "urgent" }]);
     const [member] = await owner<{ status: string }>(
       "SELECT status FROM tenant_user WHERE id = $1",
       [LEAVER_MEMBER],

@@ -265,10 +265,13 @@ How slice 88 applies the rules:
 - **A wrong leaving date** is withdrawn by someone who manages the staff file, with a fresh step-up
   and a coded reason (`POST /v1/integrations/hr-link/leavers/{staffProfileId}/withdraw`), only for a
   leaving the link recorded and only when Thapsus-HR says positively that there is none: while it
-  still gives the date, or cannot find the employee, it is refused and raised for review. When
-  access had already ended, sign-in and the roles that leaving ended come back from then, each with
-  the end it had before, by someone who manages members across the organisation. If Thapsus-HR
-  later gives that member a leaving again, it is recorded and access ends after that day.
+  still gives the date, or cannot find the employee, it is refused and raised for review. Only
+  before access has ended: once it has, the member has left, which migration 0129 makes final, so
+  the withdrawal is refused (409 `hr_link_access_ended`), telling the user to ask someone who
+  manages members across the organisation to reinstate them once reinstatement exists, and until
+  then to invite them again. Giving access back moves to the member lifecycle rework on
+  `app.change_membership` (batch 3c decision). Until it lands, Thapsus-HR can show a person active
+  while Harbour shows them left (HZ-133).
 
 How slice 87 applies the rules:
 - **Matching (rule 3).** Staff who have left are not candidates. Harbour holds no employee number of

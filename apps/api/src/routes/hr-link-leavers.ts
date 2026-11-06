@@ -1,7 +1,7 @@
-import { hrPersonLink, leaverRecord, roleAssignment, staffProfile, tenantUser } from "@harbour/db";
+import { hrPersonLink, leaverRecord, staffProfile } from "@harbour/db";
 import { ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import { requirePermission, stepUpRefusal, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
@@ -23,9 +23,11 @@ import {
  * 8; HZ-133). A leaving date is applied fail-safe and never moved later by a sync, so a person
  * corrects a wrong one here: with `workforce.staff_file.manage` on that file, a fresh step-up and
  * a coded reason. Never while Thapsus-HR still gives the date: that is raised for review instead,
- * and the date is corrected in Thapsus-HR first. When access has already ended, sign-in and the
- * roles that leaving ended are given back from now, which needs `platform.user.manage` as any
- * reinstatement does (the database checks the giver may give each role).
+ * and the date is corrected in Thapsus-HR first. Only before access has ended: a member whose
+ * access has ended is left (migration 0129 makes that final), so the withdrawal is refused in
+ * words until reinstatement exists on app.change_membership (the member lifecycle rework; batch 3c
+ * decision). Until then Thapsus-HR may show the person active while Harbour shows them left
+ * (HZ-133).
  */
 
 export const WITHDRAW_REASONS = [
@@ -35,9 +37,7 @@ export const WITHDRAW_REASONS = [
   "other_recorded_in_staff_file",
 ] as const;
 
-const Withdrawn = z
-  .object({ withdrawn: z.literal(true), accessRestored: z.boolean() })
-  .meta({ id: "HrLeavingWithdrawn" });
+const Withdrawn = z.object({ withdrawn: z.literal(true) }).meta({ id: "HrLeavingWithdrawn" });
 
 export const hrLinkLeaversRouter = createRouter().openapi(
   createRoute({
@@ -46,7 +46,7 @@ export const hrLinkLeaversRouter = createRouter().openapi(
     tags: ["integrations"],
     summary: "Withdraw a wrong leaving date from the HR platform (step-up)",
     description:
-      "Refused while Thapsus-HR still gives the date (raised for review instead). When access has already ended, gives back sign-in and the roles that leaving ended, from now.",
+      "Refused while Thapsus-HR still gives the date (raised for review instead), and once the member's access has ended (409 hr_link_access_ended: reinstatement is the member lifecycle's).",
     security,
     request: {
       params: z.object({ staffProfileId: z.uuid() }),
@@ -89,6 +89,15 @@ export const hrLinkLeaversRouter = createRouter().openapi(
         .where(and(eq(leaverRecord.staffProfileId, staffProfileId), isNull(leaverRecord.deletedAt)))
         .for("update");
       if (!leaving) throw problems.notFound();
+      // A member whose access has ended has left, which only reinstatement undoes (0129).
+      if (leaving.accessRemovedAt !== null) {
+        throw new HttpProblem(
+          409,
+          "hr_link_access_ended",
+          "This member's access has already ended, so the leaving cannot be withdrawn here.",
+          "Ask someone who manages members across the organisation to reinstate them once reinstatement is available; until then, invite them again.",
+        );
+      }
       const [link] = await withSystemRights(tx, () =>
         tx
           .select({
@@ -141,61 +150,6 @@ export const hrLinkLeaversRouter = createRouter().openapi(
         );
         return { refused: true as const };
       }
-      const accessEnded = leaving.accessRemovedAt !== null;
-      type Restore = {
-        roleId: string;
-        locationId: string | null;
-        organisationWide: boolean;
-        validTo: Date | null;
-      };
-      const restore: Restore[] = [];
-      if (accessEnded && leaving.accessRemovedAt) {
-        // Giving access back is a user manager's, across the organisation (L1).
-        const userManager = await tx.execute<{ ok: boolean }>(
-          sql`SELECT app.holds_role_permission_at('platform.user.manage', NULL) AS ok`,
-        );
-        if (!userManager.rows[0]?.ok) {
-          throw new HttpProblem(
-            403,
-            "hr_link_needs_user_manager",
-            "This member's access has already ended. Someone who manages members across the organisation withdraws this leaving.",
-          );
-        }
-        const ended = await tx
-          .select({
-            id: roleAssignment.id,
-            roleId: roleAssignment.roleId,
-            locationId: roleAssignment.locationId,
-            organisationWide: roleAssignment.organisationWide,
-          })
-          .from(roleAssignment)
-          .where(
-            and(
-              eq(roleAssignment.tenantUserId, file.tenantUserId),
-              isNull(roleAssignment.deletedAt),
-              gte(roleAssignment.validTo, new Date(leaving.accessRemovedAt.getTime() - 60_000)),
-              lte(roleAssignment.validTo, new Date(leaving.accessRemovedAt.getTime() + 60_000)),
-            ),
-          );
-        for (const r of ended) {
-          // The end each role had before the leaving cut it short (its earlier version): a role
-          // that had ended by now stays ended; a time-boxed one keeps its end (HZ-124).
-          const before = await withSystemRights(tx, () =>
-            tx.execute<{ valid_to: string | null }>(
-              sql`SELECT data ->> 'valid_to' AS valid_to FROM record_version
-                   WHERE table_name = 'role_assignment' AND record_id = ${r.id}
-                   ORDER BY record_version DESC LIMIT 1`,
-            ),
-          );
-          const was = before.rows[0]?.valid_to ? new Date(before.rows[0].valid_to) : null;
-          if (was && was.getTime() <= Date.now()) continue;
-          const may = await tx.execute<{ ok: boolean }>(
-            sql`SELECT app.may_assign_role(${r.roleId}::uuid, ${r.locationId}::uuid) AS ok`,
-          );
-          if (!may.rows[0]?.ok) throw problems.forbidden();
-          restore.push({ ...r, validTo: was });
-        }
-      }
       // The leaving, its left-on date and the link's copy go, with the system's rights: these are
       // the sync's and the leaver sweep's fields, never a member's (migrations 0091 and 0141).
       await withSystemRights(tx, async () => {
@@ -214,38 +168,20 @@ export const hrLinkLeaversRouter = createRouter().openapi(
           .set({ leavingOn: null, updatedBy: null })
           .where(eq(hrPersonLink.id, link.id));
       });
-      if (accessEnded) {
-        // From now: sign-in, and the roles the leaving ended, given in the caller's own name.
-        await tx
-          .update(tenantUser)
-          .set({ status: "active" })
-          .where(and(eq(tenantUser.id, file.tenantUserId), eq(tenantUser.status, "left")));
-        for (const r of restore) {
-          await tx.insert(roleAssignment).values({
-            tenantUserId: file.tenantUserId,
-            roleId: r.roleId,
-            locationId: r.locationId,
-            organisationWide: r.organisationWide,
-            validTo: r.validTo,
-            reason: "Leaving withdrawn",
-          });
-        }
-      }
       await auditInTx(tx, access, {
         action: "integrations.hr_link.leaving_withdrawn",
         resourceType: "staff_profile",
         resourceId: staffProfileId,
         reason,
-        scope: { accessRestored: accessEnded },
       });
       await publish(tx, {
         context: "integrations",
         aggregateType: "staff_profile",
         aggregateId: staffProfileId,
         type: "integrations.hr_link.leaving_withdrawn",
-        payload: { reason, accessRestored: accessEnded },
+        payload: { reason },
       });
-      return { refused: false as const, accessRestored: accessEnded };
+      return { refused: false as const };
     });
     if (outcome.refused) {
       throw new HttpProblem(
@@ -254,6 +190,6 @@ export const hrLinkLeaversRouter = createRouter().openapi(
         "The HR platform still gives this leaving date. Correct it there first; it is shown for review.",
       );
     }
-    return c.json({ withdrawn: true as const, accessRestored: outcome.accessRestored }, 200);
+    return c.json({ withdrawn: true as const }, 200);
   },
 );

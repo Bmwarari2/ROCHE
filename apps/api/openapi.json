@@ -37746,98 +37746,6 @@
         ],
         "description": "The server's copy of an entry a device could not save"
       },
-      "IntegrationConnection": {
-        "type": "object",
-        "properties": {
-          "port": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "settings": {
-            "type": "object",
-            "additionalProperties": {}
-          },
-          "hasSecret": {
-            "type": "boolean"
-          },
-          "lastHealthAt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "lastError": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "port",
-          "provider",
-          "status",
-          "settings",
-          "hasSecret",
-          "lastHealthAt",
-          "lastError"
-        ]
-      },
-      "QuarantineItem": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "port": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "externalId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "receivedAt": {
-            "type": "string"
-          },
-          "problems": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "path": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "path",
-                "message"
-              ]
-            }
-          }
-        },
-        "required": [
-          "id",
-          "port",
-          "provider",
-          "externalId",
-          "receivedAt",
-          "problems"
-        ]
-      },
       "HrLinkStaleness": {
         "type": "object",
         "properties": {
@@ -38373,14 +38281,10 @@
             "enum": [
               true
             ]
-          },
-          "accessRestored": {
-            "type": "boolean"
           }
         },
         "required": [
-          "withdrawn",
-          "accessRestored"
+          "withdrawn"
         ]
       },
       "HrCopiesReleased": {
@@ -38400,6 +38304,98 @@
         "required": [
           "released",
           "mode"
+        ]
+      },
+      "IntegrationConnection": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "hasSecret": {
+            "type": "boolean"
+          },
+          "lastHealthAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "port",
+          "provider",
+          "status",
+          "settings",
+          "hasSecret",
+          "lastHealthAt",
+          "lastError"
+        ]
+      },
+      "QuarantineItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "port": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receivedAt": {
+            "type": "string"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "port",
+          "provider",
+          "externalId",
+          "receivedAt",
+          "problems"
         ]
       },
       "SupportAccessRequest": {
@@ -50726,6 +50722,806 @@
           "reason"
         ],
         "additionalProperties": false
+      },
+      "MedicineList": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "$ref": "#/components/schemas/MedicineListName"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicineListItem"
+            }
+          }
+        },
+        "required": [
+          "list",
+          "items"
+        ]
+      },
+      "MedicineListName": {
+        "type": "string",
+        "enum": [
+          "time_critical",
+          "paracetamol",
+          "bisphosphonate",
+          "psychotropic"
+        ]
+      },
+      "MedicineListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "list": {
+            "$ref": "#/components/schemas/MedicineListName"
+          },
+          "vmpId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "removedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "removedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "list",
+          "vmpId",
+          "productName",
+          "reason",
+          "removedAt",
+          "removedReason",
+          "version"
+        ]
+      },
+      "NewMedicineListItem": {
+        "type": "object",
+        "properties": {
+          "vmpId": {
+            "type": "string",
+            "pattern": "^[0-9]{6,18}$"
+          },
+          "productName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "vmpId",
+          "productName",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "RemoveMedicineListItem": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PrnProtocolList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrnProtocol"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PrnProtocol": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicineName": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "nonDrugAlternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "maxItems": 20
+          },
+          "purposeGroup": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "orderOfUse": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 20
+          },
+          "expectedEffect": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "agreedWithName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agreedWithRole": {
+            "type": "string",
+            "enum": [
+              "prescriber",
+              "pharmacist"
+            ]
+          },
+          "agreedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "dose": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "maxPer24h": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "minimumIntervalMinutes": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "indication": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "dose",
+              "maxPer24h",
+              "minimumIntervalMinutes",
+              "indication"
+            ]
+          },
+          "psychotropic": {
+            "type": "boolean"
+          },
+          "withdrawnOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "withdrawnReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_use",
+              "review_overdue",
+              "medicine_stopped",
+              "not_when_required_now",
+              "withdrawn"
+            ]
+          },
+          "statusWords": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "medicationId",
+          "medicineId",
+          "medicineName",
+          "purpose",
+          "triggers",
+          "nonDrugAlternatives",
+          "purposeGroup",
+          "orderOfUse",
+          "expectedEffect",
+          "agreedWithName",
+          "agreedWithRole",
+          "agreedOn",
+          "reviewOn",
+          "limits",
+          "psychotropic",
+          "withdrawnOn",
+          "withdrawnReason",
+          "changeReason",
+          "status",
+          "statusWords",
+          "version"
+        ]
+      },
+      "NewPrnProtocol": {
+        "type": "object",
+        "properties": {
+          "medicationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "nonDrugAlternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "maxItems": 20
+          },
+          "purposeGroup": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "orderOfUse": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 20
+          },
+          "expectedEffect": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "agreedWithName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agreedWithRole": {
+            "type": "string",
+            "enum": [
+              "prescriber",
+              "pharmacist"
+            ]
+          },
+          "agreedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "medicationId",
+          "purpose",
+          "triggers",
+          "nonDrugAlternatives",
+          "purposeGroup",
+          "orderOfUse",
+          "expectedEffect",
+          "agreedWithName",
+          "agreedWithRole",
+          "agreedOn",
+          "reviewOn"
+        ],
+        "additionalProperties": false
+      },
+      "ChangePrnProtocol": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "nonDrugAlternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "maxItems": 20
+          },
+          "purposeGroup": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "orderOfUse": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 20
+          },
+          "expectedEffect": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "agreedWithName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agreedWithRole": {
+            "type": "string",
+            "enum": [
+              "prescriber",
+              "pharmacist"
+            ]
+          },
+          "agreedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "purpose",
+          "triggers",
+          "nonDrugAlternatives",
+          "purposeGroup",
+          "orderOfUse",
+          "expectedEffect",
+          "agreedWithName",
+          "agreedWithRole",
+          "agreedOn",
+          "reviewOn",
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "WithdrawPrnProtocol": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PrnOutcome": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "administrationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/PrnOutcomeValue"
+          },
+          "outcomeWords": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "administrationId",
+          "outcome",
+          "outcomeWords",
+          "note",
+          "observedAt",
+          "recordedBy",
+          "recordedAt",
+          "supersedesId",
+          "correctionReason"
+        ]
+      },
+      "PrnOutcomeValue": {
+        "type": "string",
+        "enum": [
+          "effective",
+          "partly_effective",
+          "not_effective",
+          "person_asleep",
+          "could_not_assess"
+        ]
+      },
+      "RecordPrnOutcome": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/PrnOutcomeValue"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "correction": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "default": null,
+            "required": [
+              "supersedesId",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "outcome",
+          "note",
+          "observedAt"
+        ],
+        "additionalProperties": false
+      },
+      "OutstandingPrnOutcomes": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "administrationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "entryId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "medicineName": {
+                  "type": "string"
+                },
+                "givenAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "administrationId",
+                "entryId",
+                "medicineName",
+                "givenAt",
+                "dueAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PrnFrequencyReport": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "note": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "medicineId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "medicineName": {
+                  "type": "string"
+                },
+                "psychotropic": {
+                  "type": "boolean"
+                },
+                "doses": {
+                  "type": "integer"
+                },
+                "daysWithDoses": {
+                  "type": "integer"
+                },
+                "mostInOneDay": {
+                  "type": "integer"
+                },
+                "withoutProtocol": {
+                  "type": "integer"
+                },
+                "underOverdueProtocol": {
+                  "type": "integer"
+                },
+                "outcomes": {
+                  "type": "object",
+                  "properties": {
+                    "effective": {
+                      "type": "integer"
+                    },
+                    "partly_effective": {
+                      "type": "integer"
+                    },
+                    "not_effective": {
+                      "type": "integer"
+                    },
+                    "person_asleep": {
+                      "type": "integer"
+                    },
+                    "could_not_assess": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "outcomesOutstanding": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "personId",
+                "name",
+                "medicineId",
+                "medicineName",
+                "psychotropic",
+                "doses",
+                "daysWithDoses",
+                "mostInOneDay",
+                "withoutProtocol",
+                "underOverdueProtocol",
+                "outcomes",
+                "outcomesOutstanding"
+              ]
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "note",
+          "items"
+        ]
       },
       "SubProcessorOverview": {
         "type": "object",
@@ -103492,429 +104288,6 @@
         }
       }
     },
-    "/v1/integrations": {
-      "get": {
-        "tags": [
-          "integrations"
-        ],
-        "summary": "Configured integrations and their health; unconfigured ports use mocks",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Integrations",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/IntegrationConnection"
-                      }
-                    },
-                    "ports": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "required": [
-                    "items",
-                    "ports"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/integrations/{port}": {
-      "put": {
-        "tags": [
-          "integrations"
-        ],
-        "summary": "Choose the provider for a port (credentials are stored in the secret store, not here)",
-        "description": "integrations.connection.manage. A vetting port (ADR-0094) also needs a fresh step-up, and takes only a provider this build knows; the mock is refused in production. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "comms.email",
-                "comms.sms",
-                "comms.push",
-                "workforce.idsp",
-                "workforce.dbs_ebulk",
-                "workforce.dbs_update_service",
-                "workforce.nmc_register"
-              ]
-            },
-            "required": true,
-            "name": "port",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "provider": {
-                    "type": "string"
-                  },
-                  "settings": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "boolean"
-                        }
-                      ]
-                    },
-                    "default": {}
-                  },
-                  "secretRef": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$",
-                    "default": null
-                  }
-                },
-                "required": [
-                  "provider"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Saved"
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "integrations"
-        ],
-        "summary": "Switch a vetting port off",
-        "description": "integrations.connection.manage, with a fresh step-up. Vetting ports only (ADR-0094): checks then go back to manual entry; checks already made stay on the staff file. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "workforce.idsp",
-                "workforce.dbs_ebulk",
-                "workforce.dbs_update_service",
-                "workforce.nmc_register"
-              ]
-            },
-            "required": true,
-            "name": "port",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Off"
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/integrations/quarantine": {
-      "get": {
-        "tags": [
-          "integrations"
-        ],
-        "summary": "Inbound partner data that failed validation, waiting for a decision",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Queue",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/QuarantineItem"
-                      }
-                    }
-                  },
-                  "required": [
-                    "items"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/integrations/quarantine/{id}/resolve": {
-      "post": {
-        "tags": [
-          "integrations"
-        ],
-        "summary": "Discard a quarantined item, or mark it handled by hand",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "resolution": {
-                    "type": "string",
-                    "enum": [
-                      "discarded",
-                      "handled_manually"
-                    ]
-                  },
-                  "note": {
-                    "type": "string",
-                    "minLength": 5,
-                    "maxLength": 500
-                  }
-                },
-                "required": [
-                  "resolution",
-                  "note"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Resolved"
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/integrations/hr-link/staleness": {
       "get": {
         "tags": [
@@ -105121,7 +105494,7 @@
           "integrations"
         ],
         "summary": "Withdraw a wrong leaving date from the HR platform (step-up)",
-        "description": "Refused while Thapsus-HR still gives the date (raised for review instead). When access has already ended, gives back sign-in and the roles that leaving ended, from now.",
+        "description": "Refused while Thapsus-HR still gives the date (raised for review instead), and once the member's access has ended (409 hr_link_access_ended: reinstatement is the member lifecycle's).",
         "security": [
           {
             "bearerAuth": []
@@ -105401,6 +105774,429 @@
           },
           "503": {
             "description": "The employee could not be fetched; send the event again"
+          }
+        }
+      }
+    },
+    "/v1/integrations": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Configured integrations and their health; unconfigured ports use mocks",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Integrations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IntegrationConnection"
+                      }
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "ports"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/{port}": {
+      "put": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Choose the provider for a port (credentials are stored in the secret store, not here)",
+        "description": "integrations.connection.manage. A vetting port (ADR-0094) also needs a fresh step-up, and takes only a provider this build knows; the mock is refused in production. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "comms.email",
+                "comms.sms",
+                "comms.push",
+                "workforce.idsp",
+                "workforce.dbs_ebulk",
+                "workforce.dbs_update_service",
+                "workforce.nmc_register"
+              ]
+            },
+            "required": true,
+            "name": "port",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    },
+                    "default": {}
+                  },
+                  "secretRef": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$",
+                    "default": null
+                  }
+                },
+                "required": [
+                  "provider"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Saved"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Switch a vetting port off",
+        "description": "integrations.connection.manage, with a fresh step-up. Vetting ports only (ADR-0094): checks then go back to manual entry; checks already made stay on the staff file. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "workforce.idsp",
+                "workforce.dbs_ebulk",
+                "workforce.dbs_update_service",
+                "workforce.nmc_register"
+              ]
+            },
+            "required": true,
+            "name": "port",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Off"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/quarantine": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Inbound partner data that failed validation, waiting for a decision",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/QuarantineItem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/quarantine/{id}/resolve": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Discard a quarantined item, or mark it handled by hand",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "resolution": {
+                    "type": "string",
+                    "enum": [
+                      "discarded",
+                      "handled_manually"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "resolution",
+                  "note"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Resolved"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -120007,6 +120803,925 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-lists/{list}": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "One of the organisation's medicine lists (for example psychotropic)",
+        "description": "medicines.list.manage, medicines.record.manage or medicines.emar.administer. Exact dm+d products only (ADR-0082).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/MedicineListName"
+            },
+            "required": true,
+            "name": "list",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The list, removed products included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicineList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Add a dm+d product to one of the organisation's medicine lists",
+        "description": "medicines.list.manage. The exact dm+d product (VMP); never by ingredient or name. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/MedicineListName"
+            },
+            "required": true,
+            "name": "list",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMedicineListItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicineListItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-list-items/{id}/remove": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Remove a product from a medicine list, with a reason",
+        "description": "medicines.list.manage, with the version read. The removal is kept. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveMedicineListItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicineListItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/prn-protocols": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A person's PRN protocols, with the prescriber's limits from each entry",
+        "description": "medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protocols, withdrawn ones included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnProtocolList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record a PRN protocol for one of the person's when-required medicines",
+        "description": "medicines.record.manage in the person's scope. For a current when-required entry; the signs that mean it may be needed, what to try first, the order among the person's medicines for the same purpose, the agreement with the prescriber or pharmacist and a review within the rate table's days. One open protocol per medicine. The dose, most in 24 hours and interval stay the entry's. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewPrnProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/prn-protocols/{id}/change": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Change or review a PRN protocol, with a reason",
+        "description": "medicines.record.manage in the person's scope, with the version read; every version is kept. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePrnProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/prn-protocols/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Withdraw a PRN protocol, with a reason",
+        "description": "medicines.record.manage in the person's scope, with the version read. Doses after it count as given without a protocol. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawPrnProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-administrations/{id}/prn-outcome": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record the outcome of a when-required dose",
+        "description": "medicines.emar.administer or medicines.record.manage, in the person's scope. For a when-required dose that was given or taken, seen after the dose and not in the future; a correction names the outcome it corrects, with a reason. Resending the same id returns the same record. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPrnOutcome"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already recorded with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnOutcome"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnOutcome"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/prn-outcomes/outstanding": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A person's when-required doses whose outcome is due and not recorded",
+        "description": "medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Due `medicines.prn.outcome_check_minutes` after the dose.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outstanding outcomes, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutstandingPrnOutcomes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/medicines/prn-frequency": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "The PRN frequency report for a home (information only)",
+        "description": "medicines.record.manage at the home. For each person and when-required medicine in the period (UK dates, inclusive, at most `medicines.prn_report.max_days`): doses given or taken, days with doses, the most in one day, doses with no protocol in use, outcomes and those outstanding; psychotropic by the entry's tag or the organisation's list. People are counted at their current home. A count for the prescriber and pharmacist, never a judgement. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "psychotropicOnly",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnFrequencyReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {
