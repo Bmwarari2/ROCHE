@@ -1314,6 +1314,7 @@ export const TransferPack = z
             "medicines_need_checking",
             "photo_not_printable",
             "allergy_confirmation_not_recorded",
+            "medicines_emar_unreadable",
           ]),
           message: z.string(),
           acknowledge: z.boolean(),

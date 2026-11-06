@@ -287,17 +287,21 @@ export async function transferPackInput(
   // From the eMAR once the person has an entry on it (slice 49; HZ-023, H-82): the medicines in
   // force now, each with when it was last taken, and the time it was read.
   // A pack is needed in an emergency: if the eMAR cannot be read, it falls back to the
-  // pre-admission list, which the pack marks as needing checking against the MAR (HZ-023).
-  let facts: Awaited<ReturnType<typeof emarFacts>> = null;
+  // pre-admission list, and the first page says the eMAR could not be read (slice 49 reviews B2
+  // and M2), so the earlier list is never mistaken for the current one (HZ-023).
+  let fromEmar: MedicinesStatement | null = null;
+  let emarUnreadable = false;
   try {
-    facts = await tx.transaction((sp) =>
-      emarFacts(sp as unknown as Transaction, p.tenantId, p.id, now),
-    );
+    fromEmar = await tx.transaction(async (sp) => {
+      const facts = await emarFacts(sp as unknown as Transaction, p.tenantId, p.id, now);
+      return facts ? transferMedicinesFrom(facts, now) : null;
+    });
   } catch {
-    facts = null;
+    fromEmar = null;
+    emarUnreadable = true;
   }
-  const medicines: HospitalTransferInput["medicines"] = facts
-    ? { personId: p.id, asOf: now, data: transferMedicinesFrom(facts, now) }
+  const medicines: HospitalTransferInput["medicines"] = fromEmar
+    ? { personId: p.id, asOf: now, data: fromEmar }
     : {
         personId: assessment?.personId ?? p.id,
         asOf: medicinesSection?.completedAt ? new Date(medicinesSection.completedAt) : null,
@@ -445,6 +449,7 @@ export async function transferPackInput(
     photo,
     allergies: { personId: p.id, asOf: allergiesAsOf, data: allergyStatement },
     medicines,
+    medicinesEmarUnreadable: emarUnreadable,
     communication: {
       personId: p.id,
       asOf: p.communicationNeedsConfirmedAt,

@@ -16,6 +16,8 @@ import { pdfPages } from "./support/pdf-text";
 
 let h: Harness;
 const ADA = "0194d000-0000-7000-8600-000000000001";
+const CARL = "0194d000-0000-7000-8600-000000000003";
+const DEV = "0194d000-0000-7000-8600-000000000004";
 const PARACETAMOL = { vmpId: "90000011000001104", ampId: null, name: "Paracetamol 500mg tablets" };
 const LACTULOSE = { vmpId: "90000051000001100", ampId: null, name: "Lactulose" };
 const ORAL = { code: "26643006", name: "Oral" };
@@ -38,8 +40,24 @@ function ukTime(at: Date): string {
   }).format(at);
 }
 
-async function transcribe(body: Record<string, unknown>) {
-  const r = await send("manager", `/v1/people/${ADA}/medicines`, {
+async function asDemo<T>(fn: (c: import("pg").PoolClient) => Promise<T>): Promise<T> {
+  const client = await h.db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } finally {
+    client.release();
+  }
+}
+
+async function transcribe(body: Record<string, unknown>, personId = ADA) {
+  const r = await send("manager", `/v1/people/${personId}/medicines`, {
     method: "POST",
     body: {
       product: PARACETAMOL,
@@ -62,15 +80,18 @@ interface DueContent {
     dueAt: string;
     status: string;
     outstanding?: boolean;
+    onHold?: boolean;
+    notice?: string | null;
   }[];
   prn?: { name: string; reason: string | null; lastGivenAt: string | null }[];
 }
 interface Pack {
   id: string;
+  warnings: { personId: string; kind: string }[];
   freshness: { state: string };
   pages: {
     personId: string;
-    sections: { key: string; status: string }[];
+    sections: { key: string; status: string; note: string | null }[];
     content: { medicinesDue: DueContent | null };
   }[];
 }
@@ -90,7 +111,9 @@ const earlier = new Date(
 beforeAll(async () => {
   h = await createHarness();
   (h.handle.services as { medicines: { competence: unknown } }).medicines.competence = competence;
-  competence.held.set(`${DEMO.tenantId}:${DEMO.users.manager.id}`, "current");
+  for (const u of ["owner", "manager"] as const) {
+    competence.held.set(`${DEMO.tenantId}:${DEMO.users[u].id}`, "current");
+  }
   regular = (
     await transcribe({
       earlierDosesDueReason: "Due this morning; the paper MAR shows it was not given",
@@ -162,7 +185,7 @@ describe("hazard HZ-021 the downtime pack lists doses due from the eMAR", () => 
       .flat()
       .join(" ");
     expect(text).toContain("This is not the live record");
-    expect(text).toContain("Outstanding, was due ");
+    expect(text).toContain("Not given when the list was made: Paracetamol");
   });
 
   it("hazard HZ-021 goes stale, and is built again, once a dose on it is recorded", async () => {
@@ -186,6 +209,96 @@ describe("hazard HZ-021 the downtime pack lists doses due from the eMAR", () => 
     expect(after.id).not.toBe(before.id);
     const ada = after.pages.find((p) => p.personId === ADA)?.content.medicinesDue;
     expect(ada?.due?.some((d) => d.outstanding)).toBe(false);
+  });
+});
+
+describe("hazard HZ-021 entries that may not be given, and an eMAR that cannot be read", () => {
+  it("hazard HZ-021 prints a held entry's doses as on hold, never as due", async () => {
+    const held = (
+      await transcribe(
+        {
+          directions: {
+            kind: "regular",
+            schedule: {
+              pattern: { kind: "every_day" },
+              times: [{ time: "12:00", dose: { kind: "amount", quantity: 1, unit: TABLET } }],
+            },
+          },
+        },
+        DEV,
+      )
+    ).id;
+    const checked = await send("owner", `/v1/medicines/${held}/check`, {
+      method: "POST",
+      body: {
+        outcome: "differs_from_source",
+        difference: "The strength differs from the prescription",
+        comparedWithSource: true,
+      },
+    });
+    expect(checked.status, await checked.clone().text()).toBe(200);
+    const page = (await pack()).pages.find((p) => p.personId === DEV);
+    const doses = page?.content.medicinesDue?.due ?? [];
+    expect(doses.length).toBeGreaterThan(0);
+    expect(doses.every((d) => d.onHold === true)).toBe(true);
+    expect(doses[0]?.notice).toMatch(/^Do not give: the check found a difference/);
+    const r = await send("manager", `${packUrl}?format=pdf`);
+    const text = pdfPages(new Uint8Array(await r.arrayBuffer()))
+      .flat()
+      .join(" ");
+    expect(text).toContain("On hold on the eMAR, not to be given: Paracetamol");
+    const transfer = await json<TransferPack>(
+      await send("manager", `/v1/people/${DEV}/transfer-pack`),
+    );
+    expect(transfer.content.medicines.items?.[0]?.status).toBe(
+      "On hold on the home's eMAR: check found a difference.",
+    );
+  });
+
+  it("hazard HZ-021 says the eMAR could not be read, never pointing at the paper MAR alone", async () => {
+    // A regular medicine with no times on its schedule cannot be expanded into doses (slice 48).
+    const broken = randomUUID();
+    await asDemo((c) =>
+      c.query(
+        `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+           route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+           source_reference, transcribed_by, transcribed_at)
+         VALUES ($1, $2, $1, 1, 'transcribed', $3, 'Lactulose', '26643006', 'Oral', 'regular',
+           'every_day', 'Dr A Example', now() - interval '2 days', 'prescription', 'Prescription',
+           $4, now() - interval '2 days')`,
+        [broken, CARL, LACTULOSE.vmpId, DEMO.users.manager.id],
+      ),
+    );
+    const body = await pack();
+    const carl = body.pages.find((p) => p.personId === CARL);
+    const section = carl?.sections.find((s) => s.key === "medicines_due");
+    expect(section?.status).toBe("unreadable");
+    expect(section?.note).toMatch(/^Medicines could not be read from the eMAR/);
+    expect(body.warnings).toContainEqual(
+      expect.objectContaining({ personId: CARL, kind: "medicines_unreadable" }),
+    );
+    // Everyone else's medicines are still there, and the pack is built again on the next read.
+    expect(
+      body.pages.find((p) => p.personId === ADA)?.sections.find((s) => s.key === "medicines_due")
+        ?.status,
+    ).toBe("included");
+    expect((await pack()).id).not.toBe(body.id);
+    const audited = await asDemo((c) =>
+      c.query<{ scope: { medicinesUnreadable?: string[] } }>(
+        `SELECT scope FROM audit_event WHERE action = 'operations.downtime_pack.generated'
+         AND resource_id = $1`,
+        [body.id],
+      ),
+    );
+    expect(audited.rows[0]?.scope.medicinesUnreadable).toEqual([CARL]);
+  });
+
+  it("hazard HZ-023 says on the first page when the eMAR could not be read", async () => {
+    const r = await send("manager", `/v1/people/${CARL}/transfer-pack`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    const body = await json<TransferPack>(r);
+    expect(body.attention?.map((a) => a.code)).toContain("medicines_emar_unreadable");
+    expect(body.content.medicines.source).not.toBe("emar");
   });
 });
 
@@ -225,7 +338,7 @@ describe("hazard HZ-023 the transfer pack lists medicines from the eMAR", () => 
     expect(paracetamol?.frequency).toMatch(/every day at/);
     // Given late in the downtime test above; the entry is not yet checked, which travels with it.
     expect(paracetamol?.lastGivenAt).toBeTruthy();
-    expect(paracetamol?.status).toMatch(/^Not yet checked against the source document/);
+    expect(paracetamol?.status).toBe("Recorded on the home's eMAR as not yet checked.");
   });
 
   it("hazard HZ-023 keeps the Phase 1 source for someone with no eMAR entries", async () => {

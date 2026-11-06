@@ -85,20 +85,40 @@ function evacuationLines(e: Json<EvacuationPlanStatement> | null): string[] {
 }
 
 function medicinesLines(m: Json<DowntimeMedicinesContent> | null): string[] {
-  if (!m || m.status === "held_elsewhere") return [];
-  // From the eMAR (slice 49): when it was read, and that it is not the live record (HZ-021).
+  // Held elsewhere or unreadable: the section's note says where to look.
+  if (!m || m.status !== "recorded") return [];
+  // From the eMAR (slice 49): when it was read, and that it is not the live record (HZ-021). Each
+  // line is the record as read, never an instruction (clinical review M1).
   const producedAt = (m as { producedAt?: string }).producedAt;
-  return [
+  const doses = m.due as (Json<DowntimeMedicinesContent & { status: "recorded" }>["due"][number] & {
+    outstanding?: boolean;
+    onHold?: boolean;
+    notice?: string | null;
+  })[];
+  const lines = [
     ...(producedAt ? [emarSnapshotNotice(new Date(producedAt))] : []),
-    ...m.due.map(
-      (d) =>
-        `${(d as { outstanding?: boolean }).outstanding ? "Outstanding, was due " : ""}${ukDateTime(d.dueAt)}: ${d.name} ${d.dose} ${d.route}${d.timeCritical ? " (time-critical)" : ""}`,
-    ),
+    ...doses.flatMap((d) => {
+      const what = `${d.name} ${d.dose} ${d.route}${d.timeCritical ? " (time-critical)" : ""}`;
+      const when = ukDateTime(d.dueAt);
+      const line = d.onHold
+        ? `On hold on the eMAR, not to be given: ${what}, was due ${when}.`
+        : d.outstanding
+          ? `Not given when the list was made: ${what}, was due ${when}.`
+          : `Due ${when}: ${what}.`;
+      return d.notice ? [line, d.notice] : [line];
+    }),
     ...m.prn.map(
       (p) =>
-        `When required: ${p.name} ${p.dose} ${p.route}; last given ${p.lastGivenAt ? ukDateTime(p.lastGivenAt) : "not recorded"}`,
+        `When required: ${p.name} ${p.dose} ${p.route}. Last given ${p.lastGivenAt ? ukDateTime(p.lastGivenAt) : "not recorded on the eMAR"}.`,
     ),
   ];
+  // An empty list never reads as no medicines (clinical review M4).
+  if (m.due.length === 0 && m.prn.length === 0) {
+    lines.push(
+      "No dose is due on the eMAR while this pack is in use, and no when-required medicine is on it.",
+    );
+  }
+  return lines;
 }
 
 const contactLine = (c: Json<DowntimeContact>) =>

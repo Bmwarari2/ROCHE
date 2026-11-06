@@ -603,7 +603,7 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
     expect(alertSummaryCode(undefined)).toBe("other");
   });
 
-  it("hazard HZ-003 hands over a dose with no outcome, and a medicine out of stock, in their own words (slice 49)", () => {
+  it("hazard HZ-003 hands over a dose with no outcome, and a person whose doses could not be worked out, in their own words (slice 49)", () => {
     const items = compileHandover(
       shift,
       {
@@ -615,9 +615,9 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
             priority: "urgent",
             dueAt: t("2026-10-11T09:30:00Z"),
           }),
-          task("stock", {
-            kind: "medicines.stock.out_of_stock",
-            title: "Medicine not available: check the stock and order",
+          task("check", {
+            kind: "medicines.dose.check_failed",
+            title: "Doses could not be worked out for this person: check their MAR",
             priority: "urgent",
             dueAt: t("2026-10-11T11:00:00Z"),
           }),
@@ -627,7 +627,7 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
     );
     expect(items.map((i) => [i.kind, i.sourceId])).toEqual([
       ["overdue_task", "dose"],
-      ["overdue_task", "stock"],
+      ["overdue_task", "check"],
     ]);
     expect(JSON.stringify(items[0])).toContain("A time-critical dose has no outcome");
   });

@@ -24,6 +24,7 @@ import {
   type DowntimeRisk,
   LIVE_PERSON_STATUSES,
   type MedicinesDueStatement,
+  type MedicinesRates,
   OPERATIONS_RATE_KEYS,
   type OperationsRates,
   type PcspDomain,
@@ -37,7 +38,8 @@ import {
 } from "@harbour/domain";
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { publish } from "../outbox";
-import { downtimeMedicinesFrom, emarFacts } from "./medicines-outputs";
+import { medicinesRates } from "./medicine-administrations";
+import { downtimeMedicinesFrom, emarFacts, hasEmarEntries } from "./medicines-outputs";
 import { rateNumber, rateRows } from "./rates";
 import { allergyStatementOf, communicationStatementOf, currentAllergiesOf } from "./transfer-pack";
 
@@ -112,21 +114,32 @@ const latest = (dates: readonly (Date | null)[]): Date | null =>
  */
 async function packMedicines(
   tx: Transaction,
+  place: PackLocation,
   tenantId: string,
   ids: readonly string[],
   asAt: Date,
-): Promise<Map<string, MedicinesDueStatement>> {
-  const out = new Map<string, MedicinesDueStatement>();
-  const until = new Date(asAt.getTime() + 48 * 3_600_000);
+  validHours: number,
+): Promise<Map<string, MedicinesDueStatement | "unreadable">> {
+  const out = new Map<string, MedicinesDueStatement | "unreadable">();
+  // The pack's own validity (the rate `downtime_pack.valid_hours`), never a literal (review M5).
+  const until = new Date(asAt.getTime() + validHours * 3_600_000);
+  // The medicines rates once for the pack, for the location's nation (security review M3).
+  let rates: MedicinesRates | null = null;
   for (const id of ids) {
     try {
       const statement = await tx.transaction(async (sp) => {
-        const facts = await emarFacts(sp as unknown as Transaction, tenantId, id, asAt);
+        const t = sp as unknown as Transaction;
+        if (!(await hasEmarEntries(t, id))) return null;
+        rates ??= await medicinesRates(t, tenantId, place.nation as Nation, ukIsoDate(asAt));
+        const facts = await emarFacts(t, tenantId, id, asAt, rates);
         return facts ? downtimeMedicinesFrom(facts, asAt, until, asAt) : null;
       });
       if (statement) out.set(id, statement);
     } catch {
-      // Falls back to the paper MAR's place for this person.
+      // Never a silent fallback to the paper MAR for someone on the eMAR (reviews B2 and M1): the
+      // page says the eMAR could not be read, the pack carries a warning, and the caller logs and
+      // audits the person ids (`medicinesUnreadable`).
+      out.set(id, "unreadable");
     }
   }
   return out;
@@ -138,10 +151,11 @@ async function packPeople(
   people: Awaited<ReturnType<typeof livePeopleAt>>,
   tenantId: string,
   asAt: Date,
+  validHours: number,
 ): Promise<DowntimePersonInput[]> {
   const ids = people.map((p) => p.id);
   if (ids.length === 0) return [];
-  const medicines = await packMedicines(tx, tenantId, ids, asAt);
+  const medicines = await packMedicines(tx, place, tenantId, ids, asAt, validHours);
   const [allergies, records, profiles, contacts, plans, risks] = await Promise.all([
     // Every allergy row of these people; allergyStatementOf keeps each person's current ones.
     tx
@@ -279,7 +293,7 @@ async function packPeople(
       medicinesDue: {
         personId: p.id,
         asOf: medicines.has(p.id) ? asAt : null,
-        data: medicines.get(p.id) ?? { status: "held_elsewhere", where: marWhere },
+        data: medicineStatement(medicines.get(p.id), marWhere),
       },
       contacts: of(contacts, p.id).map((c) => ({
         personId: c.personId,
@@ -356,11 +370,31 @@ export async function sourcesChangedSince(
           ${newest("medication")},
           (SELECT max(a.recorded_at) FROM medication_administration a
             WHERE a.person_id = ANY (${ids})),
+          (SELECT max(d.updated_at) FROM medication_dosing_record d
+            WHERE d.person_id = ANY (${ids})),
           (SELECT max(greatest(d.updated_at, d.deleted_at)) FROM document d
             WHERE d.id IN (SELECT p.photo_document_id FROM person p WHERE p.id = ANY (${ids})))
         ) > ${since.toISOString()}::timestamptz AS changed`,
   );
   return rows[0]?.changed === true;
+}
+
+/** The people whose eMAR could not be read when the pack was built (ids only, for logs and audit). */
+export function medicinesUnreadable(row: Pick<StoredPackRow, "content">): string[] {
+  const pages =
+    (row.content as { pages?: { personId?: string; content?: { medicinesDue?: unknown } }[] })
+      .pages ?? [];
+  return pages
+    .filter((p) => (p.content?.medicinesDue as { status?: string } | null)?.status === "unreadable")
+    .map((p) => p.personId as string);
+}
+
+function medicineStatement(
+  read: MedicinesDueStatement | "unreadable" | undefined,
+  where: string,
+): MedicinesDueStatement {
+  if (read === "unreadable") return { status: "unreadable", where };
+  return read ?? { status: "held_elsewhere", where };
 }
 
 /** Counts of the pack's warnings by kind: the `warnings` column holds counts only. */
@@ -407,7 +441,14 @@ export async function buildDowntimePack(
       locationName: place.name,
       generatedAt: asAt,
       asAt,
-      people: await packPeople(tx, place, people, input.tenantId, asAt),
+      people: await packPeople(
+        tx,
+        place,
+        people,
+        input.tenantId,
+        asAt,
+        rates.downtimePackValidHours,
+      ),
     },
     rates,
   );
@@ -468,6 +509,8 @@ export async function packServes(
   if (!row || row.validUntil.getTime() <= now.getTime()) return false;
   const ids = people.map((p) => p.id);
   if (await sourcesChangedSince(tx, row.locationId, ids, row.asAt)) return false;
+  // A pack whose eMAR read failed for someone is built again on the next read (security M1).
+  if (medicinesUnreadable(row).length > 0) return false;
   const pages = (row.content as { pages?: { personId?: string; status?: string }[] }).pages ?? [];
   const statuses = new Map(pages.map((p) => [p.personId, p.status]));
   return statuses.size === people.length && people.every((p) => statuses.get(p.id) === p.status);
@@ -501,7 +544,12 @@ export async function auditAsSystem(
     action: "operations.downtime_pack.generated",
     resourceType: "downtime_pack",
     resourceId: row.id,
-    scope: { locationId: row.locationId, source: row.source, reason },
+    scope: {
+      locationId: row.locationId,
+      source: row.source,
+      reason,
+      medicinesUnreadable: medicinesUnreadable(row),
+    },
   });
 }
 
@@ -661,6 +709,12 @@ export async function buildNightlyPacks(
           now,
         });
         await auditAsSystem(sp, tenantId, row, "nightly");
+        if (medicinesUnreadable(row).length > 0) {
+          // Raises the operator's job alarm by location id; the page says so (review B2).
+          const unreadable = new Error("a person's eMAR could not be read");
+          unreadable.name = "MedicinesUnreadable";
+          onFailure(place.id, unreadable);
+        }
         return 1;
       });
     } catch (error) {

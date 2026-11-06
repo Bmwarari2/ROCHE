@@ -120,6 +120,13 @@ export interface ScheduledDose {
    * first, whatever the window, so a dose already late is never left off the pack.
    */
   readonly outstanding?: boolean;
+  /**
+   * The entry may not be given now on the eMAR (a check that found a difference, or held until
+   * checked): printed as on hold, never as an ordinary dose due (slice 49 clinical review B1).
+   */
+  readonly onHold?: boolean;
+  /** The entry's notice on the eMAR, in whole sentences (not yet checked, a variable dose, ...). */
+  readonly notice?: string | null;
 }
 
 /** A when-required medicine, listed with when it was last given so nobody repeats it too soon. */
@@ -134,6 +141,8 @@ export interface PrnMedicine {
 /** Medicines from the eMAR, or where staff find them until then. */
 export type MedicinesDueStatement =
   | { readonly status: "held_elsewhere"; readonly where: string }
+  /** The person has entries on the eMAR but it could not be read when the pack was built. */
+  | { readonly status: "unreadable"; readonly where: string }
   | {
       readonly status: "recorded";
       readonly scheduled: readonly ScheduledDose[];
@@ -301,7 +310,8 @@ export type DowntimeWarningKind =
   | "unreadable_value"
   | "resuscitation_review_overdue"
   | "section_withheld"
-  | "date_of_birth_not_recorded";
+  | "date_of_birth_not_recorded"
+  | "medicines_unreadable";
 
 export interface DowntimeWarning {
   readonly personId: string;
@@ -337,6 +347,7 @@ export interface DowntimeCarePlanLine {
 
 export type DowntimeMedicinesContent =
   | { readonly status: "held_elsewhere"; readonly where: string }
+  | { readonly status: "unreadable"; readonly where: string }
   | {
       readonly status: "recorded";
       /** Doses still due while the pack is in use, in time order, time-critical first. */
@@ -522,12 +533,16 @@ function resuscitationInForce(
   return inForce.sort((a, b) => b.completedOn.localeCompare(a.completedOn));
 }
 
+/** Printed when a person's eMAR could not be read as the pack was built (slice 49; HZ-021). */
+export const MEDICINES_UNREADABLE_NOTE =
+  "Medicines could not be read from the eMAR when this pack was made.";
+
 function medicinesInWindow(
   statement: MedicinesDueStatement,
   from: Date,
   until: Date,
 ): DowntimeMedicinesContent {
-  if (statement.status === "held_elsewhere") return statement;
+  if (statement.status !== "recorded") return statement;
   const due = statement.scheduled
     .filter(
       (d) =>
@@ -690,7 +705,12 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
       person.medicinesDue.asOf,
       `Not kept in Harbour yet. Use ${medicinesDue.where}.`,
     );
-  else set("medicines_due", "included", person.medicinesDue.asOf);
+  else if (medicinesDue.status === "unreadable") {
+    // Never a silent fallback to the paper MAR for someone whose medicines are on the eMAR.
+    const note = `${MEDICINES_UNREADABLE_NOTE} Use the eMAR, or ${medicinesDue.where} if it is in use.`;
+    set("medicines_due", "unreadable", person.medicinesDue.asOf, note);
+    warn("medicines_unreadable", "medicines_due", note);
+  } else set("medicines_due", "included", person.medicinesDue.asOf);
 
   // A contact of someone else is left out and flagged; the person's own contacts still print.
   const contacts = person.contacts.filter((c) => c.personId === person.personId);
@@ -805,6 +825,7 @@ const WARNING_ORDER: Record<DowntimeWarningKind, number> = {
   section_withheld: 2,
   date_of_birth_not_recorded: 3,
   resuscitation_review_overdue: 4,
+  medicines_unreadable: 0,
 };
 
 /**

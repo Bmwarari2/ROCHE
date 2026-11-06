@@ -46037,7 +46037,8 @@ export interface components {
           | "resuscitation_review_overdue"
           | "medicines_need_checking"
           | "photo_not_printable"
-          | "allergy_confirmation_not_recorded";
+          | "allergy_confirmation_not_recorded"
+          | "medicines_emar_unreadable";
         message: string;
         acknowledge: boolean;
         /** Format: date */

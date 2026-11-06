@@ -30,6 +30,7 @@ import {
   freshnessContext,
   latestVisiblePack,
   livePeopleAt,
+  medicinesUnreadable,
   operationsRates,
   packLocation,
   packServes,
@@ -148,11 +149,24 @@ export async function readPack(
           }),
         );
         built = true;
+        const unreadable = medicinesUnreadable(row);
+        if (unreadable.length > 0) {
+          // Ids only: whose eMAR could not be read; the page says so (slice 49 reviews B2 and M1).
+          c.get("services").logger.warn(
+            { requestId: c.get("requestId"), locationId, personIds: unreadable },
+            "downtime pack medicines unreadable",
+          );
+        }
         await audit(c, tx, access, {
           action: "operations.downtime_pack.generated",
           resourceType: "downtime_pack",
           resourceId: row.id,
-          scope: { locationId, source: row.source, reason: options.reason },
+          scope: {
+            locationId,
+            source: row.source,
+            reason: options.reason,
+            medicinesUnreadable: unreadable,
+          },
         });
       } catch (error) {
         // Never a bare failure: the latest pack, saying it could not be rebuilt (ids only logged).

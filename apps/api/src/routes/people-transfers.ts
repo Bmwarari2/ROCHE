@@ -313,11 +313,21 @@ async function previewPack(
       body.sendItemIds,
       new Date(),
     );
+    // Ids only: the eMAR could not be read, so the medicines are the earlier list (slice 49 B2).
+    const medicinesEmarUnreadable = assembled.attention.some(
+      (a) => a.code === "medicines_emar_unreadable",
+    );
+    if (medicinesEmarUnreadable) {
+      c.get("services").logger.warn(
+        { requestId: c.get("requestId"), personId: id },
+        "transfer pack medicines unreadable",
+      );
+    }
     await audit(c, tx, access, {
       action: "people.transfer_pack.preview",
       resourceType: "person",
       resourceId: id,
-      scope: { missingCritical: assembled.missingCritical.length },
+      scope: { missingCritical: assembled.missingCritical.length, medicinesEmarUnreadable },
     });
     return toJson(assembled) as HospitalTransferOut["pack"];
   });
