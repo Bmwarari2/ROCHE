@@ -908,6 +908,7 @@ category so a receiving system can read it.
 | `dependency_assessment.effective_from` | ISO 8601 date | `YYYY-MM-DD`, UK date, today or earlier | In force from 00:00 UK time on that date. |
 | `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
 | `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
+
 ## Lone-worker safety (Phase 2, slice 46)
 Code lists for [scheduling.md](scheduling.md) section 19. No national standard defines lone-worker
 check-ins (BS 8484 covers lone-worker devices and alarm receiving centres, a later choice; H-539),
@@ -1505,6 +1506,16 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   kept the zone is sent with the zone its drawn side names on that view. The API works the side out
   again from the place and the view and stores all four (HZ-019); the streams do not send them
   back, so they are empty on synced rows.
+- `shift` and `clock_event` (scheduling.md section 18) hold the member's own published shifts and
+  clock events for the token's `shift_days`, with the database column names; `clock_event.recorded_at`
+  is empty until the event has reached the server. `lone_worker_outbox` holds a lone-working action
+  until it is sent (`action` `start`, `event` or `emergency` (help with no session, H-1317), `session_id`, `body` as the API's contract JSON,
+  `queued_at`); it is insert-only, so the row lives only in the upload queue (or `held_entry` if
+  the session ended first) and never syncs down. A refused or parked clock event or lone-working
+  action goes to `upload_issue` with no person, a duress press kept as a check-in. `sync_meta` keeps
+  the API's last answer about the member's own lone-working session under
+  `lone-worker-mine:<tenant id>` (JSON: the answer, duress already shown as a check-in, and when it
+  came).
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
   someone removes it with a recorded reason (the content never ages out). The device also sends
   the content to the server, which keeps a copy (`refused_entry`; contract `SyncRefusedEntry`,

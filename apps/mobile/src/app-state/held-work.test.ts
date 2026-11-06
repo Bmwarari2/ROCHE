@@ -982,6 +982,63 @@ describe("opening the database: the owner check before the device connects (S3, 
       ]);
     });
 
+    const SESSION = "0199d000-0000-7000-8000-000000000601";
+    const duress: CrudEntryLike = {
+      op: "PUT",
+      table: "lone_worker_outbox",
+      id: "0199d000-0000-7000-8000-000000000602",
+      opData: {
+        tenant_id: DEMO_TENANT_ID,
+        action: "event",
+        session_id: SESSION,
+        body: JSON.stringify({
+          id: "0199d000-0000-7000-8000-000000000602",
+          kind: "duress",
+          deviceAt: "2026-10-11T02:05:00.000Z",
+        }),
+        queued_at: "2026-10-11T02:05:00.000Z",
+      },
+    };
+    const clockIn: CrudEntryLike = {
+      op: "PUT",
+      table: "clock_event",
+      id: "0199d000-0000-7000-8000-000000000501",
+      opData: {
+        tenant_id: DEMO_TENANT_ID,
+        worker_id: sam.tenantUserId,
+        kind: "in",
+        shift_id: null,
+        location_id: "0199d000-0000-7000-8000-000000000401",
+        device_time: "2026-10-11T06:58:00.000Z",
+      },
+    };
+
+    it("hazard HZ-125 puts a held duress press and clock-in back into the queue after sign-in, still to be sent (security review of slice 71)", async () => {
+      const dev = await device();
+      dev.queue.push(duress, clockIn);
+      await holdUnsentWork(dev.holdDb, NOW);
+      expect(await restoreHeldWork(dev.holdDb, NOW)).toEqual({
+        restored: 2,
+        parked: 0,
+        remaining: 0,
+      });
+      const back = all<{ body: string }>(dev.sql, "SELECT body FROM lone_worker_outbox", []);
+      // Sent as what it is, so the API raises the alarm.
+      expect(JSON.parse(back[0]?.body ?? "{}").kind).toBe("duress");
+      expect(dev.count("clock_event")).toBe(1);
+    });
+
+    it("hazard HZ-125 keeps a parked held duress press only as a check-in (security review of slice 71)", async () => {
+      const dev = await device();
+      dev.queue.push(duress);
+      await holdUnsentWork(dev.holdDb, NOW);
+      await restoreHeldWork(dev.holdDb, NOW, true);
+      const kept = all<{ payload: string }>(dev.sql, "SELECT payload FROM upload_issue", []);
+      expect(kept).toHaveLength(1);
+      expect(kept[0]?.payload).not.toContain("duress");
+      expect(JSON.parse(JSON.parse(kept[0]?.payload ?? "{}").body).kind).toBe("check_in");
+    });
+
     it("hazard HZ-006 shows a parked held move on its person's screen, named, with what the carer did (#37 review round 1, M3)", async () => {
       const dev = await device();
       dev.queue.push(heldMove("0199d000-0000-7000-8000-000000000101"), ack);

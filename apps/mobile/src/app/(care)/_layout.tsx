@@ -2,6 +2,7 @@ import { useTheme } from "@harbour/ui-native";
 import { Tabs } from "expo-router";
 import CalendarDays from "lucide-react-native/icons/calendar-days";
 import ClipboardList from "lucide-react-native/icons/clipboard-list";
+import Clock from "lucide-react-native/icons/clock";
 import ListChecks from "lucide-react-native/icons/list-checks";
 import Settings from "lucide-react-native/icons/settings";
 import Users from "lucide-react-native/icons/users";
@@ -11,15 +12,20 @@ import { t } from "../../i18n/t";
 /** Who takes part in the handover, as the API and the handover streams decide (care.md rule 14). */
 const HANDOVER_PERMISSION = "care.handover.manage";
 
+/** Who has a Shifts tab: those who clock their own time or work alone (scheduling.md section 18). */
+const SHIFTS_PERMISSIONS = ["scheduling.timesheet.self", "scheduling.lone_worker.check_in"];
+
 /**
  * Care mode: Today, Round, Handover (only for those who take part in the handover, whose phone
- * receives it), People and Settings tabs. Tab icons are Lucide (never SF Symbols); see the
+ * receives it), Shifts (only for those who clock their own time or work alone), People and Settings
+ * tabs. Tab icons are Lucide (never SF Symbols); see the
  * README for the planned move to expo-router native tabs once they leave "unstable".
  */
 export default function CareLayout() {
   const theme = useTheme();
   const { me } = useSession();
   const handover = (me?.permissions ?? []).includes(HANDOVER_PERMISSION);
+  const shifts = SHIFTS_PERMISSIONS.some((p) => (me?.permissions ?? []).includes(p));
   return (
     <Tabs
       screenOptions={{
@@ -70,6 +76,17 @@ export default function CareLayout() {
           tabBarIcon: ({ color, size }) => (
             <ClipboardList color={color} size={size} strokeWidth={1.5} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="shifts"
+        options={{
+          title: t("mobile.tabs.shifts"),
+          headerShown: false,
+          tabBarButtonTestID: "tab-shifts",
+          tabBarAccessibilityLabel: t("mobile.tabs.shifts"),
+          href: shifts ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Clock color={color} size={size} strokeWidth={1.5} />,
         }}
       />
       <Tabs.Screen

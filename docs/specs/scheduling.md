@@ -1316,6 +1316,7 @@ Audit events carry ids only (never figures): `scheduling.pay_rule_set.created`, 
   reproduces; the member reads their own locked line.
 
 ## 19. Lone-worker safety (slice 46; SCHED-012)
+## 17. Lone-worker safety (slice 46; SCHED-012)
 
 Staff who work alone (domiciliary visits, night shifts) check in on a schedule. A missed check-in,
 a call for help or a duress check-in raises an alarm to the organisation's named on-call route
@@ -1325,6 +1326,7 @@ slice 61 and the mobile app slice 71. No rota or shift table exists yet (slice 2
 stands alone: the worker starts it.
 
 ### 19.1 Schema (migration 0113)
+### 17.1 Schema (migration 0113)
 
 | Table | Kind | What it holds |
 | --- | --- | --- |
@@ -1341,6 +1343,7 @@ tenant scope), and acknowledged only by a monitor who is not the worker. History
 `record_version` is redacted (no worker, note or outcome). Records stay on the server for now.
 
 ### 19.2 Permissions and figures
+### 17.2 Permissions and figures
 
 | Permission | Who has it by default | What it allows |
 | --- | --- | --- |
@@ -1354,6 +1357,7 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
 `lone_worker.location_days`, and the existing `sync.clock_drift_flag_minutes`.
 
 ### 19.3 Rules
+### 17.3 Rules
 
 1. **Off until the route is named.** A session starts only when the organisation has saved a
    valid route under the chain key `scheduling.lone_worker.alarm`: step 1 the on-call person or
@@ -1406,6 +1410,7 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
    is audited and the others go on.
 
 ### 19.4 The offline rule
+### 17.4 The offline rule
 
 The server decides only from check-ins it has received, by the time the worker made them:
 
@@ -1424,6 +1429,7 @@ The server decides only from check-ins it has received, by the time the worker m
   that time, not now. If the worker is overdue again by now, the alarm stays open.
 
 ### 19.5 Location evidence (H-527)
+### 17.5 Location evidence (H-527)
 
 Off by default (`scheduling.lone_worker.location`, a location-level flag). When on, the device may
 attach one point to the event it sends (check-in, help, duress, finish); nothing is collected
@@ -1433,6 +1439,7 @@ erases each point (coordinates cleared, the row kept as proof of the erasure) af
 timekeeping (R22).
 
 ### 19.6 API, audit and outbox
+### 17.6 API, audit and outbox
 
 | Route | Permission | Notes |
 | --- | --- | --- |
@@ -1441,6 +1448,7 @@ timekeeping (R22).
 | `POST /v1/lone-worker/sessions` | check_in | Client id; 201 or 200 on replay; audited `session_started` |
 | `GET /v1/lone-worker/sessions/mine` | check_in | Duress shown as check-in; overdue alarm only |
 | `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in) |
+| `POST /v1/lone-worker/emergency` | check_in | Help or duress without a usable session (H-1317, slice 71): recorded in the worker's open session, else the session of their open help or duress alarm, else a new session finished as it starts, at the named session's location when it is theirs, the location given, their latest session's, or another where they work (by name); alarmed like any help or duress (the route, else the Registered Manager and owner); answers as a session's event (duress as a check-in); client UUID, a replay of the worker's own event answered before a limit of 30 in 10 minutes; audited `session_started` and `event_recorded` with `withoutSession` (duress as check-in) |
 | `GET /v1/lone-worker/board` | monitor | Open sessions with status words; audited |
 | `GET /v1/lone-worker/alarms` | monitor | Open by default; with the latest location point; audited |
 | `POST /v1/lone-worker/alarms/{id}/acknowledge` | monitor | `expected_version`; audited `alarm_acknowledged` |
@@ -1452,6 +1460,7 @@ events: `scheduling.lone_worker.alarm_raised`, `scheduling.lone_worker.alarm_res
 Notifications carry no personal data.
 
 ### 19.7 Retention and data protection
+### 17.7 Retention and data protection
 
 `lone_worker` (3 years from the session's finish) for sessions, events and alarms; location points
 are not retained beyond `lone_worker.location_days`. Records of processing B3; data standards
@@ -1508,6 +1517,7 @@ on (H-1033).
   Harbour (`readRoute`); the API checks every role and person again.
 
 ### 19.8 Test list
+### 17.8 Test list
 
 - Domain, table-driven: session checks, event acceptance offline and late, next due, status, the
   offline rule end to end, resolution, acknowledgement, re-alert, route checks, figures present.
@@ -1830,3 +1840,127 @@ Audit events carry ids only, never a figure or a reference:
     batch; a refusal recorded as failed and no answer as unknown;
   - another organisation's run not found;
   - audit with ids only.
+
+## 18. Shifts, the clock and lone working on the phone (slice 71; MOB-007, SCHED-002, SCHED-004, SCHED-012)
+
+The member's own shifts, clock and lone working in the mobile app, offline first. The phone never
+decides what the API decides: whether a clock-in is allowed (HZ-124), whether a check-in counts,
+when an alarm is raised (section 17). It saves what the member did, with the device's time and a
+client UUID, and sends it when there is a connection.
+
+### 18.1 What syncs to the phone
+
+Two streams, both scoped by the sync token alone (connection parameters are ignored; HZ-011):
+
+- `my_shifts`: the member's own published, uncancelled shifts (a published, not removed
+  `shift_assignment` for `auth.user_id()`), in the token's tenant, starting on a `shift_days` day.
+- `my_clock_events`: the member's own clock events on those days.
+
+`shift_days` is minted by `POST /v1/sync/token` only for holders of `scheduling.timesheet.self`:
+`SHIFT_DAYS_BEHIND` (2) UTC days back to `SHIFT_DAYS_AHEAD` (8) ahead, 11 in all
+(`shiftWindowDays`; product settings, not statutory figures). Without it nothing syncs (fails
+closed). Migration 0139 adds the three tables to the publication with a `harbour_sync` read policy.
+No lone-worker table syncs: the phone asks `GET /v1/lone-worker/sessions/mine`, which already shows
+duress as a check-in, and keeps its last answer, with when it came, in the encrypted device
+database (`sync_meta`, `lone-worker-mine:<tenant>`), so a restart without a connection still shows
+the session and says "Harbour last answered at 10:02." Without any answer the screen says it cannot
+tell whether the member is in a session, never that they are not.
+
+### 18.2 What the phone writes
+
+| Device table | Sent to | Notes |
+| --- | --- | --- |
+| `clock_event` (synced) | `POST /v1/me/clock-events` | Kind, location, shift, the device's time; `evidence: none` |
+| `lone_worker_outbox` (insert-only, never synced down) | `POST /v1/lone-worker/sessions` (`start`) or `POST /v1/lone-worker/sessions/{id}/events` (`event`) | The body in the API's contract shape; the row's id is the session's or the event's |
+
+Each write carries a UUIDv7 made on the phone, sent as the idempotency key, so a retry records
+once. `POST /v1/sync/upload` writes none of them. A change the phone cannot turn into a valid
+request (`shift_change_unreadable`), and every refusal from the API, goes to "needs attention" in
+the API's own words (a refused clock-in says why) and is never dropped (HZ-006). Location and shift
+for a clock-in come from the shift under way or starting within `CLOCK_IN_EARLY_MINUTES` (60, a
+product setting), else the member's only location; with neither the phone records nothing and says
+so. A break or clock-out takes the clock-in's location and shift.
+
+### 18.3 The Shifts tab
+
+Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check_in`.
+
+1. "Needs attention" first, so a refused clock-in is never out of sight.
+2. The clock: the state in words ("Not clocked in", "Clocked in at 07:02", "On a break since
+   10:15"), the shift it is for, the actions that make sense from the member's own latest event (by
+   device time), and how many events wait to send.
+3. My shifts: each not yet ended, soonest first, with the date and times in UK time, the kind, "Under
+   way", and "Changed after it was published" in words.
+4. Lone working (holders of the check-in permission): its own screen.
+
+### 18.4 Lone working on the phone (HZ-125)
+
+1. **Start**: kind of work, length (2, 4 or 8 hours) and interval (every 30 or 60 minutes), each
+   choice said in words. These are presets; the API checks the organisation's own figures (section
+   17.2) and refuses in words anything outside them. A session started offline is shown from the
+   queue until the server has it.
+2. **Check in**: one press. The next check-in due is the server's own when nothing of the worker's
+   waits to send (so a monitor's "safe confirmed" moves it), otherwise worked out on the phone as the
+   server does (section 17.3 rule 3). "Overdue" is said in words with an icon, and aloud when it
+   becomes overdue. A session known only on the phone (started offline) says that nobody is told
+   if a check-in is missed until it reaches Harbour, and that Ask for help still raises
+   the alarm with Harbour, with "call 999"; a start the API refused says lone working did not start, in the
+   same terms.
+3. **Duress**: a long press on Check in, held `DURESS_HOLD_MS` (1.5 seconds) so it does not happen
+   by accident, acting when the hold registers (so a screen reader's long press and a slow press
+   act once, and a cancelled tap never does; the answer comes while the finger is still down,
+   H-1311). It gives the same haptic, the same
+   answer, said aloud too ("Checked in at 10:02."), the same line in the session and the same count
+   waiting to send as a check-in. Nothing the phone shows or keeps in a readable table names it: a
+   queued duress press is shown as a check-in, a refused or held one is kept in "needs attention" as
+   a check-in (`screenSafePayload`, applied in `recordUploadIssue` and to held work), and no
+   lone-worker table syncs. The web never offers it. Until sent, a duress press exists only in the
+   encrypted upload queue or, if the session ended first, in the encrypted held entries, from which
+   it goes back into the queue when the owner signs in again (H-1315). A duress press the API
+   refused before reaching the event (the session unknown or refused, access withdrawn) raised no
+   alarm there, so the phone sends it again (on a 404, or a 403 about the session only) to
+   `POST /v1/lone-worker/emergency` (H-1317, section 17.6), which records it against the worker and
+   raises the alarm. The refusal is still kept under "needs attention" as a check-in, exactly as a
+   refused check-in would be, so the list never gives the press away; if the emergency route
+   refuses too (the member checks in nowhere, or no longer may), that is what stays.
+4. **Help**: one press, never held up by another press, offered with no session too (sent to the
+   emergency route, H-1317). The line says only what is true: waiting
+   (no connection: it has not reached anyone yet), being sent, refused (it did not reach anyone:
+   call 999 or the on-call person now), or with Harbour (it left the phone unrefused, or the
+   session shows it); each with
+   "If you are in danger, call 999". It never says help is on its way.
+5. **Finish**: asks first ("Finish lone working? Nobody will expect your check-ins after this.");
+   Help stays offered while the finish waits to send.
+6. Off: when the API says lone working is not switched on, the screen says so and offers no start.
+
+Not built: a reminder on the phone when a check-in falls due without a connection (H-1313), and
+help or duress from the lock screen (H-1314). A member who no longer holds the check-in permission
+anywhere cannot be recorded in lone working at all; the phone keeps such a press under "needs
+attention" with "call 999".
+
+### 18.5 Data on the device
+
+`shift` and `clock_event` are copies of the member's own rows (data standards, "Device copies").
+`lone_worker_outbox` rows exist only until sent, in the upload queue, or in `held_entry` when the
+session ended first (put back into the queue when the owner signs in again). Refused rows live in
+`upload_issue` until someone removes them with a reason, a duress press always as a check-in. The
+last answer about the member's own session is kept in `sync_meta`. All are in the encrypted device database, wiped with it.
+
+### 18.6 Test list
+
+- Sync: own shifts and clock events only, never a colleague's or another tenant's; nothing without
+  `shift_days`; device parameters ignored; no lone-worker table (`shift-streams.test.ts`); the token
+  carries the days for holders of `scheduling.timesheet.self` (`api.test.ts`).
+- Phone logic, table-driven: clock state, actions, location and shift; shift list; next due;
+  duress shown as a check-in everywhere; queued actions from the upload queue; the upload mapping
+  and its refusals (`scheduling.test.ts`); the SQL on the phone's schema (`queries.test.ts`).
+- Connector: each route, a refused clock-in in the API's words, help and duress refused by their
+  session sent to the emergency route, kept as a check-in only if that refuses too, nothing through
+  the general upload (`connector.test.ts`).
+- API: help and duress without a usable session recorded against the sender and alarmed, duress
+  answered as a check-in, a resend answered once, a repeated press re-sending the open alarm
+  (`apps/api/test/lone-worker.test.ts`, H-1317).
+- Render: the clock card, my shifts, and lone working, with a duress press drawing exactly the same
+  screen as a check-in (`shifts.render.test.ts`).
+- Maestro (demo build): `hazard-HZ-125-shifts-and-lone-working.yaml`, written, not yet run on a
+  device or emulator.

@@ -95,6 +95,8 @@ const APPEND_ONLY_TABLES = [
   "medication_schedule",
   "medication_reconciliation_source",
   "medication_reconciliation_item",
+  // Lone-worker check-ins (slice 46).
+  "lone_worker_event",
 ];
 /**
  * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the

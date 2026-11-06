@@ -6,6 +6,8 @@ import {
   NEVER_EVICT_TABLES,
   OFFLINE_WINDOW_TABLES,
   ROUND_AND_HANDOVER_TABLES,
+  SHIFT_TABLES,
+  SHIFT_WRITABLE_TABLES,
 } from "../src/client/schema";
 import { readSyncConfig } from "../src/streams/index";
 import { compile, ids, syncFor } from "./support/simulator";
@@ -62,18 +64,33 @@ describe("client schema covers every stream", () => {
         expect(declared.has(column), `${table}.${column}`).toBe(true);
       }
     }
-    // Every synced table on the device has a stream; only local-only tables have none.
+    // Every synced table on the device has a stream; only local-only tables and upload-only
+    // queues (never synced down) have none.
     for (const table of AppSchema.tables) {
-      expect(tablesSeen.has(table.name) || table.localOnly, table.name).toBe(true);
+      expect(tablesSeen.has(table.name) || table.localOnly || table.insertOnly, table.name).toBe(
+        true,
+      );
     }
   });
 
   it("splits the care tables into reference data, windowed entries and the round and handover, and only entries are written", () => {
-    const synced = AppSchema.tables.filter((t) => !t.localOnly).map((t) => t.name);
+    const synced = AppSchema.tables.filter((t) => !t.localOnly && !t.insertOnly).map((t) => t.name);
     expect(
-      [...NEVER_EVICT_TABLES, ...OFFLINE_WINDOW_TABLES, ...ROUND_AND_HANDOVER_TABLES].sort(),
+      [
+        ...NEVER_EVICT_TABLES,
+        ...OFFLINE_WINDOW_TABLES,
+        ...ROUND_AND_HANDOVER_TABLES,
+        ...SHIFT_TABLES,
+      ].sort(),
     ).toEqual(synced.sort());
     expect(DEVICE_WRITABLE_TABLES).toEqual(OFFLINE_WINDOW_TABLES);
+  });
+
+  // Scheduling.md section 18: the lone-worker queue is sent, never synced down (HZ-125).
+  it("sends the lone-worker queue up and never syncs it down", () => {
+    const upOnly = AppSchema.tables.filter((t) => t.insertOnly).map((t) => t.name);
+    expect(upOnly).toEqual(["lone_worker_outbox"]);
+    expect(SHIFT_WRITABLE_TABLES).toEqual(["clock_event", "lone_worker_outbox"]);
   });
 
   it("keeps upload problems and bookkeeping on the device only", () => {

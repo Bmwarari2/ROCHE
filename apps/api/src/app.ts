@@ -549,6 +549,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", absencesRouter);
   app.route("/", payRouter);
   app.route("/", payrollExportRouter);
+  app.route("/", loneWorkerRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

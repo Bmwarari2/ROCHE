@@ -102,7 +102,8 @@ function toTable(json: TableJson, options: RuntimeSchemaOptions): Table {
   return new Table(columns, {
     indexes,
     localOnly,
-    insertOnly: json.insert_only === true,
+    // A local-only table cannot be insert-only: the demo keeps queued rows in the table itself.
+    insertOnly: !localOnly && json.insert_only === true,
     viewName: json.view_name !== json.name ? json.view_name : undefined,
     // Local-only tables cannot track previous values or metadata.
     trackPrevious: localOnly ? false : trackPrevious(json),

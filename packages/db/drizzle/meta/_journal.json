@@ -869,6 +869,13 @@
       "when": 1793467241141,
       "tag": "0138_medicine_stock",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1793467242141,
+      "tag": "0139_shift_clock_sync",
+      "breakpoints": true
     }
   ]
 }
