@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import { DEVICE_HEADER } from "@harbour/contracts";
 import { createDatabase } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
-import { ukDateOf, ukStartOfDay } from "@harbour/domain";
+import { MEDICINES_RATE_KEYS, ukDateOf, ukStartOfDay } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixedCompetence } from "../src/integrations/medicines-ports";
 import { escalateOutstandingDoses, outboxHandlers, relayOutbox } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, markSessionsVerified, PASSWORD } from "./support/harness";
 
 /**
  * Rounds, escalation and conflict review (Phase 2 slice 48; MEDS-002; medicines.md section 15):
@@ -262,10 +262,6 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       (await resolve({ outcome: "corrected", correctionId: randomUUID(), note: "Corrected" }))
         .status,
     ).toBe(422);
-    // The person who recorded the dose does not decide between the records (re-review L1).
-    const own = await resolve({ outcome: "first_stands", note: "Mine" }, "manager");
-    expect(own.status).toBe(422);
-    expect((await json<{ code: string }>(own)).code).toBe("conflict_own_record");
     const ok = await resolve({
       outcome: "first_stands",
       note: "The same dose, recorded on two tablets",
@@ -287,7 +283,7 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
           )
         ).rows[0]?.n,
     );
-    expect(Number(refusals)).toBeGreaterThanOrEqual(3);
+    expect(Number(refusals)).toBeGreaterThanOrEqual(2);
     const done = await asDemo(
       async (c) =>
         (
@@ -313,12 +309,27 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       },
     );
     expect(twice.status).toBe(422);
+    // A lone nurse decides on their own record, and the Registered Manager reviews it afterwards
+    // (H-1270's recommended answer).
     const both = await send(
-      "owner",
+      "manager",
       `/v1/medicine-administration-conflicts/${next.conflictId}/resolve`,
       { method: "POST", body: { outcome: "both_given", note: "Given on both tablets" } },
     );
     expect(both.status, await both.clone().text()).toBe(200);
+    const retrospective = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ priority: string; assignee_role_key: string }>(
+            `SELECT priority, assignee_role_key FROM task
+              WHERE kind = 'medicines.administration.conflict_retrospective' AND source_id = $1`,
+            [next.conflictId],
+          )
+        ).rows,
+    );
+    expect(retrospective).toEqual([
+      { priority: "routine", assignee_role_key: "registered_manager" },
+    ]);
     const deps = {
       workerPool: h.db.pool("harbour_worker"),
       appDb: createDatabase(h.db.pool("harbour_app")),
@@ -387,7 +398,10 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       );
     // The record that stands says refused; the device says given.
     const dueAt = await dueOf(other);
-    expect((await record(other, dueAt, "refused", false)).status).toBe(201);
+    const refusedFirst = await record(other, dueAt, "refused", false);
+    expect(refusedFirst.status).toBe(201);
+    const standingOf = (await json<{ administration: { id: string } }>(refusedFirst)).administration
+      .id;
     const up = await record(other, dueAt, "given", true);
     expect(up.status, await up.clone().text()).toBe(202);
     const { conflictId } = await json<{ conflictId: string }>(up);
@@ -414,6 +428,230 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       { method: "POST", body: { outcome: "first_stands", note: "Mine" } },
     );
     expect(mine.status).toBe(422);
+    // Corrected through the corrections route, the conflict is resolved naming the correction.
+    const correctionId = randomUUID();
+    const corrected = await send(
+      "owner",
+      `/v1/medicine-administrations/${standingOf}/corrections`,
+      {
+        method: "POST",
+        body: {
+          id: correctionId,
+          correctionReason: "Recorded as refused in error: the device shows it was given",
+          entryId: other,
+          dueAt,
+          outcome: "given",
+          amount: { quantity: 1, unitCode: TABLET.code },
+          timingReason: "Given with breakfast",
+          givenAt: new Date().toISOString(),
+        },
+      },
+    );
+    expect(corrected.status, await corrected.clone().text()).toBe(201);
+    const done = await resolveAs(conflictId, {
+      outcome: "corrected",
+      correctionId,
+      note: "Corrected to given",
+    });
+    expect(done.status, await done.clone().text()).toBe(200);
+    expect(
+      (await json<{ resolution: { correctionId: string } }>(done)).resolution.correctionId,
+    ).toBe(correctionId);
+  });
+
+  it("hazard HZ-010 refuses a time given in the future beyond the clock drift allowance", async () => {
+    const r = await send("manager", `/v1/people/${BEN}/medicine-administrations`, {
+      method: "POST",
+      headers: { [DEVICE_HEADER]: DEVICE },
+      body: {
+        id: randomUUID(),
+        entryId: (
+          await json<Round>(
+            await send("manager", `/v1/locations/${DEMO.locationId}/medicine-round?${slot()}`),
+          )
+        ).people.find((p) => p.personId === BEN)?.whenRequired[0]?.entryId,
+        outcome: "given",
+        amount: { quantity: 15, unitCode: ML.code },
+        givenAt: new Date(Date.now() + 3 * 60 * MINUTE).toISOString(),
+        givenBeforeRecorded: { reason: "Recorded on the tablet" },
+        deviceOffsetMs: 0,
+      },
+    });
+    expect(r.status).toBe(422);
+    expect(await r.text()).toContain("given_at_in_future");
+  });
+
+  it("hazard HZ-004 a web session sending a device id is never treated as a device upload", async () => {
+    const { email } = DEMO.users.manager;
+    const auth = h.db.pool("harbour_auth");
+    await auth.query("UPDATE auth.user SET two_factor_enabled = false WHERE email = $1", [email]);
+    let cookie = "";
+    try {
+      const signIn = await h.request("/api/auth/sign-in/email", {
+        method: "POST",
+        body: { email, password: PASSWORD },
+        origin: "http://localhost:3000",
+      });
+      expect(signIn.status).toBe(200);
+      cookie =
+        signIn.headers
+          .getSetCookie()
+          .find((x) => x.startsWith("harbour.session_token="))
+          ?.split(";")[0] ?? "";
+    } finally {
+      await auth.query("UPDATE auth.user SET two_factor_enabled = true WHERE email = $1", [email]);
+      await markSessionsVerified(auth);
+    }
+    const entryId = critical;
+    const dueAt = (
+      await json<Round>(
+        await send("manager", `/v1/locations/${DEMO.locationId}/medicine-round?${slot()}`),
+      )
+    ).people
+      .find((p) => p.personId === ADA)
+      ?.doses.find((d) => d.entryId === entryId)?.dueAt;
+    const post = () =>
+      h.request(`/v1/people/${ADA}/medicine-administrations`, {
+        method: "POST",
+        tenant: DEMO.tenantId,
+        origin: "http://localhost:3000",
+        headers: { cookie, [DEVICE_HEADER]: DEVICE },
+        body: {
+          id: randomUUID(),
+          entryId,
+          dueAt,
+          outcome: "given",
+          amount: { quantity: 1, unitCode: TABLET.code },
+          timingReason: "Given with breakfast",
+          deviceOffsetMs: 0,
+        },
+      });
+    // Once to bind, once bound: both refused in words, never kept as a conflict.
+    expect((await post()).status).toBe(422);
+    expect((await post()).status).toBe(422);
+  });
+
+  it("hazards HZ-004 and HZ-116 a controlled drug's conflict needs two people, and given twice asks for the register entry", async () => {
+    const cdEntry = randomUUID();
+    const standing = randomUUID();
+    const conflict = randomUUID();
+    const due = new Date(Date.now() - 30 * MINUTE).toISOString();
+    await asDemo(async (c) => {
+      await c.query(
+        `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+           route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+           source_reference, transcribed_by, transcribed_at, cd_schedule)
+         VALUES ($1, $2, $1, 1, 'transcribed', $3, 'Ibuprofen 200mg tablets', '26643006', 'Oral',
+           'regular', 'every_day', 'Dr A Example', now() - interval '2 days', 'prescription',
+           'Prescription', $4, now() - interval '2 days', '2')`,
+        [cdEntry, CARL, IBUPROFEN.vmpId, DEMO.users.manager.id],
+      );
+      await c.query(
+        `INSERT INTO medication_schedule (medication_id, person_id, position, time, dose_kind,
+           quantity, unit_code, unit_name)
+         VALUES ($1, $2, 0, $3, 'amount', 1, '428673006', 'tablet')`,
+        [cdEntry, CARL, ukTime(new Date(due))],
+      );
+      await c.query(
+        `INSERT INTO medication_administration (id, person_id, medication_id, due_at, outcome,
+           quantity, unit_code, given_at, recorded_by)
+         VALUES ($1, $2, $3, $4, 'given', 1, '428673006', $4, $5)`,
+        [standing, CARL, cdEntry, due, DEMO.users.manager.id],
+      );
+      await c.query(
+        `INSERT INTO medication_administration_conflict (id, person_id, client_record_id,
+           medication_id, due_at, standing_id, uploaded, uploaded_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
+        [
+          conflict,
+          CARL,
+          randomUUID(),
+          cdEntry,
+          due,
+          standing,
+          JSON.stringify({ id: randomUUID(), outcome: "given" }),
+          DEMO.users.carer.id,
+        ],
+      );
+    });
+    const resolveAs = (who: string, body: Record<string, unknown>) =>
+      send(who, `/v1/medicine-administration-conflicts/${conflict}/resolve`, {
+        method: "POST",
+        body,
+      });
+    // The person who recorded it cannot decide alone for a controlled drug.
+    const own = await resolveAs("manager", { outcome: "first_stands", note: "Mine" });
+    expect((await json<{ code: string }>(own)).code).toBe("conflict_own_record");
+    const both = await resolveAs("owner", { outcome: "both_given", note: "Given twice" });
+    expect(both.status, await both.clone().text()).toBe(200);
+    const tasks = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ priority: string }>(
+            "SELECT priority FROM task WHERE kind = 'medicines.cd.register_entry_due' AND source_id = $1",
+            [conflict],
+          )
+        ).rows,
+    );
+    expect(tasks).toEqual([{ priority: "urgent" }]);
+  });
+
+  it("hazard HZ-003 the round takes each person's rates from their location's nation", async () => {
+    // Wales has no medicines rates seeded yet (nation packs, Phase 7), so the test copies
+    // England's for the organisation and sets its own early window.
+    const keys = Object.values(MEDICINES_RATE_KEYS);
+    const ids = await asDemo(async (c) => {
+      await c.query("UPDATE location SET nation = 'wales' WHERE id = $1", [DEMO.locationId]);
+      const copied = await c.query<{ id: string }>(
+        `INSERT INTO rate_table (tenant_id, key, value, unit, nation, valid_from, source,
+           verification_status)
+         SELECT $1, key, value, unit, 'wales', valid_from, source, verification_status
+           FROM rate_table
+          WHERE tenant_id IS NULL AND nation IN ('england', 'uk') AND key = ANY($2::text[])
+            AND key <> 'medicines.dose_window.early_minutes'
+         RETURNING id`,
+        [DEMO.tenantId, keys],
+      );
+      const early = await c.query<{ id: string }>(
+        `INSERT INTO rate_table (tenant_id, key, value, unit, nation, valid_from, source,
+           verification_status)
+         VALUES ($1, 'medicines.dose_window.early_minutes', 5, 'minutes', 'wales', '2000-01-01',
+           'test', 'verified') RETURNING id`,
+        [DEMO.tenantId],
+      );
+      return [...copied.rows, ...early.rows].map((r) => r.id);
+    });
+    try {
+      const round = await json<{
+        people: { doses: { timeCritical: boolean; dueAt: string; opensAt: string }[] }[];
+      }>(await send("manager", `/v1/locations/${DEMO.locationId}/medicine-round?${slot()}`));
+      const regular = round.people.flatMap((p) => p.doses).filter((d) => !d.timeCritical);
+      expect(regular.length).toBeGreaterThan(0);
+      for (const d of regular) {
+        expect(new Date(d.dueAt).getTime() - new Date(d.opensAt).getTime()).toBe(5 * MINUTE);
+      }
+    } finally {
+      await asDemo(async (c) => {
+        await c.query("DELETE FROM rate_table WHERE id = ANY($1::uuid[])", [ids]);
+        await c.query("UPDATE location SET nation = 'england' WHERE id = $1", [DEMO.locationId]);
+      });
+    }
+  });
+
+  it("hazard HZ-004 a malformed double-dose event fails, so it is retried rather than lost", async () => {
+    const deps = {
+      workerPool: h.db.pool("harbour_worker"),
+      appDb: createDatabase(h.db.pool("harbour_app")),
+      logger: createLogger("silent"),
+    };
+    const handler = outboxHandlers(deps).get("medicines.administration.double_dose");
+    await expect(
+      handler?.({
+        id: randomUUID(),
+        tenantId: DEMO.tenantId,
+        payload: { conflictId: randomUUID() },
+      } as unknown as Parameters<NonNullable<typeof handler>>[0]),
+    ).rejects.toThrow(/malformed/);
   });
 });
 

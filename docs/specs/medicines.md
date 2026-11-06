@@ -1200,10 +1200,12 @@ with `medicines.record.manage`, records the decision and why. Its outcome is eit
 
 The decision must fit the records: `both_given` only when both say the dose was taken (given,
 self-administered or given by family); `first_stands` is refused when an upload says taken and the
-record that stands does not, so the reviewer corrects the record instead. Nobody who recorded the
-dose or uploaded it decides `first_stands` or `both_given`, and an uploader may choose
-`corrected` only for a record they made themselves (H-1270 holds the single-nurse question). The
-checks read what the record that stands says now, after any correction. A controlled drug's conflict also needs
+record that stands does not, so the reviewer corrects the record instead. Someone who recorded or
+uploaded the dose may still decide, so a lone nurse at night never leaves a conflict waiting: the
+decision is audited as a self-review and raises a routine retrospective review task for the
+Registered Manager, due within 8 hours (H-1270). A controlled drug's conflict is always decided by
+someone who neither recorded nor uploaded the dose. The checks read what the record that stands
+says now, after any correction. A controlled drug's conflict also needs
 `medicines.cd.administer` and a fresh step-up, and `both_given` on one raises an urgent task to
 enter the second dose on the register, witnessed. The incident's time is the device's time given
 when it sent one.

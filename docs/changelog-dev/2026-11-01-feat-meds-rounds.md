@@ -72,13 +72,24 @@ Branch `feat/meds-rounds`, from `feat/meds-cd-register` (slice 34), with #162's 
 
 | # | Owner | Recommended answer | Build change |
 | --- | --- | --- | --- |
-| H-1270 | CSO | Accept as built: `both_given` raises a medication incident; the second dose stays on the conflict and the incident, not the MAR history, and when-required totals do not count it. For a lone night nurse, let them resolve and raise a routine retrospective review for the Registered Manager. | Yes: a single-resolver path with a retrospective review task |
+| H-1270 | CSO | Accept as built: `both_given` raises a medication incident; the second dose stays on the conflict and the incident, not the MAR history, and when-required totals do not count it. For a lone night nurse, let them resolve and raise a routine retrospective review for the Registered Manager. | Built: a single-resolver path with a retrospective review task |
 | H-1271 | CSO | Accept as built: urgent and due at once when time-critical or one record says taken and the other not; routine and due within 8 hours otherwise; one task per dose and uploader. | No |
 | H-1272 | CSO | Keep refusing other device refusals back to the device, where the person sees them; revisit with the slice 53 screens. | No |
 | H-1273 | CSO | Keep the rate table's `medicines.record_delay_tolerance_minutes` value as seeded. | No |
 | H-1274 | CSO | Accept no identity screen until slice 53; the API carries person ids and rooms only. | No |
 | H-1275 | CSO | Re-rate HZ-003, HZ-004 and HZ-008 at the testing phase with the slice 53 screens; keep the current targets. | No |
 | H-1276 | CSO | Accept as built: people away are left off the location round; slice 53 says they are away. | No |
-| H-1277 | Engineering, CSO | Add the clock-change slot test before the next clock change in a tenant. | Yes: a DST round test |
+| H-1277 | Engineering, CSO | Accept the reach of one UK day back, tested for both 2026 clock changes. | Built: `medicine-rounds-clock.test.ts` |
 | H-1278 | Engineering | Accept: 0134 restores the list; check at the testing phase that no sample-data removal ran between 0111 and 0134 anywhere. | No |
 | H-1279 | CSO | Accept as built: two when-required doses from two devices are both kept, and the server's 24-hour maximum check is the control. | No |
+
+## Lead follow-up (06/11/2026)
+
+- H-1270's recommended single-nurse path built: a self-review is allowed, audited and raises a
+  routine `medicines.administration.conflict_retrospective` task for the Registered Manager;
+  controlled drugs still need two people.
+- Tests added: a successful `corrected`, rates per nation, the controlled drug conflict (two
+  people and the register task), a web session sending a device id, a malformed double-dose event,
+  a future time given, and the clock-change slot (H-1277).
+- Noted, not changed: a location in a nation with no medicines rates seeded, or a regular entry
+  with no times, fails the whole location round with a 500 rather than one person's part of it.

@@ -168,7 +168,7 @@ export function roundFor(
 export type ConflictRow = typeof medicationAdministrationConflict.$inferSelect;
 export const CONFLICT_TASK = "medicines.administration.conflict";
 /** A routine conflict's review is due within a shift (a policy figure for the CSO, H-1271). */
-const ROUTINE_REVIEW_MS = 8 * 3_600_000;
+export const ROUTINE_REVIEW_MS = 8 * 3_600_000;
 const DIFFER_TITLE =
   "Two devices recorded different outcomes for one dose: review both records now";
 

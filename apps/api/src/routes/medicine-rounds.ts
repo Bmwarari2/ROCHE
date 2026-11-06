@@ -34,6 +34,7 @@ import {
   conflictOut,
   joinedTo,
   pendingConflicts,
+  ROUTINE_REVIEW_MS,
   roundFor,
   TAKEN,
 } from "../services/medicine-rounds";
@@ -61,6 +62,7 @@ const ADMINISTER = "medicines.emar.administer" as const;
 const MANAGE = "medicines.record.manage" as const;
 const CD_ADMINISTER = "medicines.cd.administer" as const;
 const CD_REGISTER_TASK = "medicines.cd.register_entry_due";
+const RETROSPECTIVE_TASK = "medicines.administration.conflict_retrospective";
 const LocationParam = z.object({ id: z.uuid() });
 const ConflictParam = z.object({ id: z.uuid() });
 const HOUR_MS = 3_600_000;
@@ -320,35 +322,25 @@ export const medicineRoundsRouter = createRouter()
           const joined = await joinedTo(tx, id);
           const standing = rows.find((r) => r.id === row.standingId) as AdministrationRow;
           const uploads = [row, ...joined].map((r) => (r.uploaded as { outcome: string }).outcome);
-          // Nobody reviews their own record (separation of duties; re-review L1).
-          const own = [
-            row.uploadedBy,
-            ...joined.map((r) => r.uploadedBy),
-            standing.recordedBy,
-            standing.administeredBy,
-          ];
-          // The uploader may correct only a record they made themselves (clinical re-review M4).
+          // Deciding on a record you made or uploaded is a self-review (re-review L1, M4). A lone
+          // nurse may still decide, so the conflict never waits for the day shift, and a
+          // retrospective review goes to the Registered Manager (H-1270's recommended answer).
           const uploader = [row.uploadedBy, ...joined.map((r) => r.uploadedBy)].includes(
             access.tenantUserId,
           );
-          if (
-            body.outcome === "corrected" &&
-            uploader &&
-            standing.recordedBy !== access.tenantUserId
-          ) {
-            throw deny(
-              "own_record",
-              "Someone who did not upload this dose decides between the records.",
-            );
-          }
-          if (body.outcome !== "corrected" && own.includes(access.tenantUserId)) {
-            throw deny(
-              "own_record",
-              "Someone who did not record this dose decides between the records.",
-            );
-          }
+          const recorder = [standing.recordedBy, standing.administeredBy].includes(
+            access.tenantUserId,
+          );
+          const selfReview = uploader || recorder;
           // A controlled drug needs its own permission and a fresh step-up (re-review M3).
           const controlled = await isControlledDrug(tx, row.medicationId);
+          if (controlled && selfReview) {
+            // Controlled drugs always need two people (separation of duties).
+            throw deny(
+              "own_record",
+              "A controlled drug's records are decided by someone who did not record or upload the dose.",
+            );
+          }
           if (controlled) {
             await requirePermission(c, CD_ADMINISTER);
             if (!stepUpFresh(access)) {
@@ -466,8 +458,24 @@ export const medicineRoundsRouter = createRouter()
               outcome: body.outcome,
               correctionId: body.correctionId,
               joinedIds: joined.map((r) => r.id),
+              selfReview,
             },
           });
+          if (selfReview) {
+            await tx.insert(task).values({
+              kind: RETROSPECTIVE_TASK,
+              title:
+                "A medicines conflict was decided by someone who recorded the dose: review the decision",
+              requiredPermission: MANAGE,
+              personId: row.personId,
+              locationId: where.locationId,
+              sourceType: "medication_administration_conflict",
+              sourceId: id,
+              assigneeRoleKey: "registered_manager",
+              dueAt: new Date(now.getTime() + ROUTINE_REVIEW_MS),
+              priority: "routine",
+            });
+          }
           if (body.outcome === "both_given") {
             // A dose given twice is a medication incident, raised by safety through the outbox
             // (HZ-004; clinical review H1). The second dose is on the conflict, not the MAR history.
