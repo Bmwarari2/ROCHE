@@ -16,6 +16,11 @@ overrides:
 
 packageExtensionsChecksum: sha256-DkuE6ZZuEH3ACWnpW8rY13yOJybAvK6ts2AzMrPzDcY=
 
+patchedDependencies:
+  decode-uri-component@0.2.2:
+    hash: abd1043b6d84a2ce7a794846a307f5358291eef7ed021d3ddc5911f8c45016a8
+    path: patches/decode-uri-component@0.2.2.patch
+
 importers:
 
   .:
@@ -11513,7 +11518,7 @@ snapshots:
 
   decimal.js@10.6.0: {}
 
-  decode-uri-component@0.2.2: {}
+  decode-uri-component@0.2.2(patch_hash=abd1043b6d84a2ce7a794846a307f5358291eef7ed021d3ddc5911f8c45016a8): {}
 
   deep-eql@5.0.2: {}
 
@@ -13896,7 +13901,7 @@ snapshots:
 
   query-string@7.1.3:
     dependencies:
-      decode-uri-component: 0.2.2
+      decode-uri-component: 0.2.2(patch_hash=abd1043b6d84a2ce7a794846a307f5358291eef7ed021d3ddc5911f8c45016a8)
       filter-obj: 1.1.0
       split-on-first: 1.1.0
       strict-uri-encode: 2.0.0

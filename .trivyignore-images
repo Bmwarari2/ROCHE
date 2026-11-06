@@ -1,0 +1,5 @@
+# Trivy ignores for the container image scan (.github/workflows/ci.yml, job `images`, and the
+# release gate in .github/workflows/terraform.yml). Deliberately empty: every exception in
+# .trivyignore is for a package that is in no image, so an advisory that reaches an image fails the
+# scan at once. An image exception needs its own row in docs/compliance/vulnerability-exceptions.md
+# and an entry here with an `exp:` date equal to its review date.

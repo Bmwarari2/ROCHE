@@ -27,6 +27,9 @@ env:
   # Disposable CI database; the superuser creates the Harbour roles, which are never superusers.
   HARBOUR_TEST_ADMIN_URL: postgres://harbour_admin:harbour_admin_ci@localhost:5432/postgres
   DATABASE_ADMIN_URL: postgres://harbour_admin:harbour_admin_ci@localhost:5432/postgres
+  # Trivy is pinned by digest, and the same digest runs the filesystem scan, the image scan and the
+  # release gate in terraform.yml (update all three together).
+  TRIVY_IMAGE: aquasec/trivy:0.67.2@sha256:e2b22eac59c02003d8749f5b8d9bd073b62e30fefaef5b7c8371204e0a4b0c08
 
 jobs:
   changes:
@@ -63,7 +66,7 @@ jobs:
           # The images are built and scanned on a pull request only when what goes into them
           # changes: a Dockerfile, the dependencies, the scan's own ignores or this workflow.
           images=false
-          if printf '%s\n' "$files" | grep -qE '^(apps/(api|web)/(Dockerfile|package\.json)|package\.json|pnpm-lock\.yaml|\.trivyignore|\.github/workflows/ci\.yml)$'; then images=true; fi
+          if printf '%s\n' "$files" | grep -qE '^(apps/(api|web)/(Dockerfile|package\.json)|package\.json|pnpm-lock\.yaml|\.trivyignore(-images)?|\.github/workflows/ci\.yml)$'; then images=true; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "web=$web" >> "$GITHUB_OUTPUT"
           echo "images=$images" >> "$GITHUB_OUTPUT"
@@ -90,7 +93,7 @@ jobs:
       - name: Vulnerabilities in dependencies and config (Trivy)
         if: env.CODE == 'true'
         run: |
-          docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.67.2 fs \
+          docker run --rm -v "$PWD:/src" -w /src "$TRIVY_IMAGE" fs \
             --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed \
             --exit-code 1 --no-progress .
       - name: Software bill of materials (Syft)
@@ -128,6 +131,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - name: Markdown links resolve
         run: node scripts/check-markdown-links.mjs
+      # Trivy's --ignore-unfixed hides an unfixed advisory whatever its exp: date, and pnpm's
+      # ignoreGhsas never expires, so this fails once an exception's review date has passed, or
+      # when the exceptions record, ignoreGhsas and .trivyignore list different advisories.
+      - name: Vulnerability exceptions are in date and listed alike
+        run: |
+          pnpm test:scripts
+          pnpm check:vulnerability-exceptions
       # Types
       - name: Types
         if: env.CODE == 'true'
@@ -267,8 +277,12 @@ jobs:
   # changes what goes into them (`changes.images`), not on every pull request: a broken Dockerfile
   # or a vulnerable base image shows on main straight after the merge, at a fraction of the
   # minutes. Trivy is pinned by digest. High and critical findings with a fix fail the job (the
-  # same rule as the filesystem scan; accepted exceptions are in .trivyignore with an expiry), and
-  # every finding goes to the Security tab as SARIF, as CodeQL's do (H-1170).
+  # same rule as the filesystem scan), and every finding goes to the Security tab as SARIF, as
+  # CodeQL's do (H-1170). The images have their own ignore file, .trivyignore-images, which holds
+  # no exception: every exception in .trivyignore is for a package in no image, so an advisory that
+  # reaches an image fails at once. The release job in terraform.yml runs the same gate before it
+  # pushes. The api image bundles its npm dependencies (apps/api/build.mjs), so this scan sees its
+  # operating-system packages only; `pnpm audit --prod` above covers the API's npm dependencies.
   images:
     name: Container images build and scan
     runs-on: ubuntu-24.04
@@ -277,24 +291,22 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    env:
-      TRIVY_IMAGE: aquasec/trivy:0.67.2@sha256:e2b22eac59c02003d8749f5b8d9bd073b62e30fefaef5b7c8371204e0a4b0c08
     strategy:
       fail-fast: false
       matrix:
         app: [api, web]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build harbour/${{ matrix.app }} (not pushed)
         run: docker build -f apps/${{ matrix.app }}/Dockerfile -t harbour/${{ matrix.app }}:ci .
       - name: Scan harbour/${{ matrix.app }} (Trivy, SARIF for the Security tab)
         run: |
           mkdir -p trivy-results
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" -w /src \
-            "$TRIVY_IMAGE" image --scanners vuln,secret --ignorefile /src/.trivyignore \
+            "$TRIVY_IMAGE" image --scanners vuln,secret --ignorefile /src/.trivyignore-images \
             --format sarif --output /src/trivy-results/${{ matrix.app }}.sarif --no-progress \
             harbour/${{ matrix.app }}:ci
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3.39.3
         # A pull request from a fork or from Dependabot gets a read-only token: its results stay
         # in the artifact, and the gate below runs either way.
         if: always() && hashFiles(format('trivy-results/{0}.sarif', matrix.app)) != '' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
@@ -304,10 +316,10 @@ jobs:
       - name: High and critical findings in harbour/${{ matrix.app }} fail the build
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" -w /src \
-            "$TRIVY_IMAGE" image --scanners vuln,secret --ignorefile /src/.trivyignore \
+            "$TRIVY_IMAGE" image --scanners vuln,secret --ignorefile /src/.trivyignore-images \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
             harbour/${{ matrix.app }}:ci
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: trivy-image-${{ matrix.app }}
