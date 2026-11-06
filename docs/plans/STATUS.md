@@ -34,7 +34,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
 0142 to 0140) with web-cd-register, slices 72 and 86. When-required medicines are recorded again
 with their limits; imported medicines bring their tags, interval and maximum from the file. Hazard
 ids separated: speak-up HZ-131, Thapsus-HR HZ-133, medication errors HZ-134. The Thapsus-HR link
-takes 0141 and 0142, slice 28 takes 0143. The PR waits for batch 3a's. See
+takes 0141 and 0142, slice 28 takes 0143. Batch 3a merged (#171); main merged in. Two deliberate
+API contract changes (H-876, H-940) recorded for oasdiff. PR to main open, not merged. See
 `docs/changelog-dev/2026-11-06-integration-phase-2-batch-3b.md`.
 
 ## Paused 01/11/2026: where to resume

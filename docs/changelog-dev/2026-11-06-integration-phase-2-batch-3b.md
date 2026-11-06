@@ -55,6 +55,12 @@ in). The PR to `main` opens once batch 3a's has merged and this branch is green 
 - Clinical safety: three blocking findings (hazard log collisions and the import tags), fixed.
 - Accessibility: one blocking finding (the when-required unit test), fixed with table-driven
   cases; the e-learning navigation item and the interval error wording corrected.
+- Re-review after main, slices 38, 72 and 86 merged in (a7e7155a onwards): security, clinical
+  safety and accessibility each mergeable with no blocking findings. The covert mark on corrections
+  fixed here; the rest are under Follow-ups.
+- Tests: lint, typecheck, db 1468, api 2631, domain 8005, sync 96, web 2531, contracts 34, i18n 48,
+  mobile 1413, ui 353; Playwright 340 journeys (one ordering clash between the workforce and
+  wellbeing journeys fixed).
 
 ## Follow-ups
 
