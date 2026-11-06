@@ -267,6 +267,14 @@ export const HR_ALERTS = {
   start_date_review: { title: "Check a start date the HR platform changed", urgent: false },
   leaving_still_sent: { title: "Correct a leaving date in the HR platform", urgent: true },
   leaving_resent: { title: "Record a leaving the HR platform sent again", urgent: true },
+  absence_unplaced: {
+    title: "Give a home to a staff member whose absence the HR platform sent",
+    urgent: true,
+  },
+  delivery_refused: {
+    title: "Check a shift or clock event the HR platform refused",
+    urgent: false,
+  },
 } as const;
 export type HrAlert = keyof typeof HR_ALERTS;
 
@@ -324,7 +332,7 @@ export async function raiseHrAlert(
 /** Records a sync's outcome for its kind (rule 9 reads the last good sync from here). */
 export async function recordSync(
   tx: Transaction,
-  kind: "employees" | "locations",
+  kind: "employees" | "locations" | "absences",
   now: Date,
   errorCode: string | null,
 ): Promise<void> {
@@ -837,16 +845,31 @@ export async function pullSafely(
   }
 }
 
-/** Rule 9: whether the link's data is out of date, for the status route and the rota. */
+/**
+ * Rule 9: whether the link's data is out of date, for the status route and the rota. Employees
+ * and absences both count: the older of their last good syncs (absences once they have synced).
+ */
 export async function hrLinkStaleness(tx: Transaction, settings: HrLinkSettings, now: Date) {
-  const [state] = await tx
+  const rows = await tx
     .select({
+      kind: hrSyncState.kind,
       lastGoodSyncAt: hrSyncState.lastGoodSyncAt,
       lastErrorCode: hrSyncState.lastErrorCode,
       failures: hrSyncState.failures,
     })
     .from(hrSyncState)
-    .where(eq(hrSyncState.kind, "employees"));
+    .where(sql`${hrSyncState.kind} IN ('employees', 'absences')`);
+  const employees = rows.find((r) => r.kind === "employees");
+  const absences = rows.find((r) => r.kind === "absences");
+  const oldest = (a: Date | null | undefined, b: Date | null | undefined) =>
+    a === undefined ? (b ?? null) : b === undefined ? (a ?? null) : !a || !b ? null : a < b ? a : b;
+  const state = employees
+    ? {
+        lastGoodSyncAt: oldest(employees.lastGoodSyncAt, absences?.lastGoodSyncAt),
+        lastErrorCode: employees.lastErrorCode ?? absences?.lastErrorCode ?? null,
+        failures: Math.max(employees.failures, absences?.failures ?? 0),
+      }
+    : undefined;
   return {
     ...hrStaleness(state?.lastGoodSyncAt ?? null, now, settings.stalenessMinutes),
     lastGoodSyncAt: state?.lastGoodSyncAt?.toISOString() ?? null,

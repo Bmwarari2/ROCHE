@@ -1220,6 +1220,8 @@ stored. Exported in the full tenant export with these names.
 | `hr_location_link.hr_location_id` | Thapsus-HR | `^[A-Za-z0-9_-]{1,64}$` | One each way |
 | `hr_sync_state.kind`, `last_error_code` | Harbour | `employees`, `locations`, `absences`, `rates`; `^[a-z_]{1,40}$` | An opaque code, never a message |
 | `hr_delivery.kind`, `state` | Harbour | `starter`, `shift`, `clock_event`, `pay_units`; `pending`, `sent`, `failed`, `refused` | The idempotency key is a UUID; sent only with Thapsus-HR's identifier |
+| `hr_delivery.payload_sha256` | Harbour | 64 lower-case hex characters | Digest of what was last sent (slice 88, migration 0142) |
+| `absence.source`, `absence.hr_id` | Harbour; Thapsus-HR | `harbour` or `thapsus_hr`; `^[A-Za-z0-9_-]{1,64}$` | A Thapsus-HR copy is annual leave, sickness or other, recorded or cancelled, with no decider (slice 88, migration 0142) |
 
 ## Platform operational tables (not part of the MODS export)
 

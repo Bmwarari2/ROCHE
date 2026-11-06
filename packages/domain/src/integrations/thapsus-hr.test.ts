@@ -6,8 +6,12 @@ import {
   effectiveLeavingDate,
   employeeDrift,
   HR_WEBHOOK_REPLAY_SECONDS,
+  type HrAbsence,
+  type HrAbsenceCopy,
   type HrEmployee,
   type HrOwners,
+  hrClockEventOf,
+  hrShiftOf,
   hrStaleness,
   inboundAbsence,
   leaverMaySignIn,
@@ -20,8 +24,10 @@ import {
   payRouteChangeProblem,
   payrollExportAllowed,
   payUnitsToHrAllowed,
+  planHrAbsence,
   type StaffCandidate,
   stalenessLimitProblem,
+  ukLocalStamp,
   webhookTimestampProblem,
 } from "./thapsus-hr";
 
@@ -488,5 +494,127 @@ describe("hazard HZ-133 reconciliation finds where Harbour's copy drifted from t
     ["a null job title", { jobTitle: null }, []],
   ] as const)("%s", (_, over, expected) => {
     expect(employeeDrift(copy, employee(over))).toEqual(expected);
+  });
+});
+
+describe("hazard HZ-133 an absence from Thapsus-HR becomes a read-only copy that blocks rostering (rule 10; HZ-123)", () => {
+  const hr = (over: Partial<HrAbsence> = {}): HrAbsence => ({
+    id: "abs_1",
+    employeeId: "emp_1",
+    type: "leave",
+    startsOn: "2026-12-01",
+    endsOn: "2026-12-05",
+    status: "approved",
+    ...over,
+  });
+  const copy = (over: Partial<HrAbsenceCopy> = {}): HrAbsenceCopy => ({
+    id: "c1",
+    kind: "annual_leave",
+    startsOn: "2026-12-01",
+    endsOn: "2026-12-05",
+    cancelled: false,
+    ...over,
+  });
+  it.each([
+    [
+      "new approved leave",
+      null,
+      hr(),
+      { action: "create", kind: "annual_leave", startsOn: "2026-12-01", endsOn: "2026-12-05" },
+    ],
+    [
+      "new open sickness",
+      null,
+      hr({ type: "sickness", endsOn: null }),
+      { action: "create", kind: "sickness", startsOn: "2026-12-01", endsOn: null },
+    ],
+    [
+      "leave with no end counts as its first day",
+      null,
+      hr({ endsOn: null }),
+      { action: "create", kind: "annual_leave", startsOn: "2026-12-01", endsOn: "2026-12-01" },
+    ],
+    ["a request does not block yet", null, hr({ status: "requested" }), { action: "none" }],
+    ["a cancellation with no copy", null, hr({ status: "cancelled" }), { action: "none" }],
+    ["unchanged", copy(), hr(), { action: "none" }],
+    [
+      "a new end date",
+      copy(),
+      hr({ endsOn: "2026-12-03" }),
+      { action: "set_end", endsOn: "2026-12-03" },
+    ],
+    ["cancelled in Thapsus-HR", copy(), hr({ status: "cancelled" }), { action: "cancel" }],
+    ["back to a request", copy(), hr({ status: "requested" }), { action: "cancel" }],
+    [
+      "a new start replaces it",
+      copy(),
+      hr({ startsOn: "2026-11-30" }),
+      { action: "replace", kind: "annual_leave", startsOn: "2026-11-30", endsOn: "2026-12-05" },
+    ],
+    [
+      "a new type replaces it",
+      copy(),
+      hr({ type: "sickness" }),
+      { action: "replace", kind: "sickness", startsOn: "2026-12-01", endsOn: "2026-12-05" },
+    ],
+    [
+      "approved again after a cancelled copy",
+      copy({ cancelled: true }),
+      hr(),
+      { action: "create", kind: "annual_leave", startsOn: "2026-12-01", endsOn: "2026-12-05" },
+    ],
+    [
+      "other stays other",
+      null,
+      hr({ type: "other" }),
+      { action: "create", kind: "other", startsOn: "2026-12-01", endsOn: "2026-12-05" },
+    ],
+  ] as const)("%s", (_, known, incoming, expected) => {
+    expect(planHrAbsence(known, incoming)).toEqual(expected);
+  });
+});
+
+describe("hazard HZ-133 shifts and clock events go out with their listed fields only (rules 4 and 7)", () => {
+  it.each([
+    ["winter (GMT)", "2026-01-15T07:00:00Z", "2026-01-15T07:00"],
+    ["summer (BST)", "2026-07-15T07:00:00Z", "2026-07-15T08:00"],
+    ["the night the clocks go back", "2026-10-25T01:30:00Z", "2026-10-25T01:30"],
+  ])("gives the UK wall-clock time beside UTC in %s", (_, utc, local) => {
+    expect(ukLocalStamp(new Date(utc))).toBe(local);
+  });
+
+  it("builds a shift with exactly the shift fields", () => {
+    const shift = hrShiftOf({
+      assignmentId: "a1",
+      hrEmployeeId: "emp_1",
+      hrLocationId: "loc_1",
+      kind: "work",
+      startsAt: new Date("2026-07-15T20:00:00Z"),
+      endsAt: new Date("2026-07-16T08:00:00Z"),
+      breakMinutes: 30,
+    });
+    expect(Object.keys(shift).sort()).toEqual([...OUTBOUND_FIELDS.shift].sort());
+    expect(outboundProblems("shift", shift)).toEqual([]);
+    expect(shift).toMatchObject({
+      startsAtLocal: "2026-07-15T21:00",
+      endsAtLocal: "2026-07-16T09:00",
+    });
+  });
+
+  it.each([
+    ["in", true],
+    ["out", true],
+    ["break_start", false],
+    ["break_end", false],
+  ])("sends a clock event of kind %s: %s", (kind, sent) => {
+    const event = hrClockEventOf({
+      id: "c1",
+      hrEmployeeId: "emp_1",
+      hrLocationId: "loc_1",
+      kind,
+      at: new Date("2026-01-15T07:02:00Z"),
+    });
+    expect(event !== null).toBe(sent);
+    if (event) expect(outboundProblems("clock_event", event)).toEqual([]);
   });
 });

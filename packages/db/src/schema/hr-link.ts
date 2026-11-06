@@ -161,6 +161,8 @@ export const hrDelivery = pgTable(
     lastErrorCode: text("last_error_code"),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
+    /** SHA-256 of what was last sent, so a changed shift goes again and an unchanged one never. */
+    payloadSha256: text("payload_sha256"),
     ...mutableColumns(),
   },
   (t) => [
@@ -178,5 +180,6 @@ export const hrDelivery = pgTable(
         AND attempts >= 0
         AND ((state = 'sent') = (sent_at IS NOT NULL AND hr_id IS NOT NULL))`,
     ),
+    check("hr_delivery_payload", sql`payload_sha256 IS NULL OR payload_sha256 ~ '^[0-9a-f]{64}$'`),
   ],
 );

@@ -139,7 +139,11 @@ Every table has `tenant_id`, forced RLS and a policy:
   Thapsus-HR's identifier, the idempotency key, the state, the attempt count and the last error
   code.
 - **Absences from Thapsus-HR** arrive through the scheduling absence port with source `thapsus_hr`
-  and the Thapsus-HR identifier, read-only (slice 88). Lane H never writes lane C's tables.
+  and the Thapsus-HR identifier, read-only (slice 88; migration 0142 adds `absence.source` and
+  `absence.hr_id`). Only the link's sync writes them, as `recorded` with no decider; a person never
+  changes one. Their cover needs are raised by the sync through `app.raise_hr_cover_need`.
+- **`hr_delivery.payload_sha256`** (migration 0142) is the digest of what a record last sent, so a
+  changed shift goes again and an unchanged one never does.
 
 ### 11.4 Permissions
 
@@ -217,6 +221,30 @@ Slice 87 also has `POST /v1/integrations/hr-link/sync` (pull and reconcile now),
 `POST /v1/integrations/hr-link/starters/{staffProfileId}` (a starter hired here, created once). The
 worker reconciles every linked organisation every 10 minutes, inside the default staleness limit,
 so a staleness limit below 10 minutes is refused.
+
+How slice 88 applies the rules:
+- **Absences in (rule 10).** Polled every 5 minutes with the rest of the sync. Only an approved
+  absence of a confirmed member blocks rostering: leave, sickness and other become annual leave,
+  sickness and other, dates and type only; leave with no end date counts as its first day. A change
+  of type or start replaces the copy; a request, a cancellation or an absence no longer listed
+  cancels it and resolves its cover needs (drift). A member with no home in the staff file is raised
+  for review. Cover needs are raised on the member's rostered shifts at any home (HZ-123).
+- **Shifts and clock events out (rules 3, 4, 5, 7 and 14).** The rota publishes no per-shift event
+  and time and attendance no clock event, so a delivery sweep over the delivery log sends them: on
+  each sync and when a rota is published. Each assignment of a published shift at a mapped home
+  goes once, again when it changes, and as a cancellation when removed or cancelled; clock events
+  in and out recorded since the link was connected (a week back at most) go once each; breaks stay
+  here. A refusal from Thapsus-HR is raised for the rota manager, never retried as is.
+- **Staleness (rule 9).** The older of the employee and absence syncs counts. Rota and staffing
+  screens show "Staff data from the HR platform may be out of date" with the time, as an alert with
+  an icon, for anyone who reads the rota (`GET /v1/integrations/hr-link/staleness`).
+- **Alerts.** Each cause is one open task for holders of `integrations.hr_link.review`, updated
+  rather than raised again.
+- **A wrong leaving date** is withdrawn by someone who manages the staff file, with a fresh step-up
+  and a coded reason (`POST /v1/integrations/hr-link/leavers/{staffProfileId}/withdraw`). It is
+  refused, and raised for review, while Thapsus-HR still gives the date. When access had already
+  ended, sign-in and the roles that leaving ended come back from then, by someone who manages
+  members.
 
 How slice 87 applies the rules:
 - **Matching (rule 3).** Staff who have left are not candidates. Harbour holds no employee number of

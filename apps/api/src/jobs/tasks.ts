@@ -32,6 +32,7 @@ import {
   hrLinkEnabled,
   pullSafely,
 } from "../integrations/hr-link";
+import { syncRotaSafely } from "../integrations/hr-rota";
 import type { Logger } from "../logger";
 import { raiseCoverTask } from "../services/absence";
 import { tellAboutBreachNotice } from "../services/breach-notices";
@@ -559,6 +560,8 @@ export async function syncHrLinks(deps: TaskDeps, now = new Date()): Promise<num
     const port = services.port(tenantId, link.settings);
     if (!port) return 0;
     const out = await pullSafely(tx, tenantId, port, link.settings, now);
+    // Absences in and the rota out, once people are linked (section 11.2; slice 88).
+    await syncRotaSafely(tx, tenantId, port, now);
     return out.linked;
   });
   if (linked > 0) deps.logger.info({ linked }, "HR link employees linked");
@@ -1030,6 +1033,20 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   // A shift an absence left needing cover (scheduling.md section 17 rule 7; HZ-123): a task for
   // the rota managers at the shift's home. A failure throws, so the relay retries; the task is
   // raised once per need.
+  // A rota published at a home linked to Thapsus-HR: its shifts go out now rather than at the next
+  // sync (integrations.md section 11.2). A failure is recorded in the delivery log; the sync
+  // carries on with it.
+  handlers.set("scheduling.rota_published", async (event) => {
+    const services = deps.hrLink;
+    if (!services) return;
+    await inTenant(event.tenantId, async (tx) => {
+      if (!(await hrLinkEnabled(tx))) return;
+      const link = await hrConnection(tx);
+      if (link?.status !== "connected") return;
+      const port = services.port(event.tenantId, link.settings);
+      if (port) await syncRotaSafely(tx, event.tenantId, port, new Date());
+    });
+  });
   handlers.set("scheduling.cover_needed", async (event) => {
     const coverNeedId = (event.payload as { coverNeedId?: unknown } | null)?.coverNeedId;
     // A malformed event is dropped, never retried for ever (security review, finding 5).

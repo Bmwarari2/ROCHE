@@ -304,9 +304,10 @@ await boss.schedule(QUEUES.developmentExpiry, "21 * * * *");
 // Leavers' access (workforce.md rule 22), hourly at 7 past: ended within the first hour of the
 // day after the leaving date.
 await boss.schedule(QUEUES.leaverAccess, "7 * * * *");
-// The Thapsus-HR link (integrations.md section 11.2): reconciled every 10 minutes, inside the
-// default 15-minute staleness limit, so a quiet link is not shown as out of date (rule 9).
-await boss.schedule(QUEUES.hrLinkSync, "*/10 * * * *");
+// The Thapsus-HR link (integrations.md section 11.2): employees, absences and the rota every 5
+// minutes, inside the 10-minute floor of the staleness limit, so a quiet link is not shown as out
+// of date (rule 9).
+await boss.schedule(QUEUES.hrLinkSync, "*/5 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
 await boss.schedule(QUEUES.herbertReviews, "31 4 * * *");

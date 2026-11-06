@@ -50,6 +50,7 @@ import {
   starterFor,
   ukRefusal,
 } from "../integrations/hr-link";
+import { syncRotaSafely } from "../integrations/hr-rota";
 import { receiveInbound } from "../integrations/inbound";
 import { SECRET_REF_SHAPE, secretRefProblem } from "../integrations/secret-ref";
 import { publish } from "../outbox";
@@ -171,8 +172,38 @@ const SyncResult = z
     drift: z.number().int(),
     failed: z.number().int(),
     error: z.string().nullable(),
+    /** Absences copied in and cancelled, and cover needs raised (slice 88); null if not run. */
+    absences: z
+      .object({
+        copied: z.number().int(),
+        changed: z.number().int(),
+        cancelled: z.number().int(),
+        coverNeeds: z.number().int(),
+        failed: z.number().int(),
+        error: z.string().nullable(),
+      })
+      .nullable(),
+    /** Shifts and clock events sent, cancelled or refused (slice 88); null if not run. */
+    deliveries: z
+      .object({
+        sent: z.number().int(),
+        cancelled: z.number().int(),
+        refused: z.number().int(),
+        failed: z.number().int(),
+        error: z.string().nullable(),
+      })
+      .nullable(),
   })
   .meta({ id: "HrLinkSyncResult" });
+
+const Staleness = z
+  .object({
+    linked: z.boolean(),
+    stale: z.boolean(),
+    lastGoodSyncAt: z.string().nullable(),
+    limitMinutes: z.number().int(),
+  })
+  .meta({ id: "HrLinkStaleness" });
 
 const Match = z
   .object({
@@ -243,10 +274,57 @@ function pullAsSystem(
   settings: HrLinkSettings,
 ) {
   const port = portFor(c, tenantId, settings);
-  return withSystemRights(tx, () => pullSafely(tx, tenantId, port, settings, new Date()));
+  return withSystemRights(tx, async () => {
+    const now = new Date();
+    const people = await pullSafely(tx, tenantId, port, settings, now);
+    // Absences in and the rota out, once people are linked (slice 88).
+    return { ...people, ...(await syncRotaSafely(tx, tenantId, port, now)) };
+  });
 }
 
 export const hrLinkRouter = createRouter()
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/integrations/hr-link/staleness",
+      tags,
+      summary: "Whether the HR platform's data on the rota is out of date (for rota screens)",
+      description:
+        "For anyone who reads or builds a rota: no personal data, only whether the link is on and when it last synced in full (rule 9).",
+      security,
+      responses: { 200: jsonBody(Staleness, "Staleness"), ...errorResponses },
+    }),
+    async (c) => {
+      await requireAnyPermission(c, [
+        ...READERS,
+        "scheduling.rota.read",
+        "scheduling.rota.manage",
+        "scheduling.rota.approve",
+      ]);
+      const body = await withTenant(c, async (tx) => {
+        const none = {
+          linked: false,
+          stale: false,
+          lastGoodSyncAt: null,
+          limitMinutes: HR_STALENESS_DEFAULT_MINUTES,
+        };
+        if (!(await hrLinkEnabled(tx))) return none;
+        const link = await hrConnection(tx);
+        if (link?.status !== "connected") return none;
+        // The sync position is the link's; a rota reader learns only the time and the verdict.
+        const state = await withSystemRights(tx, () =>
+          hrLinkStaleness(tx, link.settings, new Date()),
+        );
+        return {
+          linked: true,
+          stale: state.stale,
+          lastGoodSyncAt: state.lastGoodSyncAt,
+          limitMinutes: link.settings.stalenessMinutes,
+        };
+      });
+      return c.json(body, 200);
+    },
+  )
   .openapi(
     createRoute({
       method: "get",

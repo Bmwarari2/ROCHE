@@ -5834,6 +5834,9 @@
     "safety.manage.close.contacts",
     "safety.manage.close.deathFacts",
     "safety.incident.deathFactsTitle",
-    "safety.incident.deathFactsIntro"
+    "safety.incident.deathFactsIntro",
+    "rota.hrLink.staleTitle",
+    "rota.hrLink.staleBody",
+    "rota.hrLink.neverBody"
   ]
 }

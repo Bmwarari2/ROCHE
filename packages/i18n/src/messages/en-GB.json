@@ -5833,5 +5833,8 @@
   "medicines.rec.started": "Reconciliation started.",
   "medicines.rec.decideAbout": "Your decision about {product}",
   "medicines.rec.saveDecisionAbout": "Save the decision about {product}",
-  "medicines.rec.entryLine": "{route}. {directions}"
+  "medicines.rec.entryLine": "{route}. {directions}",
+  "rota.hrLink.staleTitle": "Staff data from the HR platform may be out of date",
+  "rota.hrLink.staleBody": "{app} last had leave, sickness and staff changes from the HR platform at {time}. Absences it already has still stop people being rostered. Check the HR platform before you rely on who is available.",
+  "rota.hrLink.neverBody": "{app} has not had leave, sickness and staff changes from the HR platform yet. Check the HR platform before you rely on who is available."
 }

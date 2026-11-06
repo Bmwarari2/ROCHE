@@ -32743,6 +32743,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/integrations/hr-link/staleness": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Whether the HR platform's data on the rota is out of date (for rota screens)
+     * @description For anyone who reads or builds a rota: no personal data, only whether the link is on and when it last synced in full (rule 9).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Staleness */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrLinkStaleness"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/integrations/hr-link": {
     parameters: {
       query?: never;
@@ -61874,6 +61940,12 @@ export interface components {
         message: string;
       }[];
     };
+    HrLinkStaleness: {
+      linked: boolean;
+      stale: boolean;
+      lastGoodSyncAt: string | null;
+      limitMinutes: number;
+    };
     HrLinkStatus: {
       connected: boolean;
       status: string | null;
@@ -61919,6 +61991,21 @@ export interface components {
       drift: number;
       failed: number;
       error: string | null;
+      absences: {
+        copied: number;
+        changed: number;
+        cancelled: number;
+        coverNeeds: number;
+        failed: number;
+        error: string | null;
+      } | null;
+      deliveries: {
+        sent: number;
+        cancelled: number;
+        refused: number;
+        failed: number;
+        error: string | null;
+      } | null;
     };
     HrLinkConnect: {
       workspaceSlug: string;

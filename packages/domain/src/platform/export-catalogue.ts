@@ -4517,6 +4517,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       attempts: { description: "How many times it was tried.", unit: "attempts" },
       last_error_code: { description: "An opaque code for the last failure." },
       next_attempt_at: "exported",
+      payload_sha256: {
+        description: "SHA-256 of what was last sent (a changed shift goes again).",
+      },
       sent_at: "exported",
       created_at: "exported",
       created_by: "exported",
@@ -7319,6 +7322,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       bradford_excluded_reason: {
         description: "Why a manager left the sickness out of the Bradford factor.",
       },
+      source: { description: "Where it came from: harbour, or thapsus_hr for a read-only copy." },
+      hr_id: { description: "Thapsus-HR's identifier for the absence it copies." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

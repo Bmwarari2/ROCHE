@@ -96,6 +96,12 @@ export const absence = pgTable(
     selfCertifiedAt: timestamp("self_certified_at", { withTimezone: true }),
     /** A manager's reason for leaving it out of the Bradford factor (pregnancy, disability). */
     bradfordExcludedReason: text("bradford_excluded_reason"),
+    /**
+     * Where it came from: `harbour`, or `thapsus_hr` for a read-only copy of an absence in the
+     * provider's Thapsus-HR tenant (integrations.md section 11.3; migration 0142), with its id.
+     */
+    source: text("source").notNull().default("harbour"),
+    hrId: text("hr_id"),
     ...mutableColumns(),
   },
   (t) => [
@@ -125,6 +131,17 @@ export const absence = pgTable(
         AND (bradford_excluded_reason IS NULL OR (kind = 'sickness' AND char_length(btrim(bradford_excluded_reason)) BETWEEN 3 AND 500))`,
     ),
     check("absence_self_certified", sql`self_certified_at IS NULL OR kind = 'sickness'`),
+    check(
+      "absence_source",
+      sql`source IN ('harbour', 'thapsus_hr') AND (source = 'thapsus_hr') = (hr_id IS NOT NULL)
+        AND (hr_id IS NULL OR hr_id ~ '^[A-Za-z0-9_-]{1,64}$')
+        AND (source = 'harbour' OR (kind IN ('annual_leave', 'sickness', 'other')
+          AND state IN ('recorded', 'cancelled') AND decided_by IS NULL AND self_certified_at IS NULL
+          AND bradford_excluded_reason IS NULL))`,
+    ),
+    uniqueIndex("absence_hr_key")
+      .on(t.tenantId, t.hrId)
+      .where(sql`hr_id IS NOT NULL AND state <> 'cancelled'`),
     // Statutory leave is never declined; carer's and unpaid parental leave may only be postponed
     // (H-970; scheduling.md section 17 rule 1).
     check(
