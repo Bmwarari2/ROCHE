@@ -247,6 +247,7 @@
   "people.transfer.checks.check": "{key, select, discharge_letter_filed {Hospital discharge letter filed} medicines_reconciled {Medicines checked against the discharge letter} allergies_rechecked {New allergies from the hospital recorded} resuscitation_rechecked {Any resuscitation decision made in hospital recorded} eating_and_drinking_rechecked {Any change to IDDSI levels from the hospital recorded} skin_checked {Skin checked and body map updated} belongings_returned {Belongings sent to hospital checked back in} other {{title}}}",
   "people.transfer.checks.due": "Due by {dateTime}",
   "people.transfer.checks.toDo": "To do",
+  "people.transfer.checks.byReconciliation": "Done by completing the medicines reconciliation for this return",
   "people.transfer.checks.done": "Done",
   "people.transfer.checks.doneAt": "Done on {dateTime}",
   "people.transfer.checks.submit": "Mark as done",
