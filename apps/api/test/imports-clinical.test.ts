@@ -1,4 +1,5 @@
 import { DEMO } from "@harbour/db/seed";
+import { addUkDays, ukIsoDate, ukStartOfDay } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./support/harness";
 
@@ -195,6 +196,61 @@ describe("hazard HZ-005 importing medicines (rule 28)", () => {
     );
     expect(rows).toEqual([{ state: "withdrawn" }]);
     expect((await undo(batchId)).status).toBe(409);
+  });
+});
+
+describe("H-548 an imported medicine stays held through a change, and its import's checks", () => {
+  it("raises a task to check each person's imported medicines, keeps a changed entry held, and refuses the undo", async () => {
+    const nhs = nextNhs();
+    const personId = await newPerson(nhs);
+    const { id } = await staged("medicines", `${MED_HEADER}\n${medLine(nhs)}`);
+    expect((await commit(id)).status).toBe(200);
+    const tasks = await ownerSql<{ kind: string; priority: string }>(
+      "SELECT kind, priority FROM task WHERE person_id = $1 AND source_id = $2",
+      [personId, id],
+    );
+    expect(tasks).toEqual([{ kind: "medicines.import_check", priority: "urgent" }]);
+    const [entry] = await ownerSql<{ id: string }>(
+      "SELECT id FROM medication WHERE person_id = $1",
+      [personId],
+    );
+    const tomorrow = ukStartOfDay(ukIsoDate(addUkDays(new Date(), 1))).toISOString();
+    const changed = await send(`/v1/medicines/${entry?.id}/versions`, "POST", {
+      expectedVersion: 1,
+      product: { vmpId: VMP, ampId: null, name: "Paracetamol 500mg tablets" },
+      route: { code: "26643006", name: "Oral" },
+      directions: {
+        kind: "when_required",
+        dose: { kind: "amount", quantity: 1, unit: { code: "428673006", name: "tablet" } },
+      },
+      indication: "Pain",
+      specialInstructions: null,
+      prescriber: "Dr Example",
+      startsAt: tomorrow,
+      stopsAt: null,
+      reviewOn: null,
+      source: { kind: "prescription", reference: "Prescription, November", documentId: null },
+    });
+    expect(changed.status, JSON.stringify(await changed.clone().json())).toBe(201);
+    const versions = await ownerSql<{ origin: string; import_batch_id: string | null }>(
+      "SELECT origin, import_batch_id FROM medication WHERE person_id = $1 ORDER BY version",
+      [personId],
+    );
+    expect(versions).toEqual([
+      { origin: "import", import_batch_id: id },
+      { origin: "import", import_batch_id: null },
+    ]);
+    const refused = await undo(id);
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { code: string }).code).toBe("changed_since");
+  });
+
+  it("refuses rows for someone not receiving care", async () => {
+    const nhs = nextNhs();
+    const personId = await newPerson(nhs);
+    await ownerSql("UPDATE person SET status = 'discharged' WHERE id = $1", [personId]);
+    const { report } = await staged("medicines", `${MED_HEADER}\n${medLine(nhs)}`);
+    expect((report.errors as { code: string }[])[0]?.code).toBe("person_not_current");
   });
 });
 

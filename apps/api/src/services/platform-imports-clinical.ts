@@ -6,6 +6,7 @@ import {
   person,
   staffProfile,
   type Transaction,
+  task,
   tenantUser,
 } from "@harbour/db";
 import {
@@ -53,7 +54,12 @@ export interface ClinicalImportContext {
 }
 
 type Planned =
-  | { readonly kind: "medicines"; readonly entries: readonly MarEntry[] }
+  | {
+      readonly kind: "medicines";
+      readonly entries: readonly MarEntry[];
+      /** Each person's home, for the task to check their imported medicines. */
+      readonly homes: ReadonlyMap<string, string | null>;
+    }
   | {
       readonly kind: "care_plans";
       readonly plans: readonly {
@@ -81,13 +87,54 @@ export interface ClinicalDryRunResult {
 /** People by NHS number, among those the importer may read (every one, organisation-wide). */
 async function peopleByNhs(tx: Transaction, numbers: readonly string[]) {
   const wanted = [...new Set(numbers.filter(Boolean))];
-  if (wanted.length === 0) return new Map<string, { id: string; locationId: string | null }>();
+  if (wanted.length === 0) {
+    return new Map<string, { id: string; locationId: string; current: boolean }>();
+  }
   const rows = await tx
-    .select({ id: person.id, nhsNumber: person.nhsNumber, locationId: person.locationId })
+    .select({
+      id: person.id,
+      nhsNumber: person.nhsNumber,
+      locationId: person.locationId,
+      status: person.status,
+    })
     .from(person)
     .where(and(inArray(person.nhsNumber, wanted), isNull(person.deletedAt)));
-  return new Map(rows.map((r) => [r.nhsNumber ?? "", { id: r.id, locationId: r.locationId }]));
+  return new Map(
+    rows.map((r) => [
+      r.nhsNumber ?? "",
+      { id: r.id, locationId: r.locationId, current: RECEIVING_CARE.has(r.status) },
+    ]),
+  );
 }
+
+/**
+ * People receiving care now (slice 51 clinical review, 5): an export may still list someone who
+ * has left or died, and nothing clinical is imported for them.
+ */
+const RECEIVING_CARE: ReadonlySet<string> = new Set(["active", "on_leave", "in_hospital"]);
+
+const notCurrent = (row: number): ImportError =>
+  importRowError(row, "person_nhs_number", "person_not_current", "");
+
+/** A medicines rule's refusal as plain words with no value (security review of slice 51, L3). */
+const MEDICINE_REFUSALS: Readonly<Record<string, string>> = {
+  same_product_in_force:
+    "This medicine is already on the person's MAR, or on an earlier row of the file. Change it on the MAR instead.",
+  route_not_permitted: "The route is not one dm+d gives for this medicine.",
+  product_not_dmd: "The medicine must be a dm+d product.",
+  indication_required: "Give the indication for a when-required medicine.",
+  prescriber_required: "Give the prescriber.",
+  source_required: "Give the source and its reference.",
+  stops_before_starts: "The stop date must be after the start date.",
+};
+const medicineRefused = (row: number, problem: string): ImportError => ({
+  row,
+  column: "vmp_id",
+  code: "medicine_refused",
+  message:
+    MEDICINE_REFUSALS[problem] ??
+    "The medicine cannot be recorded like this: check the dose, its unit and the times against dm+d and the source.",
+});
 
 const notFound = (row: number): ImportError =>
   importRowError(row, "person_nhs_number", "person_not_found", "NHS number");
@@ -112,6 +159,10 @@ async function medicinesDryRun(
     const found = people.get(row.person_nhs_number ?? "");
     if (!found) {
       errors.push(notFound(n));
+      continue;
+    }
+    if (!found.current) {
+      errors.push(notCurrent(n));
       continue;
     }
     // dm+d's own facts by code: an unknown code is refused, never guessed (HZ-005).
@@ -141,8 +192,8 @@ async function medicinesDryRun(
       earlierEntries: earlier,
     });
     if (!result.ok) {
-      for (const issue of result.issues) {
-        errors.push({ row: n, column: "vmp_id", code: "medicine_refused", message: issue.message });
+      for (const problem of new Set(result.issues.map((x) => x.problem))) {
+        errors.push(medicineRefused(n, problem));
       }
       continue;
     }
@@ -150,7 +201,8 @@ async function medicinesDryRun(
     earlier.push(result.entry);
     entries.push(result.entry);
   }
-  return { errors, planned: { kind: "medicines", entries } };
+  const homes = new Map([...people.values()].map((p) => [p.id, p.locationId]));
+  return { errors, planned: { kind: "medicines", entries, homes } };
 }
 
 async function carePlansDryRun(
@@ -186,10 +238,8 @@ async function carePlansDryRun(
       for (const n of draft.rows) errors.push(notFound(n));
       continue;
     }
-    if (!found.locationId) {
-      for (const n of draft.rows) {
-        errors.push(importRowError(n, "person_nhs_number", "person_has_no_home", ""));
-      }
+    if (!found.current) {
+      for (const n of draft.rows) errors.push(notCurrent(n));
       continue;
     }
     if (withDraft.has(found.id)) {
@@ -221,9 +271,24 @@ async function staffFilesDryRun(
           .from(staffProfile)
           .innerJoin(tenantUser, eq(tenantUser.id, staffProfile.tenantUserId))
           .where(
-            and(inArray(sql`lower(${tenantUser.email})`, emails), isNull(staffProfile.deletedAt)),
+            and(
+              inArray(sql`lower(${tenantUser.email})`, emails),
+              eq(tenantUser.status, "active"),
+              isNull(staffProfile.deletedAt),
+            ),
           );
-  const byEmail = new Map(files.map((f) => [f.email.toLowerCase(), f.profile]));
+  // Two members whose emails differ only in case match nobody (security review of slice 51, L2).
+  const counts = new Map<string, number>();
+  for (const f of files) {
+    const e = f.email.toLowerCase();
+    counts.set(e, (counts.get(e) ?? 0) + 1);
+  }
+  const ambiguous = new Set([...counts].filter(([, n]) => n > 1).map(([e]) => e));
+  const byEmail = new Map(
+    files
+      .filter((f) => !ambiguous.has(f.email.toLowerCase()))
+      .map((f) => [f.email.toLowerCase(), f.profile]),
+  );
   const profileIds = files.map((f) => f.profile.id);
   const existing: ComplianceItemRow[] =
     profileIds.length === 0
@@ -243,7 +308,12 @@ async function staffFilesDryRun(
   for (const [index, row] of validation.rows.entries()) {
     const n = index + 1;
     if (erroneous.has(n) || erroneous.has(0)) continue;
-    const profile = byEmail.get((row.member_email ?? "").toLowerCase());
+    const email = (row.member_email ?? "").toLowerCase();
+    if (ambiguous.has(email)) {
+      errors.push(importRowError(n, "member_email", "staff_file_ambiguous", "Work email"));
+      continue;
+    }
+    const profile = byEmail.get(email);
     if (!profile) {
       errors.push(importRowError(n, "member_email", "staff_file_not_found", "Work email"));
       continue;
@@ -310,6 +380,9 @@ export async function clinicalDryRunNow(
   return { validation: all, report, planned };
 }
 
+/** The task raised for each person whose medicines an import added (HZ-003, rule 28). */
+export const MEDICINES_IMPORT_CHECK = "medicines.import_check";
+
 /** The audit action written once per record a commit creates (rule 27). */
 export const CLINICAL_IMPORTED: Readonly<
   Record<ClinicalRecordType, { action: string; resourceType: string }>
@@ -334,6 +407,28 @@ export async function commitClinical(
     for (const entry of planned.entries) {
       await insertEntry(tx, entry, entry.id, { importBatchId: batchId });
       created.push(entry.id);
+    }
+    // HZ-003 (slice 51 clinical review): every imported medicine is held until its second check,
+    // so each person gets an urgent task to have them checked before their next round.
+    const people = [...new Set(planned.entries.map((e) => e.personId))];
+    if (people.length > 0) {
+      await tx.insert(task).values(
+        people.map((personId) => ({
+          kind: MEDICINES_IMPORT_CHECK,
+          title: "Check imported medicines against their source before the next round",
+          requiredPermission: "medicines.record.manage",
+          personId,
+          locationId: planned.homes.get(personId) ?? null,
+          sourceType: "import_batch",
+          sourceId: batchId,
+          assigneeRoleKey: "registered_manager",
+          dueAt: new Date(),
+          priority: "urgent" as const,
+          details: {
+            importedMedicines: planned.entries.filter((e) => e.personId === personId).length,
+          },
+        })),
+      );
     }
   } else if (planned.kind === "care_plans") {
     for (const plan of planned.plans) {

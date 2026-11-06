@@ -311,7 +311,8 @@ export type ImportErrorCode =
   | "indication_required"
   | "stops_before_start"
   | "care_plan_draft_exists"
-  | "person_has_no_home"
+  | "person_not_current"
+  | "staff_file_ambiguous"
   | "invalid_email"
   | "staff_file_not_found"
   | "own_staff_file"
@@ -399,8 +400,10 @@ function message(code: ImportErrorCode, label: string): string {
       return `${label} must be on or after the start date.`;
     case "care_plan_draft_exists":
       return `This person already has a draft care plan. Finish or discard it before importing another.`;
-    case "person_has_no_home":
-      return "This person has no home in Harbour, so a care plan cannot be drafted for them. Add their placement first.";
+    case "person_not_current":
+      return "This person is not receiving care now (they have left, died or not been admitted), so nothing clinical is imported for them. Remove the row.";
+    case "staff_file_ambiguous":
+      return `More than one member of staff has this ${label.toLowerCase()} written differently. Correct their emails in Harbour first; a row is never matched by guess.`;
     case "invalid_email":
       return `${label} must be an email address.`;
     case "staff_file_not_found":

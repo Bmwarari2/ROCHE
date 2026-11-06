@@ -133,7 +133,7 @@ describe("the upload route's checks", () => {
 describe("where an import stands, as an icon and a word", () => {
   it.each([
     ["staged", "due", "Waiting to be checked"],
-    ["committed", "done", "People added"],
+    ["committed", "done", "Added"],
     ["undone", "notApplicable", "Undone"],
     ["discarded", "notApplicable", "Discarded"],
     ["expired", "notApplicable", "Expired"],

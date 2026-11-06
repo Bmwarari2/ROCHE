@@ -1517,16 +1517,19 @@ HZ-024 (care plans), HZ-124 (staff files), HZ-072 (sample data).
     (`transcribeMarEntry`) run on each row as for one transcribed by hand: one entry per product
     for a person (rule 6), a when-required medicine's indication, a regular one's times (every
     day; any other pattern is transcribed by hand). Each arrives with `origin = 'import'` and
-    state "not yet checked", and `marEntryStatus` holds it, "Imported, not yet checked", off every
-    round and MAR until a second person competent in medicines checks it against its source,
-    whatever the organisation's policy for other unchecked entries (H-550). An undo withdraws
-    the batch's medicines, only while none of them has been checked.
+    state "not yet checked": `marEntryStatus` shows it on the MAR as "Imported, not yet checked"
+    and no dose may be given from it until a second person competent in medicines checks it
+    against its source, whatever the organisation's policy for other unchecked entries (H-550). A
+    change made before that check keeps the hold (the new version is `origin = 'import'` too).
+    Each person gets an urgent task (`medicines.import_check`) to have them checked before their
+    next round (HZ-003). An undo withdraws the batch's medicines ("Withdrawn: the import that
+    added it was undone"), only while none of them has been checked or changed.
 29. **Care plans arrive as drafts** (HZ-024). One row is one need domain for a person; a person's
-    rows become one draft plan with a section for each, at the person's home; a person with no
-    home is refused (`person_has_no_home`). A person who already has a draft is refused (one draft
-    per person). Nothing is published: a person reviews
+    rows become one draft plan with a section for each, at the person's home. A person who already
+    has a draft is refused (one draft per person). Nothing is published: a person reviews
     each draft, adds actions and sign-off, and publishes it as for one written by hand. An undo
-    removes the drafts only while every one is unchanged and unpublished.
+    removes the drafts only while every one is unchanged and unpublished, with no section added
+    since the commit.
 30. **Staff file checks arrive unverified** (HZ-124). One row is one check of a member's staff
     file: identity, DBS (level, issue date, number and result together, or only the barred list
     check date), right to work, professional registration, references or qualifications. Health,

@@ -97,6 +97,49 @@ function Rows({ kind, rows }: { readonly kind: string; readonly rows: readonly n
   );
 }
 
+/** How many rows of a list are shown at most, as the errors are (IMPORT_REPORT_MAX_ITEMS). */
+const MAX_ROWS_LISTED = 500;
+
+/**
+ * What happens to each row (rule 31): a count of the rows that will be added and those that will
+ * not, then only the rows that will not, capped, each in words with an icon (never colour alone).
+ */
+function RowOutcomes({
+  outcomes,
+  idPrefix,
+}: {
+  readonly outcomes: readonly { readonly row: number; readonly outcome: "creates" | "refused" }[];
+  readonly idPrefix: string;
+}) {
+  const refused = outcomes.filter((r) => r.outcome === "refused");
+  const creates = outcomes.length - refused.length;
+  return (
+    <section aria-labelledby={`${idPrefix}-rows`} className="flex flex-col gap-2">
+      <h3 id={`${idPrefix}-rows`} className="m-0 text-body font-semibold">
+        {t("import.report.rowsTitle")}
+      </h3>
+      <p className="m-0 flex items-center gap-2">
+        {refused.length > 0 ? (
+          <CircleAlert {...icon} className="shrink-0" />
+        ) : (
+          <CircleCheck {...icon} className="shrink-0" />
+        )}
+        {t("import.report.rowsSummary", { creates, refused: refused.length })}
+      </p>
+      {refused.length > 0 ? (
+        <ul className="m-0 flex flex-col gap-1 pl-5">
+          {refused.slice(0, MAX_ROWS_LISTED).map((r) => (
+            <li key={r.row}>{t("import.report.row", { row: r.row })}</li>
+          ))}
+        </ul>
+      ) : null}
+      {refused.length > MAX_ROWS_LISTED ? (
+        <p className="m-0">{t("import.report.rowsTruncated", { count: MAX_ROWS_LISTED })}</p>
+      ) : null}
+    </section>
+  );
+}
+
 /** The dry run's report: counts, what committing does, errors and the warnings to acknowledge. */
 function Report({
   report,
@@ -143,25 +186,6 @@ function Report({
           ))}
         </ul>
       </section>
-      {report.rowOutcomes && report.rowOutcomes.length > 0 ? (
-        <section aria-labelledby={`${idPrefix}-rows`} className="flex flex-col gap-2">
-          <h3 id={`${idPrefix}-rows`} className="m-0 text-body font-semibold">
-            {t("import.report.rowsTitle")}
-          </h3>
-          <ul className="m-0 flex flex-col gap-1 p-0">
-            {report.rowOutcomes.map((r) => (
-              <li key={r.row} className="flex items-center gap-2">
-                {r.outcome === "creates" ? (
-                  <CircleCheck {...icon} className="shrink-0" />
-                ) : (
-                  <CircleAlert {...icon} className="shrink-0" />
-                )}
-                {t("import.report.row", { row: r.row, outcome: r.outcome })}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
       {report.errors.length > 0 ? (
         <section aria-labelledby={`${idPrefix}-errors`} className="flex flex-col gap-2">
           <h3 id={`${idPrefix}-errors`} className="m-0 text-body font-semibold">
@@ -182,6 +206,9 @@ function Report({
           </ul>
           {report.truncated ? <p className="m-0">{t("import.report.truncated")}</p> : null}
         </section>
+      ) : null}
+      {report.rowOutcomes && report.rowOutcomes.length > 0 ? (
+        <RowOutcomes outcomes={report.rowOutcomes} idPrefix={idPrefix} />
       ) : null}
       {report.warnings.length > 0 ? (
         <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
@@ -248,9 +275,7 @@ export function CommitDone({
       <div className="flex flex-col gap-3">
         <p className="m-0 flex items-center gap-2">
           <ListChecks {...icon} className="shrink-0" />
-          {t("import.commit.done", {
-            what: t("import.recordsAdded", { type: recordType, records: result.records }),
-          })}
+          {t("import.commit.done", { type: recordType, records: result.records })}
         </p>
         {result.allergyStatusToConfirm.length > 0 ? (
           <section aria-labelledby="import-allergy-tasks" className="flex flex-col gap-2">
@@ -413,7 +438,10 @@ export function ImportSteps({ batch }: { readonly batch: ImportBatch }) {
                   <Button type="submit" icon={<Upload {...icon} />} disabled={commit.pending}>
                     {commit.pending
                       ? t("import.commit.sending")
-                      : t("import.commit.submit", { rows: report.validRows })}
+                      : t("import.commit.submit", {
+                          type: batch.recordType,
+                          rows: report.createsCount ?? report.validRows,
+                        })}
                   </Button>
                 </div>
               </div>

@@ -9,10 +9,12 @@ ALTER TABLE "import_batch" ADD CONSTRAINT "import_batch_record_type" CHECK (reco
 -- Importing medicines, care plans and staff files (slice 51; platform.md rules 27 to 31; PLAT-014,
 -- WORK-013). Runs as harbour_owner.
 
--- An imported medicine is exactly one that carries its batch (as reconciliation_id does for a
--- reconciliation): origin 'import' if and only if import_batch_id is set.
+-- A medicine carrying a batch was imported by it, and an imported first version carries its batch.
+-- A change to an imported entry nobody has checked keeps origin 'import' with no batch of its own
+-- (H-548: it is still never given before its second check), so only a first version needs one.
 ALTER TABLE public.medication ADD CONSTRAINT medication_import_link
-  CHECK ((origin = 'import') = (import_batch_id IS NOT NULL));
+  CHECK ((import_batch_id IS NULL OR origin = 'import')
+    AND (origin <> 'import' OR import_batch_id IS NOT NULL OR replaces_id IS NOT NULL));
 --> statement-breakpoint
 
 -- Who reaches an import (rule 27): platform.import.run and, per type, the permissions to create
@@ -90,7 +92,7 @@ $$;
 DROP TRIGGER no_delete ON public.compliance_item;
 --> statement-breakpoint
 CREATE TRIGGER no_delete BEFORE DELETE ON public.compliance_item
-  FOR EACH ROW WHEN (current_user <> 'harbour_import_owner')
+  FOR EACH ROW WHEN (current_user <> 'harbour_import_owner' OR OLD.import_batch_id IS NULL)
   EXECUTE FUNCTION app.forbid_mutation();
 --> statement-breakpoint
 
@@ -186,6 +188,11 @@ BEGIN
          AND p.version = 1 AND p.deleted_at IS NULL;
       GET DIAGNOSTICS v_removed = ROW_COUNT;
     ELSIF v_type = 'medicines' THEN
+      -- The tasks to check them go with them while still open (as people's allergy checks do).
+      DELETE FROM public.task t
+       WHERE t.tenant_id = v_tenant AND t.kind = 'medicines.import_check'
+         AND t.source_type = 'import_batch' AND t.source_id = p_batch
+         AND t.status = 'open' AND t.deleted_at IS NULL;
       UPDATE public.medication m
          SET state = 'withdrawn', withdrawn_by = v_me, withdrawn_at = now(),
              withdrawn_reason = 'The import that added it was undone'
@@ -194,9 +201,12 @@ BEGIN
          AND m.deleted_at IS NULL;
       GET DIAGNOSTICS v_removed = ROW_COUNT;
     ELSIF v_type = 'care_plans' THEN
+      -- A section changed, removed or added since the commit (a nurse's own writing) is never
+      -- deleted by an undo (security review of slice 51, M1).
       IF EXISTS (SELECT 1 FROM public.care_plan_section s
                   WHERE s.tenant_id = v_tenant AND s.plan_id = ANY (v_ids)
-                    AND (s.version <> 1 OR s.deleted_at IS NOT NULL)) THEN
+                    AND (s.version <> 1 OR s.deleted_at IS NOT NULL
+                         OR s.created_at > v_committed)) THEN
         RAISE EXCEPTION 'changed_since' USING ERRCODE = 'check_violation';
       END IF;
       IF (SELECT count(*) FROM public.care_plan p
@@ -262,7 +272,7 @@ GRANT SELECT (tenant_id, id, import_batch_id, state, check_at, withdrawn_at, del
 GRANT SELECT (tenant_id, id, import_batch_id, status, version, deleted_at), DELETE
   ON public.care_plan TO harbour_import_owner;
 --> statement-breakpoint
-GRANT SELECT (tenant_id, id, plan_id, version, deleted_at), DELETE
+GRANT SELECT (tenant_id, id, plan_id, version, deleted_at, created_at), DELETE
   ON public.care_plan_section TO harbour_import_owner;
 --> statement-breakpoint
 GRANT SELECT (tenant_id, id, import_batch_id, version, verified_by, risk_assessment_signed_by,

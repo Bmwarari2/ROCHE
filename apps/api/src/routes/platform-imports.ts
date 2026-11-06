@@ -159,19 +159,20 @@ const TYPE_PERMISSIONS: Readonly<Record<ImportRecordType, readonly Permission[]>
   staff_files: ["workforce.staff_file.manage"],
 };
 
-/** A batch read by a member without its type's permissions: refused, audited (rule 27). */
-function requireBatchType(c: Context<AppEnv>, recordType: string, action: string, id: string) {
-  const perms: readonly Permission[] = TYPE_PERMISSIONS[recordType as ImportRecordType] ?? [
-    "platform.import.run",
-  ];
-  if (perms.every((p) => refusalOf(c.get("access"), p) === null)) return;
-  throw new AuditedRefusal(problems.forbidden(), {
-    action,
-    outcome: "denied",
-    resourceType: "import_batch",
-    resourceId: id,
-    reason: "missing_permission",
-  });
+/**
+ * The importer of one batch (rule 27; security review of slice 51, L1): the batch's own type's
+ * permissions, each across the whole organisation, required as for an upload of that type once
+ * the batch is read. A batch the member cannot reach reads as not found (row-level security).
+ */
+async function requireBatchImporter(
+  c: Context<AppEnv>,
+  action: string,
+  id: string,
+): Promise<TenantAccess> {
+  const first = await requireImporter(c, action);
+  const found = await withTenant(c, (tx) => findBatch(tx, id));
+  if (!found) return first;
+  return requireImporter(c, action, found.recordType as ImportRecordType);
 }
 
 const isClinical = (t: string): t is ClinicalRecordType =>
@@ -604,8 +605,8 @@ export const platformImportsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requireImporter(c, READ);
       const { id } = c.req.valid("param");
+      const access = await requireBatchImporter(c, READ, id);
       const out = await withTenant(c, async (tx) => {
         const batch = await findBatch(tx, id);
         if (!batch) throw problems.notFound();
@@ -644,13 +645,12 @@ export const platformImportsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requireImporter(c, DRY_RUN);
       const { id } = c.req.valid("param");
+      const access = await requireBatchImporter(c, DRY_RUN, id);
       const out = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           const batch = await findBatch(tx, id, true);
           if (!batch) throw problems.notFound();
-          requireBatchType(c, batch.recordType, DRY_RUN, batch.id);
           if (batch.status !== "staged") stateRefusal(DRY_RUN, batch.id, "not_staged", NOT_STAGED);
           const { report } = isClinical(batch.recordType)
             ? await clinicalDryRunNow(tx, batch.id, batch.recordType, clinicalContext(c, access))
@@ -707,15 +707,14 @@ export const platformImportsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requireImporter(c, COMMITTED);
-      await requireStepUp(c, access, COMMITTED);
       const { id } = c.req.valid("param");
+      const access = await requireBatchImporter(c, COMMITTED, id);
+      await requireStepUp(c, access, COMMITTED);
       const body = c.req.valid("json");
       const out = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           const batch = await findBatch(tx, id, true);
           if (!batch) throw problems.notFound();
-          requireBatchType(c, batch.recordType, COMMITTED, batch.id);
           const rates = await importRates(tx, access.tenantId, batch.locationId);
           if (batch.status === "committed" || batch.status === "undone") {
             const done = await findCommit(tx, batch.id);
@@ -896,14 +895,13 @@ export const platformImportsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requireImporter(c, UNDONE);
-      await requireStepUp(c, access, UNDONE);
       const { id } = c.req.valid("param");
+      const access = await requireBatchImporter(c, UNDONE, id);
+      await requireStepUp(c, access, UNDONE);
       const out = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           const batch = await findBatch(tx, id, true);
           if (!batch) throw problems.notFound();
-          requireBatchType(c, batch.recordType, UNDONE, batch.id);
           const commit = await findCommit(tx, batch.id);
           if (!commit || (batch.status !== "committed" && batch.status !== "undone")) {
             stateRefusal(
@@ -977,8 +975,8 @@ export const platformImportsRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requireImporter(c, DISCARDED);
       const { id } = c.req.valid("param");
+      const access = await requireBatchImporter(c, DISCARDED, id);
       const out = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
           const batch = await findBatch(tx, id, true);

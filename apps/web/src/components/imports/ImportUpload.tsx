@@ -73,6 +73,8 @@ export function ImportUpload({
 }) {
   const ids = useFieldIds(["recordType", "locationId", "file", "mapping"]);
   const [recordType, setRecordType] = useState<RecordType>("people");
+  // Said politely when changing the type matches the columns again (WCAG 4.1.3).
+  const [typeNotice, setTypeNotice] = useState("");
   const router = useRouter();
   const [file, setFile] = useState<ReadFile | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
@@ -161,9 +163,25 @@ export function ImportUpload({
           setRecordType(next);
           setResult(null);
           setColumnErrors({});
-          if (file) setChosen(suggestMapping(file.header, next));
+          if (file) {
+            // Keep each column the person matched that the new type also takes; suggest the rest.
+            const keys = new Set(importFieldOptions(next).map((f) => f.key));
+            const suggested = suggestMapping(file.header, next);
+            setChosen(
+              file.header.map((_, i) => {
+                const mine = chosen[i];
+                return mine && mine !== LEAVE_OUT && keys.has(mine)
+                  ? mine
+                  : (suggested[i] ?? LEAVE_OUT);
+              }),
+            );
+            setTypeNotice(t("import.upload.recordTypeChanged", { type: next }));
+          }
         }}
       />
+      <p role="status" aria-live="polite" className="m-0 empty:hidden">
+        {typeNotice}
+      </p>
       <SelectField
         id={ids.locationId}
         name="locationId"

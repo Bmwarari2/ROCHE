@@ -17,6 +17,7 @@ import {
   type ChangeMeta,
   changeMarEntry,
   checkMarEntryDraft,
+  IMPORT_UNDONE_REASON,
   lastDueDose,
   MAR_ENTRY_NOTICES,
   type MarEntry,
@@ -247,6 +248,48 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
     expect(marEntryStatus(e, inForce, "hold_until_checked")).toEqual({
       words: "Checked",
       mayGive: true,
+      notice: null,
+    });
+  });
+
+  it.each(["give_with_notice", "hold_until_checked"] as const)(
+    "H-548: a change to an imported entry nobody has checked is still imported and never given (policy %s)",
+    (policy) => {
+      const imported = transcribeMarEntry(draft(), TABLET_FACTS, {
+        ...newMeta,
+        id: "entry-12",
+        origin: "import",
+      });
+      if (!imported.ok) throw new Error("not transcribed");
+      const result = changeMarEntry(
+        [imported.entry],
+        draft({ startsAt: midnight(6), directions: prn }),
+        TABLET_FACTS,
+        meta(at(5, 10)),
+      );
+      if (!result.ok) throw new Error(result.issues.map((i) => i.message).join(" "));
+      expect(result.next.origin).toBe("import");
+      expect(marEntryStatus(result.next, at(6, 9), policy)).toMatchObject({
+        words: "Imported, not yet checked",
+        mayGive: false,
+      });
+    },
+  );
+
+  it("an import undone reads as withdrawn by the undo, never as before it started", () => {
+    const imported = transcribeMarEntry(draft(), TABLET_FACTS, {
+      ...newMeta,
+      id: "entry-13",
+      origin: "import",
+    });
+    if (!imported.ok) throw new Error("not transcribed");
+    const undone = {
+      ...imported.entry,
+      withdrawn: { by: TRANSCRIBER, at: checkedAt, reason: IMPORT_UNDONE_REASON },
+    };
+    expect(marEntryStatus(undone, inForce, "give_with_notice")).toEqual({
+      words: "Withdrawn: the import that added it was undone",
+      mayGive: false,
       notice: null,
     });
   });

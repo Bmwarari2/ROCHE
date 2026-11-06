@@ -273,6 +273,43 @@ describe("undo by type (rules 29 and 30)", () => {
     expect(await code(() => asStaff(undo(id)))).toMatch(/missing_permission/);
   });
 
+  it("refuses once a section was added to a draft since the commit, never deleting it", async () => {
+    const PERSON_5 = "0199f700-0000-7000-8000-0000000000a5";
+    await owner((c) =>
+      c.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, date_of_birth,
+           local_identifier) VALUES ($1, $2, 'active', 'Inez', 'Example', '1944-06-05', 'IMP-5')`,
+        [PERSON_5, ids.a.locationNorth],
+      ),
+    );
+    const { id, plan } = await asCarePlans(async (c) => {
+      const b = await batch(c, "care_plans");
+      const p = await draftPlan(c, PERSON_5, b);
+      await section(c, p, PERSON_5);
+      await close(c, b, [p]);
+      return { id: b, plan: p };
+    });
+    // A nurse adds a section in a later transaction.
+    await asCarePlans((c) =>
+      c.query(
+        `INSERT INTO care_plan_section (person_id, plan_id, domain, need, outcome)
+         VALUES ($1, $2, 'nutrition_and_hydration', 'Needs reminding to drink.', 'Drinks enough.')`,
+        [PERSON_5, plan],
+      ),
+    );
+    expect(await code(() => asCarePlans(undo(id)))).toMatch(/changed_since/);
+    expect(
+      await owner((c) =>
+        c
+          .query<{ n: number }>(
+            "SELECT count(*)::int AS n FROM care_plan_section WHERE plan_id = $1",
+            [plan],
+          )
+          .then((r) => r.rows[0]?.n),
+      ),
+    ).toBe(2);
+  });
+
   it("hazard HZ-124 removes a batch's unverified checks, and refuses once one is verified", async () => {
     const removable = await asStaff(async (c) => {
       const b = await batch(c, "staff_files");

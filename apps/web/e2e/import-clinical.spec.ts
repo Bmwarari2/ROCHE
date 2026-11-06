@@ -34,23 +34,28 @@ test("hazard HZ-130 the owner checks a care plans file and reads every row's out
   await signInWithDemoPasskey(page, "owner");
   await page.goto("/settings/import");
   const upload = page.getByRole("region", { name: "Upload a file" });
-  await upload.getByLabel("What the file holds").selectOption("care_plans");
-  await accessibleInBothThemes(page, "import type chosen");
   await upload.getByLabel("Home").selectOption({ index: 1 });
   await upload.getByLabel("CSV file").setInputFiles({
     name: "care-plans.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(CARE_PLANS),
   });
+  // The type chosen after the file is loaded matches the columns again, and says so politely.
+  const type = upload.getByLabel("What the file holds");
+  await type.selectOption("care_plans");
+  await expect(upload.getByRole("status")).toHaveText(
+    "Columns matched again for care plans. Check each one.",
+  );
   await expect(upload.getByLabel("Column 2: domain")).toHaveValue("domain");
+  await accessibleInBothThemes(page, "import type chosen");
   await upload.getByRole("button", { name: "Upload for checking" }).click();
   await expect(main(page).getByRole("status").filter({ hasText: "File uploaded." })).toBeVisible();
 
   await main(page).getByRole("button", { name: "Check the file" }).click();
   const report = page.getByRole("region", { name: "What the check found" });
-  const rows = report.getByRole("region", { name: "Every row" });
-  await expect(rows.getByText("Row 2: refused, correct it in the file")).toBeVisible();
-  await expect(rows.getByRole("listitem")).toHaveCount(2);
+  const rows = report.getByRole("region", { name: "What happens to each row" });
+  await expect(rows.getByText("Row 2: will not be added. Correct it in the file.")).toBeVisible();
+  await expect(rows.getByRole("listitem")).toHaveCount(1);
   await expect(report.getByText("never matched by name")).toBeVisible();
   // People's allergy questions are not asked of a care plans file.
   await expect(report.getByRole("heading", { name: /allerg/i })).toHaveCount(0);

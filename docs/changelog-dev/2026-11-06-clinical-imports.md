@@ -28,6 +28,20 @@ recommended answer applied until the testing-phase review.
 - **Docs:** platform.md, the hazard log (HZ-130, HZ-005, HZ-024, HZ-124), the medical device
   boundary, records of processing, data standards, the feature register, human actions.
 
+## Reviews
+
+- **Clinical safety:** a change to an imported, unchecked medicine now keeps the hold (high);
+  each person gets an urgent task to have imported medicines checked before the next round
+  (HZ-003); hazard log rows moved to HZ-024 and HZ-124; medicines and care plans only for people
+  receiving care; "Withdrawn: the import that added it was undone"; BST start dates tested.
+- **Security:** an undo never deletes a care plan section added since the commit (medium); the
+  batch's own type's permissions checked organisation-wide in the API on every batch route;
+  staff files matched only for active members, ambiguous emails refused; medicines refusals
+  in words with no value; the staff file delete exemption narrowed to imported checks.
+- **Accessibility:** type-aware copy throughout (no sentence built from fragments), the commit
+  button names what it adds, only the rows that will not be added are listed (capped), and
+  changing the type keeps valid column choices and says so politely.
+
 ## Tests
 
 - Domain: `imports-clinical.test.ts` (table-driven per type), `mar-entry.test.ts` (H-548).

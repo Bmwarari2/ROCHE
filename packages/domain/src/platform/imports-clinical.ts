@@ -447,20 +447,20 @@ export function clinicalOutcomeWords(
   switch (recordType) {
     case "medicines":
       words.push(
-        `Committing adds ${plural(report.createsCount, "medicine", "medicines")} to people's MAR as "Imported, not yet checked", with dm+d's own names.`,
+        `Adding the file adds ${plural(report.createsCount, "medicine", "medicines")} to people's MAR as "Imported, not yet checked", with dm+d's own names.`,
         "None is given or on a round until a second person competent in medicines checks it against its source document. Plan who checks them before the first round.",
         "It can be undone within the undo window while none of them has been checked.",
       );
       break;
     case "care_plans":
       words.push(
-        `Committing creates ${plural(report.createsCount, "draft care plan", "draft care plans")}. Staff do not follow a draft: a person reviews each one, adds anything missing and publishes it.`,
+        `Adding the file creates ${plural(report.createsCount, "draft care plan", "draft care plans")}. Staff do not follow a draft: a person reviews each one, adds anything missing and publishes it.`,
         "It can be undone within the undo window while every draft is unchanged and unpublished.",
       );
       break;
     case "staff_files":
       words.push(
-        `Committing adds ${plural(report.createsCount, "check", "checks")} to staff files, each unverified. A check counts only once someone who has seen the evidence verifies it on the staff file.`,
+        `Adding the file adds ${plural(report.createsCount, "check", "checks")} to staff files, each unverified. A check counts only once someone who has seen the evidence verifies it on the staff file.`,
         "It can be undone within the undo window while none of them has been verified or changed.",
       );
       break;

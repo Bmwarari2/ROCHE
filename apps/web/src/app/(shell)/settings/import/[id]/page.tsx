@@ -62,7 +62,10 @@ export default async function ImportBatchPage({
         })}
       />
       {done && ARRIVALS.has(done) ? (
-        <RecordedArrival message={t("import.done", { done })} param="done" />
+        <RecordedArrival
+          message={t("import.done", { done, type: batch.recordType })}
+          param="done"
+        />
       ) : null}
       <p className="m-0">
         <Link href={IMPORT_PAGE}>{t("import.batch.back")}</Link>
@@ -80,10 +83,8 @@ export default async function ImportBatchPage({
           {batch.committedAt ? (
             <p className="m-0 text-body-dense">
               {t("import.batch.committed", {
-                what: t("import.recordsAdded", {
-                  type: batch.recordType,
-                  records: batch.records ?? 0,
-                }),
+                type: batch.recordType,
+                records: batch.records ?? 0,
                 dateTime: when(batch.committedAt),
               })}
             </p>

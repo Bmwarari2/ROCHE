@@ -4295,10 +4295,12 @@
     "import.done",
     "import.commit.doneTitle",
     "import.recordType",
-    "import.recordsAdded",
     "import.upload.recordType",
     "import.upload.recordTypeHint",
     "import.report.rowsTitle",
-    "import.report.row"
+    "import.report.row",
+    "import.upload.recordTypeChanged",
+    "import.report.rowsSummary",
+    "import.report.rowsTruncated"
   ]
 }

@@ -146,6 +146,21 @@ describe("hazard HZ-005 imported medicines (rule 28)", () => {
     expect(draft.startsAt.toISOString()).toBe("2026-11-01T00:00:00.000Z");
     expect(draft.stopsAt?.toISOString()).toBe("2026-11-30T00:00:00.000Z");
   });
+
+  it.each<[string, string]>([
+    ["01/07/2026", "2026-06-30T23:00:00.000Z"],
+    ["29/03/2026", "2026-03-29T00:00:00.000Z"],
+    ["25/10/2026", "2026-10-24T23:00:00.000Z"],
+    ["01/11/2026", "2026-11-01T00:00:00.000Z"],
+  ])("hazard HZ-009 starts at 00:00 UK time on %s, across the clock changes", (startsOn, iso) => {
+    const row = validateMedicineImport([medicine({ starts_on: startsOn })], OPTS).rows[0] ?? {};
+    const draft = medicineRowDraft(row, "person-1", {
+      name: "Paracetamol 500mg tablets",
+      routeName: "Oral",
+      unitName: "tablet",
+    });
+    expect(draft.startsAt.toISOString()).toBe(iso);
+  });
 });
 
 describe("hazard HZ-024 imported care plans arrive as drafts (rule 29)", () => {
