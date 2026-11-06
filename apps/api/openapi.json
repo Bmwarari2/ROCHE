@@ -96495,7 +96495,7 @@
           "medicines"
         ],
         "summary": "Search dm+d for a product to transcribe",
-        "description": "Products whose dm+d name holds every word searched for, with the routes and dose units dm+d permits for each (at most 20). Until slice 10's reference data, the dm+d port answers: the invented fixture outside production, nothing in production (`loaded` false). Not audited: no person is read.",
+        "description": "Products whose dm+d name holds every word searched for, with the routes and dose units dm+d permits for each (at most 20). Read from slice 10's dm+d reference tables when a release is loaded (VMPs only, never an invalid or superseded product); with none loaded, the invented fixture outside production and nothing in production (`loaded` false). Not audited: no person is read.",
         "security": [
           {
             "bearerAuth": []

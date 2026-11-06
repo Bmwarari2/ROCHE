@@ -5,10 +5,12 @@ import {
   type DmdSearchQuery,
   dmdDoseUnitCodes,
   dmdReleaseFreshness,
+  dmdSearchQuery,
   resolveRate,
   ukDateOf,
 } from "@harbour/domain";
 import { sql } from "drizzle-orm";
+import type { DmdFactsPort, DmdSearchHit } from "../integrations/medicines-ports";
 import { rateRows } from "./rates";
 
 /**
@@ -406,4 +408,48 @@ export async function dmdReleaseHistory(tx: Transaction, limit = 50) {
     })),
     problemCount: r.problem_count,
   }));
+}
+
+/** Runs a read under the request's context (`withTenant`). */
+type RunRead = <T>(fn: (tx: Transaction) => Promise<T>) => Promise<T>;
+
+/**
+ * The medicines record's dm+d port (`DmdFactsPort`, slice 52) read from slice 10's reference
+ * tables, for a request that found a release in use. Search is the reference search (rule 6) with
+ * VMPs only, as the record's product picker takes a VMP; facts are the product's routes and dose
+ * units from the release in use. A product dm+d marks invalid, or has given a new code, is not
+ * offered and has no facts, so it is never transcribed (the transcriber searches again).
+ */
+export function dmdTablesPort(run: RunRead, now: Date = new Date()): DmdFactsPort {
+  const today = ukDateOf(now);
+  const factsOf = (detail: NonNullable<Awaited<ReturnType<typeof dmdProductDetail>>>) => ({
+    name: detail.name,
+    permittedRoutes: detail.routes,
+    permittedDoseUnits: detail.doseUnits,
+  });
+  return {
+    loaded: true,
+    async facts(product) {
+      const detail = await run((tx) => dmdProductDetail(tx, product.ampId ?? product.vmpId, today));
+      if (!detail || detail.invalid || detail.supersededBy !== null) return null;
+      if (detail.vmpId !== product.vmpId) return null;
+      return factsOf(detail);
+    },
+    async search(query, limit) {
+      const checked = dmdSearchQuery(query);
+      if (!checked.ok) return [];
+      return run(async (tx) => {
+        const found = await searchDmdProducts(tx, checked.query, false);
+        const hits: DmdSearchHit[] = [];
+        for (const item of found.items) {
+          if (item.kind !== "vmp" || hits.length >= limit) continue;
+          const detail = await dmdProductDetail(tx, item.id, today);
+          if (detail && !detail.invalid && detail.supersededBy === null) {
+            hits.push({ vmpId: detail.vmpId, ...factsOf(detail) });
+          }
+        }
+        return hits;
+      });
+    },
+  };
 }

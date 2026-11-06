@@ -72,7 +72,9 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import type { DmdFactsPort } from "../integrations/medicines-ports";
 import { publish } from "../outbox";
+import { dmdReleaseInUse, dmdTablesPort } from "../services/dmd";
 import {
   entryOut,
   insertEntry,
@@ -140,6 +142,15 @@ const dmdUnknown = (loaded: boolean) =>
 
 type DmdFacts = DmdProductFacts & { readonly name: string };
 
+/**
+ * The dm+d port for this request: slice 10's reference tables when a release is loaded, else the
+ * configured port (the invented fixture outside production; nothing in production).
+ */
+async function dmdPortOf(c: Context<AppEnv>): Promise<DmdFactsPort> {
+  const loaded = await withTenant(c, async (tx) => (await dmdReleaseInUse(tx)) !== null);
+  return loaded ? dmdTablesPort((fn) => withTenant(c, fn)) : c.get("services").medicines.dmd;
+}
+
 async function factsFor(c: Context<AppEnv>, product: DmdProductRef): Promise<DmdFacts> {
   if (!isDmdProduct(product)) {
     throw new HttpProblem(
@@ -149,7 +160,7 @@ async function factsFor(c: Context<AppEnv>, product: DmdProductRef): Promise<Dmd
       "Choose the medicine from dm+d. A typed name cannot be used.",
     );
   }
-  const port = c.get("services").medicines.dmd;
+  const port = await dmdPortOf(c);
   const facts = await port.facts(product);
   if (!facts) throw dmdUnknown(port.loaded);
   return facts;
@@ -516,7 +527,7 @@ export const medicinesRouter = createRouter()
       tags,
       summary: "Search dm+d for a product to transcribe",
       description:
-        "Products whose dm+d name holds every word searched for, with the routes and dose units dm+d permits for each (at most 20). Until slice 10's reference data, the dm+d port answers: the invented fixture outside production, nothing in production (`loaded` false). Not audited: no person is read.",
+        "Products whose dm+d name holds every word searched for, with the routes and dose units dm+d permits for each (at most 20). Read from slice 10's dm+d reference tables when a release is loaded (VMPs only, never an invalid or superseded product); with none loaded, the invented fixture outside production and nothing in production (`loaded` false). Not audited: no person is read.",
       security,
       request: { query: MedicineProductSearch },
       responses: { 200: jsonBody(MedicineProducts, "Products"), ...errorResponses },
@@ -524,7 +535,7 @@ export const medicinesRouter = createRouter()
     async (c) => {
       await requirePermission(c, WRITER);
       const { q } = c.req.valid("query");
-      const dmd = c.get("services").medicines.dmd;
+      const dmd = await dmdPortOf(c);
       const items = await dmd.search(q, 20);
       return c.json(
         {
@@ -1360,10 +1371,15 @@ export const medicinesRouter = createRouter()
             ...itemDecisions.flatMap((d) => (d.kind === "start" ? [d.draft.product] : [])),
           ];
           const facts = new Map<string, DmdProductFacts>();
+          // Slice 10's reference tables when a release is loaded, read in this transaction.
+          const dmd =
+            (await dmdReleaseInUse(tx)) !== null
+              ? dmdTablesPort((fn) => fn(tx), now)
+              : services.dmd;
           for (const p of products) {
-            const f = isDmdProduct(p) ? await services.dmd.facts(p) : null;
+            const f = isDmdProduct(p) ? await dmd.facts(p) : null;
             // A product dm+d does not hold is refused in those words, not as a route problem.
-            if (!f) throw dmdUnknown(services.dmd.loaded);
+            if (!f) throw dmdUnknown(dmd.loaded);
             facts.set(`${p.vmpId}:${p.ampId ?? ""}`, f);
           }
           const dmdFacts = (p: DmdProductRef) =>

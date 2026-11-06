@@ -176,6 +176,30 @@ describe("hazard HZ-113 search (rule 6)", () => {
   });
 });
 
+describe("hazard HZ-113 the medicines record's product picker reads the reference tables (slice 52)", () => {
+  it("offers VMPs from the release in use with dm+d's routes and dose units, never an invalid one", async () => {
+    const res = await as("manager", "/v1/medicines/products?q=exampl%20250");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      loaded: boolean;
+      items: {
+        vmpId: string;
+        name: string;
+        permittedRoutes: { code: string }[];
+        permittedDoseUnits: { code: string }[];
+      }[];
+    };
+    expect(body.loaded).toBe(true);
+    expect(body.items.map((i) => i.vmpId)).toEqual([ID.vmpExamplomycin250]);
+    expect(body.items[0]?.permittedRoutes.length).toBeGreaterThan(0);
+    expect(body.items[0]?.permittedDoseUnits.length).toBeGreaterThan(0);
+    const invalid = (await (
+      await as("manager", "/v1/medicines/products?q=testoprofen%20400")
+    ).json()) as { items: unknown[] };
+    expect(invalid.items).toEqual([]);
+  });
+});
+
 describe("hazard HZ-113 a product with its units and forms", () => {
   it("gives a VMP's form, routes, dose units, brands and packs", async () => {
     const res = await as("carer", `/v1/medicines/dmd/products/${ID.vmpExamplomycin250}`);
