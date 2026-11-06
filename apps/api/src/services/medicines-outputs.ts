@@ -54,7 +54,7 @@ export async function emarFacts(
   };
 }
 
-const routeWords = (route: DmdRoute) => route.name;
+const routeWords = (route: DmdRoute) => route.name || "route not recorded";
 
 /** HZ-021: the doses due from `from` to `until`, those still outstanding from before, and PRNs. */
 export function downtimeMedicinesFrom(
@@ -72,7 +72,7 @@ export function downtimeMedicinesFrom(
     return {
       name: d.productName,
       dose: d.doseInWords,
-      route: entry ? routeWords(entry.route) : "",
+      route: entry ? routeWords(entry.route) : "route not recorded",
       dueAt,
       timeCritical: d.timeCritical,
       status: open ? ("due" as const) : ("given" as const),
@@ -85,7 +85,7 @@ export function downtimeMedicinesFrom(
     return {
       name: p.productName,
       dose: entry?.directions.kind === "when_required" ? formatDose(entry.directions.dose) : "",
-      route: entry ? routeWords(entry.route) : "",
+      route: entry ? routeWords(entry.route) : "route not recorded",
       reason: entry?.indication ?? null,
       lastGivenAt: p.lastGiven ? new Date(p.lastGiven.at) : null,
     };
@@ -126,7 +126,10 @@ export function transferMedicinesFrom(facts: EmarFacts, now: Date): MedicinesSta
         frequency: d.kind === "when_required" ? "When required" : describeSchedule(d.schedule),
         lastGivenAt: last,
         timeCritical: isTimeCritical(entry),
-        status: status.words === "Checked" ? null : status.words,
+        // The entry's notice in whole sentences; a held entry says so first (HZ-023).
+        status: status.mayGive
+          ? status.notice
+          : `On hold on the eMAR: not to be given now. ${status.notice ?? ""}`.trim(),
       },
     ];
   });

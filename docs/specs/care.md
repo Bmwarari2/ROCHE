@@ -361,7 +361,7 @@ applies). Figures come from `rate_table` by key.
      and a care plan round with the action as its plan words it, the plan's status and, when the
      action is no longer in the active plan, "From an earlier plan: check the current plan"
      (HZ-024); and the person's active plan actions that are not rounds (`notRounds`: medicines,
-     "Not a round: see the medicines record"; HZ-003). The view says when it was read, so a copy
+     "Not a round: medicines rounds are on the eMAR"; HZ-003). The view says when it was read, so a copy
      kept offline shows its age (HZ-002). Tasks and people follow the viewer's scope.
 9. **Capacity and consent.** Assume capacity (Mental Capacity Act 2005 s.1(2)); a capacity
    assessment is decision-specific and time-specific, and records the practicable steps taken to

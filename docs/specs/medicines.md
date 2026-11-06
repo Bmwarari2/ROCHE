@@ -1257,8 +1257,10 @@ fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice`
   "emar"`, `producedAt` and each entry in force (not withdrawn, not yet started, replaced, stopped or
   ended): name, dose (each distinct scheduled dose, joined), route, how often in words or "When
   required", `lastGivenAt` (the latest given, self-administered or given-by-family record across the
-  entry's versions) and `status` (the entry's status in words, null when checked). The PDF adds "Last
-  taken: …" or "not recorded on the eMAR" and "Entry: …". An empty list still reads not recorded.
+  entry's versions) and `status` (the entry's notice from the eMAR in whole sentences, such as not
+  yet checked; an entry that may not be given now, such as one whose check found a difference, starts
+  "On hold on the eMAR: not to be given now."; null when there is nothing to say). The PDF adds
+  "Last given: …" or "not recorded on the eMAR", and the notice as its own line. An empty list still reads not recorded.
   Otherwise the pre-admission list stays, marked as needing checking against the MAR.
 - **Handover and care plans (HZ-003, H-151)**: outstanding doses and medicines out of stock reach the
   shift handover as their tasks. A care plan medicines action still never generates tasks; its

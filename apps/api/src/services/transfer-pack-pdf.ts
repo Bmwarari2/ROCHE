@@ -182,14 +182,14 @@ function sectionLines(key: string, content: Record<string, unknown>, names: Name
           ? ["From the pre-admission assessment, not the MAR: check against the MAR."]
           : []),
         ...(fromEmar && producedAt ? [emarSnapshotNotice(new Date(producedAt))] : []),
-        ...items.map(
-          (m) =>
-            `${m.timeCritical ? "TIME-CRITICAL: " : ""}${m.name}, ${m.dose}, ${m.route}, ${m.frequency}` +
+        ...items.flatMap((m) => [
+          `${m.timeCritical ? "TIME-CRITICAL: " : ""}${m.name}, ${m.dose}, ${m.route}, ${m.frequency}` +
             (fromEmar
-              ? `. Last taken: ${m.lastGivenAt ? ukDateTime(m.lastGivenAt) : "not recorded on the eMAR"}`
-              : "") +
-            (m.status ? `. Entry: ${m.status}` : ""),
-        ),
+              ? `. Last given: ${m.lastGivenAt ? ukDateTime(m.lastGivenAt) : "not recorded on the eMAR"}`
+              : ""),
+          // The entry's notice from the eMAR, as its own sentences (a held entry says so first).
+          ...(m.status ? [m.status] : []),
+        ]),
       ];
     }
     case "communication": {

@@ -543,7 +543,7 @@ describe("hazard HZ-023 the printed transfer pack", () => {
     );
   });
 
-  it("hazard HZ-023 prints a medicines list from the eMAR with when it was read, last taken and the entry's status (slice 49)", () => {
+  it("hazard HZ-023 prints a medicines list from the eMAR with when it was read, when last given and the entry's notice (slice 49)", () => {
     const text = print({
       ...PACK,
       content: {
@@ -569,7 +569,8 @@ describe("hazard HZ-023 the printed transfer pack", () => {
               frequency: "When required",
               timeCritical: false,
               lastGivenAt: null,
-              status: "Not yet checked",
+              status:
+                "On hold on the eMAR: not to be given now. Do not give: the check found a difference from the source document.",
             },
           ],
         },
@@ -579,8 +580,9 @@ describe("hazard HZ-023 the printed transfer pack", () => {
       .join(" ");
     expect(text).toContain("From the eMAR at 01/07/2026 09:05 BST. This is not the live record");
     expect(text).toContain("TIME-CRITICAL: Co-careldopa 25mg/100mg tablets");
-    expect(text).toContain("Last taken: 01/07/2026 08:02");
-    expect(text).toContain("Last taken: not recorded on the eMAR. Entry: Not yet checked");
+    expect(text).toContain("Last given: 01/07/2026 08:02");
+    expect(text).toContain("Last given: not recorded on the eMAR");
+    expect(text).toContain("On hold on the eMAR: not to be given now.");
     expect(text).not.toContain("From the pre-admission assessment");
   });
 

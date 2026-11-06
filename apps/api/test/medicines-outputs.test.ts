@@ -225,7 +225,7 @@ describe("hazard HZ-023 the transfer pack lists medicines from the eMAR", () => 
     expect(paracetamol?.frequency).toMatch(/every day at/);
     // Given late in the downtime test above; the entry is not yet checked, which travels with it.
     expect(paracetamol?.lastGivenAt).toBeTruthy();
-    expect(paracetamol?.status).toBe("Not yet checked");
+    expect(paracetamol?.status).toMatch(/^Not yet checked against the source document/);
   });
 
   it("hazard HZ-023 keeps the Phase 1 source for someone with no eMAR entries", async () => {

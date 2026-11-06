@@ -74,7 +74,7 @@ export const RoundStop = z
     /** The point-of-care header (HZ-001, HZ-007, HZ-015); null for tasks about no person. */
     person: PersonSummary.nullable(),
     tasks: z.array(RoundTask),
-    /** The person's active plan actions that are not rounds: see the medicines record (HZ-003). */
+    /** The person's active plan actions that are not rounds: medicines rounds are on the eMAR (HZ-003). */
     notRounds: z.array(NotARound),
   })
   .meta({ id: "RoundStop" });
