@@ -181,13 +181,22 @@ export type DestructionCertificateList = z.infer<typeof DestructionCertificateLi
 export const ShredRequestItem = z
   .object({
     id: uuid,
-    status: z.enum(["pending", "shredding", "approved", "cancelled"]),
+    status: z.enum(["pending", "shredding", "approved", "cancelled", "refused"]),
     reason: z.string(),
     exportId: uuid,
     requestedBy: uuid,
+    /** The requester's display name, for the screens (never on the certificate). */
+    requestedByName: z.string().nullable(),
     requestedAt: isoDateTime,
+    /** When a pending request lapses (7 days after it was made). */
+    expiresAt: isoDateTime,
+    /** Pending and past `expiresAt`: it can no longer be approved or refused, only withdrawn. */
+    lapsed: z.boolean(),
     decidedBy: uuid.nullable(),
+    decidedByName: z.string().nullable(),
     decidedAt: isoDateTime.nullable(),
+    /** Why it was refused (a refusal only; no names). */
+    decisionReason: z.string().nullable(),
     certificateId: uuid.nullable(),
   })
   .meta({ id: "ShredRequestItem", description: "A whole-organisation shred request (PLAT-012)" });
@@ -197,6 +206,23 @@ export const ShredRequestList = z
   .object({ items: z.array(ShredRequestItem) })
   .meta({ id: "ShredRequestList" });
 export type ShredRequestList = z.infer<typeof ShredRequestList>;
+
+export const ShredExportList = z
+  .object({
+    /** Full exports downloaded within 30 days, newest download first (PLAT-012 part 2). */
+    items: z.array(z.object({ id: uuid, downloadedAt: isoDateTime })),
+  })
+  .meta({ id: "ShredExportList" });
+export type ShredExportList = z.infer<typeof ShredExportList>;
+
+export const RefuseShredRequest = z
+  .object({
+    /** 10 to 500 characters, no names (PLAT-012 part 2). */
+    reason: z.string().max(500),
+  })
+  .strict()
+  .meta({ id: "RefuseShredRequest" });
+export type RefuseShredRequest = z.infer<typeof RefuseShredRequest>;
 
 export const CreateShredRequest = z
   .object({
