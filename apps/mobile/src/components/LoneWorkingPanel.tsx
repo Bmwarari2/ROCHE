@@ -1,11 +1,15 @@
-import { Button, Text, useTheme } from "@harbour/ui-native";
-import { useState } from "react";
-import { View } from "react-native";
-import { ukDateTimeParts } from "../care/time";
+import { Button, iconByName, Text, useTheme } from "@harbour/ui-native";
+import { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Alert, View } from "react-native";
+import { parseInstant, ukDateTimeParts } from "../care/time";
 import { t } from "../i18n/t";
 import type { LoneWorkKind } from "../scheduling/actions";
 import type { WriteOutcome } from "../scheduling/hooks";
-import type { LoneWorkerEventKind, LoneWorkerView } from "../scheduling/lone-worker-view";
+import {
+  helpState,
+  type LoneWorkerEventKind,
+  type LoneWorkerView,
+} from "../scheduling/lone-worker-view";
 import { Card } from "./Card";
 
 /**
@@ -64,7 +68,7 @@ function Choice({
 export function LoneWorkingPanel({
   view,
   connected,
-  asked,
+  answeredAt,
   locationId,
   locationName,
   now,
@@ -73,8 +77,8 @@ export function LoneWorkingPanel({
 }: {
   readonly view: LoneWorkerView;
   readonly connected: boolean;
-  /** Whether Harbour has answered about lone working since the screen opened. */
-  readonly asked: boolean;
+  /** When Harbour last answered about the member's session (kept on the phone), or null. */
+  readonly answeredAt: string | null;
   readonly locationId: string | null;
   readonly locationName: string | null;
   readonly now: () => Date;
@@ -93,34 +97,81 @@ export function LoneWorkingPanel({
   const [hours, setHours] = useState<number>(4);
   const [checkEvery, setCheckEvery] = useState<number>(60);
 
+  const [helping, setHelping] = useState(false);
+  // Said aloud as well as shown: a live region or alert role is not read on iOS.
+  const say = (words: string | null) => {
+    if (words) AccessibilityInfo.announceForAccessibility(words);
+  };
+
+  const giveAnswer = (next: Answer) => {
+    setAnswer(next);
+    say(
+      next.kind === "help"
+        ? connected
+          ? t("mobile.lone.helpAsked")
+          : t("mobile.lone.helpWaiting")
+        : wordsFor(next),
+    );
+  };
+
   const send = async (kind: LoneWorkerEventKind) => {
-    setBusy(true);
+    // Help never waits behind another press.
+    const setPending = kind === "help" ? setHelping : setBusy;
+    setPending(true);
     const at = now();
     const outcome = await onEvent(kind);
-    setBusy(false);
+    setPending(false);
     if (outcome !== "saved") {
-      setAnswer({ kind: "problem", outcome });
+      giveAnswer({ kind: "problem", outcome });
       return;
     }
-    // A duress press answers exactly as a check-in (HZ-125).
+    // A duress press answers exactly as a check-in, aloud too (HZ-125).
     if (kind === "check_in" || kind === "duress") {
-      setAnswer({ kind: "checked_in", time: ukDateTimeParts(at).time });
-    } else if (kind === "help") setAnswer({ kind: "help" });
-    else setAnswer({ kind: "finished" });
+      giveAnswer({ kind: "checked_in", time: ukDateTimeParts(at).time });
+    } else if (kind === "help") giveAnswer({ kind: "help" });
+    else giveAnswer({ kind: "finished" });
+  };
+
+  const confirmFinish = () => {
+    Alert.alert(t("mobile.lone.finishTitle"), t("mobile.lone.finishBody"), [
+      { text: t("mobile.lone.keep"), style: "cancel" },
+      { text: t("mobile.lone.finish"), onPress: () => void send("finish") },
+    ]);
   };
 
   const start = async () => {
     setBusy(true);
     const outcome = await onStart({ locationId, workKind, hours, intervalMinutes: checkEvery });
     setBusy(false);
-    setAnswer(outcome === "saved" ? { kind: "started" } : { kind: "problem", outcome });
+    giveAnswer(outcome === "saved" ? { kind: "started" } : { kind: "problem", outcome });
   };
 
-  const answerText = (() => {
-    if (!answer) return null;
-    switch (answer.kind) {
+  // An overdue check-in is said aloud when it becomes overdue, not only shown.
+  const wasOverdue = useRef(view.overdue);
+  useEffect(() => {
+    if (view.overdue && !wasOverdue.current && view.due) {
+      AccessibilityInfo.announceForAccessibility(view.due);
+    }
+    wasOverdue.current = view.overdue;
+  }, [view.overdue, view.due]);
+
+  const answerText = wordsFor(answer);
+  const Warning = iconByName("circle-alert");
+  const warningIcon = (
+    <Warning
+      color={theme.colors.danger}
+      size={20}
+      accessibilityElementsHidden
+      importantForAccessibility="no"
+    />
+  );
+  const row = { flexDirection: "row", gap: theme.space[1], alignItems: "flex-start" } as const;
+
+  function wordsFor(a: Answer | null): string | null {
+    if (!a) return null;
+    switch (a.kind) {
       case "checked_in":
-        return t("mobile.lone.checkedIn", { time: answer.time });
+        return t("mobile.lone.checkedIn", { time: a.time });
       case "help":
         return null; // Said by the help line below, which stays while help waits.
       case "finished":
@@ -128,18 +179,25 @@ export function LoneWorkingPanel({
       case "started":
         return t("mobile.shifts.saved");
       case "problem":
-        return answer.outcome === "no_location"
+        return a.outcome === "no_location"
           ? t("mobile.shifts.noLocation")
           : t("mobile.shifts.notSaved");
     }
-  })();
+  }
 
+  // The help line says only what is true (HZ-125): refused, waiting, being sent, or with Harbour.
+  const help = helpState(view, connected, answer?.kind === "help");
   const helpText =
-    view.helpWaiting && !connected
-      ? t("mobile.lone.helpWaiting")
-      : answer?.kind === "help" || view.helpWaiting
-        ? t("mobile.lone.helpAsked")
-        : null;
+    help === "refused"
+      ? t("mobile.lone.helpRefused")
+      : help === "waiting"
+        ? t("mobile.lone.helpWaiting")
+        : help === "sending"
+          ? t("mobile.lone.helpAsked")
+          : help === "received"
+            ? t("mobile.lone.helpReceived")
+            : null;
+  const answeredTime = answeredAt ? (parseInstant(answeredAt) ?? null) : null;
 
   return (
     <Card title={t("mobile.lone.title")} testID="lone-working">
@@ -148,7 +206,15 @@ export function LoneWorkingPanel({
       ) : view.kind === "none" ? (
         <View style={{ gap: theme.space[1] }}>
           <Text testID="lone-none">{t("mobile.lone.none")}</Text>
-          {!asked ? (
+          {view.startRefused ? (
+            <View style={row}>
+              {warningIcon}
+              <Text tone="danger" emphasis style={{ flexShrink: 1 }} testID="lone-start-refused">
+                {t("mobile.lone.startRefused")}
+              </Text>
+            </View>
+          ) : null}
+          {!answeredAt ? (
             <Text variant="bodyDense" tone="secondary" testID="lone-not-asked">
               {t("mobile.lone.notAsked")}
             </Text>
@@ -209,11 +275,27 @@ export function LoneWorkingPanel({
         </View>
       ) : (
         <View style={{ gap: theme.space[1] }}>
+          {view.unconfirmed ? (
+            <View style={row}>
+              {warningIcon}
+              <Text tone="danger" emphasis style={{ flexShrink: 1 }} testID="lone-unconfirmed">
+                {t("mobile.lone.unconfirmed")}
+              </Text>
+            </View>
+          ) : null}
           <View accessible style={{ gap: theme.space[0.5] }}>
             {view.due ? (
-              <Text emphasis tone={view.overdue ? "danger" : "primary"} testID="lone-due">
-                {view.due}
-              </Text>
+              <View style={row}>
+                {view.overdue ? warningIcon : null}
+                <Text
+                  emphasis
+                  tone={view.overdue ? "danger" : "primary"}
+                  style={{ flexShrink: 1 }}
+                  testID="lone-due"
+                >
+                  {view.due}
+                </Text>
+              </View>
             ) : null}
             {view.until ? (
               <Text variant="bodyDense" tone="secondary" testID="lone-until">
@@ -225,9 +307,14 @@ export function LoneWorkingPanel({
                 {t("mobile.lone.waiting", { count: view.waiting })}
               </Text>
             ) : null}
+            {answeredTime && !view.unconfirmed ? (
+              <Text variant="bodyDense" tone="secondary" testID="lone-as-at">
+                {t("mobile.lone.asAt", { time: ukDateTimeParts(answeredTime).time })}
+              </Text>
+            ) : null}
           </View>
-          {view.finished ? null : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space[1] }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space[1] }}>
+            {view.finished ? null : (
               <Button
                 label={t("mobile.lone.checkIn")}
                 accessibilityHint={t("mobile.lone.checkInHint")}
@@ -237,23 +324,26 @@ export function LoneWorkingPanel({
                 delayLongPress={DURESS_HOLD_MS}
                 testID="lone-check-in"
               />
-              <Button
-                label={t("mobile.lone.help")}
-                accessibilityHint={t("mobile.lone.helpHint")}
-                variant="destructive"
-                loading={busy}
-                onPress={() => void send("help")}
-                testID="lone-help"
-              />
+            )}
+            {/* Help stays while a finish waits to send: it is always accepted (rule 17.3.7). */}
+            <Button
+              label={t("mobile.lone.help")}
+              accessibilityHint={t("mobile.lone.helpHint")}
+              variant="destructive"
+              loading={helping}
+              onPress={() => void send("help")}
+              testID="lone-help"
+            />
+            {view.finished ? null : (
               <Button
                 label={t("mobile.lone.finish")}
                 variant="secondary"
                 loading={busy}
-                onPress={() => void send("finish")}
+                onPress={confirmFinish}
                 testID="lone-finish"
               />
-            </View>
-          )}
+            )}
+          </View>
           {view.lines.length > 0 ? (
             <View style={{ gap: theme.space[0.5] }} testID="lone-history">
               <Text variant="bodyDense" tone="secondary" emphasis accessibilityRole="header">
@@ -269,19 +359,32 @@ export function LoneWorkingPanel({
         </View>
       )}
       {helpText ? (
-        <Text tone="danger" emphasis accessibilityRole="alert" testID="lone-help-answer">
-          {helpText}
-        </Text>
+        <View style={row}>
+          {warningIcon}
+          <Text
+            tone="danger"
+            emphasis
+            accessibilityRole="alert"
+            style={{ flexShrink: 1 }}
+            testID="lone-help-answer"
+          >
+            {helpText}
+          </Text>
+        </View>
       ) : null}
       {answerText ? (
-        <Text
-          variant="bodyDense"
-          tone={answer?.kind === "problem" ? "danger" : "secondary"}
-          accessibilityLiveRegion="polite"
-          testID="lone-answer"
-        >
-          {answerText}
-        </Text>
+        <View style={row}>
+          {answer?.kind === "problem" ? warningIcon : null}
+          <Text
+            variant="bodyDense"
+            tone={answer?.kind === "problem" ? "danger" : "secondary"}
+            accessibilityLiveRegion="polite"
+            style={{ flexShrink: 1 }}
+            testID="lone-answer"
+          >
+            {answerText}
+          </Text>
+        </View>
       ) : null}
     </Card>
   );

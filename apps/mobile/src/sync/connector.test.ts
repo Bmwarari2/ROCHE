@@ -1409,7 +1409,7 @@ describe("uploadData: clock events and lone working go to their own routes (sche
     },
   });
 
-  it("sends a clock-in with the device's time, keyed by its own id", async () => {
+  it("hazard HZ-010 sends a clock-in with the device's time, keyed by its own id", async () => {
     const { fetch, calls } = fakeFetch([json({}, 201)]);
     const queue = fakeQueue([clockIn()]);
     await connector(fetch).instance.uploadData(queue.source);
@@ -1473,6 +1473,20 @@ describe("uploadData: clock events and lone working go to their own routes (sche
     expect(JSON.parse(String(kept[0]?.payload.body)).kind).toBe("check_in");
     expect(queue.state.completed).toBe(1);
   });
+
+  it.each([
+    [404, "not_found"],
+    [403, "forbidden"],
+  ])(
+    "hazard HZ-125 keeps a duress press refused with %s only as a check-in (security review of slice 71)",
+    async (status, code) => {
+      const { fetch } = fakeFetch([problem(status, code, "Not recorded.")]);
+      const queue = fakeQueue([loneEvent("duress")]);
+      await connector(fetch).instance.uploadData(queue.source);
+      expect(JSON.stringify(queue.issues())).not.toContain("duress");
+      expect(queue.state.completed).toBe(1);
+    },
+  );
 
   it("never sends a clock event or lone-working action through the general upload", async () => {
     const bad = { ...clockIn(), opData: { ...clockIn().opData, location_id: "not-a-uuid" } };

@@ -20,6 +20,20 @@ Branch `feat/mobile-shifts-checkins`, slice 71 (no PR yet).
   the slice 46 merge); data standards and records of processing for data on the device; H-1310 to
   H-1319.
 
+## Review round 1
+
+- Accessibility: answers, help and an overdue check-in are said aloud on iOS too (a duress press
+  exactly as a check-in); warnings carry an icon; finishing asks first; help is never held up by
+  another press; whole sentences instead of a fragment; dates as "11/10/2026, 08:00 to 16:00".
+- Clinical safety: help says when it was refused and reached nobody; a session known only on the
+  phone, or a refused start, says nobody is told; the last answer from Harbour is kept, with its
+  time, across a restart; the server's due time is used when nothing waits; help stays while a
+  finish waits; duress acts on release; clock-change tests. An API accepting help and duress for an
+  unknown session is H-1317.
+- Security: held clock and lone-working actions go back into the queue at sign-in; a duress press
+  is kept as a check-in wherever it is parked; queued ids must match the idempotency key; queued
+  actions count only for the signed-in organisation.
+
 ## What is next
 
 - Run the Maestro flow on an emulator; a local reminder when a check-in falls due offline

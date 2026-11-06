@@ -96,7 +96,12 @@ export async function render(element: ReactElement): Promise<Rendered> {
     texts: () => textsOf(nodes()),
     find,
     press: (testID) => call(testID, "onPress", {}),
-    longPress: (testID) => call(testID, "onLongPress", {}),
+    longPress: async (testID) => {
+      // Held, then released: a long press acts on release.
+      await call(testID, "onLongPress", {});
+      const host = find(testID);
+      if (typeof host?.props.onPressOut === "function") await call(testID, "onPressOut", {});
+    },
     typeInto: (testID, text) => call(testID, "onChangeText", text),
     unmount: () => current().unmount(),
   };

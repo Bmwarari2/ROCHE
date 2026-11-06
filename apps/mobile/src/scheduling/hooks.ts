@@ -25,12 +25,17 @@ import {
   parseMine,
   type QueuedAction,
   queuedActions,
+  refusedActions,
 } from "./lone-worker-view";
 import {
   DEMO_QUEUED_LONE_WORKER_SQL,
+  MINE_META_PREFIX,
   MY_CLOCK_EVENTS_SQL,
   MY_SHIFTS_SQL,
   QUEUED_LONE_WORKER_SQL,
+  READ_META_SQL,
+  REFUSED_LONE_WORKER_SQL,
+  WRITE_META_SQL,
 } from "./queries";
 
 export const TIMESHEET_SELF = "scheduling.timesheet.self";
@@ -92,14 +97,50 @@ export function useClock(now: Date) {
 }
 
 /** The last answer from `GET /v1/lone-worker/sessions/mine`, asked again when the sync status moves. */
-function useMine(): { readonly mine: Mine | null; readonly refresh: () => void } {
+export interface MineAnswer {
+  readonly mine: Mine;
+  /** When Harbour gave this answer. */
+  readonly at: string;
+}
+
+/** Reads the kept answer (`MINE_META_PREFIX`), or null when there is none or it cannot be read. */
+export function parseKeptMine(value: string | null | undefined): MineAnswer | null {
+  if (!value) return null;
+  try {
+    const kept = JSON.parse(value) as { mine?: unknown; at?: unknown };
+    const mine = parseMine(kept.mine);
+    return mine && typeof kept.at === "string" ? { mine, at: kept.at } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The API's last answer about the member's own session (`GET /v1/lone-worker/sessions/mine`, which
+ * shows duress as a check-in), asked again when the sync status moves and kept in the encrypted
+ * device database with when it came, so a restart without a connection still shows the session
+ * and how old the answer is (clinical review of slice 71, M3).
+ */
+function useMine(): { readonly answer: MineAnswer | null; readonly refresh: () => void } {
   const db = usePowerSync();
   const { me, token } = useSession();
   const tenantId = me?.tenant.id ?? "";
-  const [mine, setMine] = useState<Mine | null>(null);
+  const metaId = `${MINE_META_PREFIX}${tenantId}`;
+  const [answer, setAnswer] = useState<MineAnswer | null>(null);
+  useEffect(() => {
+    if (!tenantId) return;
+    db.getOptional<{ value: string | null }>(READ_META_SQL, [metaId])
+      .then((row) => {
+        const kept = parseKeptMine(row?.value);
+        if (kept) setAnswer((current) => current ?? kept);
+      })
+      .catch(() => undefined);
+  }, [db, tenantId, metaId]);
   const refresh = useCallback(() => {
     if (appEnv.demoMode) {
-      setMine((current) => current ?? { on: true, session: null });
+      setAnswer(
+        (current) => current ?? { mine: { on: true, session: null }, at: new Date().toISOString() },
+      );
       return;
     }
     if (!token || !tenantId) return;
@@ -114,31 +155,45 @@ function useMine(): { readonly mine: Mine | null; readonly refresh: () => void }
       .then(async (response) => {
         if (!response.ok) return;
         const parsed = parseMine(await response.json());
-        if (parsed) setMine(parsed);
+        if (!parsed) return;
+        const next = { mine: parsed, at: new Date().toISOString() };
+        setAnswer(next);
+        // Kept as parsed: a duress event is already a check-in here (HZ-125).
+        await db.execute(WRITE_META_SQL, [metaId, metaId, JSON.stringify(next)]);
       })
       // Offline: keep the last answer; the queued actions say the rest.
       .catch(() => undefined);
-  }, [token, tenantId]);
+  }, [db, token, tenantId, metaId]);
   useEffect(() => {
     refresh();
     return db.registerListener({ statusChanged: refresh });
   }, [db, refresh]);
-  return { mine, refresh };
+  return { answer, refresh };
 }
 
-function useQueuedLoneWorker(): { readonly queued: QueuedAction[]; readonly reread: () => void } {
+function useQueuedLoneWorker(tenantId: string): {
+  readonly queued: QueuedAction[];
+  readonly reread: () => Promise<void>;
+} {
   const db = usePowerSync();
   const [queued, setQueued] = useState<QueuedAction[]>([]);
-  const reread = useCallback(() => {
-    db.getAll<{ data: string | null }>(
-      appEnv.demoMode ? DEMO_QUEUED_LONE_WORKER_SQL : QUEUED_LONE_WORKER_SQL,
-    )
-      .then((rows) => setQueued(queuedActions(rows)))
-      .catch(() => undefined);
-  }, [db]);
+  const reread = useCallback(
+    () =>
+      db
+        .getAll<{ data: string | null }>(
+          appEnv.demoMode ? DEMO_QUEUED_LONE_WORKER_SQL : QUEUED_LONE_WORKER_SQL,
+        )
+        .then((rows) => setQueued(queuedActions(rows, tenantId)))
+        .catch(() => undefined),
+    [db, tenantId],
+  );
   useEffect(() => {
-    reread();
-    return db.registerListener({ statusChanged: reread });
+    void reread();
+    return db.registerListener({
+      statusChanged: () => {
+        void reread();
+      },
+    });
   }, [db, reread]);
   return { queued, reread };
 }
@@ -147,9 +202,19 @@ export function useLoneWorker(now: Date) {
   const db = usePowerSync();
   const { me } = useSession();
   const tenantId = me?.tenant.id ?? "";
-  const { mine, refresh } = useMine();
-  const { queued, reread } = useQueuedLoneWorker();
-  const view = useMemo(() => loneWorkerView(mine, queued, now), [mine, queued, now]);
+  const { answer, refresh } = useMine();
+  const { queued, reread } = useQueuedLoneWorker(tenantId);
+  const refusedParams = useMemo(() => [tenantId], [tenantId]);
+  const { data: refusedRows } = useQuery<{ payload: string | null }>(
+    REFUSED_LONE_WORKER_SQL,
+    refusedParams,
+  );
+  const refusals = useMemo(() => refusedActions(refusedRows), [refusedRows]);
+  const mine = answer?.mine ?? null;
+  const view = useMemo(
+    () => loneWorkerView(mine, queued, now, refusals),
+    [mine, queued, now, refusals],
+  );
   const write = useCallback(
     async (statement: { sql: string; params: (string | null)[] }): Promise<WriteOutcome> => {
       try {
@@ -157,7 +222,8 @@ export function useLoneWorker(now: Date) {
       } catch {
         return "not_saved";
       }
-      reread();
+      // Read the queue again before answering, so the screen says what is waiting.
+      await reread();
       refresh();
       return "saved";
     },
@@ -201,5 +267,5 @@ export function useLoneWorker(now: Date) {
     },
     [tenantId, view.sessionId, write],
   );
-  return { view, asked: mine !== null, start, event };
+  return { view, answeredAt: answer?.at ?? null, start, event };
 }

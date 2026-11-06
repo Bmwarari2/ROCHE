@@ -56,6 +56,16 @@ export interface EventLine {
   readonly waiting: boolean;
 }
 
+/** A lone-working action the API refused, as kept under "needs attention" (duress as a check-in). */
+export interface RefusedAction {
+  readonly action: "start" | "event";
+  readonly sessionId: string;
+  readonly kind: string;
+}
+
+/** What the help line says: nothing, waiting, being sent, refused, or with Harbour. */
+export type HelpState = "none" | "waiting" | "sending" | "refused" | "received";
+
 export interface LoneWorkerView {
   readonly kind: "off" | "none" | "session";
   readonly sessionId: string | null;
@@ -69,7 +79,23 @@ export interface LoneWorkerView {
   readonly waiting: number;
   /** A help press is waiting on the phone: say it has not reached anyone. */
   readonly helpWaiting: boolean;
+  /** A help press the API refused: it reached nobody (HZ-125). */
+  readonly helpRefused: boolean;
+  /** Harbour has a help request in this session. */
+  readonly helpReceived: boolean;
+  /** The session is known only on this phone: nobody is told if a check-in is missed. */
+  readonly unconfirmed: boolean;
+  /** A start the API refused: lone working did not begin. */
+  readonly startRefused: boolean;
   readonly finished: boolean;
+}
+
+/** What the help line should say, from the view, the connection and whether help was just pressed. */
+export function helpState(view: LoneWorkerView, connected: boolean, pressed: boolean): HelpState {
+  if (view.helpRefused) return "refused";
+  if (view.helpWaiting) return connected ? "sending" : "waiting";
+  if (view.helpReceived) return "received";
+  return pressed ? "sending" : "none";
 }
 
 /** What the screen shows for an event: a duress press is a check-in (HZ-125). */
@@ -121,7 +147,14 @@ export function nextDue(
   return new Date(Math.min(latest + intervalMinutes * 60_000, end.getTime()));
 }
 
-export function loneWorkerView(mine: Mine | null, queued: readonly QueuedAction[], now: Date) {
+export function loneWorkerView(
+  mine: Mine | null,
+  queued: readonly QueuedAction[],
+  now: Date,
+  refusals: readonly RefusedAction[] = [],
+) {
+  const helpRefused = refusals.some((r) => r.action === "event" && r.kind === "help");
+  const startRefused = refusals.some((r) => r.action === "start");
   const start = queued.find((q) => q.action === "start");
   const server = mine?.session && !mine.session.finishedAt ? mine.session : null;
   // A session started offline is the phone's until the server has it.
@@ -137,6 +170,10 @@ export function loneWorkerView(mine: Mine | null, queued: readonly QueuedAction[
       lines: [],
       waiting: queued.length,
       helpWaiting: queued.some((q) => q.body.kind === "help"),
+      helpRefused,
+      helpReceived: false,
+      unconfirmed: false,
+      startRefused,
       finished: false,
     } satisfies LoneWorkerView;
   }
@@ -156,7 +193,11 @@ export function loneWorkerView(mine: Mine | null, queued: readonly QueuedAction[
     ...pending.filter((q) => q.body.kind !== "finish").map((q) => String(q.body.deviceAt)),
   ];
   const finished = pending.some((q) => q.body.kind === "finish");
-  const due = finished ? null : nextDue(startedAt, plannedEndAt, interval, signs);
+  // With nothing of the worker's still to send, the server's own due time stands: a monitor's
+  // "safe confirmed" moves it (section 17.3 rule 6).
+  const pendingSigns = pending.some((q) => q.body.kind !== "finish");
+  const serverDue = server && !pendingSigns ? parseInstant(server.nextDueAt) : null;
+  const due = finished ? null : (serverDue ?? nextDue(startedAt, plannedEndAt, interval, signs));
   const overdue =
     (due !== null && due.getTime() < now.getTime()) || server?.overdueAlarmOpen === true;
   const dueTime = due ? ukDateTimeParts(due).time : null;
@@ -173,6 +214,10 @@ export function loneWorkerView(mine: Mine | null, queued: readonly QueuedAction[
     lines,
     waiting: queued.length,
     helpWaiting: queued.some((q) => q.body.kind === "help"),
+    helpRefused,
+    helpReceived: mineEvents.some((e) => e.kind === "help"),
+    unconfirmed: server === null,
+    startRefused,
     finished,
   } satisfies LoneWorkerView;
 }
@@ -182,7 +227,11 @@ export function loneWorkerView(mine: Mine | null, queued: readonly QueuedAction[
  * `lone_worker_outbox` is insert-only, so a queued action lives nowhere else. Anything unreadable
  * is left out here and refused, in words, by the upload (`shift-upload.ts`).
  */
-export function queuedActions(rows: readonly { readonly data: string | null }[]): QueuedAction[] {
+export function queuedActions(
+  rows: readonly { readonly data: string | null }[],
+  /** Only the signed-in organisation's actions count. */
+  tenantId: string,
+): QueuedAction[] {
   const out: QueuedAction[] = [];
   for (const row of rows) {
     let entry: unknown;
@@ -198,6 +247,7 @@ export function queuedActions(rows: readonly { readonly data: string | null }[])
       string,
       unknown
     >;
+    if (data.tenant_id !== tenantId) continue;
     const action = data.action;
     const sessionId = data.session_id;
     if ((action !== "start" && action !== "event") || typeof sessionId !== "string") continue;
@@ -259,4 +309,33 @@ export function parseMine(body: unknown): Mine | null {
       }),
     },
   };
+}
+
+/** Refused lone-working actions from "needs attention" (`upload_issue` payloads). */
+export function refusedActions(
+  rows: readonly { readonly payload: string | null }[],
+): RefusedAction[] {
+  const out: RefusedAction[] = [];
+  for (const row of rows) {
+    let p: unknown;
+    try {
+      p = row.payload ? JSON.parse(row.payload) : null;
+    } catch {
+      continue;
+    }
+    if (typeof p !== "object" || p === null) continue;
+    const data = p as Record<string, unknown>;
+    const action = data.action;
+    if ((action !== "start" && action !== "event") || typeof data.session_id !== "string") continue;
+    let kind = "";
+    try {
+      const body: unknown = typeof data.body === "string" ? JSON.parse(data.body) : null;
+      if (typeof body === "object" && body !== null)
+        kind = String((body as { kind?: unknown }).kind ?? "");
+    } catch {
+      kind = "";
+    }
+    out.push({ action, sessionId: data.session_id, kind: screenKind(kind) });
+  }
+  return out;
 }

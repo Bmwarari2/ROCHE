@@ -39,7 +39,7 @@ export interface ShiftItem {
   readonly id: string;
   readonly locationId: string | null;
   readonly title: string;
-  /** "31/10/2026 at 07:00 to 15:00", in UK time. */
+  /** "31/10/2026, 07:00 to 15:00", in UK time. */
   readonly when: string;
   readonly kindWords: string;
   /** Words when the shift changed after it was published, else null. */
@@ -173,11 +173,12 @@ export function clockView(
       : state === "in"
         ? t("mobile.clock.in", { time: time(lastAt) })
         : t("mobile.clock.onBreak", { time: time(lastAt) });
-  const forShift = shift ? shift.title : t("mobile.clock.noShift");
   const action = (kind: ClockKind, key: MessageKey): ClockAction => ({
     kind,
     label: t(key),
-    accessibilityLabel: t("mobile.clock.actionFor", { action: t(key), shift: forShift }),
+    accessibilityLabel: shift
+      ? t("mobile.clock.actionFor", { action: t(key), shift: shift.title })
+      : t(key),
   });
   const actions =
     state === "out"

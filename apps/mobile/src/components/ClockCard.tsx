@@ -1,6 +1,6 @@
-import { Button, Text, useTheme } from "@harbour/ui-native";
+import { Button, iconByName, Text, useTheme } from "@harbour/ui-native";
 import { useState } from "react";
-import { View } from "react-native";
+import { AccessibilityInfo, View } from "react-native";
 import { t } from "../i18n/t";
 import type { ClockKind, ClockView } from "../scheduling/clock-view";
 import type { WriteOutcome } from "../scheduling/hooks";
@@ -11,6 +11,14 @@ import { Card } from "./Card";
  * saves the event with the device's time and sends it when there is a connection; it never decides
  * whether a clock-in is allowed. A refusal comes back in the API's words under "needs attention".
  */
+function answerWords(outcome: WriteOutcome): string {
+  return outcome === "saved"
+    ? t("mobile.shifts.saved")
+    : outcome === "no_location"
+      ? t("mobile.shifts.noLocation")
+      : t("mobile.shifts.notSaved");
+}
+
 export function ClockCard({
   view,
   onAction,
@@ -26,7 +34,10 @@ export function ClockCard({
     const outcome = await onAction(kind);
     setBusy(false);
     setAnswer(outcome);
+    // Said aloud on iOS too, where a live region is not read.
+    AccessibilityInfo.announceForAccessibility(answerWords(outcome));
   };
+  const Alert = iconByName("circle-alert");
   return (
     <Card title={t("mobile.clock.title")} testID="clock-card">
       <View accessible style={{ gap: theme.space[0.5] }}>
@@ -34,9 +45,9 @@ export function ClockCard({
           {view.words}
         </Text>
         <Text variant="bodyDense" tone="secondary" testID="clock-shift">
-          {t("mobile.clock.forShift", {
-            shift: view.shift ? view.shift.title : t("mobile.clock.noShift"),
-          })}
+          {view.shift
+            ? t("mobile.clock.forShift", { shift: view.shift.title })
+            : t("mobile.clock.noShift")}
         </Text>
         {view.waiting > 0 ? (
           <Text variant="bodyDense" testID="clock-waiting">
@@ -58,18 +69,25 @@ export function ClockCard({
         ))}
       </View>
       {answer ? (
-        <Text
-          variant="bodyDense"
-          tone={answer === "saved" ? "secondary" : "danger"}
-          accessibilityLiveRegion="polite"
-          testID="clock-answer"
-        >
-          {answer === "saved"
-            ? t("mobile.shifts.saved")
-            : answer === "no_location"
-              ? t("mobile.shifts.noLocation")
-              : t("mobile.shifts.notSaved")}
-        </Text>
+        <View style={{ flexDirection: "row", gap: theme.space[1], alignItems: "flex-start" }}>
+          {answer === "saved" ? null : (
+            <Alert
+              color={theme.colors.danger}
+              size={20}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+          )}
+          <Text
+            variant="bodyDense"
+            tone={answer === "saved" ? "secondary" : "danger"}
+            accessibilityLiveRegion="polite"
+            style={{ flexShrink: 1 }}
+            testID="clock-answer"
+          >
+            {answerWords(answer)}
+          </Text>
+        </View>
       ) : null}
     </Card>
   );

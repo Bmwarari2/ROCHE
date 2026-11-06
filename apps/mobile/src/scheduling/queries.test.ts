@@ -59,7 +59,10 @@ describe("the Shifts tab's SQL on the phone's schema", () => {
       at: new Date(SEEDED.getTime() + 600_000),
     });
     for (const w of [start, duress]) db.prepare(w.sql).run(...w.params);
-    const queued = queuedActions(all<{ data: string }>(db, DEMO_QUEUED_LONE_WORKER_SQL, []));
+    const queued = queuedActions(
+      all<{ data: string }>(db, DEMO_QUEUED_LONE_WORKER_SQL, []),
+      DEMO_TENANT_ID,
+    );
     expect(queued.map((q) => q.action)).toEqual(["start", "event"]);
     const view = loneWorkerView(null, queued, SEEDED);
     expect(view).toMatchObject({ kind: "session", sessionId: SESSION, waiting: 2 });

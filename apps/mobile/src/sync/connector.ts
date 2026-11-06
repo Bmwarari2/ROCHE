@@ -254,6 +254,10 @@ export async function recordUploadIssue(
   issue: UploadIssue,
 ): Promise<void> {
   await database.execute("DELETE FROM upload_issue WHERE id = ?", [issue.id]);
+  // A duress press is never kept as one where the phone can show it (HZ-125).
+  const payload = isShiftWritableTable(issue.table)
+    ? screenSafePayload(issue.table, issue.payload)
+    : issue.payload;
   await database.execute(
     `INSERT INTO upload_issue (id, tenant_id, person_id, record_table, http_status, code, message,
       payload, rejected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -265,7 +269,7 @@ export async function recordUploadIssue(
       issue.httpStatus,
       issue.code,
       issue.message,
-      JSON.stringify(issue.payload),
+      JSON.stringify(payload),
       issue.rejectedAt.toISOString(),
     ],
   );

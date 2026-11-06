@@ -17,7 +17,7 @@ export default function LoneWorkingScreen() {
   const { me } = useSession();
   const now = useMinute();
   const { view: clock } = useClock(now);
-  const { view, asked, start, event } = useLoneWorker(now);
+  const { view, answeredAt, start, event } = useLoneWorker(now);
   const locationName = (me?.locations ?? []).find((l) => l.id === clock.locationId)?.name ?? null;
   return (
     <Screen testID="lone-working-screen">
@@ -25,7 +25,7 @@ export default function LoneWorkingScreen() {
         <LoneWorkingPanel
           view={view}
           connected={status.connected}
-          asked={asked}
+          answeredAt={answeredAt}
           locationId={clock.locationId}
           locationName={locationName}
           now={() => new Date()}

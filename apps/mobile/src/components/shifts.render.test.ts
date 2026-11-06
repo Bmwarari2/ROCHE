@@ -9,6 +9,7 @@ import {
   loneWorkerView,
   type Mine,
 } from "../scheduling/lone-worker-view";
+import { AccessibilityInfo, Alert } from "../test-support/react-native-stub";
 import { type RenderedNode, render } from "../test-support/render";
 import { ClockCard } from "./ClockCard";
 import { LoneWorkingPanel } from "./LoneWorkingPanel";
@@ -106,7 +107,7 @@ describe("my shifts, rendered", () => {
     expect(view.texts()).toEqual(
       expect.arrayContaining([
         "Early",
-        "11/10/2026 at 08:00 to 16:00",
+        "11/10/2026, 08:00 to 16:00",
         "Work",
         "Under way",
         "Changed after it was published",
@@ -152,7 +153,7 @@ describe("lone working, rendered (HZ-125)", () => {
     const element = createElement(LoneWorkingPanel, {
       view,
       connected,
-      asked: true,
+      answeredAt: "2026-10-11T09:40:00.000Z",
       locationId: LOCATION,
       locationName: "Example House",
       now: () => NOW,
@@ -230,5 +231,110 @@ describe("lone working, rendered (HZ-125)", () => {
     const view = await render(panel(loneWorkerView({ on: false, session: null }, [], NOW)).element);
     expect(view.texts()).toContain("Lone working is not switched on for your organisation.");
     expect(view.find("lone-start")).toBeNull();
+  });
+});
+
+describe("lone working, rendered: the reviews of slice 71", () => {
+  const session: Mine = {
+    on: true,
+    session: {
+      id: SESSION,
+      locationId: LOCATION,
+      workKind: "other",
+      startedAt: "2026-10-11T09:00:00.000Z",
+      plannedEndAt: "2026-10-11T13:00:00.000Z",
+      intervalMinutes: 60,
+      finishedAt: null,
+      status: "ok",
+      nextDueAt: null,
+      overdueAlarmOpen: false,
+      events: [],
+    },
+  };
+  const draw = (view: LoneWorkerView, connected = true) => {
+    const sent: LoneWorkerEventKind[] = [];
+    const element = createElement(LoneWorkingPanel, {
+      view,
+      connected,
+      answeredAt: "2026-10-11T09:40:00.000Z",
+      locationId: LOCATION,
+      locationName: "Example House",
+      now: () => NOW,
+      onStart: async () => "saved" as WriteOutcome,
+      onEvent: async (kind) => {
+        sent.push(kind);
+        return "saved" as WriteOutcome;
+      },
+    });
+    return { element, sent };
+  };
+
+  it("hazard HZ-125 says aloud exactly the same words for a duress press as for a check-in", async () => {
+    AccessibilityInfo.announced.length = 0;
+    const a = await render(draw(loneWorkerView(session, [], NOW)).element);
+    await a.press("lone-check-in");
+    const checkIn = [...AccessibilityInfo.announced];
+    AccessibilityInfo.announced.length = 0;
+    const b = await render(draw(loneWorkerView(session, [], NOW)).element);
+    await b.longPress("lone-check-in");
+    expect(AccessibilityInfo.announced).toEqual(checkIn);
+    expect(checkIn).toEqual(["Checked in at 10:45."]);
+  });
+
+  it("hazard HZ-125 says a refused help press reached nobody, and to call 999", async () => {
+    const view = loneWorkerView(session, [], NOW, [
+      { action: "event", sessionId: SESSION, kind: "help" },
+    ]);
+    const drawn = await render(draw(view).element);
+    expect(drawn.texts()).toContain(
+      "Your request for help did not reach anyone. If you are in danger, call 999, or call your on-call person now.",
+    );
+  });
+
+  it("hazard HZ-125 says a session known only on the phone is not monitored yet", async () => {
+    const start = {
+      id: SESSION,
+      action: "start" as const,
+      sessionId: SESSION,
+      body: {
+        id: SESSION,
+        startedAt: "2026-10-11T09:00:00.000Z",
+        plannedEndAt: "2026-10-11T13:00:00.000Z",
+        intervalMinutes: 60,
+      },
+    };
+    const drawn = await render(draw(loneWorkerView(null, [start], NOW)).element);
+    expect(drawn.find("lone-unconfirmed")).toBeTruthy();
+  });
+
+  it("asks before finishing, and keeps help offered while the finish waits", async () => {
+    Alert.calls.length = 0;
+    const { element, sent } = draw(loneWorkerView(session, [], NOW));
+    const drawn = await render(element);
+    await drawn.press("lone-finish");
+    expect(sent).toEqual([]);
+    expect(Alert.calls[0]?.title).toBe("Finish lone working?");
+    expect(Alert.calls[0]?.buttons?.map((b) => b.text)).toEqual([
+      "Keep lone working",
+      "Finish lone working",
+    ]);
+    const finish = {
+      id: "f1",
+      action: "event" as const,
+      sessionId: SESSION,
+      body: { id: "f1", kind: "finish", deviceAt: NOW.toISOString() },
+    };
+    const after = await render(draw(loneWorkerView(session, [finish], NOW)).element);
+    expect(after.find("lone-help")).toBeTruthy();
+    expect(after.find("lone-check-in")).toBeNull();
+  });
+
+  it("shows an overdue check-in in words, with an icon", async () => {
+    AccessibilityInfo.announced.length = 0;
+    const later = new Date("2026-10-11T10:05:00.000Z");
+    const drawn = await render(draw(loneWorkerView(session, [], later)).element);
+    expect(drawn.find("lone-due")).toBeTruthy();
+    // Drawn already overdue: shown with an icon and words; becoming overdue is said aloud.
+    expect(drawn.texts()).toContain("Check-in overdue since 11:00. Check in now.");
   });
 });

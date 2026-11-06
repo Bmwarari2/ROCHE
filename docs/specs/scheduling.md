@@ -1217,7 +1217,10 @@ Two streams, both scoped by the sync token alone (connection parameters are igno
 (`shiftWindowDays`; product settings, not statutory figures). Without it nothing syncs (fails
 closed). Migration 0139 adds the three tables to the publication with a `harbour_sync` read policy.
 No lone-worker table syncs: the phone asks `GET /v1/lone-worker/sessions/mine`, which already shows
-duress as a check-in, and keeps the answer in memory only.
+duress as a check-in, and keeps its last answer, with when it came, in the encrypted device
+database (`sync_meta`, `lone-worker-mine:<tenant>`), so a restart without a connection still shows
+the session and says "Harbour last answered at 10:02." Without any answer the screen says it cannot
+tell whether the member is in a session, never that they are not.
 
 ### 18.2 What the phone writes
 
@@ -1252,19 +1255,30 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    choice said in words. These are presets; the API checks the organisation's own figures (section
    17.2) and refuses in words anything outside them. A session started offline is shown from the
    queue until the server has it.
-2. **Check in**: one press. The next check-in due is worked out on the phone as the server does
-   (section 17.3 rule 3), and "overdue" is said in words.
+2. **Check in**: one press. The next check-in due is the server's own when nothing of the worker's
+   waits to send (so a monitor's "safe confirmed" moves it), otherwise worked out on the phone as the
+   server does (section 17.3 rule 3). "Overdue" is said in words with an icon, and aloud when it
+   becomes overdue. A session known only on the phone (started offline) says that nobody is told
+   if a check-in is missed or help is asked for until it reaches Harbour, with "call 999"; a start
+   the API refused says lone working did not start.
 3. **Duress**: a long press on Check in, held `DURESS_HOLD_MS` (1.5 seconds) so it does not happen
-   by accident. It gives the same haptic, the same answer ("Checked in at 10:02."), the same line in
-   the session and the same count waiting to send as a check-in. Nothing the phone shows or keeps
-   in a readable table names it: a queued duress press is shown as a check-in, a refused one is kept
-   in "needs attention" as a check-in (`screenSafePayload`), and no lone-worker table syncs. The
-   web never offers it. Until sent, a duress press exists only in PowerSync's encrypted upload
-   queue, as the API needs it (H-1315).
-4. **Help**: one press. With a connection the phone says the request is being sent; with none, that
-   it has not reached anyone yet. Either way "If you are in danger, call 999". It never says help
-   is on its way.
-5. **Finish**: one press; the session then offers nothing more.
+   by accident, acting when the finger lifts as a press does. It gives the same haptic, the same
+   answer, said aloud too ("Checked in at 10:02."), the same line in the session and the same count
+   waiting to send as a check-in. Nothing the phone shows or keeps in a readable table names it: a
+   queued duress press is shown as a check-in, a refused or held one is kept in "needs attention" as
+   a check-in (`screenSafePayload`, applied in `recordUploadIssue` and to held work), and no
+   lone-worker table syncs. The web never offers it. Until sent, a duress press exists only in the
+   encrypted upload queue or, if the session ended first, in the encrypted held entries, from which
+   it goes back into the queue when the owner signs in again (H-1315). A duress press the API
+   refused before reaching the event (the session unknown or refused, access withdrawn) raised no
+   alarm; the screen then says the session is not with Harbour (rule 2), and whether the API should
+   accept help and duress for any session is H-1317.
+4. **Help**: one press, never held up by another press. The line says only what is true: waiting
+   (no connection: it has not reached anyone yet), being sent, refused (it did not reach anyone:
+   call 999 or the on-call person now), or with Harbour (the session shows the request); each with
+   "If you are in danger, call 999". It never says help is on its way.
+5. **Finish**: asks first ("Finish lone working? Nobody will expect your check-ins after this.");
+   Help stays offered while the finish waits to send.
 6. Off: when the API says lone working is not switched on, the screen says so and offers no start.
 
 Not built: a reminder on the phone when a check-in falls due without a connection (H-1313), and
@@ -1273,8 +1287,10 @@ help or duress from the lock screen (H-1314).
 ### 18.5 Data on the device
 
 `shift` and `clock_event` are copies of the member's own rows (data standards, "Device copies").
-`lone_worker_outbox` rows exist only until sent. Refused rows live in `upload_issue` until someone
-removes them with a reason. All are in the encrypted device database, wiped with it.
+`lone_worker_outbox` rows exist only until sent, in the upload queue, or in `held_entry` when the
+session ended first (put back into the queue when the owner signs in again). Refused rows live in
+`upload_issue` until someone removes them with a reason, a duress press always as a check-in. The
+last answer about the member's own session is kept in `sync_meta`. All are in the encrypted device database, wiped with it.
 
 ### 18.6 Test list
 

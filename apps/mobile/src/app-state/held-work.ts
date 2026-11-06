@@ -42,6 +42,7 @@ import { type MessageKey, t } from "../i18n/t";
 import { type DatabaseKey, databaseFilename } from "../security/db-key";
 import { buildDeviceReport, reportLocationIds } from "../sync/device-report";
 import { HELD_FAIL_SAFE_DAYS, heldDeadline } from "../sync/held-limit";
+import { isShiftWritableTable, screenSafePayload } from "../sync/shift-upload";
 import {
   type DiscardOutcome,
   type DiscardReasonCode,
@@ -551,7 +552,10 @@ function heldRecordOf(entry: {
  */
 function resendable(row: HeldEntryRow): boolean {
   const table = row.record_table ?? "";
-  if (row.op === "PUT" && (WRITABLE.has(table) || table === "handover_acknowledgement"))
+  if (
+    row.op === "PUT" &&
+    (WRITABLE.has(table) || table === "handover_acknowledgement" || isShiftWritableTable(table))
+  )
     return true;
   if (table !== "task" || row.op !== "PATCH") return false;
   const data = payloadOf(row);
@@ -599,6 +603,13 @@ const PARK_MESSAGE_KEYS: Record<ParkCode, MessageKey> = {
   held_discard_failed: "mobile.held.discardFailedEntry",
 };
 
+/** A held lone-working action parked as needs attention: a duress press kept as a check-in. */
+function screenSafeHeld(row: HeldEntryRow): string | null {
+  const table = row.record_table ?? "";
+  if (!isShiftWritableTable(table)) return row.payload;
+  return JSON.stringify(screenSafePayload(table, payloadOf(row)));
+}
+
 async function park(tx: TxLike, row: HeldEntryRow, code: ParkCode, now: Date): Promise<void> {
   await tx.execute("DELETE FROM upload_issue WHERE id = ?", [row.id]);
   await tx.execute(
@@ -612,7 +623,7 @@ async function park(tx: TxLike, row: HeldEntryRow, code: ParkCode, now: Date): P
       null,
       code,
       t(PARK_MESSAGE_KEYS[code]),
-      row.payload,
+      screenSafeHeld(row),
       now.toISOString(),
     ],
   );

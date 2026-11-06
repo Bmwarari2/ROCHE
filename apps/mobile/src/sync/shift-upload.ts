@@ -115,7 +115,8 @@ export function toShiftUpload(
   const body = parsed(data.body);
   if (!body || !sessionId || !UUID.test(sessionId)) return refused();
   if (action === "start") {
-    if (body.id !== sessionId) return refused();
+    // The row's id is the idempotency key: it must be the session's own.
+    if (body.id !== sessionId || entry.id !== sessionId) return refused();
     return {
       kind: "request",
       table: entry.table,
@@ -127,9 +128,7 @@ export function toShiftUpload(
   }
   if (action === "event") {
     if (typeof body.kind !== "string" || !LONE_WORKER_KINDS.has(body.kind)) return refused();
-    if (typeof body.id !== "string" || !UUID.test(body.id) || !isInstant(body.deviceAt)) {
-      return refused();
-    }
+    if (body.id !== entry.id || !isInstant(body.deviceAt)) return refused();
     return {
       kind: "request",
       table: entry.table,
@@ -143,10 +142,13 @@ export function toShiftUpload(
 }
 
 /**
- * What the phone keeps of a refused change: a duress press kept as an ordinary check-in, so a
- * refusal never shows on the device that duress was pressed (HZ-125). The server recorded and
- * alarmed the duress press whatever it answered (scheduling.md section 17.3 rule 8), so nothing is
- * lost by sending it again as a check-in.
+ * What the phone keeps of a refused or held change: a duress press kept as an ordinary check-in, so
+ * nothing on the device shows that duress was pressed (HZ-125). When the API reached the event and
+ * refused it as a check-in, it recorded and alarmed the duress press all the same (scheduling.md
+ * section 17.3 rule 8). When it did not (the session unknown or refused, access withdrawn), the
+ * duress press raised nothing: the screen then says the session is not with Harbour and that
+ * nobody is told, with "call 999" (section 18.4), and an API that accepts help and duress for any
+ * session is H-1317's question.
  */
 export function screenSafePayload(
   table: ShiftWritableTable,

@@ -3,11 +3,13 @@ import { screenSafePayload, toShiftUpload } from "../sync/shift-upload";
 import { clockStatement, loneEventStatement, loneStartStatement } from "./actions";
 import { type ClockEventRow, clockState, clockView, type ShiftRow, shiftItems } from "./clock-view";
 import {
+  helpState,
   loneWorkerView,
   type Mine,
   nextDue,
   parseMine,
   queuedActions,
+  refusedActions,
   screenKind,
 } from "./lone-worker-view";
 
@@ -99,7 +101,7 @@ describe("clock state comes from the member's own events, latest by the device's
     );
     expect(items.map((i) => i.id)).toEqual([SHIFT, "later"]);
     expect(items[0]).toMatchObject({
-      when: "11/10/2026 at 08:00 to 16:00",
+      when: "11/10/2026, 08:00 to 16:00",
       kindWords: "Sleep-in",
       changed: "Changed after it was published",
       now: true,
@@ -218,21 +220,32 @@ describe("lone working on the phone (HZ-125)", () => {
 
   it("reads queued lone-working actions from the upload queue, leaving out anything else", () => {
     const row = (entry: unknown) => ({ data: JSON.stringify(entry) });
-    const actions = queuedActions([
-      row({
-        op: "PUT",
-        type: "lone_worker_outbox",
-        id: EVENT,
-        data: {
-          action: "event",
-          session_id: SESSION,
-          body: JSON.stringify({ id: EVENT, kind: "check_in", deviceAt: "2026-10-11T09:40:00Z" }),
-        },
-      }),
-      row({ op: "PUT", type: "care_note", id: "x", data: {} }),
-      { data: "not json" },
-      { data: null },
-    ]);
+    const actions = queuedActions(
+      [
+        row({
+          op: "PUT",
+          type: "lone_worker_outbox",
+          id: EVENT,
+          data: {
+            tenant_id: TENANT,
+            action: "event",
+            session_id: SESSION,
+            body: JSON.stringify({ id: EVENT, kind: "check_in", deviceAt: "2026-10-11T09:40:00Z" }),
+          },
+        }),
+        row({ op: "PUT", type: "care_note", id: "x", data: {} }),
+        { data: "not json" },
+        { data: null },
+        // Another organisation's queued action never counts here.
+        row({
+          op: "PUT",
+          type: "lone_worker_outbox",
+          id: "other",
+          data: { tenant_id: "another", action: "event", session_id: SESSION, body: "{}" },
+        }),
+      ],
+      TENANT,
+    );
     expect(actions).toEqual([
       {
         id: EVENT,
@@ -360,5 +373,155 @@ describe("what the phone writes and sends (scheduling.md section 18)", () => {
     const help = JSON.stringify({ id: EVENT, kind: "help", deviceAt: at.toISOString() });
     expect(screenSafePayload("lone_worker_outbox", { body: help })).toEqual({ body: help });
     expect(screenSafePayload("clock_event", { kind: "in" })).toEqual({ kind: "in" });
+  });
+});
+
+describe("what lone working says when something did not reach Harbour (clinical review of slice 71)", () => {
+  const mine: Mine = {
+    on: true,
+    session: {
+      id: SESSION,
+      locationId: LOCATION,
+      workKind: "other",
+      startedAt: "2026-10-11T09:00:00.000Z",
+      plannedEndAt: "2026-10-11T13:00:00.000Z",
+      intervalMinutes: 60,
+      finishedAt: null,
+      status: "ok",
+      nextDueAt: "2026-10-11T10:20:00.000Z",
+      overdueAlarmOpen: false,
+      events: [],
+    },
+  };
+  const now = new Date("2026-10-11T09:45:00.000Z");
+
+  it.each([
+    ["nothing", {}, true, false, "none"],
+    ["help just pressed", {}, true, true, "sending"],
+    ["help waiting offline", { helpWaiting: true }, false, true, "waiting"],
+    ["help waiting online", { helpWaiting: true }, true, true, "sending"],
+    ["help refused", { helpRefused: true, helpWaiting: true }, true, true, "refused"],
+    ["help with Harbour", { helpReceived: true }, true, true, "received"],
+  ] as const)("help line: %s", (_case, extra, connected, pressed, state) => {
+    const view = { ...loneWorkerView(mine, [], now), ...extra };
+    expect(helpState(view, connected, pressed)).toBe(state);
+  });
+
+  it("reads refused lone-working actions, a duress press only as a check-in", () => {
+    const issue = (action: string, kind: string) => ({
+      payload: JSON.stringify({
+        action,
+        session_id: SESSION,
+        body: JSON.stringify({ id: EVENT, kind }),
+      }),
+    });
+    expect(
+      refusedActions([issue("event", "duress"), issue("start", ""), { payload: "x" }]),
+    ).toEqual([
+      { action: "event", sessionId: SESSION, kind: "check_in" },
+      { action: "start", sessionId: SESSION, kind: "check_in" },
+    ]);
+  });
+
+  it("says a refused help press reached nobody, and a refused start began nothing", () => {
+    const refusals = [
+      { action: "event" as const, sessionId: SESSION, kind: "help" },
+      { action: "start" as const, sessionId: SESSION, kind: "check_in" },
+    ];
+    expect(loneWorkerView({ on: true, session: null }, [], now, refusals)).toMatchObject({
+      kind: "none",
+      helpRefused: true,
+      startRefused: true,
+    });
+  });
+
+  it("says a session known only on the phone is not monitored yet", () => {
+    const start = {
+      id: SESSION,
+      action: "start" as const,
+      sessionId: SESSION,
+      body: {
+        id: SESSION,
+        startedAt: "2026-10-11T09:00:00.000Z",
+        plannedEndAt: "2026-10-11T13:00:00.000Z",
+        intervalMinutes: 60,
+      },
+    };
+    expect(loneWorkerView(null, [start], now).unconfirmed).toBe(true);
+    expect(loneWorkerView(mine, [], now).unconfirmed).toBe(false);
+  });
+
+  it("takes the server's next due time when nothing of the worker's waits (rule 6: safe confirmed)", () => {
+    expect(loneWorkerView(mine, [], now).due).toBe("Next check-in due at 11:20");
+  });
+
+  it("keeps help offered while a finish waits to send", () => {
+    const finish = {
+      id: EVENT,
+      action: "event" as const,
+      sessionId: SESSION,
+      body: { id: EVENT, kind: "finish", deviceAt: now.toISOString() },
+    };
+    expect(loneWorkerView(mine, [finish], now)).toMatchObject({ finished: true, due: null });
+  });
+
+  it.each([
+    // The zone is said on a clock-change day, so the two 01:30s cannot be confused (HZ-009).
+    // 25/10/2026: the clocks go back at 02:00 BST (01:00 UTC); 01:30 happens twice.
+    [
+      "autumn, the first 01:30 (BST)",
+      "2026-10-24T23:30:00Z",
+      60,
+      "2026-10-25T00:30:00.000Z",
+      "Next check-in due at 01:30 BST",
+    ],
+    [
+      "autumn, the second 01:30 (GMT)",
+      "2026-10-25T00:30:00Z",
+      60,
+      "2026-10-25T01:30:00.000Z",
+      "Next check-in due at 01:30 GMT",
+    ],
+    // 29/03/2026: the clocks go forward at 01:00 GMT; 01:30 never happens.
+    [
+      "spring, across the gap",
+      "2026-03-29T00:30:00Z",
+      60,
+      "2026-03-29T01:30:00.000Z",
+      "Next check-in due at 02:30 BST",
+    ],
+  ])(
+    "works out and says the next check-in across a clock change: %s",
+    (_case, start, every, due, words) => {
+      expect(nextDue(start, "2026-12-31T00:00:00Z", every, [])?.toISOString()).toBe(due);
+      const session = {
+        ...mine,
+        session: {
+          ...(mine.session as NonNullable<Mine["session"]>),
+          startedAt: start,
+          plannedEndAt: "2026-12-31T00:00:00Z",
+          intervalMinutes: every,
+          nextDueAt: null,
+        },
+      };
+      expect(loneWorkerView(session, [], new Date(start)).due).toBe(words);
+    },
+  );
+
+  it("refuses a queued action whose id is not its idempotency key (security review of slice 71)", () => {
+    const body = JSON.stringify({ id: EVENT, kind: "check_in", deviceAt: now.toISOString() });
+    const opData = { tenant_id: TENANT, action: "event", session_id: SESSION, body };
+    expect(
+      toShiftUpload({ op: "PUT", table: "lone_worker_outbox", id: SESSION, opData }).kind,
+    ).toBe("refused");
+    const start = {
+      tenant_id: TENANT,
+      action: "start",
+      session_id: SESSION,
+      body: JSON.stringify({ id: SESSION }),
+    };
+    expect(
+      toShiftUpload({ op: "PUT", table: "lone_worker_outbox", id: EVENT, opData: start }).kind,
+    ).toBe("refused");
   });
 });

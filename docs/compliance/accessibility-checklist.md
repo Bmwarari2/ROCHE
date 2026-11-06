@@ -94,6 +94,12 @@ Automated tools find only part of WCAG failures, so a criterion marked "manual" 
 
 (4.1.1 Parsing was removed in WCAG 2.2.)
 
+## Decisions
+
+| Decision | Why | Review |
+| --- | --- | --- |
+| Duress on the phone is a long press on Check in (1.5 seconds, acting on release), with no label, announcement or control of its own (scheduling.md section 18.4, HZ-125) | Anything that names it would show someone watching that duress was pressed. Screen-reader users reach it with the platform's own long-press gesture; a hardware keyboard or switch access has none, and a slow press could send it by accident | H-1311: a private per-person duress method and hold time before general release; tested with lone workers and screen-reader users in the pilot |
+
 ## Public sector tenants
 
 Tenants that are public sector bodies may need to publish an accessibility statement under the Public Sector Bodies Accessibility Regulations 2018. Thapsus publishes an accessibility statement for Harbour, with known issues from the manual pass, that tenants can rely on `[human action: publish and keep current]`.

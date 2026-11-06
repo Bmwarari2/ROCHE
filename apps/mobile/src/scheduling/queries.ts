@@ -24,5 +24,14 @@ export const INSERT_LONE_WORKER_SQL = `INSERT INTO lone_worker_outbox (id, tenan
  * stay in the table, read in the queue's own shape.
  */
 export const DEMO_QUEUED_LONE_WORKER_SQL = `SELECT json_object('op', 'PUT', 'type',
-  'lone_worker_outbox', 'id', id, 'data', json_object('action', action, 'session_id', session_id,
-  'body', body)) AS data FROM lone_worker_outbox ORDER BY queued_at`;
+  'lone_worker_outbox', 'id', id, 'data', json_object('tenant_id', tenant_id, 'action', action,
+  'session_id', session_id, 'body', body)) AS data FROM lone_worker_outbox ORDER BY queued_at`;
+
+/** Lone-working actions the API refused, kept under "needs attention" (duress as a check-in). */
+export const REFUSED_LONE_WORKER_SQL = `SELECT payload FROM upload_issue
+  WHERE record_table = 'lone_worker_outbox' AND tenant_id = ?`;
+
+/** Where the phone keeps the API's last answer about the member's own session, per tenant. */
+export const MINE_META_PREFIX = "lone-worker-mine:";
+export const READ_META_SQL = "SELECT value FROM sync_meta WHERE id = ?";
+export const WRITE_META_SQL = "INSERT OR REPLACE INTO sync_meta (id, key, value) VALUES (?, ?, ?)";

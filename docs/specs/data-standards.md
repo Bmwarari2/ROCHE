@@ -1167,9 +1167,12 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   clock events for the token's `shift_days`, with the database column names; `clock_event.recorded_at`
   is empty until the event has reached the server. `lone_worker_outbox` holds a lone-working action
   until it is sent (`action` `start` or `event`, `session_id`, `body` as the API's contract JSON,
-  `queued_at`); it is insert-only, so the row lives only in the upload queue and never syncs down.
-  A refused clock event or lone-working action goes to `upload_issue` with no person, a duress press
-  kept as a check-in.
+  `queued_at`); it is insert-only, so the row lives only in the upload queue (or `held_entry` if
+  the session ended first) and never syncs down. A refused or parked clock event or lone-working
+  action goes to `upload_issue` with no person, a duress press kept as a check-in. `sync_meta` keeps
+  the API's last answer about the member's own lone-working session under
+  `lone-worker-mine:<tenant id>` (JSON: the answer, duress already shown as a check-in, and when it
+  came).
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
   someone removes it with a recorded reason (the content never ages out). The device also sends
   the content to the server, which keeps a copy (`refused_entry`; contract `SyncRefusedEntry`,
