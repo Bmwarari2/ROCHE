@@ -1260,8 +1260,8 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    waits to send (so a monitor's "safe confirmed" moves it), otherwise worked out on the phone as the
    server does (section 17.3 rule 3). "Overdue" is said in words with an icon, and aloud when it
    becomes overdue. A session known only on the phone (started offline) says that nobody is told
-   if a check-in is missed until it reaches Harbour, and that Ask for help still reaches the
-   on-call person, with "call 999"; a start the API refused says lone working did not start, in the
+   if a check-in is missed until it reaches Harbour, and that Ask for help still raises
+   the alarm with Harbour, with "call 999"; a start the API refused says lone working did not start, in the
    same terms.
 3. **Duress**: a long press on Check in, held `DURESS_HOLD_MS` (1.5 seconds) so it does not happen
    by accident, acting when the hold registers (so a screen reader's long press and a slow press
