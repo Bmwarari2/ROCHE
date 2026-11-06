@@ -1,10 +1,43 @@
 import { createHash } from "node:crypto";
-import { absence, auditEvent, clockEvent, HR_LINK_PORT, hrDelivery, hrLocationLink, hrPersonLink, integrationConnection, roleAssignment, shift, shiftAssignment, staffProfile, type Transaction } from "@harbour/db";
-import { applyHrAbsencePlan, type HrAbsenceCopy, type HrAbsencePort, type HrResult, hrAbsenceTypeKnown, hrClockEventOf, hrShiftOf, inboundAbsence, planHrAbsence, type ThapsusHrPort, ukIsoDate } from "@harbour/domain";
+import {
+  absence,
+  auditEvent,
+  clockEvent,
+  HR_LINK_PORT,
+  hrDelivery,
+  hrLocationLink,
+  hrPersonLink,
+  integrationConnection,
+  roleAssignment,
+  shift,
+  shiftAssignment,
+  staffProfile,
+  type Transaction,
+} from "@harbour/db";
+import {
+  applyHrAbsencePlan,
+  type HrAbsenceCopy,
+  type HrAbsencePort,
+  type HrResult,
+  hrAbsenceTypeKnown,
+  hrClockEventOf,
+  hrShiftOf,
+  inboundAbsence,
+  planHrAbsence,
+  type ThapsusHrPort,
+  ukIsoDate,
+} from "@harbour/domain";
 import { and, asc, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { raiseCoverNeeds, resolveCoverNeeds } from "../services/absence";
-import { closeHrAlert, HR_ACTOR, type HrLinkSettings, raiseHrAlert, recordSync, ukRefusal } from "./hr-link";
+import {
+  closeHrAlert,
+  HR_ACTOR,
+  type HrLinkSettings,
+  raiseHrAlert,
+  recordSync,
+  ukRefusal,
+} from "./hr-link";
 
 /**
  * The Thapsus-HR link's rota, clocking and absence flows (integrations.md section 11.2; slice 88;

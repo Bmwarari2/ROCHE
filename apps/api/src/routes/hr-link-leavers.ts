@@ -8,7 +8,15 @@ import { HttpProblem, problems } from "../http/problem";
 import { hrConnection, hrLinkEnabled, leavingOf, raiseHrAlert } from "../integrations/hr-link";
 import { publish } from "../outbox";
 import { withSystemRights } from "../services/system-rights";
-import { conflictResponse, createRouter, errorResponses, jsonBody, notFoundResponse, security, unavailableResponse } from "./openapi";
+import {
+  conflictResponse,
+  createRouter,
+  errorResponses,
+  jsonBody,
+  notFoundResponse,
+  security,
+  unavailableResponse,
+} from "./openapi";
 
 /**
  * Withdrawing a wrong leaving date that came from Thapsus-HR (integrations.md section 11.5 rule

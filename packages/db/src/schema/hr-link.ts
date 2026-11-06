@@ -1,5 +1,18 @@
 import { sql } from "drizzle-orm";
-import { type AnyPgColumn, check, date, foreignKey, index, integer, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  type AnyPgColumn,
+  check,
+  date,
+  foreignKey,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
 import { id, mutableColumns, tenantId } from "./_columns";
 import { location, tenantUser } from "./platform";

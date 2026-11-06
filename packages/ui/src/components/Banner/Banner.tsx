@@ -1,6 +1,13 @@
 "use client";
 
-import { CircleAlert, FlaskConical, History, type LucideIcon, RefreshCw, WifiOff } from "lucide-react";
+import {
+  CircleAlert,
+  FlaskConical,
+  History,
+  type LucideIcon,
+  RefreshCw,
+  WifiOff,
+} from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { cx } from "../../lib/cx";
 import { iconProps } from "../../lib/icon";

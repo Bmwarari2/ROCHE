@@ -1,4 +1,21 @@
-import { type HealthResult, type HrAbsence, type HrCapability, type HrClockEvent, type HrEmployee, type HrLocation, type HrPage, type HrPayUnit, type HrRate, type HrResult, type HrShift, type HrStarter, type HrWorkspace, type OutboundFlow, outboundProblems, type ThapsusHrPort } from "@harbour/domain";
+import {
+  type HealthResult,
+  type HrAbsence,
+  type HrCapability,
+  type HrClockEvent,
+  type HrEmployee,
+  type HrLocation,
+  type HrPage,
+  type HrPayUnit,
+  type HrRate,
+  type HrResult,
+  type HrShift,
+  type HrStarter,
+  type HrWorkspace,
+  type OutboundFlow,
+  outboundProblems,
+  type ThapsusHrPort,
+} from "@harbour/domain";
 
 /**
  * Thapsus-HR mock (Phase 2 slice 86; INTG-014; ADR-0126; integrations.md section 11). No network.

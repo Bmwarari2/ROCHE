@@ -12,7 +12,14 @@ import { isUuid } from "@/lib/context-cookies";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { firstParam } from "@/lib/record-metadata";
-import { mayManageRota, rotaChip, rotaHomePage, rotaPage, rotaShown, templatesPage } from "@/lib/rota";
+import {
+  mayManageRota,
+  rotaChip,
+  rotaHomePage,
+  rotaPage,
+  rotaShown,
+  templatesPage,
+} from "@/lib/rota";
 
 export const metadata: Metadata = { title: t("rota.title") };
 

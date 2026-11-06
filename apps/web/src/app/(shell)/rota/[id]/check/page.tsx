@@ -9,7 +9,14 @@ import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { comparisonChip, hoursWords, mayCheck, periodKey, rotaCheckPage, rotaPage } from "@/lib/rota";
+import {
+  comparisonChip,
+  hoursWords,
+  mayCheck,
+  periodKey,
+  rotaCheckPage,
+  rotaPage,
+} from "@/lib/rota";
 
 export const metadata: Metadata = { title: t("rota.check.title") };
 

@@ -8,7 +8,14 @@ import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { absenceChip, absencesShown, coverChip, ROTA_APPROVE, ROTA_MANAGE, SELF } from "@/lib/pay-time";
+import {
+  absenceChip,
+  absencesShown,
+  coverChip,
+  ROTA_APPROVE,
+  ROTA_MANAGE,
+  SELF,
+} from "@/lib/pay-time";
 import { addDays, ukToday } from "@/lib/uk-time";
 
 export const metadata: Metadata = { title: t("payTime.absences.title") };

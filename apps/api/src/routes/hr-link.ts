@@ -1,20 +1,70 @@
 import { randomUUID } from "node:crypto";
-import { auditEvent, HR_LINK_PORT, hrDelivery, hrLocationLink, hrPersonLink, integrationConnection, location, staffProfile, type Transaction, tenant, withRequestContext } from "@harbour/db";
-import { DEFAULT_HR_OWNERS, HR_STALENESS_DEFAULT_MINUTES, HR_STALENESS_MAX_MINUTES, type HrOwners, stalenessLimitProblem } from "@harbour/domain";
+import {
+  auditEvent,
+  HR_LINK_PORT,
+  hrDelivery,
+  hrLocationLink,
+  hrPersonLink,
+  integrationConnection,
+  location,
+  staffProfile,
+  type Transaction,
+  tenant,
+  withRequestContext,
+} from "@harbour/db";
+import {
+  DEFAULT_HR_OWNERS,
+  HR_STALENESS_DEFAULT_MINUTES,
+  HR_STALENESS_MAX_MINUTES,
+  type HrOwners,
+  stalenessLimitProblem,
+} from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, clientIp, requireAnyPermission, requirePermission, stepUpRefusal, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  clientIp,
+  requireAnyPermission,
+  requirePermission,
+  stepUpRefusal,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import { applyEmployee, DECOY_SECRET, deliverStarter, type HrLinkSettings, HrOwnersSchema, HrWebhookSchema, hrConnection, hrLinkEnabled, hrLinkStaleness, leaversNotEnded, ownersOrProblem, pullSafely, signatureRefusal, starterFor, ukRefusal } from "../integrations/hr-link";
+import {
+  applyEmployee,
+  DECOY_SECRET,
+  deliverStarter,
+  type HrLinkSettings,
+  HrOwnersSchema,
+  HrWebhookSchema,
+  hrConnection,
+  hrLinkEnabled,
+  hrLinkStaleness,
+  leaversNotEnded,
+  ownersOrProblem,
+  pullSafely,
+  signatureRefusal,
+  starterFor,
+  ukRefusal,
+} from "../integrations/hr-link";
 import { activeHrAbsenceCopies, lockRota, syncRotaSafely } from "../integrations/hr-rota";
 import { receiveInbound } from "../integrations/inbound";
 import { SECRET_REF_SHAPE, secretRefProblem } from "../integrations/secret-ref";
 import { publish } from "../outbox";
 import { endLeaversAccess } from "../services/leavers";
 import { withSystemRights } from "../services/system-rights";
-import { conflictResponse, createRouter, errorResponses, jsonBody, notFoundResponse, security, unavailableResponse } from "./openapi";
+import {
+  conflictResponse,
+  createRouter,
+  errorResponses,
+  jsonBody,
+  notFoundResponse,
+  security,
+  unavailableResponse,
+} from "./openapi";
 
 /**
  * The Thapsus-HR link (integrations.md section 11.6; INTG-014; ADR-0126; slice 87). Behind the

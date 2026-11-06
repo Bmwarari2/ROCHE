@@ -1,19 +1,66 @@
-import { ComplianceItemKind, CreateStaffFile, RecordComplianceItem, SignDbsRiskAssessment, StaffFileItem, StaffFileList, StaffHrDocument, StaffMemberList, UpdateStaffFile } from "@harbour/contracts";
+import {
+  ComplianceItemKind,
+  CreateStaffFile,
+  RecordComplianceItem,
+  SignDbsRiskAssessment,
+  StaffFileItem,
+  StaffFileList,
+  StaffHrDocument,
+  StaffMemberList,
+  UpdateStaffFile,
+} from "@harbour/contracts";
 import { complianceItem, document, staffProfile, type Transaction } from "@harbour/db";
 import { type ComplianceDetail, complianceItemView, ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
-import { type AppEnv, refusalOf, requireAnyPermission, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  refusalOf,
+  requireAnyPermission,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { hrManagedFields } from "../integrations/hr-link";
-import { contentHeaders, destroyingOnFailure, imagePrintableOf, readDocumentContent, storeDocument } from "../services/documents";
+import {
+  contentHeaders,
+  destroyingOnFailure,
+  imagePrintableOf,
+  readDocumentContent,
+  storeDocument,
+} from "../services/documents";
 import { sameStored } from "../services/record-history";
-import { COMPLIANCE_ITEM_SOURCE, type ComplianceItemRow, currentStaff, endItemReminders, hrDocuments, isCurrentStaff, loadStaffFile, namesFor, nationOf, profileFacts, STAFF_FILE_SOURCE, type StaffProfileRow, staffFileItem, staffFileSummary, storedItem, workforceRates } from "../services/staff-files";
+import {
+  COMPLIANCE_ITEM_SOURCE,
+  type ComplianceItemRow,
+  currentStaff,
+  endItemReminders,
+  hrDocuments,
+  isCurrentStaff,
+  loadStaffFile,
+  namesFor,
+  nationOf,
+  profileFacts,
+  STAFF_FILE_SOURCE,
+  type StaffProfileRow,
+  staffFileItem,
+  staffFileSummary,
+  storedItem,
+  workforceRates,
+} from "../services/staff-files";
 import { withSystemRights } from "../services/system-rights";
 import { fileBody, fileResponse } from "./documents";
-import { conflictResponse, createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
+import {
+  conflictResponse,
+  createRouter,
+  errorResponses,
+  jsonBody,
+  notFoundResponse,
+  security,
+} from "./openapi";
 import { audit, dbCode } from "./people-shared";
 
 /**

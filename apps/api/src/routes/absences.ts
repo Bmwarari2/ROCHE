@@ -1,20 +1,88 @@
 import { createHash } from "node:crypto";
-import { AbsenceDetail, AbsenceItem, AbsenceList, AbsenceListQuery, BradfordResult, CancelAbsence, DecideAbsence, EndAbsence, ExcludeFromBradford, FitNoteItem, FitNoteQuery, NewAbsence, NewReturnToWork, ReturnToWorkItem, SspQuery, SspResultItem } from "@harbour/contracts";
-import { absence, document, fitNote, returnToWork, shift, shiftAssignment, shiftCoverNeed, type Transaction, tenant } from "@harbour/db";
-import { ABSENCE_RATE_KEYS, type AbsenceKind, type AbsenceState, absenceDays, bradfordDays, bradfordFactor, can, carersLeaveTaken, checkAbsenceMove, checkNewAbsence, fitNoteNeeded, PAY_RATE_KEYS, type Permission, periodsOfIncapacity, qualifyingDaysIn, type RateNation, resolveAbsenceRates, resolvePayRates, scopeFor, sickPay, ukIsoDate } from "@harbour/domain";
+import {
+  AbsenceDetail,
+  AbsenceItem,
+  AbsenceList,
+  AbsenceListQuery,
+  BradfordResult,
+  CancelAbsence,
+  DecideAbsence,
+  EndAbsence,
+  ExcludeFromBradford,
+  FitNoteItem,
+  FitNoteQuery,
+  NewAbsence,
+  NewReturnToWork,
+  ReturnToWorkItem,
+  SspQuery,
+  SspResultItem,
+} from "@harbour/contracts";
+import {
+  absence,
+  document,
+  fitNote,
+  returnToWork,
+  shift,
+  shiftAssignment,
+  shiftCoverNeed,
+  type Transaction,
+  tenant,
+} from "@harbour/db";
+import {
+  ABSENCE_RATE_KEYS,
+  type AbsenceKind,
+  type AbsenceState,
+  absenceDays,
+  bradfordDays,
+  bradfordFactor,
+  can,
+  carersLeaveTaken,
+  checkAbsenceMove,
+  checkNewAbsence,
+  fitNoteNeeded,
+  PAY_RATE_KEYS,
+  type Permission,
+  periodsOfIncapacity,
+  qualifyingDaysIn,
+  type RateNation,
+  resolveAbsenceRates,
+  resolvePayRates,
+  scopeFor,
+  sickPay,
+  ukIsoDate,
+} from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { withAuditedRefusal } from "../http/audit";
-import { type AppEnv, requireAnyPermission, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  requireAnyPermission,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { raiseCoverNeeds, resolveCoverNeeds } from "../services/absence";
-import { contentHeaders, destroyingOnFailure, imagePrintableOf, readDocumentContent, storeDocument } from "../services/documents";
+import {
+  contentHeaders,
+  destroyingOnFailure,
+  imagePrintableOf,
+  readDocumentContent,
+  storeDocument,
+} from "../services/documents";
 import { rateRows } from "../services/rates";
 import { staffNames } from "../services/staff";
 import { withSystemRights } from "../services/system-rights";
 import { fileBody, fileResponse } from "./documents";
-import { conflictResponse, createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
+import {
+  conflictResponse,
+  createRouter,
+  errorResponses,
+  jsonBody,
+  notFoundResponse,
+  security,
+} from "./openapi";
 import { audit, dbCode, requireLocationInScope } from "./people-shared";
 
 /**

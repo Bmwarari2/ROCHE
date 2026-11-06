@@ -7,7 +7,14 @@ import { hrConnection, hrLinkEnabled } from "../integrations/hr-link";
 import { lockRota, releaseHrCopies } from "../integrations/hr-rota";
 import { publish } from "../outbox";
 import { withSystemRights } from "../services/system-rights";
-import { conflictResponse, createRouter, errorResponses, jsonBody, security, unavailableResponse } from "./openapi";
+import {
+  conflictResponse,
+  createRouter,
+  errorResponses,
+  jsonBody,
+  security,
+  unavailableResponse,
+} from "./openapi";
 
 /**
  * Releasing Thapsus-HR absence copies the link can no longer keep right (integrations.md section
