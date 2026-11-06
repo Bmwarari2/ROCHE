@@ -88,8 +88,9 @@ Domain rules: `packages/domain/src/integrations/esign-ocr.ts`. Schema: migration
 
 1. A member with `platform.document.manage` asks a named, active member to sign the **current
    version** of an **organisation document** (category `organisation_document`; its SHA-256 must
-   match). A staff HR document, a logo and a person's document are refused (not found); a person's a person receiving care, or their representative, signs with the existing typed-name
-   flow and a recorded capacity.
+   match). A staff HR document, a logo and a person's document are refused (not found).
+   A person receiving care, or their representative, signs with the existing typed-name flow and a
+   recorded capacity.
 2. **In Harbour** (provider `in_app`, every organisation's default): only the member named signs,
    only while the request is open, only the exact bytes asked for (the hash they read must match
    the request and the current version), and only with a second factor used within the step-up

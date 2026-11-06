@@ -137,11 +137,12 @@ const release = (
   statuses: [number, OcrLineStatus][] = [[0, "active"]],
 ) => ({
   linesCounted: 1,
-  lineStatuses: new Map(statuses),
+  lineStatuses: statuses.map(([line, status]) => ({ line, status })),
   personConfirmed: true,
   chartFrom: "2026-10-05",
   chartTo: "2026-11-01",
   currentChart: true,
+  today: "2026-10-20",
   ...over,
 });
 
@@ -348,6 +349,47 @@ describe("hazard HZ-005 hazard HZ-130 a scan is released only when the chart is 
       { currentChart: false },
       [[0, "active"]],
       "not_current_chart",
+    ],
+    [
+      "a chart whose period ended",
+      line0,
+      { today: "2026-11-02" },
+      [[0, "active"]],
+      "chart_out_of_date",
+    ],
+    [
+      "a chart whose period has not started",
+      line0,
+      { today: "2026-10-04" },
+      [[0, "active"]],
+      "chart_out_of_date",
+    ],
+    [
+      "a day that does not exist",
+      line0,
+      { chartTo: "2026-02-30" },
+      [[0, "active"]],
+      "chart_period",
+    ],
+    [
+      "two statuses for one line (never the last of two)",
+      line0,
+      {},
+      [
+        [0, "cannot_tell"],
+        [0, "active"],
+      ],
+      "line_status_duplicate",
+    ],
+    [
+      "a status for a line with no medicine",
+      line0,
+      {},
+      [
+        [0, "active"],
+        [4, "stopped"],
+      ],
+      "line_status_unknown_line",
     ],
     ["everything accounted for", [...line0, rejected(0, "route")], {}, [[0, "active"]], null],
   ] as const)("%s", (_name, fields, over, statuses, want) => {

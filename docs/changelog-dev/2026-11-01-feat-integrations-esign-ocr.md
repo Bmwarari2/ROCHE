@@ -39,6 +39,13 @@ the Google Cloud move.
   truncated text cannot be confirmed; a missed value can be added; the engine's confidence is only
   a flag; OCR is off unless set and per organisation, and the mock invents nothing; imported and
   scanned MAR entries are held until their second check whatever the organisation's rule.
+- Round 2 (both reviewers: every round 1 finding fixed): today must fall within the chart's
+  period; one status per line and only for medicine lines; an impossible date refused; switched
+  off connections (deleted or not configured) count as off; a DocuSign request is never cancelled
+  while its envelope cannot be voided, and an envelope sent after a cancel is voided; a repeated
+  upload key with a different photograph is refused and a concurrent one returns the first scan.
+  Left: the `documents.ocr` and `documents.signature` switches are set in `integration_connection`
+  directly until both ports join `PORTS` and the audited `PUT /v1/integrations/{port}`.
 - Recommended answers for H-1260 to H-1269 are in `docs/plans/recommended-answers.md`.
 
 ## Human actions

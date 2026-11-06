@@ -365,13 +365,17 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     { group: 0, label: "dose", text: "1 tablet", confidence: 0.97 },
     { group: 0, label: "route", text: "Oral", confidence: 0.4 },
   ];
+  const day = (offset: number) =>
+    new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  const FROM = day(-10);
+  const TO = day(20);
   const releaseBody = (version: number, over: Record<string, unknown> = {}) => ({
     version,
     linesCounted: 1,
     lines: [{ line: 0, status: "active" }],
     personConfirmed: true,
-    chartFrom: "2026-10-05",
-    chartTo: "2026-11-01",
+    chartFrom: FROM,
+    chartTo: TO,
     currentChart: true,
     ...over,
   });
@@ -463,6 +467,7 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
       [{ lines: [] }, /in force or stopped/],
       [{ lines: [{ line: 0, status: "cannot_tell" }] }, /unclear/],
       [{ currentChart: false }, /in use now/],
+      [{ chartFrom: day(-60), chartTo: day(-30) }, /outside the dates/],
     ] as const) {
       const refused = await as("nurse", `/v1/ocr-extractions/${x.id}/release`, {
         method: "POST",
@@ -488,8 +493,8 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     const lines = await as("nurse", `/v1/ocr-extractions/${x.id}/medicine-lines`);
     const body = (await lines.json()) as Record<string, unknown>;
     expect(body).toMatchObject({
-      chartFrom: "2026-10-05",
-      chartTo: "2026-11-01",
+      chartFrom: FROM,
+      chartTo: TO,
       decidedBy: [DEMO.users.nurse.id],
       releasedBy: DEMO.users.nurse.id,
       lines: [
@@ -508,6 +513,21 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     );
     // No value read or typed is written to the audit trail.
     expect(JSON.stringify(audits)).not.toMatch(/tablet|Paracetamol/);
+  });
+
+  it("refuses two statuses for one line, never taking the last", async () => {
+    let x = await ready(read.slice(0, 1));
+    x = await decide(x, 0, { action: "confirm" });
+    const res = await as("nurse", `/v1/ocr-extractions/${x.id}/release`, {
+      method: "POST",
+      body: releaseBody(x.version, {
+        lines: [
+          { line: 0, status: "cannot_tell" },
+          { line: 0, status: "active" },
+        ],
+      }),
+    });
+    expect(res.status).toBe(422);
   });
 
   it("hazard HZ-130 releases a scanned chart only after its person is confirmed", async () => {

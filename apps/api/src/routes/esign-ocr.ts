@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   AddOcrField,
   CloseSignatureRequest,
@@ -47,6 +47,7 @@ import {
   type SignatureProvider,
   type SignatureRequestState,
   scannedChart,
+  ukIsoDate,
   unconfirmedFields,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -71,6 +72,7 @@ import {
 } from "../services/documents";
 import { fileBody } from "./documents";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
+import { dbCode } from "./people-shared";
 
 /**
  * E-signature requests and OCR of scanned MAR charts (Phase 2 slice 79; INTG-013; ADR-0095;
@@ -175,7 +177,13 @@ async function providerOf(tx: Tx): Promise<SignatureProvider> {
   const [connection] = await tx
     .select({ provider: integrationConnection.provider })
     .from(integrationConnection)
-    .where(eq(integrationConnection.port, SIGNATURE_PORT));
+    .where(
+      and(
+        eq(integrationConnection.port, SIGNATURE_PORT),
+        isNull(integrationConnection.deletedAt),
+        eq(integrationConnection.status, "configured"),
+      ),
+    );
   return connection?.provider === "docusign" ? "docusign" : DEFAULT_SIGNATURE_PROVIDER;
 }
 
@@ -230,6 +238,11 @@ async function sendEnvelope(c: Context<AppEnv>, access: TenantAccess, row: Reque
     .catch(() => ({ ok: false as const, retryable: true, error: "send_error" }));
   return withTenant(c, async (tx) => {
     const current = await findRequest(tx, row.id);
+    if (current.state !== "requested") {
+      // Cancelled while the envelope was being sent: void it, so nothing is left live (round 2).
+      if (result.ok) await docusign.void(result.envelopeId, "Cancelled by the organisation");
+      return current;
+    }
     const saved = await moveRequest(
       tx,
       current,
@@ -491,6 +504,12 @@ export const esignOcrRouter = createRouter()
         throw problems.conflict("Someone else changed this request. Reload it and try again.");
       }
       if (row.provider === "docusign" && row.envelopeId) {
+        // Never cancelled here while the envelope stays live at DocuSign (security round 2).
+        if (!c.get("services").docusign) {
+          throw problems.featureDisabled(
+            "DocuSign is not available to void the envelope. Try again later.",
+          );
+        }
         // A fixed reason: the member's own words stay in Harbour (security L2).
         await c.get("services").docusign?.void(row.envelopeId, "Cancelled by the organisation");
       }
@@ -652,20 +671,31 @@ export const esignOcrRouter = createRouter()
       const key = c.req.header("idempotency-key") ?? null;
       if (key !== null && !UUID.test(key))
         throw problems.invalid("The idempotency key must be a UUID.");
-      const earlier = await withTenant(c, async (tx) => {
-        await ocrSwitchedOn(tx, ocr.engine);
-        await personReached(tx, access, personId);
+      const bytes = new Uint8Array(await c.req.arrayBuffer());
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      /** The scan already made under this key, for the same photograph only (security round 2). */
+      const replay = async (tx: Tx) => {
         if (key === null) return null;
         const [row] = await tx
           .select()
           .from(ocrExtraction)
           .where(eq(ocrExtraction.clientRef, key.toLowerCase()));
-        if (row && row.personId !== personId)
+        if (!row) return null;
+        const [doc] = await tx
+          .select({ sha256: document.sha256 })
+          .from(document)
+          .where(eq(document.id, row.documentId));
+        if (row.personId !== personId || doc?.sha256 !== sha256) {
           throw problems.conflict("That key was used for another scan.");
-        return row ? extractionItem(tx, row) : null;
+        }
+        return extractionItem(tx, row);
+      };
+      const earlier = await withTenant(c, async (tx) => {
+        await ocrSwitchedOn(tx, ocr.engine);
+        await personReached(tx, access, personId);
+        return replay(tx);
       });
       if (earlier) return c.json(earlier, 201);
-      const bytes = new Uint8Array(await c.req.arrayBuffer());
       const imagePrintable = imagePrintableOf(bytes);
       const { storage, scanner } = c.get("services");
       const stored = await destroyingOnFailure(storage, (writing) =>
@@ -774,6 +804,13 @@ export const esignOcrRouter = createRouter()
           after: { personId, documentId: stored.doc.id, fields: fields.length, failure },
         });
         return extractionItem(tx, row);
+      }).catch(async (error: unknown) => {
+        // The same key uploaded twice at once: the first scan stands (security round 2).
+        if (key !== null && dbCode(error) === "23505") {
+          const first = await withTenant(c, (tx) => replay(tx));
+          if (first) return first;
+        }
+        throw error;
       });
       return c.json(item, 201);
     },
@@ -1149,7 +1186,13 @@ async function ocrSwitchedOn(tx: Tx, engine: string) {
   const [connection] = await tx
     .select({ provider: integrationConnection.provider })
     .from(integrationConnection)
-    .where(eq(integrationConnection.port, OCR_PORT));
+    .where(
+      and(
+        eq(integrationConnection.port, OCR_PORT),
+        isNull(integrationConnection.deletedAt),
+        eq(integrationConnection.status, "configured"),
+      ),
+    );
   if (connection?.provider !== engine) {
     throw problems.featureDisabled(
       "Scanning paper MAR charts is not switched on for your organisation.",
@@ -1191,6 +1234,11 @@ const RELEASE_REFUSALS: Record<ReleaseRefusal, string> = {
     "Confirm the name and date of birth on the chart are this person's before releasing it.",
   chart_period: "Give the dates the chart covers.",
   not_current_chart: "Only the chart in use now is released. Discard an old chart's scan.",
+  chart_out_of_date:
+    "Today is outside the dates the chart covers: only the chart in use now is released. Check the dates, or discard an old chart's scan.",
+  line_status_duplicate: "Give each line's status once.",
+  line_status_unknown_line:
+    "A status names a line with no medicine. Give statuses for the medicine lines only.",
 };
 
 function releaseInputOf(body: {
@@ -1203,11 +1251,12 @@ function releaseInputOf(body: {
 }): OcrReleaseInput {
   return {
     linesCounted: body.linesCounted,
-    lineStatuses: new Map(body.lines.map((l) => [l.line, l.status])),
+    lineStatuses: body.lines,
     personConfirmed: body.personConfirmed,
     chartFrom: body.chartFrom,
     chartTo: body.chartTo,
     currentChart: body.currentChart,
+    today: ukIsoDate(new Date()),
   };
 }
 
@@ -1216,11 +1265,13 @@ function storedReleaseOf(row: ExtractionRow): OcrReleaseInput {
   const lines = (row.lineStatuses ?? []) as { line: number; status: OcrLineStatus }[];
   return {
     linesCounted: row.linesCounted ?? -1,
-    lineStatuses: new Map(lines.map((l) => [l.line, l.status])),
+    lineStatuses: lines,
     personConfirmed: row.personConfirmedBy !== null,
     chartFrom: row.chartFrom ?? "",
     chartTo: row.chartTo ?? "",
     currentChart: row.state === "released",
+    // Judged current when released: read back as of the chart's own start.
+    today: row.chartFrom ?? "",
   };
 }
 

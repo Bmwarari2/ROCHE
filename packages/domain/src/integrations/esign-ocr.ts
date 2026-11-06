@@ -154,7 +154,7 @@ export interface OcrReadField {
   readonly group: number;
   readonly label: OcrFieldLabel;
   readonly text: string;
-  /** The engine's own confidence, 0 to 1: shown for information, never used to decide. */
+  /** The engine's own confidence, 0 to 1: kept for information, never shown or used to decide. */
   readonly confidence: number;
 }
 
@@ -357,13 +357,15 @@ export interface OcrReleaseInput {
   /** The medicine lines they count on the paper chart, typed, never prefilled. */
   readonly linesCounted: number;
   /** For every medicine line: still in force on this chart, stopped or crossed out, or unclear. */
-  readonly lineStatuses: ReadonlyMap<number, OcrLineStatus>;
+  readonly lineStatuses: readonly { readonly line: number; readonly status: OcrLineStatus }[];
   /** The name and date of birth on the chart match the person it is filed for (HZ-130). */
   readonly personConfirmed: boolean;
   /** The period the chart covers, as YYYY-MM-DD, and that it is the current chart. */
   readonly chartFrom: string;
   readonly chartTo: string;
   readonly currentChart: boolean;
+  /** Today in Europe/London (YYYY-MM-DD): a current chart's period includes it. */
+  readonly today: string;
 }
 
 export type ReleaseRefusal =
@@ -374,9 +376,12 @@ export type ReleaseRefusal =
   | "line_count_differs"
   | "line_status_missing"
   | "line_status_unclear"
+  | "line_status_duplicate"
+  | "line_status_unknown_line"
   | "person_not_confirmed"
   | "chart_period"
-  | "not_current_chart";
+  | "not_current_chart"
+  | "chart_out_of_date";
 
 const standing = (f: OcrField) =>
   (f.state === "confirmed" || f.state === "corrected") &&
@@ -396,7 +401,12 @@ function partsByLine(fields: readonly OcrField[]) {
   return lines;
 }
 
-const isoDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+/** A real calendar day as YYYY-MM-DD (2026-02-30 is not one). */
+const isoDay = (v: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+};
 
 /**
  * Whether a scan may be released (HZ-005, HZ-130; clinical review findings 2 to 5 and 8): every
@@ -421,8 +431,18 @@ export function releaseRefusal(
   const medicineLines = [...lines.entries()].filter(([, parts]) => parts.has("medicine"));
   if (medicineLines.length === 0) return "no_medicine_lines";
   if (input.linesCounted !== medicineLines.length) return "line_count_differs";
+  // One status per line, and only for a line with a medicine: never the last of two (round 2).
+  const seen = new Set<number>();
+  for (const { line } of input.lineStatuses) {
+    if (seen.has(line)) return "line_status_duplicate";
+    seen.add(line);
+  }
+  const medicineLineNumbers = new Set(medicineLines.map(([line]) => line));
+  if (input.lineStatuses.some(({ line }) => !medicineLineNumbers.has(line))) {
+    return "line_status_unknown_line";
+  }
   for (const [line] of medicineLines) {
-    const status = input.lineStatuses.get(line);
+    const status = statusOf(input, line);
     if (status === undefined) return "line_status_missing";
     if (status === "cannot_tell") return "line_status_unclear";
   }
@@ -431,8 +451,13 @@ export function releaseRefusal(
     return "chart_period";
   }
   if (!input.currentChart) return "not_current_chart";
+  // The tick box is not enough: today must fall within the chart's period (round 2).
+  if (input.chartTo < input.today || input.chartFrom > input.today) return "chart_out_of_date";
   return null;
 }
+
+const statusOf = (input: OcrReleaseInput, line: number) =>
+  input.lineStatuses.find((l) => l.line === line)?.status;
 
 /** One part of a released line: what a person decided, and how. */
 export interface ScannedPart {
@@ -499,7 +524,7 @@ export function scannedChart(fields: readonly OcrField[], input: OcrReleaseInput
       chartNotes.push(...notes);
       continue;
     }
-    if (input.lineStatuses.get(line) !== "active") {
+    if (statusOf(input, line) !== "active") {
       stoppedLines.push(line);
       continue;
     }

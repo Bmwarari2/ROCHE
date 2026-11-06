@@ -160,7 +160,10 @@ export const ReleaseOcrExtraction = z
     linesCounted: z.number().int().min(0).max(200),
     lines: z
       .array(z.object({ line, status: z.enum(["active", "stopped", "cannot_tell"]) }))
-      .max(200),
+      .max(200)
+      .refine((ls) => new Set(ls.map((l) => l.line)).size === ls.length, {
+        message: "Give each line's status once.",
+      }),
     /** The name and date of birth on the chart are this person's. */
     personConfirmed: z.boolean(),
     chartFrom: isoDate,
