@@ -1196,3 +1196,97 @@ on (H-1033).
   only by the system, duress never readable by the worker, location erasure only at its date.
 - API: off until the route, the escalation order, re-alert, offline late check-in, safe then is
   not safe now, duress, help after finishing, location evidence.
+
+## 18. Shifts, the clock and lone working on the phone (slice 71; MOB-007, SCHED-002, SCHED-004, SCHED-012)
+
+The member's own shifts, clock and lone working in the mobile app, offline first. The phone never
+decides what the API decides: whether a clock-in is allowed (HZ-124), whether a check-in counts,
+when an alarm is raised (section 17). It saves what the member did, with the device's time and a
+client UUID, and sends it when there is a connection.
+
+### 18.1 What syncs to the phone
+
+Two streams, both scoped by the sync token alone (connection parameters are ignored; HZ-011):
+
+- `my_shifts`: the member's own published, uncancelled shifts (a published, not removed
+  `shift_assignment` for `auth.user_id()`), in the token's tenant, starting on a `shift_days` day.
+- `my_clock_events`: the member's own clock events on those days.
+
+`shift_days` is minted by `POST /v1/sync/token` only for holders of `scheduling.timesheet.self`:
+`SHIFT_DAYS_BEHIND` (2) UTC days back to `SHIFT_DAYS_AHEAD` (8) ahead, 11 in all
+(`shiftWindowDays`; product settings, not statutory figures). Without it nothing syncs (fails
+closed). Migration 0139 adds the three tables to the publication with a `harbour_sync` read policy.
+No lone-worker table syncs: the phone asks `GET /v1/lone-worker/sessions/mine`, which already shows
+duress as a check-in, and keeps the answer in memory only.
+
+### 18.2 What the phone writes
+
+| Device table | Sent to | Notes |
+| --- | --- | --- |
+| `clock_event` (synced) | `POST /v1/me/clock-events` | Kind, location, shift, the device's time; `evidence: none` |
+| `lone_worker_outbox` (insert-only, never synced down) | `POST /v1/lone-worker/sessions` (`start`) or `POST /v1/lone-worker/sessions/{id}/events` (`event`) | The body in the API's contract shape; the row's id is the session's or the event's |
+
+Each write carries a UUIDv7 made on the phone, sent as the idempotency key, so a retry records
+once. `POST /v1/sync/upload` writes none of them. A change the phone cannot turn into a valid
+request (`shift_change_unreadable`), and every refusal from the API, goes to "needs attention" in
+the API's own words (a refused clock-in says why) and is never dropped (HZ-006). Location and shift
+for a clock-in come from the shift under way or starting within `CLOCK_IN_EARLY_MINUTES` (60, a
+product setting), else the member's only location; with neither the phone records nothing and says
+so. A break or clock-out takes the clock-in's location and shift.
+
+### 18.3 The Shifts tab
+
+Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check_in`.
+
+1. "Needs attention" first, so a refused clock-in is never out of sight.
+2. The clock: the state in words ("Not clocked in", "Clocked in at 07:02", "On a break since
+   10:15"), the shift it is for, the actions that make sense from the member's own latest event (by
+   device time), and how many events wait to send.
+3. My shifts: each not yet ended, soonest first, with the date and times in UK time, the kind, "Under
+   way", and "Changed after it was published" in words.
+4. Lone working (holders of the check-in permission): its own screen.
+
+### 18.4 Lone working on the phone (HZ-125)
+
+1. **Start**: kind of work, length (2, 4 or 8 hours) and interval (every 30 or 60 minutes), each
+   choice said in words. These are presets; the API checks the organisation's own figures (section
+   17.2) and refuses in words anything outside them. A session started offline is shown from the
+   queue until the server has it.
+2. **Check in**: one press. The next check-in due is worked out on the phone as the server does
+   (section 17.3 rule 3), and "overdue" is said in words.
+3. **Duress**: a long press on Check in, held `DURESS_HOLD_MS` (1.5 seconds) so it does not happen
+   by accident. It gives the same haptic, the same answer ("Checked in at 10:02."), the same line in
+   the session and the same count waiting to send as a check-in. Nothing the phone shows or keeps
+   in a readable table names it: a queued duress press is shown as a check-in, a refused one is kept
+   in "needs attention" as a check-in (`screenSafePayload`), and no lone-worker table syncs. The
+   web never offers it. Until sent, a duress press exists only in PowerSync's encrypted upload
+   queue, as the API needs it (H-1315).
+4. **Help**: one press. With a connection the phone says the request is being sent; with none, that
+   it has not reached anyone yet. Either way "If you are in danger, call 999". It never says help
+   is on its way.
+5. **Finish**: one press; the session then offers nothing more.
+6. Off: when the API says lone working is not switched on, the screen says so and offers no start.
+
+Not built: a reminder on the phone when a check-in falls due without a connection (H-1313), and
+help or duress from the lock screen (H-1314).
+
+### 18.5 Data on the device
+
+`shift` and `clock_event` are copies of the member's own rows (data standards, "Device copies").
+`lone_worker_outbox` rows exist only until sent. Refused rows live in `upload_issue` until someone
+removes them with a reason. All are in the encrypted device database, wiped with it.
+
+### 18.6 Test list
+
+- Sync: own shifts and clock events only, never a colleague's or another tenant's; nothing without
+  `shift_days`; device parameters ignored; no lone-worker table (`shift-streams.test.ts`); the token
+  carries the days for holders of `scheduling.timesheet.self` (`api.test.ts`).
+- Phone logic, table-driven: clock state, actions, location and shift; shift list; next due;
+  duress shown as a check-in everywhere; queued actions from the upload queue; the upload mapping
+  and its refusals (`scheduling.test.ts`); the SQL on the phone's schema (`queries.test.ts`).
+- Connector: each route, a refused clock-in in the API's words, a refused duress kept as a check-in,
+  nothing through the general upload (`connector.test.ts`).
+- Render: the clock card, my shifts, and lone working, with a duress press drawing exactly the same
+  screen as a check-in (`shifts.render.test.ts`).
+- Maestro (demo build): `hazard-HZ-125-shifts-and-lone-working.yaml`, written, not yet run on a
+  device or emulator.
