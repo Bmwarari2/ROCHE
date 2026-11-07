@@ -109,8 +109,34 @@ describe("hazards HZ-001 and HZ-116 a dose recorded on the phone needs identity,
           witness: null,
           noWitnessReason: "Working alone at the person's home",
         },
+        witnessPolicy: "where_available",
       },
       [],
+    ],
+    [
+      "a controlled drug with no witness at a home that requires one",
+      {
+        controlledDrug: true,
+        cdSignatures: {
+          recorder: { keyId: "k1", signature: "s", signedAt: "2026-11-03T08:05:00Z" },
+          witness: null,
+          noWitnessReason: "No one else on shift",
+        },
+        witnessPolicy: "required",
+      },
+      ["cd_witness_required"],
+    ],
+    [
+      "a controlled drug with no witness where the home's policy is not known",
+      {
+        controlledDrug: true,
+        cdSignatures: {
+          recorder: { keyId: "k1", signature: "s", signedAt: "2026-11-03T08:05:00Z" },
+          witness: null,
+          noWitnessReason: "No one else on shift",
+        },
+      },
+      ["cd_witness_required"],
     ],
     ["an entry that may not be given from now", { mayGive: false }, ["may_not_give"]],
     [

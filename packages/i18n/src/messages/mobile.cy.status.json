@@ -741,6 +741,7 @@
     "mobile.meds.issueContent",
     "mobile.meds.issueAdvice",
     "mobile.meds.cdNotPermitted",
+    "mobile.meds.cdWitnessRequired",
     "mobile.meds.conflictCdOnWeb"
   ]
 }

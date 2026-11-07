@@ -59,6 +59,14 @@ const location = new Table({
   nation: column.text,
 });
 
+/** The services a home runs, for the controlled drugs witness policy (medicines.md rule 27). */
+const location_service = new Table({
+  tenant_id: column.text,
+  location_id: column.text,
+  service_type: column.text,
+  status: column.text,
+});
+
 /** Local-only bookkeeping: last successful sync, queued writes, clock drift (hazard HZ-002, HZ-006). */
 const sync_meta = new Table(
   {
@@ -803,6 +811,7 @@ export const AppSchema = new Schema({
   lone_worker_outbox,
   elearning_outbox,
   medication,
+  location_service,
   medication_schedule,
   medication_dosing_record,
   covert_medication_record,
@@ -859,6 +868,7 @@ export const NEVER_EVICT_TABLES = [
   "person",
   "allergy",
   "location",
+  "location_service",
   "person_care_profile",
   "care_plan",
   "care_plan_section",

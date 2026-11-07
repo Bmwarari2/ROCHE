@@ -39,3 +39,5 @@ env:
     timeout: 30000
 - assertNotVisible: "Same dose sent twice: the first record stands"
 - assertNotVisible: "What you found out"
+# At a care home (a witness is required) a member who may record controlled drugs never sees the
+# lone-worker option. Set HARBOUR_CD_RECORDER_FLOW to run this part as such a member.

@@ -190,7 +190,7 @@ describe("sync streams definition", () => {
 
   it("takes the people in scope from the token, never from the device", () => {
     for (const { stream, query } of streamQueries()) {
-      if (stream === "my_locations") continue;
+      if (stream === "my_locations" || stream === "my_location_services") continue;
       // The member's own shifts and clock events: by their own id only, in the token's shift days
       // (scheduling.md section 18); tested in shift-streams.test.ts.
       // The member's own medicines competence, by their own id (medicines-streams.test.ts).

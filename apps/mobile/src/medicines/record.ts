@@ -26,6 +26,7 @@ export type RecordProblem =
   | "amount_required"
   | "cd_signatures_required"
   | "cd_not_permitted"
+  | "cd_witness_required"
   | "witness_is_recorder"
   | "may_not_give"
   | "inside_interval"
@@ -76,6 +77,8 @@ export interface DoseRecordInput {
   readonly cdSignatures?: CdDeviceSignatures | null;
   /** Whether the member may record controlled drugs (`medicines.cd.administer`). */
   readonly mayRecordCd: boolean;
+  /** The home's controlled drugs witness policy (`phoneWitnessPolicy`); unknown counts as required. */
+  readonly witnessPolicy?: "required" | "where_available";
 }
 
 export interface CdDeviceSignatures {
@@ -109,6 +112,15 @@ export function recordProblems(input: DoseRecordInput): RecordProblem[] {
   // A controlled drug given needs the recorder's and a witness's signatures on this phone.
   if (gives && input.controlledDrug && !cdNotPermitted && !input.cdSignatures)
     problems.push("cd_signatures_required");
+  // No witness only where the home's policy allows it: the register refuses it otherwise, after the
+  // dose was given (HZ-116; lead's batch 5 review, B4).
+  if (
+    input.cdSignatures &&
+    !input.cdSignatures.witness &&
+    (input.witnessPolicy ?? "required") !== "where_available"
+  ) {
+    problems.push("cd_witness_required");
+  }
   if (input.cdSignatures?.witness && input.cdSignatures.witness.witnessId === input.memberId) {
     problems.push("witness_is_recorder");
   }

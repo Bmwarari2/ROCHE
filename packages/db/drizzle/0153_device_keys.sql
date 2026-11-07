@@ -57,3 +57,14 @@ REVOKE UPDATE, DELETE, TRUNCATE ON public.member_device_key FROM harbour_app;
 -- A dose recorded on a phone and refused gets a server copy too (slice 70; HZ-115, HZ-004).
 ALTER TABLE "refused_entry" DROP CONSTRAINT "refused_entry_table";--> statement-breakpoint
 ALTER TABLE "refused_entry" ADD CONSTRAINT "refused_entry_table" CHECK (record_table IN ('care_note', 'observation', 'body_map_mark', 'activity_record', 'visit_log', 'medication_administration'));
+--> statement-breakpoint
+-- The services each home runs reach the phone (stream `my_location_services`), so it applies the
+-- same controlled drugs witness policy as the API before a dose (medicines.md rule 27; HZ-116):
+-- "no one is here to witness" is offered only where every active service allows it. No personal
+-- data. The sync role reads it for replication only, the 0147 pattern.
+CREATE POLICY sync_replication_read ON public.service AS PERMISSIVE FOR SELECT TO harbour_sync
+  USING (true);
+--> statement-breakpoint
+GRANT SELECT ON public.service TO harbour_sync;
+--> statement-breakpoint
+ALTER PUBLICATION powersync ADD TABLE public.service;

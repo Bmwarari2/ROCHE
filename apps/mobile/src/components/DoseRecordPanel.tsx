@@ -32,6 +32,7 @@ import {
 } from "../medicines/record";
 import { ukToday } from "../medicines/round";
 import { packCheckWords } from "../medicines/view";
+import { phoneWitnessPolicy, WITNESS_SERVICES_SQL } from "../medicines/witness-policy";
 import { newEntryId } from "../platform/ids";
 import { CarePersonHeader } from "./CarePersonHeader";
 import { PackScanner } from "./PackScanner";
@@ -125,6 +126,13 @@ export function DoseRecordPanel({
   // Whether this member may record a controlled drug: checked before the dose, never after.
   const mayRecordCd = (me?.permissions ?? []).includes("medicines.cd.administer");
   const cdBlocked = dose.controlledDrug && !mayRecordCd;
+  // The home's witness policy, as the API applies it: "no one is here to witness" only where it
+  // allows that; unknown counts as required (HZ-116; lead's batch 5 review, B4).
+  const { data: serviceRows } = useQuery<{ service_type: string | null }>(WITNESS_SERVICES_SQL, [
+    dose.personId,
+  ]);
+  const witnessPolicy = phoneWitnessPolicy(serviceRows ?? []);
+  const loneAllowed = witnessPolicy === "where_available";
   // Said as the panel opens, before any check or outcome is chosen (slice 70 reviews; WCAG 4.1.3).
   useEffect(() => {
     if (cdBlocked) announce(t("mobile.meds.cdNotPermitted"));
@@ -283,7 +291,7 @@ export function DoseRecordPanel({
     const at = witnessSigned ? new Date(witnessSigned.givenAt) : new Date();
     let cdSignatures: CdDeviceSignatures | null = null;
     if (dose.controlledDrug && outcome === "given" && dose.unitCode && Number.isFinite(quantity)) {
-      if (!witnessSigned && !noWitnessReason.trim()) {
+      if (!witnessSigned && (!loneAllowed || !noWitnessReason.trim())) {
         const words = t("mobile.meds.problem", { problem: "cd_signatures_required" });
         setSignWords(words);
         announce(words);
@@ -322,7 +330,7 @@ export function DoseRecordPanel({
         witness: witnessSigned
           ? { ...witnessSigned.signature, witnessId: witnessSigned.witnessId }
           : null,
-        noWitnessReason: witnessSigned ? null : noWitnessReason.trim(),
+        noWitnessReason: witnessSigned || !loneAllowed ? null : noWitnessReason.trim(),
       };
     }
     const input = {
@@ -350,6 +358,7 @@ export function DoseRecordPanel({
       packRefused,
       cdSignatures,
       mayRecordCd,
+      witnessPolicy,
     };
     const found = recordProblems(input);
     setProblems(found);
@@ -525,7 +534,7 @@ export function DoseRecordPanel({
                     person: keys.find((k) => k.memberId === witnessSigned.witnessId)?.name ?? "",
                   })}
                 </StatusLine>
-              ) : lone ? (
+              ) : lone && loneAllowed ? (
                 <TextField
                   label={t("mobile.meds.cdNoWitnessReason")}
                   hint={t("mobile.meds.cdNoWitnessHint")}
@@ -555,7 +564,12 @@ export function DoseRecordPanel({
                   />
                 </>
               )}
-              {!witnessSigned ? (
+              {!witnessSigned && !loneAllowed ? (
+                <StatusLine tone="warning" testID="cd-witness-required">
+                  {t("mobile.meds.cdWitnessRequired")}
+                </StatusLine>
+              ) : null}
+              {!witnessSigned && loneAllowed ? (
                 <Button
                   label={lone ? t("mobile.meds.cdHaveWitness") : t("mobile.meds.cdNoWitnessHere")}
                   variant="secondary"
