@@ -35,7 +35,7 @@ GRANT INSERT ON public.record_version TO harbour_care_definer;
 GRANT SELECT, UPDATE ON public.task TO harbour_care_definer;
 --> statement-breakpoint
 -- What the row-level policies and triggers of those tables read, evaluated as this role.
-GRANT SELECT ON public.access_grant, public.location, public.person, public.person_assignment, public.role, public.role_assignment TO harbour_care_definer;
+GRANT SELECT ON public.access_grant, public.break_glass_event, public.location, public.person, public.person_assignment, public.role, public.role_assignment TO harbour_care_definer;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.agency_access_open(uuid,uuid) TO harbour_care_definer;
 --> statement-breakpoint
@@ -319,8 +319,11 @@ REVOKE CREATE ON SCHEMA app FROM harbour_platform_definer, harbour_care_definer,
 -- called stay with their API callers alone.
 SET ROLE harbour_care_definer;
 --> statement-breakpoint
--- Backfills re-seed an organisation's discard reasons as the migrator (migration 0044).
+-- Backfills run as the migrator re-seed an organisation's discard reasons (migration 0044) and
+-- refresh open rounds from an earlier plan (migration 0071).
 GRANT EXECUTE ON FUNCTION app.seed_discard_reasons(uuid) TO harbour_owner;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.refresh_earlier_plan(uuid,uuid[]) TO harbour_owner;
 --> statement-breakpoint
 RESET ROLE;
 --> statement-breakpoint

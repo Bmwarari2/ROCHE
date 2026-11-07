@@ -77,7 +77,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // H-805 (migration 0121): the cases a staff subject access request must collect, by id.
   "app.casework_for_subject_access(uuid)": ["harbour_app"],
   // The round gate data (migration 0071): called only by its own definer trigger functions.
-  "app.refresh_earlier_plan(uuid, uuid[])": [],
+  "app.refresh_earlier_plan(uuid, uuid[])": ["harbour_owner"],
   "app.task_from_earlier_plan(uuid, uuid)": [],
   // Applicant tracking (migration 0085): equality monitoring counts, never rows (rule 12).
   "app.equality_monitoring_counts(uuid)": ["harbour_app"],
@@ -285,6 +285,7 @@ describe("ADR-0133 definer functions are owned by NOLOGIN roles and pin their se
 const DEFINER_TABLE_GRANTS: Readonly<Record<(typeof DEFINER_ROLES)[number], readonly string[]>> = {
   harbour_care_definer: [
     "public.access_grant: SELECT",
+    "public.break_glass_event: SELECT",
     "public.care_plan: SELECT",
     "public.care_plan_action: SELECT",
     "public.discard_reason: SELECT, INSERT",
