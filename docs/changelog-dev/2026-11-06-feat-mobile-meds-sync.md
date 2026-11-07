@@ -4,7 +4,7 @@ Branch `feat/mobile-meds-sync`, slice 68 (no PR yet), on `integration/phase-2-ba
 
 ## What changed
 
-- Migration 0149 publishes the MAR, schedule, dosing, covert, administration and competence tables
+- Migration 0147 publishes the MAR, schedule, dosing, covert, administration and competence tables
   for replication only.
 - Streams in the two person scopes of `medicines.emar.administer`: live MAR entry versions (a stopped
   one included) with schedule times, dosing and covert records, with priority 1 like the allergy

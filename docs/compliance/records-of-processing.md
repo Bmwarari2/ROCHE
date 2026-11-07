@@ -208,7 +208,7 @@ a medication incident (B1's incident record), whose words name no drug or count.
 `controlled_drugs_register` (2 years from the page's last entry; entries recording an
 administration keep the longer `mar_chart` period). No new recipient or sub-processor.
 
-Medicines on the phone (Phase 2 slice 68, migration 0149; ADR-0130, ADR-0134): B1 now also covers copies,
+Medicines on the phone (Phase 2 slice 68, migration 0147; ADR-0130, ADR-0134): B1 now also covers copies,
 on the phones of members who give medicines (`medicines.emar.administer`), of the MAR entry
 versions not withdrawn or removed (a stopped or replaced one included, until the person leaves
 scope) of the people in their scope (assigned people, or every live person at the homes it
