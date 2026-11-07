@@ -85,7 +85,8 @@
 #                         or missing syncs none (fails closed)
 #   meds_recent_days      UTC days of administrations recorded today and the 34 days before
 #                         (medsRecentDays in ../client/window.ts: the last given of a monthly
-#                         medicine, intervals and the 24-hour maximum); empty syncs none
+#                         medicine, intervals and the 24-hour maximum): what the phone counts;
+#                         the streams filter on meds_recent_blocks, its ten-day blocks
 #   *_medicines           every MAR entry version not withdrawn or removed (a stopped or replaced
 #                         one syncs, so a change for tomorrow never takes today's doses off the
 #                         phone; the phone judges the times, ADR-0130), and the person's schedule
@@ -94,7 +95,8 @@
 #                         makes a bucket per version in the tenant; the phone shows only those of
 #                         a version it holds; H-1425): priority 1, with the allergy streams,
 #                         so a stop or an allergy reaches the phone first (HZ-002)
-#   meds_recent_blocks    the ten-day blocks of meds_recent_days (at most six)
+#   meds_recent_blocks    the ten-day blocks of meds_recent_days (at most six), minted with it for
+#                         the member's homes and assigned people alike; empty syncs none
 #   *_medicine_administrations  administrations: at the token's homes, recorded in a
 #                         meds_recent_blocks block, one bucket per home and block (the row's own
 #                         sync_location_id, set and moved by the database: the person's home while

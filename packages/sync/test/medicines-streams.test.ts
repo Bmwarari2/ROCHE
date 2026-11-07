@@ -289,6 +289,8 @@ const source: SourceRows = {
     administration("a-ada-september", A, "ada", "2026-09-30 23:59:00+00"),
     administration("a-dee-today", A, "dee", "2026-11-06 08:00:00+00"),
     administration("a-bea-today", A, "bea", "2026-11-06 08:00:00+00"),
+    // Discharged: their routing home is empty, so no home's phones hold it (ADR-0134).
+    administration("a-cal-today", A, "cal", "2026-11-06 08:00:00+00"),
     administration("a-eve-today", B, "eve", "2026-11-06 08:00:00+00"),
   ],
   competence_sign_off: [
@@ -513,7 +515,7 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     }
   });
 
-  it("keeps the administrations buckets per home and day, or per assigned person and ten-day block, at a 120-bed home, by block at both (ADR-0130)", async () => {
+  it("keeps the administrations buckets per home and ten-day block, or per assigned person and block, at a 120-bed home (ADR-0130, ADR-0134)", async () => {
     const beds = Array.from({ length: 120 }, (_, i) => person(`r${i}`, A, NORTH));
     const big: SourceRows = {
       person: beds,
@@ -537,6 +539,26 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     const carer = await syncFor(hydrated, big, claims());
     expect(count(carer.buckets)).toBeLessThanOrEqual(120 * BLOCKS.length);
     expect(BLOCKS.length).toBeLessThanOrEqual(6);
+  });
+
+  it("syncs no medicine to a token without a tenant, or with only a member (fails closed)", async () => {
+    for (const token of [
+      claims({ tenant_id: undefined }),
+      { sub: "carer" } as Partial<SyncTokenClaims>,
+    ]) {
+      const device = await syncFor(hydrated, source, token);
+      for (const table of [
+        "medication",
+        "medication_schedule",
+        "medication_dosing_record",
+        "covert_medication_record",
+        "medication_administration",
+        "competence_sign_off",
+        "competence_withdrawal",
+      ]) {
+        expect(ids(device, table), table).toEqual([]);
+      }
+    }
   });
 
   it("hazard HZ-002 sends medicines and allergies first", () => {

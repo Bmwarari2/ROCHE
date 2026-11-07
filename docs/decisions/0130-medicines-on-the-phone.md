@@ -48,8 +48,9 @@ Option 2.
   a dose given is a fact the round counts (intervals, the maximum). Keeping the rows of withdrawn
   versions off the phone needs a flag copied onto each child row by trigger (a migration, through
   the tables' write-once guards); H-1425 asks the DPO whether that is needed.
-- **Administrations**: those recorded on a day of `meds_recent_days` (today and the 34 UTC days
-  before, minted by the API), so the last given of a monthly or weekly medicine, an interval of up
+- **Administrations**: those recorded in a ten-day block (`meds_recent_blocks`) of
+  `meds_recent_days` (today and the 34 UTC days before, both minted by the API for the member's
+  homes and assigned people alike), so the last given of a monthly or weekly medicine, an interval of up
   to 34 days and the 24-hour maximum are always on the phone (clinical review, M3; H-1421). A
   longer interval needs the server, which still checks every record when it arrives.
 - **Buckets per connection**: PowerSync refuses a connection over its buckets limit (1,000 by

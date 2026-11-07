@@ -1089,7 +1089,7 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
   on the MARs of the people the streams give the member, fetched on connecting, when those products
   change and at most hourly otherwise, and replaced whole on the phone; a failed request keeps the
   last copy and records when it failed (`meta:dmd-subset-failed-at`).
-- Token claims `meds_location_ids`, `meds_assigned` and `meds_recent_days`; none reach a device
+- Token claims `meds_location_ids`, `meds_assigned`, `meds_recent_days` (the 35 days the phone counts) and `meds_recent_blocks` (their ten-day blocks, which the streams filter on); none reach a device
   without them (fails closed). No document, reconciliation, error, review, stock or controlled drug
   register row syncs.
 - **Uploads**: decided with slice 69 (H-1164): a record made offline is recorded after the event,

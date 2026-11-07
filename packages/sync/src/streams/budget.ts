@@ -40,6 +40,8 @@ export interface BucketEstimateInput {
   readonly medsBlocks?: number;
   /** People the medicines family reaches as assigned (`meds_assigned`). */
   readonly medsAssignedPeople?: number;
+  /** People receiving care at the homes the medicines family reaches whole. */
+  readonly medsPeople?: number;
 }
 
 export function estimateBuckets(input: BucketEstimateInput): number {
@@ -51,11 +53,13 @@ export function estimateBuckets(input: BucketEstimateInput): number {
     // Items about someone who moved between two of the member's homes: a bucket per pair a block.
     blocks * input.handoverHomes * input.handoverHomes;
   const medsHomes = input.medsHomes ?? 0;
-  // Allergies and care reference, the medicines where that family reaches whole, and a margin.
-  const wholePeople = (3 + (medsHomes > 0 ? 1 : 0)) * input.wholePeople;
+  // Allergies and care reference, and a margin.
+  const wholePeople = 3 * input.wholePeople;
   // Administrations a bucket a home and block; the member's own competence one.
   const meds =
     medsHomes * (input.medsBlocks ?? 0) +
+    // A person's MAR entries at the homes the medicines family reaches whole: a bucket each.
+    (input.medsPeople ?? 0) +
     (input.medsAssignedPeople ?? 0) * (1 + (input.medsBlocks ?? 0)) +
     1;
   const assigned =

@@ -629,6 +629,16 @@ describe("offline sync", () => {
     expect(carer.payload.meds_recent_blocks).toEqual(
       offlineWindowBlocks(medsRecentDays(new Date())),
     );
+    // A manager who gives medicines across the home gets the administrations' blocks too, or the
+    // round would show no earlier doses offline (rebuild review, B1).
+    const manager = await jwtVerify(
+      (await json<SyncToken>(await demo("manager", "/v1/sync/token", { method: "POST" }))).token,
+      h.handle.signer.verificationKey,
+    );
+    expect((manager.payload.meds_location_ids as string[]).length).toBeGreaterThan(0);
+    expect(manager.payload.meds_recent_blocks).toEqual(
+      offlineWindowBlocks(medsRecentDays(new Date())),
+    );
     // An owner who does not give medicines receives none.
     const owner = await jwtVerify(
       (await json<SyncToken>(await demo("owner", "/v1/sync/token", { method: "POST" }))).token,

@@ -60,6 +60,8 @@ beforeAll(() => {
 
 interface Profile {
   readonly whole: readonly string[];
+  /** The medicines family's whole homes, when wider than the others' (defaults to `whole`). */
+  readonly medsWhole?: readonly string[];
   readonly assigned: readonly { id: string; location_id: string }[];
 }
 
@@ -94,7 +96,7 @@ async function measure(date: string, profile: Profile) {
     entries_assigned: on,
     handover_assigned: on,
     // Medicines on the phone (slice 68): the same reach, with the administrations' 35 days.
-    meds_location_ids: [...profile.whole],
+    meds_location_ids: [...(profile.medsWhole ?? profile.whole)],
     meds_assigned: on,
     meds_recent_days: medsRecentDays(now),
     meds_recent_blocks: offlineWindowBlocks(medsRecentDays(now)),
@@ -121,7 +123,9 @@ async function measure(date: string, profile: Profile) {
     wholePeople: people.filter((p) => profile.whole.includes(p.location_id)).length,
     assignedPeople: profile.assigned.length,
     assignedHomes: new Set(profile.assigned.map((p) => p.location_id)).size,
-    medsHomes: profile.whole.length,
+    medsHomes: (profile.medsWhole ?? profile.whole).length,
+    medsPeople: people.filter((p) => (profile.medsWhole ?? profile.whole).includes(p.location_id))
+      .length,
     medsDays: medsRecentDays(now).length,
     medsBlocks: offlineWindowBlocks(medsRecentDays(now)).length,
     medsAssignedPeople: profile.assigned.length,
@@ -173,6 +177,10 @@ describe("hazard HZ-002 a phone stays under PowerSync's buckets per connection (
 
     it.each([
       ["two homes whole", { whole: ["H1", "H2"], assigned: [] }],
+      [
+        "one home for the care record and five for medicines (rebuild review, M1)",
+        { whole: ["H1"], medsWhole: ["H1", "H2", "H3", "H4", "H5"], assigned: [] },
+      ],
       ["five homes whole", { whole: ["H1", "H2", "H3", "H4", "H5"], assigned: [] }],
       [
         "a 120-bed home and 20 people at two other homes",
