@@ -4,6 +4,7 @@ import {
   kindsFor,
   missingShown,
   missingStatusChip,
+  opensMissingEpisode,
   policeCallChip,
   policeCallState,
   prefillSources,
@@ -218,5 +219,20 @@ describe("missing persons", () => {
       ["record", "about_me"],
     );
     expect(prefillSources("Allergies (from the record): penicillin")).toEqual(["record"]);
+  });
+});
+
+describe("opening an episode from its incident", () => {
+  it.each([
+    ["missing_person", true],
+    ["absconding", true],
+    ["fall", false],
+    ["medication", false],
+  ])("hazard HZ-127 offers it on a %s incident: %s", (type, offered) => {
+    expect(opensMissingEpisode(type, ["safety.incident.report"])).toBe(offered);
+  });
+
+  it("hazard HZ-127 offers it only to whoever may report incidents (the API's check)", () => {
+    expect(opensMissingEpisode("absconding", ["safety.incident.read"])).toBe(false);
   });
 });

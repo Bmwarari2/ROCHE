@@ -13,6 +13,17 @@ export const MISSING_READ = "safety.incident.read";
 export const MISSING_REPORT = "safety.incident.report";
 export const MISSING_MANAGE = "safety.incident.manage";
 
+/**
+ * The incident types a missing person episode is opened on: a missing person or someone absconding
+ * (the API's `MISSING_TYPES`, HZ-127). Both start the police call clock, the task and the alert.
+ */
+export const MISSING_INCIDENT_TYPES: readonly string[] = ["missing_person", "absconding"];
+
+/** Whether the incident page offers to open a missing person episode (safety.incident.report). */
+export function opensMissingEpisode(type: string, permissions: readonly string[]): boolean {
+  return MISSING_INCIDENT_TYPES.includes(type) && permissions.includes(MISSING_REPORT);
+}
+
 /** Shown to whoever may read incidents (the API's own check). */
 export function missingShown(permissions: readonly string[]): boolean {
   return permissions.includes(MISSING_READ);

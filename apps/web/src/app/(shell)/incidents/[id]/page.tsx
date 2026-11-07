@@ -39,6 +39,7 @@ import {
   overdueCount,
   showsPostFallCard,
 } from "@/lib/incidents";
+import { opensMissingEpisode } from "@/lib/missing";
 import { communicationSummary, personNames, sampleName } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
 import { evidenceManaged } from "@/lib/quality-programme";
@@ -210,7 +211,7 @@ export default async function IncidentPage({
           : {})}
       />
       {recorded === "1" ? <RecordedArrival /> : null}
-      {incident.type === "missing_person" && can(me.permissions, "safety.incident.report")
+      {opensMissingEpisode(incident.type, me.permissions)
         ? incident.people
             .filter((p) => p.kind === "service_user" && p.personId)
             .map((p) => (
