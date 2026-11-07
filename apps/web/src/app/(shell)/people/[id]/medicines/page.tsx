@@ -1,5 +1,5 @@
 import { ButtonLink, Card, EmptyState, StatusChip } from "@harbour/ui";
-import { ClipboardList, Pill, Plus, TriangleAlert } from "lucide-react";
+import { ClipboardList, ListChecks, Pill, Plus, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NoAccess } from "@/components/care/NoAccess";
@@ -10,6 +10,7 @@ import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { medicinesRoundShown, personRoundHref } from "@/lib/medicine-round";
 import { stockShown } from "@/lib/medicine-stock";
 import {
   entryChip,
@@ -56,14 +57,25 @@ async function MedicinesTab({ params }: { readonly params: Params }) {
           <h2 className="m-0 text-eyebrow">{t("medicines.title")}</h2>
           <p className="m-0 max-w-prose text-text-secondary">{t("medicines.intro")}</p>
         </div>
-        {writer ? (
-          <ButtonLink
-            href={`${medicinesHref(id)}/new`}
-            icon={<Plus size={18} strokeWidth={1.5} aria-hidden="true" />}
-          >
-            {t("medicines.add")}
-          </ButtonLink>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {medicinesRoundShown(me.permissions) ? (
+            <ButtonLink
+              href={personRoundHref(id)}
+              variant="secondary"
+              icon={<ListChecks size={18} strokeWidth={1.5} aria-hidden="true" />}
+            >
+              {t("medicines.round.openRound")}
+            </ButtonLink>
+          ) : null}
+          {writer ? (
+            <ButtonLink
+              href={`${medicinesHref(id)}/new`}
+              icon={<Plus size={18} strokeWidth={1.5} aria-hidden="true" />}
+            >
+              {t("medicines.add")}
+            </ButtonLink>
+          ) : null}
+        </div>
       </div>
       <nav aria-label={t("medicines.links.label")}>
         <ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-1 p-0">

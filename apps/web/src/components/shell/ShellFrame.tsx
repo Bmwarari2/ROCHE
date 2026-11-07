@@ -49,6 +49,7 @@ import {
   Newspaper,
   Package,
   Palette,
+  Pill,
   Scale,
   ScrollText,
   Search,
@@ -90,6 +91,7 @@ export interface ShellFrameLabels {
   readonly people?: string | undefined;
   /** Shown only to people who read care plans (care.plan.read), whose round it is. */
   readonly round?: string | undefined;
+  readonly medicinesRound?: string | undefined;
   readonly medicinesStock?: string | undefined;
   readonly medicinesReports?: string | undefined;
   /** Shown only to people who take part in the shift handover (care.handover.manage). */
@@ -228,6 +230,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/my-shifts")) return "my-shifts";
   if (pathname.startsWith("/settings/dependency")) return "dependency";
   if (pathname.startsWith("/round")) return "round";
+  if (pathname.startsWith("/medicines-round")) return "medicines-round";
   if (pathname.startsWith("/medicines-stock")) return "medicines-stock";
   if (pathname.startsWith("/medicines-reports")) return "medicines-reports";
   // Statutory notifications belong with incidents, never the notification centre.
@@ -363,6 +366,16 @@ export function ShellFrame({
       : []),
     ...(labels.round
       ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]
+      : []),
+    ...(labels.medicinesRound
+      ? [
+          {
+            id: "medicines-round",
+            label: labels.medicinesRound,
+            href: "/medicines-round",
+            icon: <Pill {...icon} />,
+          },
+        ]
       : []),
     ...(labels.medicinesStock
       ? [
