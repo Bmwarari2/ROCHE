@@ -20,9 +20,9 @@ the incident but cannot open the missing person episode: tell the person in char
 
 1. From the person's record, choose **Record an incident** (see
    [How to record an incident](record-an-incident.md)).
-2. Under **What kind of incident was it?**, choose **Missing person**. Choose it also when they
-   left without agreement and nobody knows where they are: only a **Missing person** incident can
-   open the missing person episode and the police call target at present.
+2. Under **What kind of incident was it?**, choose **Missing person**, or **Left without
+   agreement** if they left without staff knowing. Both open the missing person episode and the
+   police call target.
 3. Under **When did it happen?**, choose **Just now**, or **Earlier** and enter when they were
    noticed missing.
 4. Under **What happened**, write when and where they were last seen, what they were wearing, and
