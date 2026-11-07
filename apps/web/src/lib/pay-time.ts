@@ -58,6 +58,19 @@ const ABSENCE: Record<string, Omit<SafetyChip, "label">> = {
   cancelled: { status: "notApplicable", icon: "circle-minus" },
 };
 
+/**
+ * A read-only copy of an absence kept by the HR platform (integrations.md section 11.5 rule 2):
+ * changed only there, so it is labelled "Managed in the HR platform" and offers no decision.
+ */
+export function fromHrPlatform(absence: { readonly source?: string | null }): boolean {
+  return absence.source === "thapsus_hr";
+}
+
+/** A pay run whose route to payroll is the HR platform (rule 12): its units go there by pay code. */
+export function paidThroughHrPlatform(run: { readonly payRoute?: string | null }): boolean {
+  return run.payRoute === "thapsus_hr";
+}
+
 export function absenceChip(state: string, t: Translator): SafetyChip {
   const known = ABSENCE[state];
   return known

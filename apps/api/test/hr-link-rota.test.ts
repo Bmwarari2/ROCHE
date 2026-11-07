@@ -400,6 +400,33 @@ describe("hazard HZ-133 many copies dropping out at once are held until a person
     expect(((await sync()).absences as unknown as { held: number }).held).toBe(7);
   });
 
+  it("lists the held copies a release would cancel, read again now, changing nothing (slice 90)", async () => {
+    const r = await send("GET", "/v1/integrations/hr-link/absences/held", "manager");
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as {
+      mode: string;
+      items: { hrId: string; kind: string; startsOn: string; endsOn: string | null }[];
+      error: string | null;
+    };
+    expect(body.mode).toBe("drift");
+    expect(body.error).toBeNull();
+    expect(body.items.map((i) => i.hrId)).toEqual(ids(7));
+    expect(body.items[0]).toEqual({
+      hrId: "held_1",
+      kind: "annual_leave",
+      startsOn: inDays(23),
+      endsOn: inDays(24),
+    });
+    expect(await states()).toEqual(Array(7).fill("recorded"));
+    // A copy shows where it is kept, so the absence screen says it is managed in the HR platform.
+    const listed = (await (
+      await send("GET", `/v1/absences?locationId=${LOC}&from=${inDays(0)}`, "manager")
+    ).json()) as { items: { source: string }[] };
+    expect(listed.items.length).toBeGreaterThan(0);
+    expect(listed.items.every((i) => i.source === "thapsus_hr")).toBe(true);
+    expect((await send("GET", "/v1/integrations/hr-link/absences/held", "carer")).status).toBe(403);
+  });
+
   it("refuses ending every copy while the link is connected but turned off", async () => {
     await sql("UPDATE feature_flag SET enabled = false WHERE flag_key = 'integrations.thapsus_hr'");
     try {
@@ -438,6 +465,10 @@ describe("hazard HZ-133 many copies dropping out at once are held until a person
       status: "approved",
     } as never);
     expect((await release(ids(7))).status).toBe(409);
+    const held = (await (
+      await send("GET", "/v1/integrations/hr-link/absences/held", "manager")
+    ).json()) as { items: { hrId: string }[] };
+    expect(held.items.map((i) => i.hrId)).toEqual(ids(6));
     expect((await release(ids(6), "manager", "link_ended")).status).toBe(422);
     const r = await release(ids(6));
     expect(r.status).toBe(200);
@@ -615,6 +646,11 @@ describe("hazard HZ-133 the rota still says so when the link stops but its absen
         "SELECT hr_id FROM absence WHERE source = 'thapsus_hr' AND state <> 'cancelled'",
       )
     ).map((r) => r.hr_id);
+    const held = (await (
+      await send("GET", "/v1/integrations/hr-link/absences/held", "manager")
+    ).json()) as { mode: string; items: { hrId: string }[] };
+    expect(held.mode).toBe("disconnected");
+    expect(held.items.map((i) => i.hrId).sort()).toEqual([...live].sort());
     const r = await send("POST", "/v1/integrations/hr-link/absences/release", "manager", {
       expectedHrIds: live,
       reason: "link_ended",

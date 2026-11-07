@@ -864,6 +864,78 @@ export async function releaseHrCopies(
   return { ...none, cancelled, error: null };
 }
 
+/** One Thapsus-HR absence copy a person may release: its identifiers, dates and type only. */
+export interface HrCopyToRelease {
+  readonly hrId: string;
+  readonly kind: string;
+  readonly startsOn: string;
+  readonly endsOn: string | null;
+}
+
+const copyOut = (c: {
+  hrId: string | null;
+  kind: string;
+  startsOn: string;
+  endsOn: string | null;
+}): HrCopyToRelease => ({
+  hrId: c.hrId ?? "",
+  kind: c.kind,
+  startsOn: c.startsOn,
+  endsOn: c.endsOn,
+});
+
+/** Every Thapsus-HR copy still in force: what a release ends once the link is disconnected. */
+export async function hrCopiesInForce(tx: Transaction): Promise<HrCopyToRelease[]> {
+  const rows = await tx
+    .select({
+      hrId: absence.hrId,
+      kind: absence.kind,
+      startsOn: absence.startsOn,
+      endsOn: absence.endsOn,
+    })
+    .from(absence)
+    .where(and(eq(absence.source, "thapsus_hr"), ne(absence.state, "cancelled")))
+    .orderBy(asc(absence.startsOn), asc(absence.hrId));
+  return rows.map(copyOut);
+}
+
+/**
+ * The copies a release would cancel while linked, read now and changing nothing (slice 90): the
+ * current copies Thapsus-HR no longer lists, as the drift guard sees them (HZ-133). Reads every
+ * page as the sync does; a list that cannot be read in full gives its error and no copies, so a
+ * person is never offered a partial set.
+ */
+export async function heldHrCopies(
+  tx: Transaction,
+  port: ThapsusHrPort,
+  now: Date,
+): Promise<{ readonly items: HrCopyToRelease[]; readonly error: string | null }> {
+  const seen = new Set<string>();
+  const cursors = new Set<string>();
+  let cursor: string | null = null;
+  let complete = false;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const result = await port.absences(cursor);
+    if (!result.ok) return { items: [], error: result.error };
+    for (const raw of result.value.items) {
+      if (typeof raw.id === "string" && ID.test(raw.id)) seen.add(raw.id);
+    }
+    cursor = result.value.nextCursor;
+    if (cursor === null) {
+      complete = true;
+      break;
+    }
+    if (cursors.has(cursor)) break;
+    cursors.add(cursor);
+  }
+  if (!complete) return { items: [], error: "incomplete" };
+  const today = ukIsoDate(now);
+  const items = (await hrCopiesInForce(tx)).filter(
+    (c) => !seen.has(c.hrId) && (c.endsOn === null || c.endsOn >= today),
+  );
+  return { items, error: null };
+}
+
 /** Thapsus-HR copies still in force (the staleness route reads whether any remain). */
 export async function activeHrAbsenceCopies(tx: Transaction): Promise<number> {
   const rows = await tx

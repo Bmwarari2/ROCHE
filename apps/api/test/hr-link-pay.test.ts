@@ -54,6 +54,7 @@ async function sql<R = Record<string, unknown>>(text: string, values: unknown[] 
 interface Run {
   id: string;
   version: number;
+  payRoute?: string | null;
 }
 const sync = async () =>
   (await (await as("manager", "/v1/integrations/hr-link/sync", { method: "POST" })).json()) as {
@@ -226,6 +227,15 @@ describe("hazard HZ-140 the route moves to Thapsus-HR only when it can take pay 
   it("moves the route from the start of Thapsus-HR's next pay period", async () => {
     const r = await patch({ payRoute: { route: "thapsus_hr", from: P1.periodStart } });
     expect(r.status).toBe(200);
+    // The link's status says what is waiting and from when, for its settings page (slice 90).
+    const status = (await (await as("manager", "/v1/integrations/hr-link")).json()) as {
+      pay: { route: string; pendingRoute: string | null; pendingFrom: string | null };
+    };
+    expect(status.pay).toMatchObject({
+      route: "harbour_export",
+      pendingRoute: "thapsus_hr",
+      pendingFrom: P1.periodStart,
+    });
   });
 });
 
@@ -247,6 +257,8 @@ describe("hazard HZ-140 a period paid through Thapsus-HR uses its pay period and
     run = detail.run;
     const line = detail.lines.find((l) => l.memberId === CARER);
     expect(line?.basicPence).toBe(1_300 * 8);
+    // Each run says which route pays it, so the pay screens say "Managed in the HR platform".
+    expect(run.payRoute).toBe("thapsus_hr");
   });
 
   it("refuses to lock until every unit kind has a pay code, mapped by a pay approver", async () => {

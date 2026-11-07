@@ -32,6 +32,7 @@ import {
   GraduationCap,
   HeartHandshake,
   House,
+  Link2,
   ListChecks,
   ListTodo,
   Lock,
@@ -144,6 +145,8 @@ export interface ShellFrameLabels {
   readonly pay?: string | undefined;
   /** Shown only to people who manage records retention (platform.retention.manage). */
   readonly retention?: string | undefined;
+  /** The link to the HR platform's settings (slice 90), for its holders once turned on. */
+  readonly hrLink?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataImport?: string | undefined;
@@ -224,6 +227,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/import")) return "import";
   if (pathname.startsWith("/settings/retention")) return "retention";
+  if (pathname.startsWith("/settings/hr-link")) return "hr-link";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/data-rights")) return "data-rights";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
@@ -622,6 +626,16 @@ export function ShellFrame({
             label: labels.retention,
             href: "/settings/retention",
             icon: <Lock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.hrLink
+      ? [
+          {
+            id: "hr-link",
+            label: labels.hrLink,
+            href: "/settings/hr-link",
+            icon: <Link2 {...icon} />,
           },
         ]
       : []),

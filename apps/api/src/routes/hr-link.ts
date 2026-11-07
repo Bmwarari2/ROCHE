@@ -140,6 +140,16 @@ const Status = z
     matchesToReview: z.number().int(),
     /** Leavers whose day is over but whose access could not be ended automatically. */
     leaversNotEnded: z.number().int(),
+    /**
+     * The route to payroll for pay periods with no run yet, any change waiting and from when, and
+     * the pay code for each unit kind (rules 11 and 12; slice 89). The export's until linked.
+     */
+    pay: z.object({
+      route: z.enum(["harbour_export", "thapsus_hr"]),
+      pendingRoute: z.enum(["harbour_export", "thapsus_hr"]).nullable(),
+      pendingFrom: z.iso.date().nullable(),
+      codes: z.record(z.string(), z.string()),
+    }),
   })
   .meta({ id: "HrLinkStatus" });
 
@@ -501,6 +511,10 @@ export const hrLinkRouter = createRouter()
           staleness: link ? await hrLinkStaleness(tx, link.settings, new Date()) : null,
           matchesToReview: review.length,
           leaversNotEnded: await leaversNotEnded(tx, new Date()),
+          pay: {
+            ...(link?.settings.pay ?? DEFAULT_HR_PAY),
+            codes: { ...(link?.settings.pay.codes ?? {}) },
+          },
         };
       });
       return c.json(body, 200);

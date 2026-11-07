@@ -129,6 +129,9 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     case "referenced_by_other_records":
     case "remove_sample_data_first":
       return { code, message: t("onboarding.sample.refusal", { code }) };
+    // A copy from the HR platform (integrations.md section 11.5 rule 2): changed there, never here.
+    case "managed_in_thapsus_hr":
+      return { code, message: t("hrLink.managed.refusal", { app: t("app.name") }) };
     case "back_entry_already_corrected":
       return { code, message: t("care.paper.alreadyCorrected") };
     case "missing_permission":

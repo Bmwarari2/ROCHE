@@ -344,6 +344,7 @@ async function runItem(tx: Transaction, r: RunRow): Promise<z.infer<typeof PayRu
     lockedAt: iso(r.lockedAt),
     createdBy: r.createdBy,
     openExceptions: await openExceptions(tx, r),
+    payRoute: r.payRoute === "thapsus_hr" || r.payRoute === "harbour_export" ? r.payRoute : null,
   };
 }
 

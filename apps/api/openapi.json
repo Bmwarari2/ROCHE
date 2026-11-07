@@ -35076,6 +35076,48 @@
           },
           "leaversNotEnded": {
             "type": "integer"
+          },
+          "pay": {
+            "type": "object",
+            "properties": {
+              "route": {
+                "type": "string",
+                "enum": [
+                  "harbour_export",
+                  "thapsus_hr"
+                ]
+              },
+              "pendingRoute": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "harbour_export",
+                  "thapsus_hr",
+                  null
+                ]
+              },
+              "pendingFrom": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "codes": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "route",
+              "pendingRoute",
+              "pendingFrom",
+              "codes"
+            ]
           }
         },
         "required": [
@@ -35089,7 +35131,8 @@
           "hasWebhookSecret",
           "staleness",
           "matchesToReview",
-          "leaversNotEnded"
+          "leaversNotEnded",
+          "pay"
         ]
       },
       "HrLinkOwners": {
@@ -35612,6 +35655,61 @@
         "required": [
           "withdrawn",
           "accessRestored"
+        ]
+      },
+      "HrCopiesHeld": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "drift",
+              "disconnected",
+              "none"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "hrId": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "hrId",
+                "kind",
+                "startsOn",
+                "endsOn"
+              ]
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "items",
+          "error"
         ]
       },
       "HrCopiesReleased": {
@@ -48683,6 +48781,13 @@
               "type": "string",
               "format": "date"
             }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
           }
         },
         "required": [
@@ -48700,7 +48805,8 @@
           "selfCertifiedAt",
           "bradfordExcluded",
           "coverNeeded",
-          "fitNoteUncoveredDays"
+          "fitNoteUncoveredDays",
+          "source"
         ]
       },
       "AbsenceKind": {
@@ -48859,6 +48965,13 @@
               "format": "date"
             }
           },
+          "source": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
           "carersLeave": {
             "type": [
               "object",
@@ -48919,6 +49032,7 @@
           "bradfordExcluded",
           "coverNeeded",
           "fitNoteUncoveredDays",
+          "source",
           "carersLeave",
           "fitNotes",
           "returnToWork",
@@ -52262,6 +52376,17 @@
           },
           "openExceptions": {
             "type": "integer"
+          },
+          "payRoute": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "harbour_export",
+              "thapsus_hr",
+              null
+            ]
           }
         },
         "required": [
@@ -52281,7 +52406,8 @@
           "lockedBy",
           "lockedAt",
           "createdBy",
-          "openExceptions"
+          "openExceptions",
+          "payRoute"
         ]
       },
       "CreatePayRun": {
@@ -91451,6 +91577,65 @@
           },
           "503": {
             "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/absences/held": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The absence copies a release would cancel now (read only)",
+        "description": "While linked, the current copies the HR platform no longer lists, read again from it now; once disconnected, every copy still in force. The release sends these ids back as expectedHrIds. Changes nothing.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Copies to release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrCopiesHeld"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
             "content": {
               "application/problem+json": {
                 "schema": {

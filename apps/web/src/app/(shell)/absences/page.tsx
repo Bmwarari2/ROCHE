@@ -1,6 +1,7 @@
 import { Card, EmptyState, PageHeader } from "@harbour/ui";
 import { CalendarOff } from "lucide-react";
 import type { Metadata } from "next";
+import { ManagedInHrPlatform } from "@/components/hr-link/ManagedInHrPlatform";
 import { DecisionForm, LeaveRequestForm } from "@/components/pay-time/PayTimeForms";
 import { HrLinkStaleness } from "@/components/rota/HrLinkStaleness";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
@@ -12,6 +13,7 @@ import {
   absenceChip,
   absencesShown,
   coverChip,
+  fromHrPlatform,
   ROTA_APPROVE,
   ROTA_MANAGE,
   SELF,
@@ -94,6 +96,7 @@ export default async function AbsencesPage() {
                       <SafetyChip chip={absenceChip(a.state, t)} />
                       {cover ? <SafetyChip chip={cover} /> : null}
                     </p>
+                    {fromHrPlatform(a) ? <ManagedInHrPlatform detail="absence" /> : null}
                     <p className="m-0 text-body-dense">
                       {t("payTime.absence.summary", {
                         kind: a.kind,
@@ -107,7 +110,10 @@ export default async function AbsencesPage() {
                         {t("payTime.absence.reason", { reason: a.decisionReason })}
                       </p>
                     ) : null}
-                    {canDecide && a.state === "requested" && a.member.id !== me.tenantUserId ? (
+                    {canDecide &&
+                    a.state === "requested" &&
+                    a.member.id !== me.tenantUserId &&
+                    !fromHrPlatform(a) ? (
                       <DecisionForm id={a.id} version={a.version} />
                     ) : null}
                   </div>

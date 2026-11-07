@@ -33923,6 +33923,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/integrations/hr-link/absences/held": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The absence copies a release would cancel now (read only)
+     * @description While linked, the current copies the HR platform no longer lists, read again from it now; once disconnected, every copy still in force. The release sends these ids back as expectedHrIds. Changes nothing.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Copies to release */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrCopiesHeld"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/integrations/hr-link/absences/release": {
     parameters: {
       query?: never;
@@ -62055,6 +62121,17 @@ export interface components {
       } | null;
       matchesToReview: number;
       leaversNotEnded: number;
+      pay: {
+        /** @enum {string} */
+        route: "harbour_export" | "thapsus_hr";
+        /** @enum {string|null} */
+        pendingRoute: "harbour_export" | "thapsus_hr" | null;
+        /** Format: date */
+        pendingFrom: string | null;
+        codes: {
+          [key: string]: string;
+        };
+      };
     };
     HrLinkOwners: {
       /** @enum {string} */
@@ -62177,6 +62254,19 @@ export interface components {
       /** @enum {boolean} */
       withdrawn: true;
       accessRestored: boolean;
+    };
+    HrCopiesHeld: {
+      /** @enum {string} */
+      mode: "drift" | "disconnected" | "none";
+      items: {
+        hrId: string;
+        kind: string;
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string | null;
+      }[];
+      error: string | null;
     };
     HrCopiesReleased: {
       released: number;
@@ -65566,6 +65656,8 @@ export interface components {
       bradfordExcluded: boolean;
       coverNeeded: number;
       fitNoteUncoveredDays: string[] | null;
+      /** @enum {string} */
+      source: "harbour" | "thapsus_hr";
     };
     /** @enum {string} */
     AbsenceKind:
@@ -65622,6 +65714,8 @@ export interface components {
       bradfordExcluded: boolean;
       coverNeeded: number;
       fitNoteUncoveredDays: string[] | null;
+      /** @enum {string} */
+      source: "harbour" | "thapsus_hr";
       carersLeave: {
         takenDays: number;
         allowanceDays: number | null;
@@ -66534,6 +66628,8 @@ export interface components {
       /** Format: uuid */
       createdBy: string | null;
       openExceptions: number;
+      /** @enum {string|null} */
+      payRoute: "harbour_export" | "thapsus_hr" | null;
     };
     CreatePayRun: {
       frequency: components["schemas"]["PayFrequency"];
