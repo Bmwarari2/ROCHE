@@ -5311,6 +5311,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      person_location_id: {
+        description:
+          "The home of the person the row is about now, for the phone's streams (migration 0146); not exported.",
+        class: "internal",
+      },
       sync_location_id: {
         description:
           "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
@@ -5402,6 +5407,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      person_location_id: {
+        description:
+          "The home of the person the row is about now, for the phone's streams (migration 0146); not exported.",
+        class: "internal",
+      },
       sync_location_id: {
         description:
           "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",

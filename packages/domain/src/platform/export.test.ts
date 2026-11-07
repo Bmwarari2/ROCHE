@@ -264,7 +264,8 @@ describe("hazard HZ-070 export plan reads only what may leave", () => {
     ["tenant_user", "auth_user_id", ["auth_user_id", "search_name"]],
     // Search vectors (migration 0066) are rebuilt from the exported columns.
     ["person", "search_names", ["search_names", "search_room"]],
-    ["care_note", "search_body", ["search_body"]],
+    // The sync routing column (migration 0146; ADR-0134) is plumbing too.
+    ["care_note", "search_body", ["sync_location_id", "search_body"]],
   ])("never exports %s.%s", (name, column, omitted) => {
     expect(table(name)?.columns.map((c) => c.name)).not.toContain(column);
     expect(table(name)?.omittedColumns).toEqual(omitted);
