@@ -34,7 +34,7 @@ people assigned to them. Some roles can see the round but not act on it.
 | Overdue: escalated | The person in charge has been told. |
 | Catching up a missed round | A task from an earlier round that was not done. |
 | From an earlier plan: check the current plan | The care plan has changed. Check it before you act. |
-| Not a round: see the medicines record | Medicines are not done on the round. |
+| Not a round: medicines rounds are on the eMAR | Medicines are not done on the round. |
 
 ## "Not recorded" is not "none"
 

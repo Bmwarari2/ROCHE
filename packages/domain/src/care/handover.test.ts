@@ -603,6 +603,70 @@ describe("hazard HZ-018 handover includes every safety-critical item from the sh
     expect(alertSummaryCode(undefined)).toBe("other");
   });
 
+  it("hazard HZ-003 hands over a dose with no outcome, and a person whose doses could not be worked out, in their own words (slice 49)", () => {
+    const items = compileHandover(
+      shift,
+      {
+        ...empty,
+        tasks: [
+          task("dose", {
+            kind: "medicines.dose.outstanding",
+            title: "A time-critical dose has no outcome: find out what happened and record it",
+            priority: "urgent",
+            dueAt: t("2026-10-11T09:30:00Z"),
+          }),
+          task("check", {
+            kind: "medicines.dose.check_failed",
+            title: "Doses could not be worked out for this person: check their MAR",
+            priority: "urgent",
+            dueAt: t("2026-10-11T11:00:00Z"),
+          }),
+        ],
+      },
+      compiledAt,
+    );
+    expect(items.map((i) => [i.kind, i.sourceId])).toEqual([
+      ["overdue_task", "dose"],
+      ["overdue_task", "check"],
+    ]);
+    expect(JSON.stringify(items[0])).toContain("A time-critical dose has no outcome");
+  });
+
+  it("hazard HZ-003 hands over a dose refused on the eMAR as a refusal, only from this shift (slice 49)", () => {
+    const items = compileHandover(
+      shift,
+      {
+        ...empty,
+        refusedDoses: [
+          {
+            id: "dose-refused",
+            personId: "p1",
+            occurredAt: t("2026-10-11T09:00:00Z"),
+            recordedAt: t("2026-10-11T09:01:00Z"),
+          },
+          {
+            id: "dose-yesterday",
+            personId: "p1",
+            occurredAt: t("2026-10-10T09:00:00Z"),
+            recordedAt: t("2026-10-10T09:01:00Z"),
+          },
+        ],
+      },
+      compiledAt,
+    );
+    expect(items.map((i) => [i.kind, i.sourceType, i.sourceId, i.summary])).toEqual([
+      [
+        "refusal",
+        "medication_administration",
+        "dose-refused",
+        {
+          key: "handover.summary.refusal",
+          params: { source: "medication_administration", chart: "medicine" },
+        },
+      ],
+    ]);
+  });
+
   it("compiles an empty shift to an empty handover", () => {
     expect(compileHandover(shift, empty, compiledAt)).toEqual([]);
   });

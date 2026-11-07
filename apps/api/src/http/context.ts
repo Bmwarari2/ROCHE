@@ -47,6 +47,7 @@ import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
 import type { DataKeyCache } from "../integrations/envelope";
+import type { HrLinkServices } from "../integrations/hr-link";
 import type { LearningPlatformAdapter } from "../integrations/lms/learning-platform";
 import type { MedicinesPorts } from "../integrations/medicines-ports";
 import type { XeroPayrollAdapter } from "../integrations/payroll/xero";
@@ -129,6 +130,8 @@ export interface Services {
     channel: "email" | "sms" | "push",
     tx: Transaction,
   ) => Promise<ChannelAdapter>;
+  /** The Thapsus-HR link's adapter and webhook secrets (integrations.md section 11). */
+  readonly hrLink: HrLinkServices;
   /** What the email mock was handed (development and tests; never used in production). */
   readonly mockEmail: MockEmail;
   /** Evidence pack link requests (no one signed in): per client address and per link. */

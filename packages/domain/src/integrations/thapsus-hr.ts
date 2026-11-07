@@ -1,4 +1,4 @@
-import { ukEndOfDay } from "../shared/time";
+import { toUkWallClock, ukEndOfDay } from "../shared/time";
 import type { HealthResult } from "./ports";
 
 /**
@@ -51,8 +51,8 @@ export const FIXED_HR_OWNERS: Readonly<Partial<Record<HrDataKind, HrSystem>>> = 
   recruitment_and_vetting: "harbour",
   training_and_competence: "harbour",
   clocking: "harbour",
-  // Until slice 88 checks incoming shifts against competence, checks and staffing (rule 13; HZ-123,
-  // HZ-124), Thapsus-HR may not own the rota.
+  // Harbour keeps care shifts and the rota (ADR-0126; confirmed 06/11/2026): Thapsus-HR shows them
+  // read-only, so safe staffing, competence and Working Time are always checked (HZ-123, HZ-124).
   care_shifts: "harbour",
 };
 
@@ -120,6 +120,11 @@ export interface HrEmployee {
   readonly dateOfBirth: string | null;
   readonly givenName: string;
   readonly familyName: string;
+  /** Fields Thapsus-HR owns that Harbour copies (section 11.8); absent when not sent. */
+  readonly jobTitle?: string | null;
+  readonly startDate?: string | null;
+  readonly leavingDate?: string | null;
+  readonly locationId?: string | null;
 }
 
 export interface StaffCandidate {
@@ -295,7 +300,21 @@ const ABSENCE_TYPES: Readonly<Record<string, HrAbsenceType>> = {
   holiday: "leave",
   sickness: "sickness",
   sick: "sickness",
+  sick_leave: "sickness",
+  sickness_absence: "sickness",
+  illness: "sickness",
+  annual: "leave",
+  vacation: "leave",
 };
+
+/**
+ * Whether Thapsus-HR's absence type is one this product knows. An unknown type still blocks the
+ * rota (as other), and a person is told so they can check it (HZ-123).
+ */
+export function hrAbsenceTypeKnown(raw: Readonly<Record<string, unknown>>): boolean {
+  const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "";
+  return type === "other" || Object.hasOwn(ABSENCE_TYPES, type);
+}
 
 /**
  * An absence as it may enter Harbour: identifier, employee, type, dates and status only. Reasons,
@@ -515,6 +534,11 @@ export interface ThapsusHrPort {
   ): Promise<HrResult<{ readonly id: string }>>;
   absences(cursor: string | null): Promise<HrResult<HrPage<Readonly<Record<string, unknown>>>>>;
   upsertShift(shift: HrShift, idempotencyKey: string): Promise<HrResult<{ readonly id: string }>>;
+  /** A shift this product cancelled, or whose worker it removed (by this product's reference). */
+  cancelShift(
+    harbourRef: string,
+    idempotencyKey: string,
+  ): Promise<HrResult<{ readonly id: string }>>;
   postClockEvent(
     event: HrClockEvent,
     idempotencyKey: string,
@@ -526,4 +550,200 @@ export interface ThapsusHrPort {
   ): Promise<HrResult<{ readonly accepted: number }>>;
   rates(employeeIds: readonly string[]): Promise<HrResult<readonly HrRate[]>>;
   health(): Promise<HealthResult>;
+}
+
+/** The employee webhooks Thapsus-HR sends at the pinned commit (identifiers only; section 11.2). */
+export const HR_WEBHOOK_EVENTS = [
+  "employee.created",
+  "employee.changed",
+  "employee.transferred",
+  "employee.terminated",
+] as const;
+export type HrWebhookEvent = (typeof HR_WEBHOOK_EVENTS)[number];
+
+/** How far a webhook's signed time may be from now, either way, before it is refused as a replay. */
+export const HR_WEBHOOK_REPLAY_SECONDS = 300;
+
+/**
+ * Why a webhook's signed time (Unix seconds) is refused, or null: not a whole number of seconds,
+ * older than the replay window, or further ahead than it.
+ */
+export function webhookTimestampProblem(
+  sentAtSeconds: number,
+  now: Date,
+): "invalid" | "too_old" | "in_future" | null {
+  if (!Number.isSafeInteger(sentAtSeconds) || sentAtSeconds <= 0) return "invalid";
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  if (nowSeconds - sentAtSeconds > HR_WEBHOOK_REPLAY_SECONDS) return "too_old";
+  if (sentAtSeconds - nowSeconds > HR_WEBHOOK_REPLAY_SECONDS) return "in_future";
+  return null;
+}
+
+/** Harbour's copy of the fields Thapsus-HR owns in the staff file. */
+export interface StaffFileCopy {
+  readonly jobTitle: string | null;
+  readonly startsOn: string | null;
+}
+
+export type DriftField = "job_title" | "start_date";
+
+/**
+ * The owned fields where Harbour's copy differs from Thapsus-HR's (rule 2): only fields Thapsus-HR
+ * sent, and a start date only when it is a real day. Reconciliation puts back Thapsus-HR's value.
+ */
+export function employeeDrift(copy: StaffFileCopy, employee: HrEmployee): DriftField[] {
+  const drift: DriftField[] = [];
+  const title = typeof employee.jobTitle === "string" ? employee.jobTitle.trim() : "";
+  if (title.length >= 2 && title.length <= 120 && title !== (copy.jobTitle ?? "").trim()) {
+    drift.push("job_title");
+  }
+  const start = employee.startDate;
+  if (typeof start === "string" && realDay(start) && start !== copy.startsOn) {
+    drift.push("start_date");
+  }
+  return drift;
+}
+
+// ---- Slice 88: absences in, shifts and clock events out (sections 11.2 and 11.8) --------------
+
+/** How a Thapsus-HR absence type becomes an absence here: dates and type only (rule 10). */
+export const HR_ABSENCE_KIND = {
+  leave: "annual_leave",
+  sickness: "sickness",
+  other: "other",
+} as const satisfies Record<HrAbsenceType, string>;
+export type HrAbsenceKind = (typeof HR_ABSENCE_KIND)[HrAbsenceType];
+
+/** This product's read-only copy of a Thapsus-HR absence, as the absence port holds it. */
+export interface HrAbsenceCopy {
+  readonly id: string;
+  readonly kind: HrAbsenceKind;
+  readonly startsOn: string;
+  readonly endsOn: string | null;
+  readonly cancelled: boolean;
+}
+
+export type HrAbsencePlan =
+  | { readonly action: "none" }
+  | {
+      readonly action: "create";
+      readonly kind: HrAbsenceKind;
+      readonly startsOn: string;
+      readonly endsOn: string | null;
+    }
+  | { readonly action: "set_end"; readonly endsOn: string | null }
+  | { readonly action: "cancel" }
+  | {
+      readonly action: "replace";
+      readonly kind: HrAbsenceKind;
+      readonly startsOn: string;
+      readonly endsOn: string | null;
+    };
+
+/**
+ * What to do with this product's copy when Thapsus-HR reports an absence (rule 10; HZ-123,
+ * HZ-133). Only an approved absence blocks rostering; a request or a cancellation removes an
+ * active copy. A copy's kind and start never change in place (the absence table keeps them), so a
+ * change to either replaces it. An absence with no end date blocks until Thapsus-HR ends it,
+ * whatever its type (migration 0142).
+ */
+export function planHrAbsence(known: HrAbsenceCopy | null, incoming: HrAbsence): HrAbsencePlan {
+  const active = known !== null && !known.cancelled;
+  if (incoming.status !== "approved") return active ? { action: "cancel" } : { action: "none" };
+  const kind = HR_ABSENCE_KIND[incoming.type];
+  const endsOn = incoming.endsOn;
+  if (!active) return { action: "create", kind, startsOn: incoming.startsOn, endsOn };
+  if (known.kind !== kind || known.startsOn !== incoming.startsOn) {
+    return { action: "replace", kind, startsOn: incoming.startsOn, endsOn };
+  }
+  return known.endsOn === endsOn ? { action: "none" } : { action: "set_end", endsOn };
+}
+
+/** The absence port (the scheduling module's boundary): this product's copies of HR absences. */
+export interface HrAbsencePort {
+  find(hrId: string): Promise<HrAbsenceCopy | null>;
+  create(
+    hrId: string,
+    memberId: string,
+    copy: Omit<HrAbsenceCopy, "id" | "cancelled">,
+  ): Promise<string>;
+  setEnd(id: string, endsOn: string | null): Promise<void>;
+  cancel(id: string): Promise<void>;
+}
+
+/** Applies a plan through the port. Returns the new copy's id when one was created. */
+export async function applyHrAbsencePlan(
+  port: HrAbsencePort,
+  known: HrAbsenceCopy | null,
+  hrId: string,
+  memberId: string,
+  plan: HrAbsencePlan,
+): Promise<string | null> {
+  switch (plan.action) {
+    case "none":
+      return null;
+    case "set_end":
+      if (known) await port.setEnd(known.id, plan.endsOn);
+      return null;
+    case "cancel":
+      if (known) await port.cancel(known.id);
+      return null;
+    case "replace":
+      if (known) await port.cancel(known.id);
+      return port.create(hrId, memberId, plan);
+    case "create":
+      return port.create(hrId, memberId, plan);
+  }
+}
+
+/** A UK wall-clock time as `YYYY-MM-DDTHH:MM`, beside the UTC instant (rule 7). */
+export function ukLocalStamp(instant: Date): string {
+  const w = toUkWallClock(instant);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${w.year}-${two(w.month)}-${two(w.day)}T${two(w.hour)}:${two(w.minute)}`;
+}
+
+/** A shift assignment as it goes to Thapsus-HR: the allow-listed fields only (rule 4). */
+export function hrShiftOf(input: {
+  readonly assignmentId: string;
+  readonly hrEmployeeId: string;
+  readonly hrLocationId: string;
+  readonly kind: string;
+  readonly startsAt: Date;
+  readonly endsAt: Date;
+  readonly breakMinutes: number;
+}): HrShift {
+  return {
+    harbourRef: input.assignmentId,
+    employeeId: input.hrEmployeeId,
+    locationId: input.hrLocationId,
+    role: input.kind,
+    startsAt: input.startsAt.toISOString(),
+    endsAt: input.endsAt.toISOString(),
+    startsAtLocal: ukLocalStamp(input.startsAt),
+    endsAtLocal: ukLocalStamp(input.endsAt),
+    breakMinutes: input.breakMinutes,
+  };
+}
+
+/**
+ * A clock event as it goes to Thapsus-HR, or null for a kind that does not cross (breaks stay
+ * here): the allow-listed fields only, never a position (rule 4).
+ */
+export function hrClockEventOf(input: {
+  readonly id: string;
+  readonly hrEmployeeId: string;
+  readonly hrLocationId: string;
+  readonly kind: string;
+  readonly at: Date;
+}): HrClockEvent | null {
+  if (!(OUTBOUND_CLOCK_KINDS as readonly string[]).includes(input.kind)) return null;
+  return {
+    harbourRef: input.id,
+    employeeId: input.hrEmployeeId,
+    kind: input.kind,
+    at: input.at.toISOString(),
+    atLocal: ukLocalStamp(input.at),
+    locationId: input.hrLocationId,
+  };
 }

@@ -167,9 +167,18 @@ async function inTx<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>): Promise<
   }
 }
 
-async function loadAbsence(tx: Tx, id: string): Promise<AbsenceRow> {
+async function loadAbsence(tx: Tx, id: string, forChange = false): Promise<AbsenceRow> {
   const [row] = await tx.select().from(absence).where(eq(absence.id, id));
   if (!row) throw problems.notFound();
+  // A copy of an absence in the provider's HR platform is read-only here: it is corrected there
+  // (integrations.md section 11.5 rule 2; migration 0142).
+  if (forChange && row.source === "thapsus_hr") {
+    throw new HttpProblem(
+      409,
+      "managed_in_thapsus_hr",
+      "Managed in the HR platform. Change it there; this copy follows at the next sync.",
+    );
+  }
   return row;
 }
 
@@ -554,7 +563,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         requireLocationInScope(access, row.locationId);
         const to =
           body.decision === "approve"
@@ -596,7 +605,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         if (row.memberId !== access.tenantUserId) requireLocationInScope(access, row.locationId);
         const saved = await move(tx, access, row, body.version, "cancelled", body.reason ?? null);
         const resolved = await resolveCoverNeeds(tx, { absenceId: id }, "absence_ended");
@@ -629,7 +638,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         requireLocationInScope(access, row.locationId);
         if (
           row.kind !== "sickness" ||
@@ -689,7 +698,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         requireLocationInScope(access, row.locationId);
         // HR's at the home, never for one's own absence (the database checks it too).
         if (!holdsAt(access, HR, row.locationId) || row.memberId === access.tenantUserId) {
@@ -754,7 +763,7 @@ export const absencesRouter = createRouter()
       const { scanner } = c.get("services");
       const out = await destroyingOnFailure(c.get("services").storage, (storage) =>
         inTx(c, async (tx) => {
-          const row = await loadAbsence(tx, id);
+          const row = await loadAbsence(tx, id, true);
           requireLocationInScope(access, row.locationId);
           if (row.kind !== "sickness") throw problems.invalid("A fit note is for a sickness.");
           if (row.memberId === access.tenantUserId) throw problems.forbidden();
@@ -866,7 +875,7 @@ export const absencesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await inTx(c, async (tx) => {
-        const row = await loadAbsence(tx, id);
+        const row = await loadAbsence(tx, id, true);
         requireLocationInScope(access, row.locationId);
         if (row.kind !== "sickness" || row.endsOn === null) {
           throw new HttpProblem(409, "absence_not_ended", "Record the sickness's last day first.");

@@ -111,6 +111,7 @@ const UNVERSIONED_SILO_TABLES = [
   "speak_up_case_member",
   "self_administration_assessment",
   "homely_remedy_administration",
+  "prn_outcome",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

@@ -151,6 +151,13 @@ export class MockThapsusHr implements ThapsusHrPort {
     return this.limited() ?? this.idempotent("shift", idempotencyKey, "POST /v1/shifts", shift);
   }
 
+  async cancelShift(harbourRef: string, idempotencyKey: string) {
+    return (
+      this.limited() ??
+      this.idempotent("shift", idempotencyKey, "DELETE /v1/shifts", { harbourRef })
+    );
+  }
+
   async postClockEvent(event: HrClockEvent, idempotencyKey: string) {
     // `source: partner` is K2, planned; the route itself is available.
     return (

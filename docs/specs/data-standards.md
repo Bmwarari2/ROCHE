@@ -393,7 +393,7 @@ meanings in `schema.json`.
 | `task.kind`, `task_series.kind` | `care.plan_action` for a round a care plan action generates | `source_type` `care_plan_action` and `source_id` the action; `title` "Care plan: " and the need domain in lower case; `assignee_role_key` the action's role; one live series per action |
 | `care_plan_action.based_on_action_id` | Reference to `care_plan_action` | The action of the earlier version a copied draft's action came from; an unchanged action takes over its series |
 | `handover.shift_name`, `shift_start`, `shift_end` | The shift's name in the location's pattern (`day`, `night` until rotas define others); instants in UTC, the end exclusive | Patterns are UK local time (`handover.day_shift_start_minute`, `handover.night_shift_start_minute`), so a shift over a clock change is an hour shorter or longer |
-| `handover_item.key`, `position`, `kind`, `person_id`, `source_type`, `source_id`, `at`, `late_addition`, `added_at` | One row per item: `kind` one of `fall`, `news2`, `incident`, `alert`, `body_map_mark`, `flagged_note`, `overdue_task`, `skipped_task`, `unfinished_task`, `must_follow_up`, `refusal` (`HANDOVER_ITEM_KINDS`, in order of urgency; a CHECK); `source_type` one of `task`, `observation`, `incident`, `body_map_mark`, `care_note`, `notification` (a CHECK); `position` the order compiled and added, from 0; instants in UTC | References only, never the source's words; append-only (never removed or changed); unique key and position per handover; readable only by those who can see the person |
+| `handover_item.key`, `position`, `kind`, `person_id`, `source_type`, `source_id`, `at`, `late_addition`, `added_at` | One row per item: `kind` one of `fall`, `news2`, `incident`, `alert`, `body_map_mark`, `flagged_note`, `overdue_task`, `skipped_task`, `unfinished_task`, `must_follow_up`, `refusal` (`HANDOVER_ITEM_KINDS`, in order of urgency; a CHECK); `source_type` one of `task`, `observation`, `incident`, `body_map_mark`, `care_note`, `notification`, `medication_administration` (a refused dose, migration 0144) (a CHECK); `position` the order compiled and added, from 0; instants in UTC | References only, never the source's words; append-only (never removed or changed); unique key and position per handover; readable only by those who can see the person |
 | `handover.compiled_at`, `refreshed_at`, `locked_at` | Instants in UTC | Notes close at `locked_at` or the shift's end; late additions and acknowledgements continue |
 | `handover_note.item_key`, `person_id`, `body` | The key of a `handover_item` of the same handover (a composite foreign key), or empty for the whole handover; the item's person, set from the item by a trigger; free text up to 2,000 characters | Append-only |
 | `handover_acknowledgement.item_keys`, `acknowledged_at` | The keys of the items the person could see when they acknowledged (recorded by the server, never sent by the device); server time in UTC | Append-only; one row per acknowledgement, so a late addition asks again |
@@ -577,7 +577,7 @@ tenant export with these names.
 | --- | --- | --- | --- |
 | `downtime_pack.source` | Harbour | `server_nightly`, `server_rebuild` (the system again after someone moved or their status changed; migration 0055), `server_on_demand`, `kiosk_cache` | |
 | `downtime_pack.generated_at`, `as_at`, `valid_until` | Harbour | ISO 8601 UTC; shown dd/mm/yyyy hh:mm UK time | `valid_until` = `as_at` + `downtime_pack.valid_hours` |
-| `downtime_pack` content sections | Harbour; allergies as `allergy`, communication needs as AIS, resuscitation as `advance_care_record`, IDDSI levels as the care profile (IDDSI framework codes, food and drink separately), care plan domains as the PRSB PCSP domains | `identity`, `allergies`, `resuscitation`, `iddsi_food`, `iddsi_drink`, `communication`, `evacuation`, `medicines_due`, `contacts`, `care_plan`, `risks`, each with status `included`, `not_recorded`, `held_elsewhere`, `withheld`, `conflicting` (resuscitation records that disagree) or `unreadable` (a stored value that is not a valid code) | The snapshot is stored as JSON only; the PDF is drawn on request and never stored (#45, #46). The resuscitation section lists every active ReSPECT and DNACPR record. Medicines due list scheduled doses (`due`, `given`, `not_given`) and PRN medicines with their last-given time, dm+d-coded from Phase 2 |
+| `downtime_pack` content sections | Harbour; allergies as `allergy`, communication needs as AIS, resuscitation as `advance_care_record`, IDDSI levels as the care profile (IDDSI framework codes, food and drink separately), care plan domains as the PRSB PCSP domains | `identity`, `allergies`, `resuscitation`, `iddsi_food`, `iddsi_drink`, `communication`, `evacuation`, `medicines_due`, `contacts`, `care_plan`, `risks`, each with status `included`, `not_recorded`, `held_elsewhere`, `withheld`, `conflicting` (resuscitation records that disagree) or `unreadable` (a stored value that is not a valid code) | The snapshot is stored as JSON only; the PDF is drawn on request and never stored (#45, #46). The resuscitation section lists every active ReSPECT and DNACPR record. Medicines due list scheduled doses (`due`, `given`, `not_given`) and PRN medicines with their last-given time, dm+d-coded from Phase 2. From slice 49, from the eMAR: a dose still open from before carries `outstanding`, a dose of an entry that may not be given now `onHold`, the entry's notice `notice`, and the list carries `producedAt` (when it was read); `medicines_due` may be `unreadable` (with warning `medicines_unreadable`) when the eMAR could not be read; a held when-required medicine carries `onHold` and `notice`. The stored content also holds `buildSnapshot`, the database snapshot the pack was built from (`xmin:xmax:xip`, migration 0144), never shown. The transfer pack's `medicines` from the eMAR (`source: "emar"`) carries `producedAt` and, per item, `lastGivenAt` and `status` (the home's record of the entry in words); the attention code `medicines_emar_unreadable` says when the eMAR could not be read (medicines.md section 16) |
 | Location settings `downtime.mar_location`, `downtime.peep_location` | Harbour | Plain text, worded for the printed page | Where the paper MAR and the PEEPs are kept until the eMAR (Phase 2) and PEEPs (Phase 3) |
 | `outage.kind` | Harbour | `power`, `network`, `harbour_unavailable`, `device_failure`, `planned_maintenance`, `other` | With a free-text description |
 | `outage.started_at`, `ended_at`, `declared_at`, `closed_at`, `back_entry_due_at` | Harbour | ISO 8601 UTC | `ended_at` null while open; the outage window used by back-entry |
@@ -1386,6 +1386,38 @@ is exported. Dates are UK dates; times are instants in UTC, shown in UK time, 24
 | `homely_remedy_protocol.dose_quantity`, `max_daily_quantity`, `min_interval_hours`, `max_days` | Harbour | Numeric in `unit_name`; hours; days | The home's figures, agreed with a GP or pharmacist; `max_days` within `medicines.homely_remedy.max_days_ceiling`. |
 | `homely_remedy_administration.outcome` | Harbour | `given`, `entered_in_error` | A record entered in error stays, struck through, and no longer counts. |
 | `homely_remedy_administration.allergies_checked`, `already_given_reason`, `flags` | Harbour | Boolean; text; array of `HomelyDoseProblem` codes | Flags only on a dose already given outside the protocol, with its reason. |
+
+## Integrations: Thapsus-HR link (Phase 2, slice 87)
+
+Fields for [integrations.md](integrations.md#11-thapsus-hr-link-intg-014) section 11 (migration
+0141). Identifiers only: Thapsus-HR's names, emails and dates of birth are read to match and never
+stored. Exported in the full tenant export with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `hr_person_link.hr_employee_id`, `employee_number` | Thapsus-HR (the employee's identifier and number) | `^[A-Za-z0-9_-]{1,64}$`; `^[A-Za-z0-9_/-]{1,40}$` | One link per Thapsus-HR employee; one linked employee per staff file |
+| `hr_person_link.state`, `match_method`, `review_reason` | Harbour | `linked`, `review`, `rejected`; `employee_number`, `email_and_birth_date`, `manual`, `starter`; `conflict`, `ambiguous`, `already_linked`, `no_match` | Never matched by name (rule 3); `manual` needs who confirmed it and when |
+| `hr_person_link.leaving_on` | Thapsus-HR | `YYYY-MM-DD` | The earliest leaving date given; never moved later (rule 8) |
+| `hr_location_link.hr_location_id` | Thapsus-HR | `^[A-Za-z0-9_-]{1,64}$` | One each way |
+| `hr_sync_state.kind`, `last_error_code` | Harbour | `employees`, `locations`, `absences`, `rates`; `^[a-z_]{1,40}$` | An opaque code, never a message |
+| `hr_delivery.kind`, `state` | Harbour | `starter`, `shift`, `clock_event`, `pay_units`; `pending`, `sent`, `failed`, `refused` | The idempotency key is a UUID; sent only with Thapsus-HR's identifier |
+| `hr_delivery.payload_sha256` | Harbour | 64 lower-case hex characters | Digest of what was last sent (slice 88, migration 0142) |
+| `absence.source`, `absence.hr_id` | Harbour; Thapsus-HR | `harbour` or `thapsus_hr`; `^[A-Za-z0-9_-]{1,64}$` | A Thapsus-HR copy is annual leave, sickness or other, recorded or cancelled, with no decider (slice 88, migration 0142) |
+
+## PRN protocols and outcomes (Phase 2, slice 28)
+
+Migration 0143 ([medicines.md](medicines.md) section 16). Retention class `mar_chart` (medicine
+lists: `organisation_document`); every column is exported.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `medicine_list_item.list`, `vmp_id` | Harbour (ADR-0082); dm+d VMP | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic`; SNOMED CT concept id | Exact products only. |
+| `prn_protocol.triggers`, `non_drug_alternatives` | Harbour | Arrays of text | Staff's words; never Harbour's suggestion. |
+| `prn_protocol.purpose_group`, `order_of_use` | Harbour | Text; integer from 1 | One medicine per place in a group. |
+| `prn_protocol.agreed_with_role` | Harbour | `prescriber`, `pharmacist` | |
+| `prn_protocol.agreed_on`, `review_on`, `withdrawn_on` | ISO 8601 date | UK date | Review within `medicines.prn_protocol.review_max_days`. |
+| `prn_outcome.outcome` | Harbour; PRSB eMAR (not yet coded) | `effective`, `partly_effective`, `not_effective`, `person_asleep`, `could_not_assess` | Shown in words (`PRN_OUTCOME_WORDS`). |
+| `prn_outcome.observed_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
 
 ## Platform operational tables (not part of the MODS export)
 
