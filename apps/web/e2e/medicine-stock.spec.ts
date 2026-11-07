@@ -179,9 +179,7 @@ test("hazard HZ-132 hazard HZ-003 the manager orders, receives, counts and dispo
   await record.getByRole("button", { name: "Record reading" }).click();
   // The state and the figures take focus, so they are read out; the web names no direction (HZ-132).
   await expect(record.getByText("Out of range", { exact: true })).toBeVisible();
-  await expect(
-    record.locator("div[tabindex='-1']").filter({ hasText: "Out of range" }),
-  ).toBeFocused();
+  await expect(record.getByRole("region", { name: "The reading just recorded" })).toBeFocused();
   // The API's own words on what happens next; never whether the medicines can be used.
   await expect(record.getByText(/asked to check the storage and ask the pharmacist/)).toBeVisible();
   const readings = main(manager).getByRole("region", { name: "Latest readings" });
