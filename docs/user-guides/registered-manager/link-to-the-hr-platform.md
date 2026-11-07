@@ -30,8 +30,12 @@ organisation.
 
 ## Good to know
 
-- **Managed in the HR platform**: an absence or pay run that comes from, or is paid through, the
-  HR platform carries this label. Change it in the HR platform; Harbour follows at the next sync.
+- **Managed in the HR platform**: an absence copied from the HR platform carries this label.
+  Change it in the HR platform; Harbour follows at the next sync. A pay run paid through the HR
+  platform carries it too: the run is still made and checked in Harbour, and only its units go to
+  the HR platform.
+- The staff file has no screen in Harbour yet, so its label, and withdrawing a wrong leaving date,
+  come with that screen.
 - When the HR platform's data is older than your limit, the rota and staffing screens say so in
   words with the time. Absences already known still keep people off the rota.
 - Nobody is matched by name. You never confirm a match to your own staff file, and a leaver's match

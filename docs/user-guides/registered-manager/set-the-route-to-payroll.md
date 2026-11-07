@@ -30,5 +30,6 @@ both manages the link and approves pay.
 - A run cannot be locked until every kind of unit has a pay code and everyone in it is matched. The
   pay codes in force when it is locked are the ones sent.
 - If the link is off when you draft a run for a period set to the HR platform, Harbour asks you to
-  wait or confirm the payroll export instead.
+  wait or confirm the payroll export instead. Only someone who approves pay can confirm it, after
+  confirming it is them; the run then pays through the export.
 - Pay through the HR platform is not available until the HR platform offers it.

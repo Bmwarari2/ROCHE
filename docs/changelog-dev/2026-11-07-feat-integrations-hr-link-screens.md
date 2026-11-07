@@ -29,6 +29,20 @@ INTG-014; HZ-133, HZ-140. Built on slice 89 (feat/integrations-hr-link-pay).
   releasing absence copies.
 - Playwright with axe in light and dark: refused, not turned on, absences unchanged.
 
+## Reviews
+
+- Security reviewer, request changes (fixed): the held list needs a fresh step-up, is limited to 6
+  a minute per person and audited; confirming the export needs a pay approver with step-up and is
+  audited only when it overrides, with the intended route; rates retired only after a whole clean
+  read and only while Thapsus-HR owns them; a not-found cancellation is done only when Thapsus-HR
+  had acknowledged the shift (otherwise raised for review).
+- Clinical safety reviewer, request changes (fixed): a rate a past period's correction needs is
+  never retired; the "link down" refusal is explained in the web with a confirm for pay approvers;
+  the guides say what the screens do (pay run label, staff file still to come, held list while
+  connected or disconnected); each held copy shows whose it is.
+- Accessibility reviewer, request changes (fixed): Storybook stories with axe for the linked
+  states; focus kept on check and sync; wording, pending labels, `<time>` dates and the date hint.
+
 ## Left
 
 - The staff file has no web screen yet: its "Managed in the HR platform" label and the
