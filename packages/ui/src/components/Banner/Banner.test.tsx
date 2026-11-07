@@ -35,4 +35,9 @@ describe("Banner", () => {
     expect(alert).toHaveTextContent("This information may be out of date");
     expect(alert).toHaveTextContent("Last updated 03/10/2026 09:15");
   });
+  it("has no live region for a banner already on the page, still with its icon and words", () => {
+    render(<Banner variant="stale" announce={false} title="Out of date" />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("Out of date")).toBeTruthy();
+  });
 });

@@ -116,11 +116,13 @@ export function medsRecentDays(now: Date): string[] {
 }
 
 /**
- * The UTC months that cover `medsRecentDays` (`meds_recent_months`; at most three): the assigned
- * medicines streams sync administrations per person and month, not per person and day, so a phone
- * stays far under PowerSync's buckets per connection (ADR-0130). Assigned people's phones may hold
- * up to the start of the earliest month; the phone counts only the 35 days.
+ * The ten-day blocks (`yyyy-mm-d`, the first nine characters of a UTC date) that hold a window's
+ * days (`offline_blocks`, `meds_recent_blocks`): the assigned streams key their buckets by person
+ * and block, not by person and day, so a phone stays far under PowerSync's buckets per connection
+ * (ADR-0134). Blocks hold 9, 10, 10 and 1 or 2 days, so a 32-day window spans at most six (across
+ * February); the phone may hold up to nine days either side of the window, and shows only the
+ * window.
  */
-export function medsRecentMonths(now: Date): string[] {
-  return [...new Set(medsRecentDays(now).map((d) => d.slice(0, 7)))];
+export function offlineWindowBlocks(days: readonly string[]): string[] {
+  return [...new Set(days.map((d) => d.slice(0, 9)))];
 }

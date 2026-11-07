@@ -256,6 +256,10 @@ async function beforePack(c: Context<AppEnv>, access: TenantAccess, personId: st
   await decidePhotoPrintable((fn) => withTenant(c, fn), c.get("services").storage, personId);
 }
 
+/** Whether the pack's medicines are not from the eMAR because it could not be read (HZ-023). */
+const emarUnreadable = (pack: HospitalTransferPack) =>
+  pack.attention.some((a) => a.code === "medicines_emar_unreadable");
+
 async function packFor(
   tx: Transaction,
   p: PersonRecord,
@@ -314,11 +318,19 @@ async function previewPack(
       body.sendItemIds,
       new Date(),
     );
+    // Ids only: the eMAR could not be read, so the medicines are the earlier list (slice 49 B2).
+    const medicinesEmarUnreadable = emarUnreadable(assembled);
+    if (medicinesEmarUnreadable) {
+      c.get("services").logger.warn(
+        { requestId: c.get("requestId"), personId: id },
+        "transfer pack medicines unreadable",
+      );
+    }
     await audit(c, tx, access, {
       action: "people.transfer_pack.preview",
       resourceType: "person",
       resourceId: id,
-      scope: { missingCritical: assembled.missingCritical.length },
+      scope: { missingCritical: assembled.missingCritical.length, medicinesEmarUnreadable },
     });
     return toJson(assembled) as HospitalTransferOut["pack"];
   });
@@ -505,6 +517,14 @@ export const peopleTransfersRouter = createRouter()
             .set({ status: "sent_with_person", hospitalTransferId: row.id })
             .where(inArray(propertyItem.id, body.sendItemIds));
         }
+        // The pack that travels: ids only when the eMAR could not be read (slice 49 security A).
+        const medicinesEmarUnreadable = emarUnreadable(pack);
+        if (medicinesEmarUnreadable) {
+          c.get("services").logger.warn(
+            { requestId: c.get("requestId"), personId: id, transferId: row.id },
+            "transfer pack medicines unreadable",
+          );
+        }
         await audit(c, tx, access, {
           action: "people.hospital_transfer.create",
           resourceType: "hospital_transfer",
@@ -513,6 +533,7 @@ export const peopleTransfersRouter = createRouter()
             recipient: body.hospitalName,
             odsCode: body.hospitalOdsCode ?? null,
             missingCritical: pack.missingCritical.length,
+            medicinesEmarUnreadable,
           },
         });
         return transferOut(row);

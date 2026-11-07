@@ -14,7 +14,7 @@ import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import {
   medsRecentDays,
-  medsRecentMonths,
+  offlineWindowBlocks,
   offlineWindowDays,
   SYNC_TOKEN_AUDIENCE,
   SYNC_TOKEN_ISSUER,
@@ -598,6 +598,12 @@ describe("offline sync", () => {
     );
     const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
     expect(payload.offline_days).toEqual(offlineWindowDays(new Date(), Number(rate.value)));
+    // The assigned streams' ten-day blocks, from the same days (ADR-0134).
+    expect(payload.offline_blocks).toEqual(
+      offlineWindowBlocks(offlineWindowDays(new Date(), Number(rate.value))),
+    );
+    // A care worker opens the handovers of the homes their assigned people live at.
+    expect((payload.handover_assigned_location_ids as string[]).length).toBeGreaterThan(0);
   });
 
   // Scheduling.md section 18: the member's own shifts and clock events sync for these days only.
@@ -620,7 +626,9 @@ describe("offline sync", () => {
     expect(carer.payload.meds_assigned).toBe(true);
     expect(carer.payload.meds_location_ids).toEqual([]);
     expect(carer.payload.meds_recent_days).toEqual(medsRecentDays(new Date()));
-    expect(carer.payload.meds_recent_months).toEqual(medsRecentMonths(new Date()));
+    expect(carer.payload.meds_recent_blocks).toEqual(
+      offlineWindowBlocks(medsRecentDays(new Date())),
+    );
     // An owner who does not give medicines receives none.
     const owner = await jwtVerify(
       (await json<SyncToken>(await demo("owner", "/v1/sync/token", { method: "POST" }))).token,
@@ -631,7 +639,7 @@ describe("offline sync", () => {
       (owner.payload.meds_location_ids as string[]).length === 0
     ) {
       expect(owner.payload.meds_recent_days).toEqual([]);
-      expect(owner.payload.meds_recent_months).toEqual([]);
+      expect(owner.payload.meds_recent_blocks).toEqual([]);
     }
   });
 

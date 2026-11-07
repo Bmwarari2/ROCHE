@@ -129,10 +129,11 @@ export function roundTimes(
 export const EARLIER_PLAN_NOTICE = "From an earlier plan: check the current plan";
 
 /**
- * Shown on a medicines action, in the plan and on the round, until the eMAR makes the dose rounds
- * (HZ-003, H-151).
+ * Shown on a medicines action, in the plan and on the round (HZ-003, H-151): the plan describes
+ * the support, and the dose rounds come from the eMAR (slices 22 and 48), never from the plan, so
+ * a medicines action still never generates tasks (slice 49).
  */
-export const NOT_A_ROUND_NOTICE = "Not a round: see the medicines record";
+export const NOT_A_ROUND_NOTICE = "Not a round: medicines rounds are on the eMAR";
 
 /** The notice a care plan round carries: none while its action is in the active plan. */
 export function planRoundNotice(input: {

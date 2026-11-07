@@ -20,7 +20,7 @@ import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
 import { importBatch } from "./imports";
 import { person, placement } from "./people";
 import { hospitalTransfer } from "./people-lifecycle";
-import { document, location, tenantUser } from "./platform";
+import { document, tenantUser } from "./platform";
 
 /**
  * The medicines record and reconciliation (medicines.md section 2; MEDS-001; slice 16). The rules
@@ -646,11 +646,11 @@ export const medicationAdministration = pgTable(
     /** The entry version the dose was recorded against. */
     medicationId: uuid("medication_id").notNull(),
     /**
-     * The person's home when the record was stored, set by the database (migration 0150): the
-     * phone's medicines streams sync administrations per home and day, not per person and day,
-     * to keep the buckets per connection low (ADR-0130).
+     * The home whose phones hold the record (migration 0146; ADR-0134): the person's home while
+     * they receive care, else none, set and moved by the database for records in the sync window
+     * (HZ-138).
      */
-    locationId: uuid("location_id").notNull(),
+    syncLocationId: uuid("sync_location_id"),
     /** The scheduled dose; null for a when-required dose. */
     dueAt: timestamp("due_at", { withTimezone: true }),
     outcome: text("outcome").notNull(),
@@ -723,12 +723,6 @@ export const medicationAdministration = pgTable(
       .on(t.tenantId, t.supersedesId)
       .where(sql`supersedes_id IS NOT NULL`),
     index("medication_administration_person_idx").on(t.tenantId, t.personId, t.givenAt),
-    foreignKey({
-      name: "medication_administration_location_fk",
-      columns: [t.tenantId, t.locationId],
-      foreignColumns: [location.tenantId, location.id],
-    }),
-    index("medication_administration_location_idx").on(t.tenantId, t.locationId, t.recordedAt),
     check("medication_administration_outcome", sql.raw(`outcome IN (${OUTCOMES})`)),
     check(
       "medication_administration_amount",

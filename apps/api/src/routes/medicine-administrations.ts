@@ -40,7 +40,7 @@ import {
   variableDoseFor,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, auditInTx, withAuditedRefusal } from "../http/audit";
 import {
@@ -332,8 +332,6 @@ async function store(
       .values({
         id: args.id,
         personId: args.personId,
-        // The database sets the person's home (migration 0150); this names it for the types.
-        locationId: sql`(SELECT location_id FROM person WHERE id = ${args.personId})`,
         medicationId: (i.entry as MarEntry).id,
         dueAt: i.dueAt,
         outcome: i.outcome as string,

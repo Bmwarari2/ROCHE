@@ -7,10 +7,12 @@ import {
   createDocumentServices,
   createExportStorage,
 } from "../integrations/documents";
+import { createHrLinkServices } from "../integrations/hr-link";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { backupDays } from "../services/certificates";
 import { sweepInvitations } from "../services/invitations";
+import { configureMedicinesOutputs } from "../services/medicines-outputs";
 import { checkDmdFreshness, RETIRED_DMD_QUEUE } from "./dmd";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
@@ -48,6 +50,7 @@ import {
   sweepEvidenceBundlesJob,
   sweepLeaverAccess,
   sweepLoneWorkersJob,
+  syncHrLinks,
 } from "./tasks";
 
 /**
@@ -58,6 +61,7 @@ const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL);
 // Both buckets checked before the worker deletes or writes anything (#164 security review, L1).
 await assertStorageReady(config);
+configureMedicinesOutputs({ historyDays: config.MEDICINES_OUTPUT_HISTORY_DAYS });
 const workerPool = createPool(
   config.DATABASE_WORKER_URL,
   { max: 4 },
@@ -75,6 +79,10 @@ const deps = {
   authPool,
   exportStorage: createExportStorage(config),
   // The documents bucket: the export reads it, and destroyed documents' bytes are deleted from it.
+  hrLink: createHrLinkServices({
+    production: config.NODE_ENV === "production",
+    domain: config.THAPSUS_HR_DOMAIN ?? null,
+  }),
   storage: documents.storage,
   // Completes approved crypto-shreds the API could not finish (PLAT-012, ADR-0109).
   tenantKeys: documents.tenantKeys,
@@ -104,6 +112,7 @@ const QUEUES = {
   policyReminders: "policy-reminders",
   developmentExpiry: "development-expiry-reminders",
   leaverAccess: "leaver-access",
+  hrLinkSync: "hr-link-sync",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
   candourBlocked: "candour-blocked-incidents",
@@ -192,6 +201,9 @@ await work(QUEUES.developmentExpiry, async () => {
 });
 await work(QUEUES.leaverAccess, async () => {
   await sweepLeaverAccess(deps);
+});
+await work(QUEUES.hrLinkSync, async () => {
+  await syncHrLinks(deps);
 });
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
@@ -307,6 +319,10 @@ await boss.schedule(QUEUES.developmentExpiry, "21 * * * *");
 // Leavers' access (workforce.md rule 22), hourly at 7 past: ended within the first hour of the
 // day after the leaving date.
 await boss.schedule(QUEUES.leaverAccess, "7 * * * *");
+// The Thapsus-HR link (integrations.md section 11.2): employees, absences and the rota every 5
+// minutes, inside the 10-minute floor of the staleness limit, so a quiet link is not shown as out
+// of date (rule 9).
+await boss.schedule(QUEUES.hrLinkSync, "*/5 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
 await boss.schedule(QUEUES.herbertReviews, "31 4 * * *");

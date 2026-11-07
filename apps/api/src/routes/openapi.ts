@@ -22,7 +22,7 @@ export const jsonBody = <T extends z.ZodType>(schema: T, description: string) =>
   description,
 });
 
-const problem = (description: string) => ({
+export const problem = (description: string) => ({
   content: { "application/problem+json": { schema: ProblemDetails } },
   description,
 });

@@ -56,6 +56,8 @@ export * from "./medicines/homely-remedies";
 export * from "./medicines/intervals";
 export * from "./medicines/mar-entry";
 export * from "./medicines/medication-review";
+export * from "./medicines/outputs";
+export * from "./medicines/prn-protocol";
 export * from "./medicines/rates";
 export * from "./medicines/reconciliation";
 export * from "./medicines/schedule";

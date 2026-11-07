@@ -51,7 +51,7 @@ export const NotARound = z
     domain: PcspDomain,
     action: z.string().meta({ description: "What staff do, as the active plan words it" }),
     whenText: z.string().nullable(),
-    /** "Not a round: see the medicines record" (HZ-003). */
+    /** "Not a round: medicines rounds are on the eMAR" (HZ-003). */
     notice: z.string(),
   })
   .meta({
@@ -74,7 +74,7 @@ export const RoundStop = z
     /** The point-of-care header (HZ-001, HZ-007, HZ-015); null for tasks about no person. */
     person: PersonSummary.nullable(),
     tasks: z.array(RoundTask),
-    /** The person's active plan actions that are not rounds: see the medicines record (HZ-003). */
+    /** The person's active plan actions that are not rounds: medicines rounds are on the eMAR (HZ-003). */
     notRounds: z.array(NotARound),
   })
   .meta({ id: "RoundStop" });
@@ -133,7 +133,15 @@ export const HandoverItemKind = z
   });
 
 export const HandoverSourceType = z
-  .enum(["task", "observation", "incident", "body_map_mark", "care_note", "notification"])
+  .enum([
+    "task",
+    "observation",
+    "incident",
+    "body_map_mark",
+    "care_note",
+    "notification",
+    "medication_administration",
+  ])
   .meta({ id: "HandoverSourceType" });
 
 export const HandoverItem = z

@@ -128,7 +128,12 @@ const DAY_MS = 86_400_000;
  * published shift as changed since publication. Returns how many were raised; each is an outbox
  * event for the rota's managers.
  */
-export async function raiseCoverNeeds(tx: Transaction, row: AbsenceRow): Promise<number> {
+export async function raiseCoverNeeds(
+  tx: Transaction,
+  row: AbsenceRow,
+  /** `hr_link`: the Thapsus-HR link's sync raises it for a Thapsus-HR absence (migration 0142). */
+  via: "person" | "hr_link" = "person",
+): Promise<number> {
   const from = new Date(Date.parse(`${row.startsOn}T00:00:00Z`) - 2 * DAY_MS);
   const live = await withSystemRights(tx, () =>
     tx
@@ -172,7 +177,9 @@ export async function raiseCoverNeeds(tx: Transaction, row: AbsenceRow): Promise
     const at = live.find((l) => l.assignmentId === n.assignmentId);
     if (!at) continue;
     const made = await tx.execute<{ id: string | null }>(
-      sql`SELECT app.raise_cover_need(${n.assignmentId}::uuid, ${row.id}::uuid) AS id`,
+      via === "hr_link"
+        ? sql`SELECT app.raise_hr_cover_need(${n.assignmentId}::uuid, ${row.id}::uuid) AS id`
+        : sql`SELECT app.raise_cover_need(${n.assignmentId}::uuid, ${row.id}::uuid) AS id`,
     );
     const coverNeedId = made.rows[0]?.id;
     if (!coverNeedId) continue;

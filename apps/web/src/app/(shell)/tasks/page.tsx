@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TaskEvidenceBadge } from "@/components/care/LifecycleBadges";
 import { TaskDetails } from "@/components/care/TaskDetails";
+import { HrLinkStaleness } from "@/components/rota/HrLinkStaleness";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
@@ -228,6 +229,7 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader eyebrow={me.tenant.name} title={title} description={t("tasks.description")} />
+      <HrLinkStaleness api={api} />
       {done && DONE.has(done) ? (
         <RecordedArrival message={t("tasks.done", { done })} param="done" />
       ) : null}

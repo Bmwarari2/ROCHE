@@ -418,7 +418,7 @@ async function leavingOf(tx: Transaction, profileId: string): Promise<LeavingDet
  * `staff_file.after_leaving` row when it set one, else the default to the 75th birthday; H-874),
  * and the birthday age from the rate table.
  */
-async function retainUntil(
+export async function retainUntil(
   tx: Transaction,
   tenantId: string,
   profile: StaffProfileRow,

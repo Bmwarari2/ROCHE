@@ -5,11 +5,12 @@ import { fileURLToPath } from "node:url";
 export {
   isValidWindowDays,
   medsRecentDays,
-  medsRecentMonths,
   OFFLINE_WINDOW_RATE_KEY,
+  offlineWindowBlocks,
   offlineWindowDays,
   shiftWindowDays,
 } from "../client/window";
+export { type BucketEstimateInput, estimateBuckets, SYNC_BUCKET_LIMIT } from "./budget";
 
 /** Absolute path of the sync streams definition mounted into the PowerSync service. */
 export const SYNC_CONFIG_PATH = fileURLToPath(new URL("./sync-config.yaml", import.meta.url));
@@ -73,6 +74,15 @@ export interface SyncTokenClaims {
    */
   readonly offline_days: readonly string[];
   /**
+   * The homes where the member's assigned people live, when `handover_assigned`: the handovers
+   * they may open there, and those handovers' own notes, sync per home and day (ADR-0134).
+   */
+  readonly handover_assigned_location_ids?: readonly string[];
+  /** Whether tasks about nobody given to the member sync (care.plan.read reaching assigned people). */
+  readonly care_own_tasks?: boolean;
+  /** Ten-day blocks of the offline window (`offlineWindowBlocks`), for the assigned streams. */
+  readonly offline_blocks?: readonly string[];
+  /**
    * The UTC days of the member's own shifts and clock events (`shift_days`, scheduling.md section
    * 18): empty unless the member holds `scheduling.timesheet.self`, so no shift syncs (fails closed).
    */
@@ -83,8 +93,8 @@ export interface SyncTokenClaims {
   readonly meds_assigned?: boolean;
   /** UTC days of the administrations that sync (`medsRecentDays`); empty syncs none. */
   readonly meds_recent_days?: readonly string[];
-  /** UTC months (yyyy-mm) of the assigned people's administrations (`medsRecentMonths`). */
-  readonly meds_recent_months?: readonly string[];
+  /** Ten-day blocks of `meds_recent_days`, for the assigned people's administrations. */
+  readonly meds_recent_blocks?: readonly string[];
   /**
    * The day and night shift start times (minutes after midnight, UK time) of each nation the
    * organisation has homes in (`england`, `wales` and so on), from the rate table, sent where the

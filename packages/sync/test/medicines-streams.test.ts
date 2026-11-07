@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { medsRecentDays, medsRecentMonths } from "../src/client/window";
+import { medsRecentDays, offlineWindowBlocks } from "../src/client/window";
 import { readSyncConfig, type SyncTokenClaims } from "../src/streams/index";
 import { compile, ids, type SourceRows, syncFor } from "./support/simulator";
 
@@ -22,7 +22,7 @@ const NORTH = "loc-a-north";
 const SOUTH = "loc-a-south";
 const NOW = new Date("2026-11-06T10:00:00Z");
 const DAYS = medsRecentDays(NOW);
-const MONTHS = medsRecentMonths(NOW);
+const BLOCKS = offlineWindowBlocks(DAYS);
 
 const person = (id: string, tenant: string, location: string, status = "active") => ({
   id,
@@ -65,19 +65,10 @@ const medication = (id: string, tenant: string, personId: string, state = "check
   deleted_at: null,
 });
 
-const HOMES: Record<string, string> = {
-  ada: NORTH,
-  bea: NORTH,
-  cal: NORTH,
-  dee: SOUTH,
-  eve: NORTH,
-};
-
 const administration = (id: string, tenant: string, personId: string, recordedAt: string) => ({
   id,
   tenant_id: tenant,
   person_id: personId,
-  location_id: HOMES[personId] ?? null,
   medication_id: "m-ada",
   due_at: recordedAt,
   outcome: "given",
@@ -357,7 +348,7 @@ const claims = (overrides: Partial<SyncTokenClaims> = {}): Partial<SyncTokenClai
   meds_location_ids: [],
   meds_assigned: true,
   meds_recent_days: DAYS,
-  meds_recent_months: MONTHS,
+  meds_recent_blocks: BLOCKS,
   ...overrides,
 });
 
@@ -399,7 +390,7 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     ]);
   });
 
-  it("gives an assigned person's administrations recorded in the token's months (covering the 35 days)", async () => {
+  it("gives an assigned person's administrations recorded in the token's ten-day blocks (covering the 35 days)", async () => {
     const device = await syncFor(hydrated, source, claims());
     expect(ids(device, "medication_administration")).toEqual([
       "a-ada-month",
@@ -407,11 +398,11 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       "a-ada-today",
       "a-ada-two-days",
     ]);
-    const none = await syncFor(hydrated, source, claims({ meds_recent_months: [] }));
+    const none = await syncFor(hydrated, source, claims({ meds_recent_blocks: [] }));
     expect(ids(none, "medication_administration")).toEqual([]);
   });
 
-  it("gives the administrations at the token's homes recorded on the token's days, by the row's own home", async () => {
+  it("gives the administrations at the token's homes recorded in the token's ten-day blocks, by the row's own home", async () => {
     const device = await syncFor(
       hydrated,
       source,
@@ -425,7 +416,7 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
         sub: "nurse",
         meds_assigned: false,
         meds_location_ids: [SOUTH],
-        meds_recent_days: [],
+        meds_recent_blocks: [],
       }),
     );
     expect(ids(none, "medication_administration")).toEqual([]);
@@ -455,6 +446,8 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     ]);
     expect(ids(device, "medication_administration")).toEqual([
       "a-ada-month",
+      // Recorded 35 days ago: its ten-day block is in the window, so the home's phones hold it.
+      "a-ada-old",
       "a-ada-today",
       "a-ada-two-days",
       "a-bea-today",
@@ -479,7 +472,7 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       meds_assigned: true,
       meds_location_ids: [NORTH, SOUTH],
       meds_recent_days: ["2026-11-01"],
-      meds_recent_months: ["2026-09"],
+      meds_recent_blocks: ["2026-09-1"],
       tenant_id: B,
     });
     expect(ids(device, "medication")).toEqual([
@@ -520,7 +513,7 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     }
   });
 
-  it("keeps the administrations buckets per home and day, or per assigned person and month, at a 120-bed home (ADR-0130)", async () => {
+  it("keeps the administrations buckets per home and day, or per assigned person and ten-day block, at a 120-bed home, by block at both (ADR-0130)", async () => {
     const beds = Array.from({ length: 120 }, (_, i) => person(`r${i}`, A, NORTH));
     const big: SourceRows = {
       person: beds,
@@ -539,11 +532,11 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       big,
       claims({ sub: "nurse", meds_assigned: false, meds_location_ids: [NORTH] }),
     );
-    expect(count(nurse.buckets)).toBe(DAYS.length);
-    // Assigned to every resident: at most three months each, never 35 days each.
+    expect(count(nurse.buckets)).toBe(BLOCKS.length);
+    // Assigned to every resident: at most six blocks each, never 35 days each.
     const carer = await syncFor(hydrated, big, claims());
-    expect(count(carer.buckets)).toBeLessThanOrEqual(120 * MONTHS.length);
-    expect(MONTHS.length).toBeLessThanOrEqual(3);
+    expect(count(carer.buckets)).toBeLessThanOrEqual(120 * BLOCKS.length);
+    expect(BLOCKS.length).toBeLessThanOrEqual(6);
   });
 
   it("hazard HZ-002 sends medicines and allergies first", () => {
@@ -580,10 +573,22 @@ describe("the medicines window", () => {
   });
 
   it.each([
-    ["mid-month", "2026-11-20T09:00:00Z", ["2026-10", "2026-11"]],
-    ["early March after February", "2027-03-01T09:00:00Z", ["2027-01", "2027-02", "2027-03"]],
-    ["across a year", "2027-01-10T09:00:00Z", ["2026-12", "2027-01"]],
-  ])("names the months that cover the 35 days (%s)", (_case, now, months) => {
-    expect(medsRecentMonths(new Date(now))).toEqual(months);
+    [
+      "mid-month",
+      "2026-11-20T09:00:00Z",
+      ["2026-10-1", "2026-10-2", "2026-10-3", "2026-11-0", "2026-11-1", "2026-11-2"],
+    ],
+    [
+      "early March after February",
+      "2027-03-01T09:00:00Z",
+      ["2027-01-2", "2027-01-3", "2027-02-0", "2027-02-1", "2027-02-2", "2027-03-0"],
+    ],
+    [
+      "across a year",
+      "2027-01-10T09:00:00Z",
+      ["2026-12-0", "2026-12-1", "2026-12-2", "2026-12-3", "2027-01-0", "2027-01-1"],
+    ],
+  ])("names the ten-day blocks that cover the 35 days, at most six (%s)", (_case, now, blocks) => {
+    expect(offlineWindowBlocks(medsRecentDays(new Date(now)))).toEqual(blocks);
   });
 });

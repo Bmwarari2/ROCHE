@@ -32,6 +32,7 @@ import {
 } from "@harbour/domain";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { capacityViews } from "./mca";
+import { emarFacts, transferMedicinesFrom } from "./medicines-outputs";
 import { isPrintableImage } from "./pdf";
 import type { PersonRecord } from "./people";
 import { ukDate } from "./transfer-pack-pdf";
@@ -274,7 +275,7 @@ export async function transferPackInput(
     p.allergyStatusConfirmedAt,
   );
 
-  // Medicines: the pre-admission list until the eMAR (Phase 2).
+  // Medicines: the pre-admission list, until the person has an entry on the eMAR.
   const [assessment] = await tx
     .select()
     .from(preAdmissionAssessment)
@@ -283,11 +284,29 @@ export async function transferPackInput(
     .limit(1);
   const sections = (assessment?.sections ?? {}) as Record<string, MedicinesSection>;
   const medicinesSection = sections.medicines;
-  const medicines: HospitalTransferInput["medicines"] = {
-    personId: assessment?.personId ?? p.id,
-    asOf: medicinesSection?.completedAt ? new Date(medicinesSection.completedAt) : null,
-    data: medicinesFrom(medicinesSection),
-  };
+  // From the eMAR once the person has an entry on it (slice 49; HZ-023, H-82): the medicines in
+  // force now, each with when it was last taken, and the time it was read.
+  // A pack is needed in an emergency: if the eMAR cannot be read, it falls back to the
+  // pre-admission list, and the first page says the eMAR could not be read (slice 49 reviews B2
+  // and M2), so the earlier list is never mistaken for the current one (HZ-023).
+  let fromEmar: MedicinesStatement | null = null;
+  let emarUnreadable = false;
+  try {
+    fromEmar = await tx.transaction(async (sp) => {
+      const facts = await emarFacts(sp as unknown as Transaction, p.tenantId, p.id, now);
+      return facts ? transferMedicinesFrom(facts, now) : null;
+    });
+  } catch {
+    fromEmar = null;
+    emarUnreadable = true;
+  }
+  const medicines: HospitalTransferInput["medicines"] = fromEmar
+    ? { personId: p.id, asOf: now, data: fromEmar }
+    : {
+        personId: assessment?.personId ?? p.id,
+        asOf: medicinesSection?.completedAt ? new Date(medicinesSection.completedAt) : null,
+        data: medicinesFrom(medicinesSection),
+      };
 
   const communication = communicationStatementOf(p);
 
@@ -430,6 +449,7 @@ export async function transferPackInput(
     photo,
     allergies: { personId: p.id, asOf: allergiesAsOf, data: allergyStatement },
     medicines,
+    medicinesEmarUnreadable: emarUnreadable,
     communication: {
       personId: p.id,
       asOf: p.communicationNeedsConfirmedAt,

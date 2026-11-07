@@ -661,14 +661,14 @@ describe("hazard HZ-011 audit by id only", () => {
   });
 });
 
-describe("administrations carry the person's home (migration 0150; ADR-0130)", () => {
+describe("administrations carry the person's home for the phone (migration 0146; ADR-0134)", () => {
   it("stores every administration with the person's home, set by the database", async () => {
     const rows = await asDemo(
       async (c) =>
         (
           await c.query<{ total: string; wrong: string }>(
             `SELECT count(*) AS total,
-                    count(*) FILTER (WHERE a.location_id IS DISTINCT FROM p.location_id) AS wrong
+                    count(*) FILTER (WHERE a.sync_location_id IS DISTINCT FROM CASE WHEN p.status IN ('active', 'on_leave', 'in_hospital') THEN p.location_id END) AS wrong
                FROM medication_administration a JOIN person p ON p.id = a.person_id`,
           )
         ).rows[0],

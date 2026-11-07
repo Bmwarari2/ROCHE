@@ -28,6 +28,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Merge batch 3c (06/11/2026)
+
+`integration/phase-2-batch-3c`, from batch 3b: the Thapsus-HR link's slices 87 and 88 (0141,
+0142), PRN protocols (slice 28, 0143) and medicines in the Phase 1 outputs (slice 49, renumbered
+0145 to 0144). `feat/platform-member-lifecycle` is left out: it is a second design of H-566 beside
+0129, and its new parts are deferred to a rework on `app.change_membership`. An HR leaving is no
+longer withdrawn once access has ended (until reinstatement exists). The PR opens once #172 is on
+`main`. See `docs/changelog-dev/2026-11-06-integration-phase-2-batch-3c.md`.
+
 ## Merge batch 3b (06/11/2026)
 
 `integration/phase-2-batch-3b`, from batch 3a: migrations 0120 to 0140 (slice 38 renumbered from
@@ -139,14 +148,19 @@ Phases 3 to 7 are not started.
 
 **Added to the plan on 01/11/2026**: the Thapsus-HR link (INTG-014, ADR-0126), so a provider using
 both products shares rota, time, pay and staff records without exports. It is Phase 2 slices 86 to 90
-on `docs/plan-thapsus-hr-link`, and takes migration 0141 (0142 if needed), H-1340 to H-1345, HZ-133
-and DPIA risk R30.
+on `docs/plan-thapsus-hr-link`, and takes migration 0141 (0139 went to slice 71, 0140 to slice 38), H-1340 to H-1345,
+HZ-133 and DPIA risk R30. Slice 86 (port, mock, rules) is on `feat/integrations-hr-link-port`;
+slice 87 (connection, people, locations, the signed webhook, reconciliation; migration 0141) is on
+`feat/integrations-hr-link-connection`, branched from it. Next: slice 88 (absences and the rota's
+staleness notice). Harbour keeps the rota (confirmed 06/11/2026).
 
-**Next free numbers**: migration 0141, human actions block H-1350, hazard HZ-134, ADR-0127.
+**Next free numbers**: migration 0142, human actions block H-1350, hazard HZ-134, ADR-0127.
 
 **Human questions**: every open question takes its recommended answer until the testing-phase
-review ([recommended-answers.md](recommended-answers.md)). Ten Brian decisions still have no default:
-H-09, H-105, H-521, H-522, H-535, H-569, H-663, H-664, H-781 and H-829.
+review ([recommended-answers.md](recommended-answers.md)). The ten Brian decisions that had no default
+were answered on 06/11/2026 ([ADR-0132](../decisions/0132-owner-decisions-06-11.md)): SMS is deferred
+until after launch (H-09, H-105), and the other eight take their recommendation. Open clinical safety
+officer items are provisional owner-accepted recommendations, pending CSO review at the testing phase.
 
 ## Where to pick up (resumed 31/10/2026)
 
@@ -181,6 +195,12 @@ longer written (H-716; the column drop is a later contract migration). H-566 has
 and API routes (suspend, end, erase the sign-in), held in the database by migration 0129
 (`app.change_membership`, a restrictive policy and a guard trigger on `tenant_user`, the last user
 manager kept); its web screens and a reinstate route are still to build.
+
+**Phase 2 slice 49, medicines in the Phase 1 outputs** (`feat/meds-phase1-outputs`, MEDS-001 and
+MEDS-002, from slice 48; no migration): the downtime pack's doses due and the transfer pack's
+medicines come from the eMAR, each saying when it was read and that it is not the live record;
+outstanding and refused doses reach the handover (migration 0144). Left: the not-available stock
+task needs slice 42's hook (TODO for the batch).
 
 **Phase 2 slice 48, rounds, escalation and conflict review** (`feat/meds-rounds`, MEDS-002, from
 slice 34 with #162's final head (559440bb) merged in): migration 0134 adds
@@ -315,6 +335,12 @@ best-interests decision, with review and end; covert and self-administered doses
 escalated, never refused; self-administration assessments; homely remedy protocols per home and
 doses checked against them. New permission `medicines.covert.manage`, backfilled to built-in roles.
 Next: the web screens (slices 52, 53, 55). Lands through a merge batch.
+
+**Phase 2 slice 28, PRN protocols and the psychotropic report** (`feat/meds-prn-protocols`,
+MEDS-003, from slice 22; migration 0143; HZ-117; H-1380 to H-1389, recommended answers applied):
+versioned PRN protocols that show the entry's limits and never copy them, outcome follow-up, the
+organisation's medicine lists (the psychotropic list) and the PRN frequency report. New permission
+`medicines.list.manage`, backfilled to built-in roles. Next: the round display (slice 53).
 
 **Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
 with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
@@ -500,10 +526,11 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
-- slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0149, 0150; ADR-0130; H-1421 to H-1427): streams, token claims, device subset; MOB-007 partial;
+- slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0149; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
 - slice 71 shifts, clock and lone working on the phone, `feat/mobile-shifts-checkins` (0139; HZ-125; H-1310 to H-1319): streams, phone screens, offline queue; MOB-007 partial;
+- sync buckets per home, `feat/sync-bucket-per-home` (0146; ADR-0134; HZ-138; H-1428 to H-1430): home streams per home and day, assigned per ten-day block, records follow a transfer; budget tested at 120 beds;
 - slice 23 applicant tracking offered (0085; H-730 to H-739), not started.
 
 **Numbering in use:** migrations: 0071 is #123; each Phase 2 schema branch writes one

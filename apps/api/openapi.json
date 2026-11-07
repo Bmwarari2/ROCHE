@@ -5157,7 +5157,8 @@
                     "resuscitation_review_overdue",
                     "medicines_need_checking",
                     "photo_not_printable",
-                    "allergy_confirmation_not_recorded"
+                    "allergy_confirmation_not_recorded",
+                    "medicines_emar_unreadable"
                   ]
                 },
                 "message": {
@@ -16484,7 +16485,8 @@
           "incident",
           "body_map_mark",
           "care_note",
-          "notification"
+          "notification",
+          "medication_administration"
         ]
       },
       "HandoverNoteItem": {
@@ -37744,6 +37746,566 @@
         ],
         "description": "The server's copy of an entry a device could not save"
       },
+      "HrLinkStaleness": {
+        "type": "object",
+        "properties": {
+          "linked": {
+            "type": "boolean"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "lastGoodSyncAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limitMinutes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "linked",
+          "stale",
+          "lastGoodSyncAt",
+          "limitMinutes"
+        ]
+      },
+      "HrLinkStatus": {
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "workspaceSlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "apiBaseUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owners": {
+            "$ref": "#/components/schemas/HrLinkOwners"
+          },
+          "stalenessMinutes": {
+            "type": "integer"
+          },
+          "hasWebhookSecret": {
+            "type": "boolean"
+          },
+          "staleness": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "stale": {
+                "type": "boolean"
+              },
+              "lastGoodSyncAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lastErrorCode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "failures": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "stale",
+              "lastGoodSyncAt",
+              "lastErrorCode",
+              "failures"
+            ]
+          },
+          "matchesToReview": {
+            "type": "integer"
+          },
+          "leaversNotEnded": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "connected",
+          "status",
+          "version",
+          "workspaceSlug",
+          "apiBaseUrl",
+          "owners",
+          "stalenessMinutes",
+          "hasWebhookSecret",
+          "staleness",
+          "matchesToReview",
+          "leaversNotEnded"
+        ]
+      },
+      "HrLinkOwners": {
+        "type": "object",
+        "properties": {
+          "employee_record": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "leavers": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "pay_rates_and_periods": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "leave_and_sickness": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "care_shifts": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "clocking": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "timesheets_and_pay_units": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "recruitment_and_vetting": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
+          "training_and_competence": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          }
+        },
+        "required": [
+          "employee_record",
+          "leavers",
+          "pay_rates_and_periods",
+          "leave_and_sickness",
+          "care_shifts",
+          "clocking",
+          "timesheets_and_pay_units",
+          "recruitment_and_vetting",
+          "training_and_competence"
+        ],
+        "additionalProperties": false
+      },
+      "HrLinkSyncResult": {
+        "type": "object",
+        "properties": {
+          "linked": {
+            "type": "integer"
+          },
+          "review": {
+            "type": "integer"
+          },
+          "leavers": {
+            "type": "integer"
+          },
+          "drift": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "absences": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "copied": {
+                "type": "integer"
+              },
+              "changed": {
+                "type": "integer"
+              },
+              "cancelled": {
+                "type": "integer"
+              },
+              "coverNeeds": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "held": {
+                "type": "integer"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "copied",
+              "changed",
+              "cancelled",
+              "coverNeeds",
+              "failed",
+              "held",
+              "error"
+            ]
+          },
+          "deliveries": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sent": {
+                "type": "integer"
+              },
+              "cancelled": {
+                "type": "integer"
+              },
+              "refused": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "sent",
+              "cancelled",
+              "refused",
+              "failed",
+              "error"
+            ]
+          }
+        },
+        "required": [
+          "linked",
+          "review",
+          "leavers",
+          "drift",
+          "failed",
+          "error",
+          "absences",
+          "deliveries"
+        ]
+      },
+      "HrLinkConnect": {
+        "type": "object",
+        "properties": {
+          "workspaceSlug": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,63}$"
+          },
+          "owners": {
+            "$ref": "#/components/schemas/HrLinkOwners"
+          },
+          "stalenessMinutes": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 60
+          },
+          "secretRef": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$",
+            "default": null
+          }
+        },
+        "required": [
+          "workspaceSlug"
+        ],
+        "additionalProperties": false
+      },
+      "HrLinkChange": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer"
+          },
+          "owners": {
+            "$ref": "#/components/schemas/HrLinkOwners"
+          },
+          "stalenessMinutes": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 60
+          },
+          "secretRef": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "HrLinkLocations": {
+        "type": "object",
+        "properties": {
+          "harbour": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "hrLocationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "locationId",
+                "name",
+                "hrLocationId"
+              ]
+            }
+          },
+          "thapsusHr": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "harbour",
+          "thapsusHr"
+        ]
+      },
+      "HrLinkMatch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "hrEmployeeId": {
+            "type": "string"
+          },
+          "employeeNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "candidateStaffProfileId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "hrName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hrWorkEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leavingOn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "hrEmployeeId",
+          "employeeNumber",
+          "reason",
+          "candidateStaffProfileId",
+          "hrName",
+          "hrWorkEmail",
+          "leavingOn"
+        ]
+      },
+      "HrLinkDelivery": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "harbourRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hrId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "lastErrorCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sentAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "harbourRef",
+          "hrId",
+          "state",
+          "attempts",
+          "lastErrorCode",
+          "sentAt"
+        ]
+      },
+      "HrLeavingWithdrawn": {
+        "type": "object",
+        "properties": {
+          "withdrawn": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "withdrawn"
+        ]
+      },
+      "HrCopiesReleased": {
+        "type": "object",
+        "properties": {
+          "released": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "drift",
+              "disconnected"
+            ]
+          }
+        },
+        "required": [
+          "released",
+          "mode"
+        ]
+      },
       "IntegrationConnection": {
         "type": "object",
         "properties": {
@@ -50160,6 +50722,806 @@
           "reason"
         ],
         "additionalProperties": false
+      },
+      "MedicineList": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "$ref": "#/components/schemas/MedicineListName"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicineListItem"
+            }
+          }
+        },
+        "required": [
+          "list",
+          "items"
+        ]
+      },
+      "MedicineListName": {
+        "type": "string",
+        "enum": [
+          "time_critical",
+          "paracetamol",
+          "bisphosphonate",
+          "psychotropic"
+        ]
+      },
+      "MedicineListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "list": {
+            "$ref": "#/components/schemas/MedicineListName"
+          },
+          "vmpId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "removedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "removedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "list",
+          "vmpId",
+          "productName",
+          "reason",
+          "removedAt",
+          "removedReason",
+          "version"
+        ]
+      },
+      "NewMedicineListItem": {
+        "type": "object",
+        "properties": {
+          "vmpId": {
+            "type": "string",
+            "pattern": "^[0-9]{6,18}$"
+          },
+          "productName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "vmpId",
+          "productName",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "RemoveMedicineListItem": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PrnProtocolList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrnProtocol"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PrnProtocol": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medicineName": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "nonDrugAlternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "maxItems": 20
+          },
+          "purposeGroup": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "orderOfUse": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 20
+          },
+          "expectedEffect": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "agreedWithName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agreedWithRole": {
+            "type": "string",
+            "enum": [
+              "prescriber",
+              "pharmacist"
+            ]
+          },
+          "agreedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "dose": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "maxPer24h": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "minimumIntervalMinutes": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "indication": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "dose",
+              "maxPer24h",
+              "minimumIntervalMinutes",
+              "indication"
+            ]
+          },
+          "psychotropic": {
+            "type": "boolean"
+          },
+          "withdrawnOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "withdrawnReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_use",
+              "review_overdue",
+              "medicine_stopped",
+              "not_when_required_now",
+              "withdrawn"
+            ]
+          },
+          "statusWords": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "medicationId",
+          "medicineId",
+          "medicineName",
+          "purpose",
+          "triggers",
+          "nonDrugAlternatives",
+          "purposeGroup",
+          "orderOfUse",
+          "expectedEffect",
+          "agreedWithName",
+          "agreedWithRole",
+          "agreedOn",
+          "reviewOn",
+          "limits",
+          "psychotropic",
+          "withdrawnOn",
+          "withdrawnReason",
+          "changeReason",
+          "status",
+          "statusWords",
+          "version"
+        ]
+      },
+      "NewPrnProtocol": {
+        "type": "object",
+        "properties": {
+          "medicationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "nonDrugAlternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "maxItems": 20
+          },
+          "purposeGroup": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "orderOfUse": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 20
+          },
+          "expectedEffect": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "agreedWithName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agreedWithRole": {
+            "type": "string",
+            "enum": [
+              "prescriber",
+              "pharmacist"
+            ]
+          },
+          "agreedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "medicationId",
+          "purpose",
+          "triggers",
+          "nonDrugAlternatives",
+          "purposeGroup",
+          "orderOfUse",
+          "expectedEffect",
+          "agreedWithName",
+          "agreedWithRole",
+          "agreedOn",
+          "reviewOn"
+        ],
+        "additionalProperties": false
+      },
+      "ChangePrnProtocol": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "nonDrugAlternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "maxItems": 20
+          },
+          "purposeGroup": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "orderOfUse": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 20
+          },
+          "expectedEffect": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "agreedWithName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agreedWithRole": {
+            "type": "string",
+            "enum": [
+              "prescriber",
+              "pharmacist"
+            ]
+          },
+          "agreedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "purpose",
+          "triggers",
+          "nonDrugAlternatives",
+          "purposeGroup",
+          "orderOfUse",
+          "expectedEffect",
+          "agreedWithName",
+          "agreedWithRole",
+          "agreedOn",
+          "reviewOn",
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "WithdrawPrnProtocol": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PrnOutcome": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "administrationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/PrnOutcomeValue"
+          },
+          "outcomeWords": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "administrationId",
+          "outcome",
+          "outcomeWords",
+          "note",
+          "observedAt",
+          "recordedBy",
+          "recordedAt",
+          "supersedesId",
+          "correctionReason"
+        ]
+      },
+      "PrnOutcomeValue": {
+        "type": "string",
+        "enum": [
+          "effective",
+          "partly_effective",
+          "not_effective",
+          "person_asleep",
+          "could_not_assess"
+        ]
+      },
+      "RecordPrnOutcome": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/PrnOutcomeValue"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "correction": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "default": null,
+            "required": [
+              "supersedesId",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "outcome",
+          "note",
+          "observedAt"
+        ],
+        "additionalProperties": false
+      },
+      "OutstandingPrnOutcomes": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "administrationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "entryId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "medicineName": {
+                  "type": "string"
+                },
+                "givenAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "administrationId",
+                "entryId",
+                "medicineName",
+                "givenAt",
+                "dueAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PrnFrequencyReport": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "note": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "medicineId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "medicineName": {
+                  "type": "string"
+                },
+                "psychotropic": {
+                  "type": "boolean"
+                },
+                "doses": {
+                  "type": "integer"
+                },
+                "daysWithDoses": {
+                  "type": "integer"
+                },
+                "mostInOneDay": {
+                  "type": "integer"
+                },
+                "withoutProtocol": {
+                  "type": "integer"
+                },
+                "underOverdueProtocol": {
+                  "type": "integer"
+                },
+                "outcomes": {
+                  "type": "object",
+                  "properties": {
+                    "effective": {
+                      "type": "integer"
+                    },
+                    "partly_effective": {
+                      "type": "integer"
+                    },
+                    "not_effective": {
+                      "type": "integer"
+                    },
+                    "person_asleep": {
+                      "type": "integer"
+                    },
+                    "could_not_assess": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "outcomesOutstanding": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "personId",
+                "name",
+                "medicineId",
+                "medicineName",
+                "psychotropic",
+                "doses",
+                "daysWithDoses",
+                "mostInOneDay",
+                "withoutProtocol",
+                "underOverdueProtocol",
+                "outcomes",
+                "outcomesOutstanding"
+              ]
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "note",
+          "items"
+        ]
       },
       "SubProcessorOverview": {
         "type": "object",
@@ -102395,6 +103757,16 @@
               }
             }
           },
+          "409": {
+            "description": "sync_scope_too_large: the member's access reaches more homes and people than a phone can hold offline under PowerSync's buckets per connection (ADR-0134); no token",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "description": "The request did not validate",
             "content": {
@@ -103040,6 +104412,1496 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/staleness": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Whether the HR platform's data on the rota is out of date (for rota screens)",
+        "description": "For anyone who reads or builds a rota: no personal data, only whether the link is on and when it last synced in full (rule 9).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staleness",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkStaleness"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The Thapsus-HR link: status, owners and whether its data is out of date",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Link status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Connect to the organisation's Thapsus-HR workspace (UK only; step-up)",
+        "description": "Checks the workspace is in the UK and reached on its UK address, records the link, then pulls employees and matches them (employee number, then work email with date of birth; never by name).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HrLinkConnect"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Connected; first pull done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkSyncResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Change the owners, staleness limit or webhook secret (step-up)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HrLinkChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "version"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Disconnect: sync stops; links and leaving dates are kept for audit (step-up)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Disconnected"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/test": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Check the link: reachable, and still a UK workspace on its UK address",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "code": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "code"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/sync": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Pull and reconcile employees now (as the nightly reconciliation does)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pulled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkSyncResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/locations": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "This organisation's locations beside Thapsus-HR's, with the mapping",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Locations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLinkLocations"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/locations/{locationId}": {
+      "put": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Map a location to a Thapsus-HR location, or clear its mapping (step-up)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "locationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hrLocationId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                  }
+                },
+                "required": [
+                  "hrLocationId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Saved"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/matches": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The match review queue: employees that could not be linked safely",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matches to review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HrLinkMatch"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/matches/{id}/confirm": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Confirm a match to a staff file (never your own; step-up)",
+        "description": "The staff file must be one the reviewer can see. When Thapsus-HR already gave a leaving date, only someone who manages that staff file may confirm, because confirming ends the member's access after that day.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "staffProfileId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expectedVersion": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "staffProfileId",
+                  "expectedVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Linked"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/matches/{id}/reject": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Reject a match: the employee stays unlinked and is neither rostered nor sent",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "expectedVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Rejected"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/deliveries": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "What was sent to Thapsus-HR, and what failed",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deliveries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HrLinkDelivery"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/starters/{staffProfileId}": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Create a starter hired here as an employee in Thapsus-HR, once (step-up)",
+        "description": "Sends only the starter's listed fields: names, work email, date of birth, job title, location, contracted hours and start date. A retry returns the same employee.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "staffProfileId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "givenName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "familyName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "givenName",
+                  "familyName"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Delivery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string"
+                    },
+                    "hrId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "error": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "hrId",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/leavers/{staffProfileId}/withdraw": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Withdraw a wrong leaving date from the HR platform (step-up)",
+        "description": "Refused while Thapsus-HR still gives the date (raised for review instead), and once the member's access has ended (409 hr_link_access_ended: reinstatement is the member lifecycle's).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "staffProfileId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "date_entered_in_error",
+                      "leaving_cancelled",
+                      "invalid_date_from_hr_platform",
+                      "other_recorded_in_staff_file"
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrLeavingWithdrawn"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/absences/release": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Release absence copies the HR platform no longer lists (step-up)",
+        "description": "While linked, cancels the copies the drift guard held, read again from Thapsus-HR now. Once the link is disconnected, cancels every copy still in force; refused while it is connected but turned off. Refused, with the current number, when the copies differ from expectedHrIds.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedHrIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                    },
+                    "minItems": 1,
+                    "maxItems": 10000
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "checked_in_hr_platform",
+                      "link_ended",
+                      "other_recorded_in_review"
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedHrIds",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrCopiesReleased"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/p/integrations/thapsus-hr/{tenantId}": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Thapsus-HR's signed employee webhooks (no session)",
+        "description": "The body is `{ id, type, employeeId, occurredAt }`, signed in the `Thapsus-Signature` header as `t=<unix seconds>,v1=<hex HMAC-SHA256 of t.body>`, within 5 minutes.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "accepted",
+                        "quarantined",
+                        "duplicate"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed by this organisation's link"
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says"
+          },
+          "503": {
+            "description": "The employee could not be fetched; send the event again"
           }
         }
       }
@@ -118069,6 +120931,925 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-lists/{list}": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "One of the organisation's medicine lists (for example psychotropic)",
+        "description": "medicines.list.manage, medicines.record.manage or medicines.emar.administer. Exact dm+d products only (ADR-0082).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/MedicineListName"
+            },
+            "required": true,
+            "name": "list",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The list, removed products included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicineList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Add a dm+d product to one of the organisation's medicine lists",
+        "description": "medicines.list.manage. The exact dm+d product (VMP); never by ingredient or name. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/MedicineListName"
+            },
+            "required": true,
+            "name": "list",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMedicineListItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicineListItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-list-items/{id}/remove": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Remove a product from a medicine list, with a reason",
+        "description": "medicines.list.manage, with the version read. The removal is kept. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveMedicineListItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicineListItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/prn-protocols": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A person's PRN protocols, with the prescriber's limits from each entry",
+        "description": "medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protocols, withdrawn ones included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnProtocolList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record a PRN protocol for one of the person's when-required medicines",
+        "description": "medicines.record.manage in the person's scope. For a current when-required entry; the signs that mean it may be needed, what to try first, the order among the person's medicines for the same purpose, the agreement with the prescriber or pharmacist and a review within the rate table's days. One open protocol per medicine. The dose, most in 24 hours and interval stay the entry's. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewPrnProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/prn-protocols/{id}/change": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Change or review a PRN protocol, with a reason",
+        "description": "medicines.record.manage in the person's scope, with the version read; every version is kept. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePrnProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/prn-protocols/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Withdraw a PRN protocol, with a reason",
+        "description": "medicines.record.manage in the person's scope, with the version read. Doses after it count as given without a protocol. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawPrnProtocol"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnProtocol"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicine-administrations/{id}/prn-outcome": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Record the outcome of a when-required dose",
+        "description": "medicines.emar.administer or medicines.record.manage, in the person's scope. For a when-required dose that was given or taken, seen after the dose and not in the future; a correction names the outcome it corrects, with a reason. Resending the same id returns the same record. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPrnOutcome"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already recorded with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnOutcome"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnOutcome"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/prn-outcomes/outstanding": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A person's when-required doses whose outcome is due and not recorded",
+        "description": "medicines.record.manage, medicines.emar.administer or care.plan.read, in the person's scope. Due `medicines.prn.outcome_check_minutes` after the dose.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outstanding outcomes, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutstandingPrnOutcomes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/medicines/prn-frequency": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "The PRN frequency report for a home (information only)",
+        "description": "medicines.record.manage at the home. For each person and when-required medicine in the period (UK dates, inclusive, at most `medicines.prn_report.max_days`): doses given or taken, days with doses, the most in one day, doses with no protocol in use, outcomes and those outstanding; psychotropic by the entry's tag or the organisation's list. People are counted at their current home. A count for the prescriber and pharmacist, never a judgement. Audited with ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "psychotropicOnly",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnFrequencyReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {
