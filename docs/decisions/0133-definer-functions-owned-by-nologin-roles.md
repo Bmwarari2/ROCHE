@@ -44,7 +44,7 @@ gain; one for all would put payroll, casework and care rounds in one blast radiu
   `harbour_workforce_definer` (casework, leavers, induction, supervision, absence, equality
   monitoring), `harbour_scheduling_definer` (agency workers, cover needs, reading worker time),
   `harbour_finance_definer` (pay run state).
-- Grants (migration 0154): each role gets the table privileges its functions use, the SELECT that
+- Grants (migration 0151): each role gets the table privileges its functions use, the SELECT that
   the row-level policies and invoker triggers of those tables read when evaluated as that role,
   EXECUTE on the restricted helper functions they call, and INSERT on `record_version` where they
   change rows. The grants were derived from the function bodies, the tables' policies and triggers,
@@ -70,14 +70,14 @@ gain; one for all would put payroll, casework and care rounds in one blast radiu
 - Every Harbour definer function's `search_path` keeps the schemas it named and ends in `pg_temp`
   (today `pg_catalog, public, pg_temp` for all of them). Functions that belong to an extension
   (pgAudit's event-trigger functions on Cloud SQL, a hosting platform's own on Supabase) and
-  functions outside `app`, `public` and `auth` are not Harbour's: migration 0154 and the test leave
+  functions outside `app`, `public` and `auth` are not Harbour's: migration 0151 and the test leave
   them alone, since their owners are not roles `harbour_owner` may act as.
 - `packages/db/test/definer-acls.test.ts` fails if any Harbour definer function, trigger functions
   included, is owned by a role that can log in, a superuser, a role that bypasses row-level security
   or a member of a login role, or lacks a `search_path` ending in `pg_temp`.
 - Changing a moved function later (`CREATE OR REPLACE`) runs as its owner: `GRANT CREATE ON SCHEMA
   app` to the owner, `SET ROLE` to it, replace the function, `RESET ROLE`, then revoke CREATE, as
-  migration 0154 moves them.
+  migration 0151 moves them.
 
 ### Consequences
 
@@ -89,7 +89,7 @@ gain; one for all would put payroll, casework and care rounds in one blast radiu
   "permission denied").
 - Bad, because some owners read tables only for their policies (for example the silo checks on
   members), which is wider than the functions' own needs; row-level security still applies.
-- Neutral, because every environment must re-run `pnpm db:bootstrap` before migration 0154 (H-1491).
+- Neutral, because every environment must re-run `pnpm db:bootstrap` before migration 0151 (H-1491).
 - Neutral, follow-ups from the security review, not built here: CI has no pgAudit database, so the
   extension case is proved only by a local stand-in extension (H-1494); the add-migration skill
   still names `harbour_app, harbour_owner` for restrictive policies and does not say `pg_temp` last

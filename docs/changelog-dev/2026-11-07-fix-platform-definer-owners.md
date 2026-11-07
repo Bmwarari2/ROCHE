@@ -9,7 +9,7 @@ The security follow-up from batch 3a's review.
   `harbour_owner`, the migrator (a role that can log in and owns every table); most definer
   functions pinned `search_path` without `pg_temp` last. Every other definer was already owned by a
   NOLOGIN role.
-- **Migration 0154**: five NOLOGIN owners, one per bounded context (`harbour_platform_definer`,
+- **Migration 0151**: five NOLOGIN owners, one per bounded context (`harbour_platform_definer`,
   `harbour_care_definer`, `harbour_workforce_definer`, `harbour_scheduling_definer`,
   `harbour_finance_definer`), created by `pnpm db:bootstrap`, each with only what its functions,
   and the policies and triggers they meet, use; each joins every restrictive policy that holds

@@ -37,7 +37,7 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
  * dashboard's records at one location; migration 0108), `harbour_dmd_loader` (the dm+d release loader's functions, the only
  * writer of the dm+d reference tables; migration 0110, ADR-0080), `harbour_member_owner` (suspending,
  * reinstating and ending a membership, unlinking its sign-in, and counting the sign-in's memberships
- * elsewhere; migration 0129, H-566). The bounded-context definer owners (migration 0154, ADR-0133),
+ * elsewhere; migration 0129, H-566). The bounded-context definer owners (migration 0151, ADR-0133),
  * each owning the definer functions of its context that harbour_owner, which can log in, used to
  * own: `harbour_platform_definer` (provisioning an organisation, the audit chain),
  * `harbour_care_definer` (handed-over entries, the earlier-plan round data, discard reasons),

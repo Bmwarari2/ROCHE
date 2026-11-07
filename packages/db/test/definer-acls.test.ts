@@ -206,12 +206,12 @@ describe("hazard HZ-011 definer functions run only for the roles meant to call t
 });
 
 /**
- * ADR-0133 (migration 0154): every Harbour security-definer function, trigger functions included,
+ * ADR-0133 (migration 0151): every Harbour security-definer function, trigger functions included,
  * is owned by a NOLOGIN role that is not a superuser, cannot bypass row-level security and is not a
  * member of a role that can log in, so a flaw in one never runs with a login role's rights
  * (harbour_owner, the migrator, owns every table); and pins its search_path with pg_temp last, so
  * no temporary object can shadow a name it uses. Extension members (pgAudit's event-trigger
- * functions, a hosting platform's own) belong to their extension and are left out, as 0154 leaves
+ * functions, a hosting platform's own) belong to their extension and are left out, as 0151 leaves
  * them.
  */
 const DEFINER_ROLES = [
