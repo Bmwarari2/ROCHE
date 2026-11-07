@@ -91,7 +91,7 @@ This agreement lasts as long as the Processor processes Personal Data for the Co
 
 | Item | Details |
 | --- | --- |
-| Subject matter | Provision of the Thapsus Care care management platform to the Controller |
+| Subject matter | Provision of the Thapsus Care platform to the Controller |
 | Duration | The term of the Main Agreement plus the deletion period in clause 9 |
 | Nature | Collection (through the Controller's users), storage, synchronisation to devices, retrieval, display, transmission, export, backup, deletion |
 | Purpose | Enabling the Controller to deliver and record care and run its service, as set out in the Controller's records of processing ([records-of-processing.md](records-of-processing.md), Part B) |

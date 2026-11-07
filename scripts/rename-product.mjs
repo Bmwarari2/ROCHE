@@ -16,21 +16,24 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const FROM = "Harbour";
 const TO = "Thapsus Care";
 
 /** Invented demo and fixture names: places and organisations, not the product. Kept. */
 const DEMO_NAMES =
-  /\bHarbour (?:House|Field|Mews|Demo Care|Quay|Lodge|Cottage|Example Care(?: and Support Services)?)\b/g;
+  /\bHarbour (?:House|Field|Mews|Demo Care|Quay|Lodge|Cottage|Example Care(?: and Support Services)?|Care(?: Example)? Ltd)\b/g;
 
-const args = new Set(process.argv.slice(2));
-const mode = args.has("--apply") ? "apply" : args.has("--check") ? "check" : "dry-run";
-
-const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
+/**
+ * Files that must name the codename to prove it is gone: the stored-row migration's test (0152)
+ * inserts rows with the old name and checks they change.
+ */
+const NAMES_THE_CODENAME = new Set(["packages/db/test/product-name-stored-rows.test.ts"]);
 
 /** Which files are in scope, and how: whole file (prose, catalogues) or code lines only. */
-function scopeOf(path) {
+export function scopeOf(path) {
+  if (NAMES_THE_CODENAME.has(path)) return null;
   if (/^packages\/i18n\/src\/messages\/[^/]+\.json$/.test(path) && !path.endsWith(".status.json"))
     return "whole";
   if (path.endsWith(".md")) {
@@ -63,7 +66,7 @@ const BY_HAND = [
   /xcodebuild|\.xcworkspace/,
 ];
 
-function rename(text, scope) {
+export function rename(text, scope) {
   let count = 0;
   const swap = (segment) =>
     segment.replace(/\bHarbour\b/g, (match, offset, whole) => {
@@ -101,40 +104,50 @@ function rename(text, scope) {
   return { text: lines.join("\n"), count: () => count };
 }
 
-let files = 0;
-let total = 0;
-for (const path of tracked) {
-  const scope = scopeOf(path);
-  if (!scope) continue;
-  let before;
-  try {
-    before = readFileSync(path, "utf8");
-  } catch {
-    continue;
+function main() {
+  const args = new Set(process.argv.slice(2));
+  const mode = args.has("--apply") ? "apply" : args.has("--check") ? "check" : "dry-run";
+  const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" })
+    .split("\n")
+    .filter(Boolean);
+  let files = 0;
+  let total = 0;
+  for (const path of tracked) {
+    const scope = scopeOf(path);
+    if (!scope) continue;
+    let before;
+    try {
+      before = readFileSync(path, "utf8");
+    } catch {
+      continue;
+    }
+    if (!before.includes(FROM)) continue;
+    const result = rename(before, scope);
+    const n = result.count();
+    if (n === 0) continue;
+    files += 1;
+    total += n;
+    if (mode === "apply") writeFileSync(path, result.text);
+    else console.log(`${String(n).padStart(4)}  ${path}`);
   }
-  if (!before.includes(FROM)) continue;
-  const result = rename(before, scope);
-  const n = result.count();
-  if (n === 0) continue;
-  files += 1;
-  total += n;
-  if (mode === "apply") writeFileSync(path, result.text);
-  else console.log(`${String(n).padStart(4)}  ${path}`);
+
+  if (mode === "check") {
+    if (total > 0) {
+      console.error(`${total} in-scope "${FROM}" left in ${files} files (run with --apply).`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`No in-scope "${FROM}" left.`);
+  } else {
+    console.log(
+      `${mode === "apply" ? "Changed" : "Would change"} ${total} in ${files} files (${FROM} -> ${TO}).`,
+    );
+    if (mode === "apply") {
+      console.log(
+        "Next: regenerate OpenAPI and the client, format, test (docs/plans/rename-thapsus-care.md).",
+      );
+    }
+  }
 }
 
-if (mode === "check") {
-  if (total > 0) {
-    console.error(`${total} in-scope "${FROM}" left in ${files} files (run with --apply).`);
-    process.exit(1);
-  }
-  console.log(`No in-scope "${FROM}" left.`);
-} else {
-  console.log(
-    `${mode === "apply" ? "Changed" : "Would change"} ${total} in ${files} files (${FROM} -> ${TO}).`,
-  );
-  if (mode === "apply") {
-    console.log(
-      "Next: regenerate OpenAPI and the client, format, test (docs/plans/rename-thapsus-care.md).",
-    );
-  }
-}
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();

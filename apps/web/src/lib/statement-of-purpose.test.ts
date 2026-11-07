@@ -69,7 +69,7 @@ describe("the statement of purpose screens (quality.md section 16; QUAL-009; HZ-
         ["aimsAndObjectives", "  To support people to live well.  "],
         ["serviceKinds", "Care home service with nursing\n\n Care home service without nursing "],
         ["needsMet", "Older people, dementia."],
-        ["providerName", "Thapsus Care Care Ltd"],
+        ["providerName", "Harbour Care Ltd"],
         ["providerAddress", "1 Example Street"],
         ["providerPhone", "01632 960000"],
         ["providerEmail", ""],
@@ -100,7 +100,7 @@ describe("the statement of purpose screens (quality.md section 16; QUAL-009; HZ-
         serviceKinds: ["Care home service with nursing", "Care home service without nursing"],
         needsMet: "Older people, dementia.",
         provider: {
-          fullName: "Thapsus Care Care Ltd",
+          fullName: "Harbour Care Ltd",
           businessAddress: "1 Example Street",
           businessPhone: "01632 960000",
           email: null,

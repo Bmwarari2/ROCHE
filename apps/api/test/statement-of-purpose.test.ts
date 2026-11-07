@@ -42,7 +42,7 @@ const content = (aims: string) => ({
   serviceKinds: ["Care home service without nursing"],
   needsMet: "Older people, including people living with dementia.",
   provider: {
-    fullName: "Thapsus Care Care Example Ltd",
+    fullName: "Harbour Care Example Ltd",
     businessAddress: "1 Example Street, Exampletown",
     businessPhone: "01632 960000",
     email: null,

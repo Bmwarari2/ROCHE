@@ -1,4 +1,4 @@
-# Thapsus Care Care Platform — Claude Code Master Build Prompt
+# Thapsus Care Platform — Claude Code Master Build Prompt
 
 Oct 9, 2026 · @bm
 
