@@ -16,6 +16,8 @@ import { expectAccessible, signIn } from "./support";
 
 const PAGE = "/settings/hr-link";
 const main = (page: Page) => page.getByRole("main");
+/** The product's own name (`app.name`, ADR-0127). */
+const PRODUCT_NAME = "Thapsus Care";
 const modules = (page: Page) => page.getByRole("navigation", { name: "Modules" });
 
 async function bothThemes(page: Page, name: string) {
@@ -57,7 +59,15 @@ test("the manager is told the link is not turned on, with nothing to change", as
   // Nothing to connect, sync or release while the link is off.
   await expect(main(page).getByRole("button")).toHaveCount(0);
   await expect(main(page).getByRole("textbox")).toHaveCount(0);
-  await expect(main(page)).not.toContainText("Thapsus");
+  // HZ-133: never the other product (Thapsus-HR) in any spelling; this product's own name
+  // (Thapsus Care, ADR-0127) is removed first, so any other "Thapsus" left fails.
+  const read = await main(page).evaluate((el) => {
+    const names = [...el.querySelectorAll("[aria-label],[title],[alt],[placeholder]")].flatMap(
+      (e) => ["aria-label", "title", "alt", "placeholder"].map((a) => e.getAttribute(a) ?? ""),
+    );
+    return `${el.textContent ?? ""} ${names.join(" ")}`;
+  });
+  expect(read.replaceAll(PRODUCT_NAME, "")).not.toMatch(/thapsus/i);
   await bothThemes(page, "HR platform link not turned on");
 });
 
