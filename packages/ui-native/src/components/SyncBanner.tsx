@@ -15,6 +15,8 @@ export interface SyncBannerProps {
   readonly queuedChanges?: number;
   /** Entries the server refused: shown on every screen, never "Up to date" (HZ-006, C1). */
   readonly refusedEntries?: number | null;
+  /** Why sync is refused, when the API said (`scope_too_large`, ADR-0134). */
+  readonly failureReason?: "scope_too_large" | null;
   /** Shown as a "Retry" action when the state is failed (HZ-006). */
   readonly onRetry?: () => void;
   /** Fixes the clock, for previews and tests. Otherwise the banner refreshes every 30 seconds. */
@@ -47,6 +49,7 @@ export function SyncBanner({
   staleAfterMs,
   queuedChanges = 0,
   refusedEntries = 0,
+  failureReason = null,
   onRetry,
   now: fixedNow,
   testID = "sync-banner",
@@ -61,6 +64,7 @@ export function SyncBanner({
     staleAfterMs,
     queuedChanges,
     refusedEntries,
+    failureReason,
   });
 
   // Warnings and failures are filled so they cannot be missed; calm states sit on the card colour.

@@ -3,6 +3,8 @@ import {
   describeSyncBanner,
   NEVER_SYNCED_WARNING,
   REFUSED_TITLE,
+  SCOPE_TOO_LARGE_TITLE,
+  SCOPE_TOO_LARGE_WARNING,
   STALE_WARNING,
 } from "./sync-banner";
 
@@ -174,5 +176,24 @@ describe("hazard HZ-006 refused entries on the banner (clinical review C1)", () 
     });
     expect(content.title).toBe("Up to date");
     expect(content.tone).toBe("success");
+  });
+});
+
+describe("hazard HZ-138 a phone refused because the member's access is too wide (ADR-0134)", () => {
+  it("says so in words, with what to do, never a bare failure", () => {
+    const content = describeSyncBanner({
+      state: "failed",
+      lastSyncedAt: minutesAgo(30),
+      now,
+      staleAfterMs,
+      failureReason: "scope_too_large",
+    });
+    expect(content.title).toBe(SCOPE_TOO_LARGE_TITLE);
+    expect(content.warning).toBe(SCOPE_TOO_LARGE_WARNING);
+    expect(content.warning).toMatch(/web app/);
+    expect(content.tone).toBe("danger");
+    expect(content.icon).toBe("cloud-alert");
+    expect(content.urgent).toBe(true);
+    expect(content.accessibilityLabel).toContain(SCOPE_TOO_LARGE_WARNING);
   });
 });

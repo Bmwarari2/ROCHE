@@ -34,6 +34,11 @@ export interface SyncBannerInput {
    * when they could not be counted, which needs attention too (clinical review round 4, M4).
    */
   readonly refusedEntries?: number | null;
+  /**
+   * Why sync is refused, when the API said: `scope_too_large`, the member's access reaches more
+   * homes and people than a phone can hold offline (ADR-0134).
+   */
+  readonly failureReason?: "scope_too_large" | null;
 }
 
 export interface SyncBannerContent {
@@ -56,6 +61,11 @@ const titles: Record<SyncConnectionState, string> = {
   synced: "Up to date",
   failed: "Sync failed",
 };
+
+/** Shown when the API refuses this phone because the member's access is too wide (ADR-0134). */
+export const SCOPE_TOO_LARGE_TITLE = "Too much to keep on this phone";
+export const SCOPE_TOO_LARGE_WARNING =
+  "You can see more homes and people than a phone can keep offline, so this phone cannot sync. Use the web app, or ask your manager to give you fewer people or homes on this phone.";
 
 export const STALE_WARNING = "Data may be out of date. Check important details before you act.";
 export const NEVER_SYNCED_WARNING =
@@ -124,8 +134,18 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     tone = "danger";
     icon = "cloud-alert";
   }
-  const title = refused && state === "synced" ? REFUSED_TITLE : titles[state];
-  const urgent = state === "failed" || warning !== null || refused !== null;
+  const scopeTooLarge = input.failureReason === "scope_too_large";
+  if (scopeTooLarge) {
+    tone = "danger";
+    icon = "cloud-alert";
+    warning = SCOPE_TOO_LARGE_WARNING;
+  }
+  const title = scopeTooLarge
+    ? SCOPE_TOO_LARGE_TITLE
+    : refused && state === "synced"
+      ? REFUSED_TITLE
+      : titles[state];
+  const urgent = state === "failed" || warning !== null || refused !== null || scopeTooLarge;
   const accessibilityLabel = [`${title}.`, detail, warning].filter(Boolean).join(" ");
 
   return {
@@ -135,7 +155,7 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     detail,
     warning,
     stale,
-    showRetry: state === "failed",
+    showRetry: state === "failed" || scopeTooLarge,
     urgent,
     accessibilityLabel,
   };

@@ -5,6 +5,7 @@ import { useVault } from "../app-state/vault";
 import { useHeldEntryCount, useQueuedChanges, useUploadIssueState } from "../care/hooks";
 import { appEnv } from "../config/app-env";
 import { STALE_AFTER_MS } from "../config/constants";
+import { useScopeRefused } from "../sync/scope-refusal-store";
 import { deriveConnectionState, lastSyncedAtOf } from "../sync/sync-state";
 
 /**
@@ -24,7 +25,13 @@ export function AppSyncBanner() {
   const held = useHeldEntryCount();
   const refused = held === null || issues === null ? null : issues + held;
 
-  const state = appEnv.demoMode ? "offline" : deriveConnectionState(status, network);
+  // The API refused this phone because the member's access is too wide (ADR-0134; HZ-138).
+  const scopeRefused = useScopeRefused();
+  const state = appEnv.demoMode
+    ? "offline"
+    : scopeRefused
+      ? "failed"
+      : deriveConnectionState(status, network);
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);
 
   return (
@@ -34,6 +41,7 @@ export function AppSyncBanner() {
       staleAfterMs={STALE_AFTER_MS}
       queuedChanges={queued}
       refusedEntries={refused}
+      failureReason={scopeRefused && !appEnv.demoMode ? "scope_too_large" : null}
       onRetry={() => {
         void vault.retrySync();
       }}
