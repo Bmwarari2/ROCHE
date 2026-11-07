@@ -430,3 +430,297 @@ describe("H-566 the organisation keeps a member who manages users (migration 012
     }
   });
 });
+
+const report = (token: string, device: string, held: number, owner?: string) =>
+  h.request("/v1/sync/device-report", {
+    method: "POST",
+    token,
+    tenant: DEMO.tenantId,
+    headers: { [DEVICE_HEADER]: device },
+    body: {
+      unsent: 0,
+      refused: 0,
+      held,
+      blocked: 0,
+      oldestAgeSeconds: null,
+      reportedAt: new Date().toISOString(),
+      ...(owner ? { ownerTenantUserId: owner } : {}),
+    },
+  });
+const endWith = (who: string, member: string, deviceCheck?: string) =>
+  post(who, `/v1/members/${member}/end`, {
+    reasonCode: "staff_left",
+    ...(deviceCheck ? { deviceCheck } : {}),
+  });
+const reinstate = (who: string, member: string) =>
+  post(who, `/v1/members/${member}/reinstate`, { reasonCode: "suspended_in_error" });
+const lifecycle = (who: string, member: string) =>
+  h.request(`/v1/members/${member}/lifecycle`, { token: h.tokens[who], tenant: DEMO.tenantId });
+
+/** Writes an audit event as the application role, as the report and hold routes do. */
+async function appAudit(text: string, values: unknown[]) {
+  const client = await h.db.pool("harbour_app").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await client.query(text, values);
+    await client.query("COMMIT");
+  } finally {
+    client.release();
+  }
+}
+
+describe("H-566 reinstating a suspension made by mistake (H-1463)", () => {
+  it("reinstates before the end, audited; the session ended at suspension stays ended", async () => {
+    const ivy = await newMember("Ivy");
+    expect((await suspend("manager", ivy.id)).status).toBe(200);
+    const back = await reinstate("manager", ivy.id);
+    expect(back.status).toBe(200);
+    expect(await back.json()).toMatchObject({ state: "active", replay: false });
+    expect(await (await reinstate("manager", ivy.id)).json()).toMatchObject({ replay: true });
+    expect((await stateOf(ivy.id))?.status).toBe("active");
+    expect(
+      (await audits("platform.member.reinstated", ivy.id)).map((a) => [a.outcome, a.reason]),
+    ).toEqual([["success", "suspended_in_error"]]);
+    expect((await h.request("/v1/me", { token: ivy.token, tenant: DEMO.tenantId })).status).toBe(
+      401,
+    );
+    const [row] = await sql<{ changed: Date | null }>(
+      "SELECT status_changed_at AS changed FROM tenant_user WHERE id = $1",
+      [ivy.id],
+    );
+    expect(row?.changed).not.toBeNull();
+  });
+
+  it("never gives back permissions the manager does not hold there (security review H1)", async () => {
+    const fin = await newMember("Fin");
+    const [role] = await sql<{ id: string }>(
+      `INSERT INTO role (key, name, scope_kind, permissions)
+       VALUES ('home_finance_${randomUUID().slice(0, 6)}', 'Home finance', 'location',
+               '{people.person.read,finance.invoice.approve}') RETURNING id`,
+    );
+    await sql(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+      [fin.id, role?.id, DEMO.locationId],
+    );
+    expect((await suspend("manager", fin.id)).status).toBe(200);
+    const refused = await reinstate("manager", fin.id);
+    expect(refused.status).toBe(403);
+    expect(await codeOf(refused)).toBe("beyond_inviter");
+    expect((await stateOf(fin.id))?.status).toBe("suspended");
+    expect(
+      (await audits("platform.member.reinstated", fin.id)).map((a) => [a.outcome, a.reason]),
+    ).toEqual([["denied", "beyond_inviter"]]);
+  });
+
+  it("never reinstates an ended membership, nor another organisation's member", async () => {
+    const jo = await newMember("Jo");
+    await suspend("manager", jo.id);
+    expect((await end("manager", jo.id)).status).toBe(200);
+    const ended = await reinstate("manager", jo.id);
+    expect(ended.status).toBe(409);
+    expect(await codeOf(ended)).toBe("membership_ended");
+    expect((await reinstate("owner", OTHER.managerId)).status).toBe(404);
+  });
+});
+
+describe("hazard HZ-110 H-566 ending waits for what the member's devices hold", () => {
+  it("waits for held entries to be handed over, then for a coded device check (clinical review B1)", async () => {
+    const kit = await newMember("Kit");
+    const device = "0199d000-0000-4000-8000-0000000d0153";
+    expect((await report(kit.token, device, 2)).status).toBeLessThan(300);
+    expect((await suspend("manager", kit.id, { confirmEntriesWaiting: true })).status).toBe(200);
+    const status = (await (await lifecycle("manager", kit.id)).json()) as Record<string, unknown>;
+    expect(status).toMatchObject({ state: "suspended", entriesToHandOver: 2, devicesUsed: 1 });
+    const held = await endWith("manager", kit.id);
+    expect(held.status).toBe(409);
+    expect(await codeOf(held)).toBe("entries_to_hand_over");
+    // A hand-over closes the hold (as the report after it does).
+    await sql(
+      `UPDATE task SET status = 'done', status_reason = 'handed_over', completed_at = now()
+        WHERE kind = 'sync.device_hold' AND source_id = $1`,
+      [device],
+    );
+    const unchecked = await endWith("manager", kit.id);
+    expect(unchecked.status).toBe(409);
+    expect(await codeOf(unchecked)).toBe("devices_unchecked");
+    const ended = await endWith("manager", kit.id, "device_returned_checked");
+    expect(ended.status).toBe(200);
+    expect(
+      (await audits("platform.member.ended", kit.id)).map((a) => [a.outcome, a.reason]),
+    ).toEqual([
+      ["denied", "entries_to_hand_over"],
+      ["denied", "devices_unchecked"],
+      ["success", "staff_left"],
+    ]);
+    const [last] = (await audits("platform.member.ended", kit.id)).slice(-1);
+    expect(last?.scope).toMatchObject({ deviceCheck: "device_returned_checked", devicesUsed: 1 });
+  });
+
+  it("counts and chases only the member's own entries on a shared device (clinical review M1)", async () => {
+    const lou = await newMember("Lou");
+    const moe = await newMember("Moe");
+    const shared = "0199d000-0000-4000-8000-0000000d0154";
+    expect((await report(lou.token, shared, 0)).status).toBeLessThan(300);
+    expect((await report(moe.token, shared, 0, moe.id)).status).toBeLessThan(300);
+    expect((await report(moe.token, shared, 3, moe.id)).status).toBeLessThan(300);
+    const suspended = await suspend("manager", lou.id);
+    expect(suspended.status).toBe(200);
+    expect(await suspended.json()).toMatchObject({ entriesWaiting: 0 });
+    const moved = await sql(
+      "SELECT 1 FROM audit_event WHERE action = 'sync.device_hold.moved' AND scope ->> 'deviceId' = $1",
+      [shared],
+    );
+    expect(moved).toHaveLength(0);
+    expect((await endWith("manager", lou.id, "device_returned_checked")).status).toBe(200);
+  });
+
+  it("holds the end while the member's entries sit in a capped-holds task (clinical review M4)", async () => {
+    const cal = await newMember("Cal");
+    const device = "0199d000-0000-4000-8000-0000000d0155";
+    await sql("INSERT INTO device_binding (device_id, tenant_user_id) VALUES ($1, $2)", [
+      device,
+      cal.id,
+    ]);
+    const [capped] = await sql<{ id: string }>(
+      `INSERT INTO task (kind, title, required_permission, due_at, source_type, source_id)
+       VALUES ('sync.device_hold', 'Unsent entries on several devices', 'care.held_entry.hand_over',
+               now(), 'device_hold_capped', $1) RETURNING id`,
+      [DEMO.users.manager.id],
+    );
+    await appAudit(
+      `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, actor_tenant_user_id, scope)
+       VALUES ($1, 'sync.device.report', 'device', $2, $3::uuid,
+               jsonb_build_object('waiting', 2, 'ownerTenantUserId', $3::text))`,
+      [DEMO.tenantId, device, cal.id],
+    );
+    await appAudit(
+      `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, scope)
+       VALUES ($1, 'sync.device_hold.capped', 'device', $2,
+               jsonb_build_object('mergedInto', jsonb_build_array($3::text)))`,
+      [DEMO.tenantId, device, capped?.id],
+    );
+    expect((await suspend("manager", cal.id, { confirmEntriesWaiting: true })).status).toBe(200);
+    const early = await endWith("manager", cal.id, "device_returned_checked");
+    expect(early.status).toBe(409);
+    expect(await codeOf(early)).toBe("entries_to_hand_over");
+  });
+
+  it("lets a device revoked as lost or stolen not block the end, its hold left open (clinical review M2)", async () => {
+    const lee = await newMember("Lee");
+    const device = "0199d000-0000-4000-8000-0000000d0156";
+    await sql(
+      `INSERT INTO device_binding (device_id, tenant_user_id, revoked_at, revoked_by, revocation_reason)
+       VALUES ($1, $2, now(), $3, 'lost_or_stolen')`,
+      [device, lee.id, DEMO.users.manager.id],
+    );
+    await appAudit(
+      `INSERT INTO audit_event (tenant_id, action, resource_type, resource_id, actor_tenant_user_id, scope)
+       VALUES ($1, 'sync.device.report', 'device', $2, $3::uuid,
+               jsonb_build_object('waiting', 2, 'ownerTenantUserId', $3::text))`,
+      [DEMO.tenantId, device, lee.id],
+    );
+    const [hold] = await sql<{ id: string }>(
+      `INSERT INTO task (kind, title, required_permission, due_at, source_type, source_id)
+       VALUES ('sync.device_hold', 'Unsent entries on a device', 'care.held_entry.hand_over',
+               now(), 'device_hold', $1) RETURNING id`,
+      [device],
+    );
+    expect((await suspend("manager", lee.id, { confirmEntriesWaiting: true })).status).toBe(200);
+    expect((await endWith("manager", lee.id, "device_lost_incident_raised")).status).toBe(200);
+    const [still] = await sql<{ status: string }>("SELECT status FROM task WHERE id = $1", [
+      hold?.id,
+    ]);
+    expect(still?.status).not.toBe("done");
+  });
+});
+
+describe("H-566 the member's status for a manager", () => {
+  it("shows the state, sign-in and devices, with no address; another organisation's reads as not found", async () => {
+    const oli = await newMember("Oli");
+    const response = await lifecycle("owner", oli.id);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      state: "active",
+      signIn: "kept",
+      deletionRequestOpen: false,
+      devicesUsed: 0,
+      lastReportedAt: null,
+      jobTitle: "Care worker",
+    });
+    expect(JSON.stringify(body)).not.toContain("@");
+    expect((await lifecycle("owner", OTHER.managerId)).status).toBe(404);
+  });
+});
+
+describe("H-566 the erasure sweep completes a deletion request (migration 0153)", () => {
+  it("erases the sign-in of a member who asked, once ended, and closes the request; never twice", async () => {
+    const { sweepSignInErasures } = await import("../src/services/member-erasure");
+    const ned = await newMember("Ned");
+    const asked = await h.request("/v1/me/account-deletion-request", {
+      method: "POST",
+      token: ned.token,
+      tenant: DEMO.tenantId,
+    });
+    expect(asked.status).toBe(201);
+    const deps = {
+      workerPool: h.db.pool("harbour_worker"),
+      appDb: h.handle.services.db,
+      authPool: h.handle.services.authPool,
+    };
+    // Not while suspended.
+    await suspend("manager", ned.id);
+    expect(await sweepSignInErasures(deps)).toBe(0);
+    await end("manager", ned.id);
+    expect(await sweepSignInErasures(deps)).toBe(1);
+    const gone = await auth().query('SELECT 1 FROM auth."user" WHERE id = $1', [ned.authUserId]);
+    expect(gone.rowCount).toBe(0);
+    const [row] = await sql<{
+      auth_user_id: string | null;
+      erased: Date | null;
+      display_name: string;
+    }>(
+      "SELECT auth_user_id, sign_in_erased_at AS erased, display_name FROM tenant_user WHERE id = $1",
+      [ned.id],
+    );
+    expect(row).toMatchObject({ auth_user_id: null, display_name: "Ned Example" });
+    expect(row?.erased).not.toBeNull();
+    const [request] = await sql<{ status: string; status_reason: string }>(
+      "SELECT status, status_reason FROM task WHERE kind = 'platform.account_deletion_request' AND source_id = $1",
+      [ned.id],
+    );
+    expect(request).toEqual({ status: "done", status_reason: "sign_in_erased" });
+    expect(await sweepSignInErasures(deps)).toBe(0);
+    const status = (await (await lifecycle("manager", ned.id)).json()) as Record<string, unknown>;
+    expect(status).toMatchObject({ state: "left", signIn: "erased", deletionRequestOpen: false });
+  });
+});
+
+describe("H-1469 reinstating an ended membership (a wrong leaving date withdrawn, HZ-133)", () => {
+  it("lets a manager across the organisation bring it back, never a home's manager, audited", async () => {
+    const pat = await newMember("Pat");
+    await suspend("manager", pat.id);
+    expect((await end("manager", pat.id)).status).toBe(200);
+    const home = await reinstate("manager", pat.id);
+    expect(home.status).toBe(409);
+    expect(await codeOf(home)).toBe("membership_ended");
+    const status = (await (await lifecycle("owner", pat.id)).json()) as Record<string, unknown>;
+    expect(status).toMatchObject({ state: "left", mayReinstate: true });
+    const back = await reinstate("owner", pat.id);
+    expect(back.status).toBe(200);
+    expect(await back.json()).toMatchObject({ state: "active", replay: false });
+    expect((await stateOf(pat.id))?.status).toBe("active");
+    expect(
+      (await audits("platform.member.reinstated", pat.id)).map((a) => [a.outcome, a.reason]),
+    ).toEqual([
+      ["denied", "membership_ended"],
+      ["success", "suspended_in_error"],
+    ]);
+    const [last] = (await audits("platform.member.reinstated", pat.id)).slice(-1);
+    expect(last?.scope).toMatchObject({ from: "left", to: "active" });
+  });
+});

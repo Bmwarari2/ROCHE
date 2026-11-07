@@ -170,7 +170,7 @@ export interface paths {
     put?: never;
     /**
      * Ask for your own account to be deleted (MOB-011; App Store and Google Play)
-     * @description Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them and audits the request. Nothing is deleted, and care records never are by this route. A second request while the first is open returns the first (`already_requested`).
+     * @description Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them, audits the request and records it on the member row (H-566): once that membership has ended and none is held elsewhere, the nightly sweep erases the sign-in identity. Care records are never deleted by this route. A second request while the first is open returns the first (`already_requested`).
      */
     post: {
       parameters: {
@@ -1511,6 +1511,173 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{tenantUserId}/reinstate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reinstate a suspended member
+     * @description platform.user.manage with step-up and a coded reason (H-566, H-1463, H-1469). Undoes a suspension, or, for a holder of the permission across the organisation, an ending whose sign-in has not been erased (a wrong leaving date withdrawn; the roles and grants ended with it stay ended): the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. Otherwise an ended membership is not reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReinstateMember"];
+        };
+      };
+      responses: {
+        /** @description Reinstated (or already active) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MembershipChangeResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{tenantUserId}/lifecycle": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's membership and sign-in status
+     * @description platform.user.manage, for a member it reaches (anyone else reads as not found, audited by opaque id). The membership's state, when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, the entries their devices last reported waiting as theirs and those still to hand over, how many devices they used and when one last reported. No address or sign-in detail.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The member's status */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberLifecycle"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -64487,7 +64654,7 @@ export interface components {
       /** Format: uuid */
       tenantUserId: string;
       /** @enum {string} */
-      state: "suspended" | "left";
+      state: "invited" | "active" | "suspended" | "left";
       replay: boolean;
       sessionsEnded: number;
       entriesWaiting: number;
@@ -64502,7 +64669,41 @@ export interface components {
         | "long_absence"
         | "other";
       confirmEntriesWaiting?: boolean;
+      /** @enum {string} */
+      deviceCheck?: "device_returned_checked" | "device_lost_incident_raised";
     };
+    ReinstateMember: {
+      /** @enum {string} */
+      reasonCode:
+        | "suspended_in_error"
+        | "investigation_cleared"
+        | "returned_from_absence"
+        | "other";
+    };
+    MemberLifecycle: {
+      /** Format: uuid */
+      id: string;
+      displayName: string;
+      jobTitle: string | null;
+      /** @enum {string} */
+      state: "invited" | "active" | "suspended" | "left";
+      /** Format: date-time */
+      statusChangedAt: string | null;
+      /** Format: date-time */
+      deletionRequestedAt: string | null;
+      deletionRequestOpen: boolean;
+      signIn: components["schemas"]["MemberSignInState"];
+      /** Format: date-time */
+      signInErasedAt: string | null;
+      entriesWaiting: number;
+      entriesToHandOver: number;
+      devicesUsed: number;
+      /** Format: date-time */
+      lastReportedAt: string | null;
+      mayReinstate: boolean;
+    };
+    /** @enum {string} */
+    MemberSignInState: "kept" | "kept_other_organisation" | "erased" | "none";
     EraseSignInResult: {
       /** Format: uuid */
       tenantUserId: string;

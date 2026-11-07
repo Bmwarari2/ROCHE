@@ -939,6 +939,13 @@
       "when": 1793467251141,
       "tag": "0148_hr_link_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1793467244141,
+      "tag": "0153_member_lifecycle_erasure",
+      "breakpoints": true
     }
   ]
 }

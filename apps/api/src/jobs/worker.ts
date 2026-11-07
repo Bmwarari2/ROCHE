@@ -13,6 +13,7 @@ import { createLogger, idleErrorLogger } from "../logger";
 import { backupDays } from "../services/certificates";
 import { sweepInvitations } from "../services/invitations";
 import { configureMedicinesOutputs } from "../services/medicines-outputs";
+import { sweepSignInErasures } from "../services/member-erasure";
 import { checkDmdFreshness, RETIRED_DMD_QUEUE } from "./dmd";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
@@ -125,6 +126,7 @@ const QUEUES = {
   unroutedReport: "unrouted-daily-report",
   downtimePacks: "downtime-packs",
   invitations: "invitation-sweep",
+  signInErasures: "sign-in-erasure-sweep",
   speakUpIntake: "speak-up-intake-sweep",
   evidenceBundles: "evidence-bundle-sweep",
   fullExports: "full-exports",
@@ -239,6 +241,12 @@ await work(QUEUES.unroutedReport, async () => {
 await work(QUEUES.downtimePacks, async () => {
   await buildDowntimePacks(deps);
 });
+// Sign-ins whose account deletion request can now complete (H-566): its own job, so a failed
+// invitation sweep never holds it up (security review L5). Counts only.
+await work(QUEUES.signInErasures, async () => {
+  const erased = await sweepSignInErasures({ workerPool, appDb: deps.appDb, authPool, logger });
+  if (erased > 0) logger.info({ event: "member.sign_in_erasure.sweep", erased }, "sign-ins erased");
+});
 await work(QUEUES.invitations, async () => {
   await sweepInvitations({ workerPool, appPool, authPool, logger });
 });
@@ -346,6 +354,7 @@ await boss.schedule(QUEUES.unroutedReport, "47 6 * * *");
 await boss.schedule(QUEUES.downtimePacks, "23 * * * *");
 // Nightly: lapsed invitations are revoked (clearing the address) and unlinked sign-ins deleted.
 await boss.schedule(QUEUES.invitations, "17 3 * * *");
+await boss.schedule(QUEUES.signInErasures, "47 3 * * *");
 await boss.schedule(QUEUES.speakUpIntake, "23 * * * *");
 
 // Every 5 minutes: an expired link's bundle goes soon after the link ends (quality.md rule 10).

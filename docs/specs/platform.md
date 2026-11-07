@@ -326,8 +326,55 @@ shows it; upload and remove a logo; axe in light and dark).
   sign-in link (`app.change_membership`, `app.accept_invitation`, `app.link_sso_member`,
   `app.end_leaver_access`) takes the same per-organisation lock first and then its row locks in id
   order, so a suspension never deadlocks with an invitation being accepted and a leaver's access is
-  never ended while they suspend the last other user manager. Reinstating has no route yet; the
-  web screens for these routes are a follow-up.
+  never ended while they suspend the last other user manager.
+- Completing the lifecycle (H-566 v2, migration 0153; `feat/platform-member-lifecycle-v2`):
+  - `POST /v1/members/{tenantUserId}/reinstate` (H-1463; step-up, `MEMBER_REINSTATE_REASONS`)
+    undoes a suspension before the end through `app.change_membership` (`reinstate`), and only
+    when the manager holds every permission of the member's roles and grants where they apply
+    (`app.may_invite`, read under the organisation's lock; 403 `beyond_inviter`, as for an
+    invitation). Sessions ended at the suspension stay ended; audited `platform.member.reinstated`.
+    A holder of the permission across the organisation may also bring an ended membership back
+    (H-1469; a wrong leaving date withdrawn, HZ-133), active with its sign-in or invited without
+    one, never while a leaving is still recorded (409 `leaving_still_recorded`: withdraw it first,
+    in the staff file or through the HR link's withdraw), never once the sign-in has been erased
+    or while the member's deletion request stands, or once its
+    sign-in has been deleted from another organisation. Roles and grants ended by the leaver
+    process stay ended; any still in force come back only where the manager holds them
+    (`app.may_invite`). `tenant_user_membership_guard` (replaced in place) allows this one
+    transition for `harbour_member_owner` only. `mayReinstate` on the status tells the page.
+  - Suspending counts and hurries only the member's own held entries (the device report names the
+    owner), never a colleague's on a shared device. Ending waits for entries of theirs held on a
+    device with an open hold, its own task or a capped-holds task it was merged into (409
+    `entries_to_hand_over`; a device revoked as lost or stolen does not count, H-1465), and, when
+    they used any device for Care mode, for the manager's coded device check (`deviceCheck`:
+    `device_returned_checked` or `device_lost_incident_raised`; 409 `devices_unchecked`; H-1464),
+    since a suspended phone cannot report again.
+  - `GET /v1/members/{tenantUserId}/lifecycle` (whether the person works elsewhere is shown only
+    once the membership here has ended): state, when it last changed
+    (`status_changed_at`, set by `app.change_membership`), whether deletion was asked for and is
+    open, the sign-in's state (`kept`, `kept_other_organisation`, `erased`, `none`), entries
+    waiting and to hand over, devices used and the last report. No address or sign-in detail.
+  - Erasure without a manager (H-1462): the account deletion request records
+    `sign_in_erasure_requested_at` (`app.request_sign_in_erasure`, own row only). The nightly sweep
+    (invitation queue) lists every ended membership whose sign-in is due
+    (`app.sign_ins_due_for_erasure`, owned by `harbour_member_owner`, worker only): the membership
+    that asked has ended, and no membership of the sign-in in an onboarding or active organisation
+    is invited, active or suspended, in any organisation that is not closed, and it is not an
+    operator's. For each, audited first by the system, on the worker's own connection and in one
+    transaction, `app.change_membership` (`unlink_sign_in`; only `session_user` `harbour_worker`
+    may, never the application role acting as the system) re-checks it is due, takes the
+    sign-in's lock (which accepting an invitation and a single sign-on link also take), removes the
+    link and sets `sign_in_erased_at`; the identity is then deleted and the transaction commits (a
+    failed deletion restores the link, audited as an error); an open deletion request closes. The
+    sweep is its own job (`sign-in-erasure-sweep`, 03:47). The membership that asked comes last, so a stopped sweep finds it due
+    again; one failure never stops the rest. The application role has no UPDATE on the three
+    lifecycle times.
+  - Web: the member page in Settings, Team shows the membership (icon and word), the sign-in, any
+    deletion request, devices and held entries, with "Suspend membership", "Reinstate membership",
+    "End membership" (with the device check) and "Erase sign-in" sheets.
+  - Not built: a report route for a suspended phone (H-1466); a dedicated lost-device hold closure
+    (H-1465); review of entries written offline while suspended that arrive after reinstatement
+    (H-1467).
 - Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
 ## Invitations and MFA enrolment (PLAT-004)
