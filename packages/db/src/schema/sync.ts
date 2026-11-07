@@ -453,3 +453,35 @@ export const refusedEntry = pgTable(
     check("refused_entry_status", sql`http_status IS NULL OR http_status BETWEEN 100 AND 599`),
   ],
 );
+
+/**
+ * A member's signing key for one device (ADR-0084; Phase 2 slice 70): the public half of an ECDSA
+ * P-256 key the device made when the member set their medicines PIN on it, online and with a fresh
+ * step-up. The private half never leaves the device, wrapped by the PIN. A witness or recorder
+ * signs a controlled drug's dose on that device offline, and the server verifies the signature
+ * when it arrives. Append-only: a new PIN on the same device is a new row, and only the latest row
+ * for the device and member signs from its `enrolled_at`; a revoked device binding stops them all.
+ */
+export const memberDeviceKey = pgTable(
+  "member_device_key",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    deviceId: uuid("device_id").notNull(),
+    tenantUserId: uuid("tenant_user_id").notNull(),
+    /** The uncompressed P-256 point (65 bytes), base64. */
+    publicKey: text("public_key").notNull(),
+    enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull().defaultNow(),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("member_device_key_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "member_device_key_binding_fk",
+      columns: [t.tenantId, t.deviceId, t.tenantUserId],
+      foreignColumns: [deviceBinding.tenantId, deviceBinding.deviceId, deviceBinding.tenantUserId],
+    }),
+    index("member_device_key_member_idx").on(t.tenantId, t.deviceId, t.tenantUserId, t.enrolledAt),
+    check("member_device_key_shape", sql`public_key ~ '^[A-Za-z0-9+/]{86}[AEIMQUYcgkosw048]=$'`),
+  ],
+);

@@ -932,6 +932,13 @@
       "when": 1793467252141,
       "tag": "0149_medicines_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1794021815944,
+      "tag": "0153_device_keys",
+      "breakpoints": true
     }
   ]
 }

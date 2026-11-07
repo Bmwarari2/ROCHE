@@ -2447,6 +2447,15 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       asserted_at: { description: "When they signed (instant, UTC)." },
       expires_at: { description: "When the signature stopped being usable (instant, UTC)." },
       used_at: { description: "When an entry or stock check used it (instant, UTC)." },
+      method: {
+        description:
+          "How the witness signed: step_up in their own session, or device_factor with their PIN on the recorder's device (ADR-0084).",
+      },
+      device_key_id: { description: "The device key that signed (member_device_key.id)." },
+      signature: "internal",
+      signed_at: {
+        description: "When the witness signed on the device, by its clock (instant, UTC).",
+      },
       created_at: "exported",
     },
   },
@@ -3491,6 +3500,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     personal: true,
     reasonNotExported:
       "Security records of sign-in sessions: the session ids are Harbour's own credentials' identifiers and mean nothing outside it; which member used which device is exported in device_binding.",
+    columns: {},
+  },
+  "public.member_device_key": {
+    context: "platform",
+    description:
+      "The public half of each member's signing key on each device, for signatures on controlled drugs made offline (ADR-0084).",
+    treatment: "not_exported",
+    retention: "audit_event",
+    personal: true,
+    reasonNotExported:
+      "Security keys: a public key means nothing outside Harbour; which member used which device is exported in device_binding, and each signature's key with the witness record.",
     columns: {},
   },
   "public.device_discard_entry": {
