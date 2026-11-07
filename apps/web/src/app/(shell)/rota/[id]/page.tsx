@@ -2,6 +2,7 @@ import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { HrLinkStaleness } from "@/components/rota/HrLinkStaleness";
 import {
   AddShiftForm,
   ApplyPatternForm,
@@ -114,6 +115,7 @@ export default async function RotaBuilderPage({
           open,
         })}
       />
+      <HrLinkStaleness api={api} />
       {done && DONE.has(done) ? (
         <RecordedArrival message={t("rota.done", { done })} param="done" />
       ) : null}

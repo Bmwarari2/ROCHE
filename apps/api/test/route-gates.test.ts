@@ -74,6 +74,8 @@ const UNGATED: Readonly<Record<string, string>> = {
     "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
   "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",
   "GET /p/evidence/bundle": "a public evidence pack link: the signed session cookie's link alone",
+  "POST /p/integrations/thapsus-hr/{tenantId}":
+    "Thapsus-HR's signed webhook (integrations.md section 11.6): no member; the organisation's own signing secret, then identifiers only",
   "GET /e/launch/{token}/files/{path}":
     "an e-learning launch token (ADR-0093): no session; read as the token's own member, that course alone",
   "POST /e/launch/{token}/statements":
