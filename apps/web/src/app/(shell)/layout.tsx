@@ -25,6 +25,7 @@ import { importShown } from "@/lib/imports";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { loneWorkerNavShown } from "@/lib/lone-worker";
+import { stockShown } from "@/lib/medicine-stock";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { absencesShown, myTimeShown, payShown, timesheetsShown } from "@/lib/pay-time";
 import { dashboardShown } from "@/lib/quality-dashboard";
@@ -90,9 +91,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           : undefined,
         search: searchShown(me.permissions) ? t("shell.nav.search") : undefined,
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
-        medicinesStock: me.permissions.includes("medicines.stock.manage")
-          ? t("shell.nav.medicinesStock")
-          : undefined,
+        medicinesStock: stockShown(me.permissions) ? t("shell.nav.medicinesStock") : undefined,
         medicinesReports: me.permissions.includes("medicines.record.manage")
           ? t("shell.nav.medicinesReports")
           : undefined,

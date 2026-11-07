@@ -3,7 +3,7 @@
 import { Button, DateInput, RadioGroup, StatusChip, TextField } from "@harbour/ui";
 import { Ban, CalendarClock, PackagePlus, Plus, Send, Thermometer } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
   addStorage,
   cancelOrder,
@@ -128,6 +128,8 @@ export function AddStorageForm({ locationId }: { readonly locationId: string }) 
 export type OrderGroup = {
   readonly personId: string;
   readonly name: string;
+  /** The person's communication needs (AIS), under their name. */
+  readonly needs?: ReactNode;
   readonly medicines: readonly {
     readonly medicationId: string;
     readonly productName: string;
@@ -177,11 +179,12 @@ export function NewOrderForm({
         error={errorFor(result, "cycleStartsOn")}
       />
       {errorFor(result, "lines") ? (
-        <p className="m-0 font-semibold">{errorFor(result, "lines")}</p>
+        <p className="hb-field__error m-0">{errorFor(result, "lines")}</p>
       ) : null}
       {groups.map((group) => (
         <fieldset key={group.personId} className="m-0 flex flex-col gap-3 border-0 p-0">
           <legend className="mb-2 text-body font-semibold">{group.name}</legend>
+          {group.needs}
           {group.medicines.map((m) => {
             const field = orderQuantityField({
               personId: group.personId,
@@ -298,6 +301,7 @@ export function RecordReadingForm({
   const ids = useFieldIds(["celsius", "minCelsius", "maxCelsius"]);
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const stateRef = useRef<HTMLDivElement>(null);
   const [recorded, setRecorded] = useState<{
     readonly reading: TemperatureReading;
     readonly message: string;
@@ -343,18 +347,36 @@ export function RecordReadingForm({
           {pending ? t("common.saving") : t("medicines.stock.reading.submit")}
         </Button>
       </div>
-      {recorded && chip && result?.ok ? (
-        <p className="m-0 flex flex-wrap items-center gap-2">
-          <StatusChip status={chip.status} label={chip.label} icon={chip.icon} />
-          <span>{t("medicines.stock.reading.value", { celsius: recorded.reading.celsius })}</span>
-          <span>{rangeWords(recorded.reading, t)}</span>
-        </p>
-      ) : null}
       <FormFeedback
         result={result}
         success={recorded?.message ?? t("medicines.stock.reading.done")}
         fieldIds={ids}
+        focusOnSuccess={stateRef}
       />
+      {/* The reading's state and figures take focus, so they are read out (HZ-132). */}
+      <div ref={stateRef} tabIndex={-1} className="flex flex-col gap-1">
+        {recorded && chip && result?.ok ? (
+          <>
+            <p className="m-0 flex flex-wrap items-center gap-2">
+              <StatusChip status={chip.status} label={chip.label} icon={chip.icon} />
+              <span>
+                {t("medicines.stock.reading.value", { celsius: recorded.reading.celsius })}
+              </span>
+            </p>
+            <p className="m-0">{rangeWords(recorded.reading, t)}</p>
+            {recorded.reading.minCelsius !== null ? (
+              <p className="m-0">
+                {t("medicines.stock.reading.minSince", { celsius: recorded.reading.minCelsius })}
+              </p>
+            ) : null}
+            {recorded.reading.maxCelsius !== null ? (
+              <p className="m-0">
+                {t("medicines.stock.reading.maxSince", { celsius: recorded.reading.maxCelsius })}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </div>
     </form>
   );
 }

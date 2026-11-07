@@ -1,5 +1,6 @@
 import { Button, DateInput } from "@harbour/ui";
 import { CalendarRange } from "lucide-react";
+import { WarningArrival } from "@/components/care/WarningArrival";
 import { t } from "@/lib/i18n";
 import type { Period } from "@/lib/medication-errors";
 
@@ -25,6 +26,12 @@ export function PeriodForm({
 }) {
   return (
     <form method="get" action={action} className="flex flex-col gap-4" noValidate>
+      {errors && Object.keys(errors).length > 0 ? (
+        // The page reloads with the errors, so they are said once on arrival and take focus.
+        <WarningArrival>
+          {t("medicines.errors.period.problem")} {Object.values(errors).join(" ")}
+        </WarningArrival>
+      ) : null}
       <div className="flex flex-wrap gap-6">
         <DateInput
           id="period-from"

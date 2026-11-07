@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { CancelOrderForm, SubmitOrderForm } from "@/components/medicines/stock/LocationStockForms";
+import { OrderLinesTable } from "@/components/medicines/stock/OrderLinesTable";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
@@ -47,18 +49,25 @@ export default async function MedicineOrderPage({
   const location = me.locations.find((l) => l.id === locationId);
   if (!location) notFound();
   const api = await tenantApi();
-  const [read, people] = await Promise.all([
+  const [read, people, here] = await Promise.all([
     api.GET("/v1/medicine-orders/{id}", { params: { path: { id: orderId } } }),
     api.GET("/v1/people", { params: { query: { locationId } } }),
+    api.GET("/v1/locations/{id}/medicine-orders", { params: { path: { id: locationId } } }),
   ]);
   if (problemCode(read.error) === "not_found") notFound();
+  // Only an order of the home in the address, never another home's under this one's name
+  // (security review m1).
+  if (here.data && !here.data.items.some((o) => o.id === orderId)) notFound();
   if (problemCode(read.error) === "missing_permission") return <SafetyForbidden title={title} />;
   if (!read.data) failWith(read.error, read.response, orderHref(locationId, orderId));
   const order = read.data;
-  const names = new Map((people.data?.items ?? []).map((p) => [p.id, personNames(p).full]));
+  const peopleById = new Map((people.data?.items ?? []).map((p) => [p.id, p]));
   const chip = orderChip(order.status, t);
   const manage = stockManaged(me.permissions);
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  // Each arrival takes focus afresh, though the page stays mounted (accessibility review).
+  const at = firstParam(query.at) ?? "first";
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -69,7 +78,7 @@ export default async function MedicineOrderPage({
         })}
       />
       {done === "created" || done === "submitted" || done === "cancelled" ? (
-        <ArrivalNotice>{t("medicines.stock.order.arrived", { done })}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.stock.order.arrived", { done })}</ArrivalNotice>
       ) : null}
       <Card as="section" title={t("medicines.stock.order.details")} headingLevel={2}>
         <div className="flex flex-col gap-2">
@@ -91,43 +100,35 @@ export default async function MedicineOrderPage({
           ) : null}
         </div>
       </Card>
-      <Card as="section" title={t("medicines.stock.order.linesTitle")} headingLevel={2}>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b border-border">
-                <th scope="col" className="py-2 pr-4">
-                  {t("medicines.stock.order.person")}
-                </th>
-                <th scope="col" className="py-2 pr-4">
-                  {t("medicines.stock.order.medicine")}
-                </th>
-                <th scope="col" className="py-2 pr-4">
-                  {t("medicines.stock.order.ordered")}
-                </th>
-                <th scope="col" className="py-2">
-                  {t("medicines.stock.order.received")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.lines.map((line) => (
-                <tr key={line.id} className="border-b border-border">
-                  <td className="py-2 pr-4">
-                    {names.get(line.personId) ?? t("medicines.stock.order.someone")}
-                  </td>
-                  <td className="py-2 pr-4">{line.productName}</td>
-                  <td className="py-2 pr-4">{line.quantity}</td>
-                  <td className="py-2">
-                    {line.received > line.quantity
-                      ? t("medicines.stock.order.overReceived", { received: line.received })
-                      : line.received}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <Card as="section" title={t("medicines.stock.order.onOrderTitle")} headingLevel={2}>
+        <OrderLinesTable
+          caption={t("medicines.stock.order.linesCaption")}
+          headers={{
+            person: t("medicines.stock.order.person"),
+            medicine: t("medicines.stock.order.medicine"),
+            ordered: t("medicines.stock.order.ordered"),
+            received: t("medicines.stock.order.received"),
+          }}
+          empty={t("medicines.stock.order.noLines")}
+          rows={order.lines.map((line) => {
+            const who = peopleById.get(line.personId);
+            return {
+              id: line.id,
+              person: (
+                <span className="flex flex-col gap-1">
+                  <span>{who ? personNames(who).full : t("medicines.stock.order.someone")}</span>
+                  {who ? <PersonNeeds person={who} /> : null}
+                </span>
+              ),
+              medicine: line.productName,
+              ordered: t("medicines.stock.order.quantity", { quantity: line.quantity }),
+              received:
+                line.received > line.quantity
+                  ? t("medicines.stock.order.overReceived", { received: line.received })
+                  : t("medicines.stock.order.quantity", { quantity: line.received }),
+            };
+          })}
+        />
       </Card>
       {manage && maySubmitOrder(order.status) ? (
         <Card as="section" title={t("medicines.stock.order.submitTitle")} headingLevel={2}>

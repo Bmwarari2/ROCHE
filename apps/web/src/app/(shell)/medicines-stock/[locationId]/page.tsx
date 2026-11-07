@@ -9,6 +9,7 @@ import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { homelyShown } from "@/lib/homely-remedies";
 import { t } from "@/lib/i18n";
 import {
   locationStockHref,
@@ -72,14 +73,16 @@ export default async function MedicinesStockPage({
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader eyebrow={location.name} title={title} description={t("medicines.stock.intro")} />
-      <p className="m-0">
-        <Link
-          href={`${locationStockHref(locationId)}/homely-remedies`}
-          className="inline-flex min-h-target items-center underline"
-        >
-          {t("medicines.links.homelyProtocols")}
-        </Link>
-      </p>
+      {homelyShown(me.permissions) ? (
+        <p className="m-0">
+          <Link
+            href={`${locationStockHref(locationId)}/homely-remedies`}
+            className="inline-flex min-h-target items-center underline"
+          >
+            {t("medicines.links.homelyProtocols")}
+          </Link>
+        </p>
+      ) : null}
       {done === "cycle" || done === "storage" ? (
         <ArrivalNotice key={at}>{t("medicines.stock.arrived", { done })}</ArrivalNotice>
       ) : null}

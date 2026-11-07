@@ -9,8 +9,6 @@ import {
   PackageOpen,
   PencilLine,
   Send,
-  ThermometerSnowflake,
-  ThermometerSun,
   TriangleAlert,
 } from "lucide-react";
 import {
@@ -101,23 +99,6 @@ export const maySubmitOrder = (status: OrderStatus) => status === "draft";
 export const mayCancelOrder = (status: OrderStatus) =>
   status === "draft" || status === "submitted" || status === "part_received";
 
-/**
- * Which way a reading the API found out of range went, for its words and icon: above the range,
- * below it, or only the thermometer's maximum or minimum since the last reading. The API's
- * `outOfRange` decides; this only names it, and never says whether the medicines can be used.
- */
-export function readingBreach(
-  r: Pick<
-    TemperatureReading,
-    "celsius" | "minCelsius" | "maxCelsius" | "lowCelsius" | "highCelsius" | "outOfRange"
-  >,
-): "above" | "below" | "since_last" | null {
-  if (!r.outOfRange) return null;
-  if (r.celsius > r.highCelsius) return "above";
-  if (r.lowCelsius !== null && r.celsius < r.lowCelsius) return "below";
-  return "since_last";
-}
-
 /** A reading's state as an icon and a word (HZ-132; never colour alone). */
 export function readingChip(
   r: Pick<
@@ -126,14 +107,11 @@ export function readingChip(
   >,
   t: Translator,
 ): Chip {
-  const breach = readingBreach(r);
-  if (breach === null) {
-    return { status: "done", icon: CircleCheck, label: t("medicines.stock.reading.inRange") };
-  }
-  const label = t("medicines.stock.reading.outOfRange", { breach });
-  const icon =
-    breach === "above" ? ThermometerSun : breach === "below" ? ThermometerSnowflake : TriangleAlert;
-  return { status: "overdue", icon, label };
+  // The API's `outOfRange` alone decides; the web never names a direction or a cause. The figures
+  // (the reading, the thermometer's lowest and highest, the range) sit beside it (HZ-132).
+  return r.outOfRange
+    ? { status: "overdue", icon: TriangleAlert, label: t("medicines.stock.reading.outOfRange") }
+    : { status: "done", icon: CircleCheck, label: t("medicines.stock.reading.inRange") };
 }
 
 /** The range that applied to a reading, from the rate table as the API stored it. */

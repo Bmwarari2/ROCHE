@@ -4,6 +4,7 @@ import {
   changeProtocolHref,
   checkKey,
   checkSays,
+  currentMedicines,
   DOSE_FIELD_FOR_PROBLEM,
   doseRows,
   type HomelyDose,
@@ -305,7 +306,13 @@ describe("hazard HZ-120 hazard HZ-007 checking and recording a dose", () => {
 
   it("records a dose now, with the allergies compared, never as already given", () => {
     const read = readDose(
-      form({ protocolId: PROTOCOL, quantity: "2", reason: "Headache", allergiesChecked: "yes" }),
+      form({
+        protocolId: PROTOCOL,
+        quantity: "2",
+        reason: "Headache",
+        allergiesChecked: "yes",
+        medicinesChecked: "yes",
+      }),
       t,
       { id: "id-1" },
     );
@@ -326,13 +333,16 @@ describe("hazard HZ-120 hazard HZ-007 checking and recording a dose", () => {
     ["reason", { reason: "" }, "medicines.homely.dose.reasonError"],
     ["allergiesChecked", { allergiesChecked: "" }, "medicines.homely.dose.allergiesError"],
     ["quantity", { quantity: "0" }, "medicines.homely.dose.quantityError"],
-  ] as const)("refuses without %s", (field, over, key) => {
+    // HZ-120: the remedy is compared with every current medicine, not only the same product.
+    ["medicinesChecked", { medicinesChecked: "" }, "medicines.homely.dose.medicinesError"],
+  ] as const)("hazard HZ-120 refuses without %s", (field, over, key) => {
     const read = readDose(
       form({
         protocolId: PROTOCOL,
         quantity: "2",
         reason: "Headache",
         allergiesChecked: "yes",
+        medicinesChecked: "yes",
         ...over,
       }),
       t,
@@ -442,5 +452,21 @@ describe("hazard HZ-120 the staff a protocol may name", () => {
       t,
     );
     expect(options).toEqual([{ id: MEMBER, label: "Cy Example" }]);
+  });
+});
+
+describe("currentMedicines (hazard HZ-120)", () => {
+  it.each([
+    ["checked", true],
+    ["not_yet_checked", true],
+    ["difference_found", true],
+    ["stopped", false],
+    ["replaced", false],
+    ["withdrawn", false],
+  ] as const)("an entry that is %s is listed: %s", (state, listed) => {
+    const out = currentMedicines([
+      { state, product: { name: "Codeine 30mg tablets" }, directionsInWords: "1 tablet at 08:00" },
+    ]);
+    expect(out.length > 0).toBe(listed);
   });
 });

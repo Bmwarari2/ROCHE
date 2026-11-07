@@ -1,4 +1,5 @@
 import { Card, StatusChip } from "@harbour/ui";
+import type { ReactNode } from "react";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { type MedicationError, promptChip, reachedChip } from "@/lib/medication-errors";
@@ -36,6 +37,9 @@ export function MedicationErrorEscalations({ error }: { readonly error: Medicati
     <Card as="section" title={t("medicines.errors.escalations")} headingLevel={2}>
       <div className="flex flex-col gap-3">
         <p className="m-0 max-w-prose">{t("medicines.errors.escalationsIntro")}</p>
+        {error.prompts.length === 0 ? (
+          <p className="m-0">{t("medicines.errors.nothingOutstanding")}</p>
+        ) : null}
         <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {error.prompts.map((p) => {
             const chip = promptChip(p.prompt, t);
@@ -58,9 +62,12 @@ export function MedicationErrorEscalations({ error }: { readonly error: Medicati
 export function MedicationErrorDetails({
   error,
   personName,
+  personNeeds,
 }: {
   readonly error: MedicationError;
   readonly personName: string | null;
+  /** The person's communication needs (AIS), beside who the error is about. */
+  readonly personNeeds?: ReactNode;
 }) {
   const reached = reachedChip(error.nearMiss, t);
   const answer = (value: string | null) =>
@@ -71,6 +78,7 @@ export function MedicationErrorDetails({
         <p className="m-0">
           <StatusChip status={reached.status} label={reached.label} icon={reached.icon} />
         </p>
+        {personNeeds}
         <Fields
           rows={[
             ["person", personName],

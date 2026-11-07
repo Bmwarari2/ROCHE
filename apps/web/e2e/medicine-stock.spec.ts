@@ -177,11 +177,15 @@ test("hazard HZ-132 hazard HZ-003 the manager orders, receives, counts and dispo
   await expect(record.getByText("In range", { exact: true })).toBeVisible();
   await record.getByLabel("Temperature now, in degrees Celsius").fill("9.5");
   await record.getByRole("button", { name: "Record reading" }).click();
-  await expect(record.getByText("Out of range, too warm")).toBeVisible();
+  // The state and the figures take focus, so they are read out; the web names no direction (HZ-132).
+  await expect(record.getByText("Out of range", { exact: true })).toBeVisible();
+  await expect(
+    record.locator("div[tabindex='-1']").filter({ hasText: "Out of range" }),
+  ).toBeFocused();
   // The API's own words on what happens next; never whether the medicines can be used.
   await expect(record.getByText(/asked to check the storage and ask the pharmacist/)).toBeVisible();
   const readings = main(manager).getByRole("region", { name: "Latest readings" });
-  await expect(readings.getByText("Out of range, too warm")).toBeVisible();
+  await expect(readings.getByText("Out of range", { exact: true }).first()).toBeVisible();
   await expect(readings.getByText("The range was 2 to 8 degrees Celsius.").first()).toBeVisible();
   await bothThemes(manager, "a fridge with a reading out of range");
 
@@ -209,6 +213,13 @@ test("hazard HZ-132 hazard HZ-003 the manager orders, receives, counts and dispo
   await submit.getByRole("button", { name: "Submit order" }).click();
   await manager.waitForURL(/done=submitted/);
   await expect(main(manager).getByText("Submitted", { exact: true })).toBeVisible();
+  // The arrival takes focus again, not lost with the form that has gone.
+  await expect(
+    main(manager)
+      .getByRole("status")
+      .filter({ hasText: /submitted/i })
+      .first(),
+  ).toBeFocused();
   await bothThemes(manager, "a submitted order");
 
   // The person's stock: open an item from the MAR.

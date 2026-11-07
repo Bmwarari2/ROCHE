@@ -55,8 +55,10 @@ async function StockItemTab({
   const { person } = await getPerson(id);
   if (!person) return null;
   const { me } = await getShellContext();
-  if (!stockShown(me.permissions)) return <NoAccess />;
-  const manage = stockManaged(me.permissions);
+  // The permissions that reach this person, as the API decides (security review m2).
+  const reaching = person.access?.reaching ?? me.permissions;
+  if (!stockShown(reaching)) return <NoAccess />;
+  const manage = stockManaged(reaching);
   const api = await tenantApi();
   const [read, orders, members] = await Promise.all([
     api.GET("/v1/people/{id}/medicine-stock", { params: { path: { id } } }),

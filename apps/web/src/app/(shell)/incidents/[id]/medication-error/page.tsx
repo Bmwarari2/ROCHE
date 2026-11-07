@@ -14,6 +14,7 @@ import {
   type Choice,
   MedicationErrorForm,
 } from "@/components/medicines/errors/MedicationErrorForm";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
@@ -131,6 +132,12 @@ export default async function MedicationErrorPage({
     (list.data?.items ?? []).map((p) => [p.id, sampleName(p, personNames(p).full, t)]),
   );
   const nameOf = (personId: string) => names.get(personId) ?? t("medicines.errors.someone");
+  const summaries = new Map((list.data?.items ?? []).map((p) => [p.id, p]));
+  // Communication needs beside each person named (AIS; accessibility review).
+  const needsOf = (personId: string) => {
+    const who = summaries.get(personId);
+    return who ? <PersonNeeds person={who} /> : null;
+  };
   const onIncident = incident.people
     .filter((p) => p.kind === "service_user" && p.personId)
     .map((p) => p.personId as string);
@@ -237,7 +244,11 @@ export default async function MedicationErrorPage({
       {current ? (
         <>
           <MedicationErrorEscalations error={current} />
-          <MedicationErrorDetails error={current} personName={nameOf(current.personId)} />
+          <MedicationErrorDetails
+            error={current}
+            personName={nameOf(current.personId)}
+            personNeeds={needsOf(current.personId)}
+          />
         </>
       ) : (
         <Notice
@@ -259,6 +270,7 @@ export default async function MedicationErrorPage({
                 >
                   {t("medicines.errors.recordFor", { name: nameOf(personId) })}
                 </Link>
+                {needsOf(personId)}
               </li>
             ))}
           </ul>

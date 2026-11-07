@@ -147,6 +147,8 @@ test("hazard HZ-120 hazard HZ-007 homely remedies only within the home's protoco
   await expect(give.getByRole("region", { name: "Who this medicine is for" })).toContainText(
     "Allergies:",
   );
+  // HZ-120: the person's current medicines are listed to compare with the remedy.
+  await expect(give.getByRole("region", { name: "Current medicines" })).toBeVisible();
   await bothThemes(nurse, "a person's homely remedies");
   await give
     .getByLabel("Protocol", { exact: true })
@@ -172,7 +174,13 @@ test("hazard HZ-120 hazard HZ-007 homely remedies only within the home's protoco
   ).toBeVisible();
   await bothThemes(nurse, "record a homely remedy with errors");
   await give.getByLabel("Why it is given").fill("Headache");
+  await expect(
+    give
+      .getByText("Confirm you have compared this remedy with the person's current medicines")
+      .first(),
+  ).toBeVisible();
   await give.getByLabel("I have compared the person's allergies with this remedy").check();
+  await give.getByLabel("I have compared this remedy with the person's current medicines").check();
   await give.getByRole("button", { name: "Record the dose" }).click();
   await nurse.waitForURL(/\/homely-remedies\?done=recorded/);
   await arrival(nurse, "Homely remedy recorded");

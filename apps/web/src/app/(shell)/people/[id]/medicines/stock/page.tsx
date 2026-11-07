@@ -49,8 +49,10 @@ async function PersonStockTab({
   const { person } = await getPerson(id);
   if (!person) return null;
   const { me } = await getShellContext();
-  if (!stockShown(me.permissions)) return <NoAccess />;
-  const manage = stockManaged(me.permissions);
+  // The permissions that reach this person, as the API decides (security review m2).
+  const reaching = person.access?.reaching ?? me.permissions;
+  if (!stockShown(reaching)) return <NoAccess />;
+  const manage = stockManaged(reaching);
   const api = await tenantApi();
   const [read, record] = await Promise.all([
     api.GET("/v1/people/{id}/medicine-stock", { params: { path: { id } } }),
@@ -62,7 +64,10 @@ async function PersonStockTab({
     id: e.id,
     name: e.product.name,
   }));
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  // Each arrival starts a fresh form and takes focus again (accessibility review).
+  const at = firstParam(query.at) ?? "first";
   const when = (iso: string) => formatDateTime(iso) ?? "";
 
   return (
@@ -72,7 +77,7 @@ async function PersonStockTab({
         <p className="m-0 max-w-prose text-text-secondary">{t("medicines.stock.personIntro")}</p>
       </div>
       {done === "opened" || done === "witnessed" ? (
-        <ArrivalNotice>{t("medicines.stock.personArrived", { done })}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.stock.personArrived", { done })}</ArrivalNotice>
       ) : null}
       <Card as="section" title={t("medicines.stock.items")} headingLevel={3}>
         {data.items.length === 0 ? (
@@ -148,10 +153,13 @@ async function PersonStockTab({
       ) : null}
       {manage ? (
         <Card as="section" title={t("medicines.stock.open.title")} headingLevel={3}>
-          {openable.length === 0 ? (
+          {!record?.data ? (
+            // Never "nothing to open" when the medicines could not be read (clinical review).
+            <p className="m-0">{t("medicines.stock.open.unreadable")}</p>
+          ) : openable.length === 0 ? (
             <p className="m-0">{t("medicines.stock.open.nothing")}</p>
           ) : (
-            <OpenItemForm personId={id} entries={openable} />
+            <OpenItemForm key={at} personId={id} entries={openable} />
           )}
         </Card>
       ) : null}

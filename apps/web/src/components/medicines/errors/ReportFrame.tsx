@@ -1,8 +1,9 @@
 import { PageHeader } from "@harbour/ui";
-import { Info, TriangleAlert } from "lucide-react";
+import { Info } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Notice } from "@/components/care/Notice";
+import { WarningArrival } from "@/components/care/WarningArrival";
 import { t } from "@/lib/i18n";
 import { REPORTS_HREF, reportsHref } from "@/lib/medication-errors";
 
@@ -58,13 +59,10 @@ export function ReportFrame({
 
 /** A report the API would not give, in its own words (a period too long, for example). */
 export function ReportRefused({ message }: { readonly message: string }) {
+  // Said on arrival and focused, as the page reloads with it (accessibility review).
   return (
-    <Notice
-      tone="warning"
-      icon={<TriangleAlert {...iconProps} />}
-      title={t("medicines.errors.reports.refused")}
-    >
-      {message}
-    </Notice>
+    <WarningArrival>
+      {t("medicines.errors.reports.refused")} {message}
+    </WarningArrival>
   );
 }

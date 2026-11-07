@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/care/Notice";
 import { NewOrderForm, type OrderGroup } from "@/components/medicines/stock/LocationStockForms";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
@@ -55,6 +56,7 @@ export default async function NewMedicineOrderPage({ params }: { readonly params
     .map((person, i) => ({
       personId: person.id,
       name: personNames(person).full,
+      needs: <PersonNeeds person={person} />,
       medicines: openableEntries(records[i]?.data?.entries ?? [], []).map((e) => ({
         medicationId: e.id,
         productName: e.product.name,

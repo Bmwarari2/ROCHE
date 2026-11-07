@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ReportFrame } from "@/components/medicines/errors/ReportFrame";
 import { reportLocation, reportProblem } from "@/components/medicines/errors/report-location";
+import { PersonNeeds, type PersonNeedsOf } from "@/components/safety/PersonNeeds";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -29,9 +30,11 @@ export default async function ReviewTrackerPage({ params }: { readonly params: P
   const location = await reportLocation(locationId);
   if (!location) return <SafetyForbidden title={title} />;
   const api = await tenantApi();
-  const read = await api.GET("/v1/locations/{id}/medication-reviews", {
-    params: { path: { id: location.id } },
-  });
+  const [read, people] = await Promise.all([
+    api.GET("/v1/locations/{id}/medication-reviews", { params: { path: { id: location.id } } }),
+    api.GET("/v1/people", { params: { query: { locationId: location.id } } }),
+  ]);
+  const summaries = new Map((people.data?.items ?? []).map((p) => [p.id, p]));
   if (reportProblem(read.error)?.kind === "forbidden") return <SafetyForbidden title={title} />;
   if (!read.data) failWith(read.error, read.response, reportHref(location.id, "reviews"));
   const items = read.data.items;
@@ -45,7 +48,7 @@ export default async function ReviewTrackerPage({ params }: { readonly params: P
       description={t("medicines.errors.tracker.description")}
       informationOnly={false}
     >
-      <p className="m-0" role="status">
+      <p className="m-0">
         {t("medicines.errors.tracker.summary", {
           overdue: items.filter((l) => l.status === "overdue").length,
           dueSoon: items.filter((l) => l.status === "due_soon").length,
@@ -74,6 +77,9 @@ export default async function ReviewTrackerPage({ params }: { readonly params: P
                     {t("medicines.errors.tracker.open", { name: line.name })}
                   </Link>
                 </h2>
+                {summaries.get(line.personId) ? (
+                  <PersonNeeds person={summaries.get(line.personId) as PersonNeedsOf} />
+                ) : null}
                 <p className="m-0">
                   <StatusChip status={chip.status} label={chip.label} icon={chip.icon} />
                 </p>

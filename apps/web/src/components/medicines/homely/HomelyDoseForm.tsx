@@ -21,7 +21,13 @@ import { useArrival } from "../MedicineForms";
 import { ProtocolSummary } from "./ProtocolSummary";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
-const FIELDS = ["protocolId", "quantity", "reason", "allergiesChecked"] as const;
+const FIELDS = [
+  "protocolId",
+  "quantity",
+  "reason",
+  "allergiesChecked",
+  "medicinesChecked",
+] as const;
 
 /**
  * Giving a homely remedy (slice 55; medicines.md section 15.3; HZ-120, HZ-007). The person and
@@ -38,6 +44,7 @@ export function HomelyDoseForm({
   protocols,
   recordId,
   person,
+  currentMedicines,
 }: {
   readonly personId: string;
   /** The home's protocols in use. */
@@ -45,6 +52,8 @@ export function HomelyDoseForm({
   /** The client's UUID for this record, made by the page, so a resend is the same record. */
   readonly recordId: string;
   readonly person: ReactNode;
+  /** The person's current medicines on the eMAR, to compare with the remedy (HZ-120). */
+  readonly currentMedicines: ReactNode;
 }) {
   const ids = useFieldIds(FIELDS);
   const arrive = useArrival();
@@ -104,6 +113,7 @@ export function HomelyDoseForm({
   return (
     <form ref={formRef} method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       {person}
+      {currentMedicines}
       <SelectField
         id={ids.protocolId}
         name="protocolId"
@@ -161,6 +171,12 @@ export function HomelyDoseForm({
             : t("medicines.homely.dose.check")}
         </Button>
       </div>
+      {chosen && !chosen.vmpId ? (
+        <p className="m-0 inline-flex items-start gap-2 font-semibold">
+          <TriangleAlert {...icon} />
+          {t("medicines.homely.dose.noDmd")}
+        </p>
+      ) : null}
       <section
         aria-label={t("medicines.homely.dose.checkLabel")}
         aria-live="polite"
@@ -201,6 +217,14 @@ export function HomelyDoseForm({
             maxLength={500}
             formatCount={(remaining) => characterCount(remaining)}
             error={errorFor(result, "reason")}
+          />
+          <Checkbox
+            id={ids.medicinesChecked}
+            name="medicinesChecked"
+            value="yes"
+            label={t("medicines.homely.dose.medicines")}
+            hint={t("medicines.homely.dose.medicinesHint")}
+            error={errorFor(result, "medicinesChecked")}
           />
           <Checkbox
             id={ids.allergiesChecked}

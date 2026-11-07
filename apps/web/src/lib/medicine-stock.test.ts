@@ -20,7 +20,6 @@ import {
   readCount,
   readCycle,
   readDisposal,
-  readingBreach,
   readingChip,
   readNewOrder,
   readOpenItem,
@@ -103,27 +102,41 @@ const reading = (r: Partial<TemperatureReading>): TemperatureReading => ({
 
 describe("hazard HZ-132 a reading's state is the API's, shown as an icon and words", () => {
   it.each([
-    ["in range", reading({}), null, "done"],
-    ["too warm", reading({ celsius: 8.1, outOfRange: true }), "above", "overdue"],
-    ["too cold", reading({ celsius: 1.9, outOfRange: true }), "below", "overdue"],
+    ["in range", reading({}), "done", "medicines.stock.reading.inRange"],
+    [
+      "above the range",
+      reading({ celsius: 8.1, outOfRange: true }),
+      "overdue",
+      "medicines.stock.reading.outOfRange",
+    ],
+    [
+      "below the range",
+      reading({ celsius: 1.9, outOfRange: true }),
+      "overdue",
+      "medicines.stock.reading.outOfRange",
+    ],
     [
       "the maximum since the last reading",
       reading({ celsius: 5, maxCelsius: 9.2, outOfRange: true }),
-      "since_last",
       "overdue",
+      "medicines.stock.reading.outOfRange",
     ],
     [
       "a room has no minimum",
       reading({ celsius: -3, lowCelsius: null, highCelsius: 25, outOfRange: true }),
-      "since_last",
       "overdue",
+      "medicines.stock.reading.outOfRange",
     ],
-  ])("%s", (_, r, breach, status) => {
-    expect(readingBreach(r)).toBe(breach);
+  ])("%s", (_, r, status, label) => {
+    // One word for every breach: the web names no direction or cause; the figures say it.
     const chip = readingChip(r, t);
     expect(chip.status).toBe(status);
     expect(chip.icon).toBeTruthy();
-    expect(chip.label.length).toBeGreaterThan(0);
+    expect(chip.label).toContain(label);
+  });
+
+  it("follows the API, not the figures: a reading inside the range the API found out of range", () => {
+    expect(readingChip(reading({ celsius: 5, outOfRange: true }), t).status).toBe("overdue");
   });
 
   it("never decides out of range itself: a reading at the edge the API found in range stays in range", () => {
@@ -224,7 +237,7 @@ describe("quantities and counts as typed", () => {
   });
 });
 
-describe("rule 4 a count that differs from the balance needs a reason", () => {
+describe("hazard HZ-003 rule 4 a count that differs from the balance needs a reason", () => {
   it.each([
     [
       "matches, no reason sent",

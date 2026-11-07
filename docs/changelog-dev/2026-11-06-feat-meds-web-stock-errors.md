@@ -33,3 +33,16 @@ MEDS-008, MEDS-012, MEDS-013. No migration and no API change.
   holders of `medicines.*` can read. Today they use the workforce and members routes where the reader
   has them.
 - Recording a homely remedy dose already given is not offered on the web.
+
+## Review fixes (2026-11-07)
+
+- Homely remedies (HZ-120): the person's current medicines are listed beside the dose form, a
+  protocol with no dm+d product says it cannot be checked against the MAR, and the giver confirms
+  the comparison (H-1410, provisional).
+- Storage temperatures (HZ-132): the state is "In range" or "Out of range" only, as the API decided,
+  with the figures beside it; after recording, the state and figures take focus (H-1411, provisional).
+- Accessibility: order lines in a captioned table; arrivals take focus on the order and stock pages;
+  report period errors and refusals are said on arrival; disposal says it cannot be undone;
+  communication needs beside each person on orders, medication errors and the review tracker.
+- Security: the witness form shows only for a disposal found on the person; permissions come from
+  what reaches the person; an order must belong to the home in the address.

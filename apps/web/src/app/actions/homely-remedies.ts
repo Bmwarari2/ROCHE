@@ -67,10 +67,9 @@ export async function addProtocol(
   if (!isUuid(locationId)) return refused(t("errors.notFound"), "not_found");
   const parsed = NewHomelyProtocol.safeParse(protocolFields(body));
   if (!parsed.success) return refused(t("errors.generic"), "invalid");
-  const api = await tenantApi();
   const out = await send(
-    () =>
-      api.POST("/v1/locations/{id}/homely-remedies", {
+    async () =>
+      (await tenantApi()).POST("/v1/locations/{id}/homely-remedies", {
         params: { path: { id: locationId } },
         body: parsed.data,
       }),
@@ -95,10 +94,9 @@ export async function changeProtocol(
     version: body.version,
   });
   if (!parsed.success) return refused(t("errors.generic"), "invalid");
-  const api = await tenantApi();
   const out = await send(
-    () =>
-      api.POST("/v1/homely-remedies/{id}/change", {
+    async () =>
+      (await tenantApi()).POST("/v1/homely-remedies/{id}/change", {
         params: { path: { id: protocolId } },
         body: parsed.data,
       }),
@@ -119,10 +117,9 @@ export async function withdrawProtocol(
   }
   const parsed = WithdrawHomelyProtocol.safeParse({ reason: body.reason, version: body.version });
   if (!parsed.success) return refused(t("errors.generic"), "invalid");
-  const api = await tenantApi();
   const out = await send(
-    () =>
-      api.POST("/v1/homely-remedies/{id}/withdraw", {
+    async () =>
+      (await tenantApi()).POST("/v1/homely-remedies/{id}/withdraw", {
         params: { path: { id: protocolId } },
         body: parsed.data,
       }),
@@ -143,10 +140,9 @@ export async function checkHomelyDose(
     quantity: body.quantity,
   });
   if (!parsed.success) return refused(t("errors.generic"), "invalid");
-  const api = await tenantApi();
   const out = await send(
-    () =>
-      api.POST("/v1/people/{id}/homely-remedy-doses/check", {
+    async () =>
+      (await tenantApi()).POST("/v1/people/{id}/homely-remedy-doses/check", {
         params: { path: { id: personId } },
         body: parsed.data,
       }),
@@ -162,7 +158,8 @@ export async function recordHomelyDose(
   personId: string,
   body: Schemas["RecordHomelyDose"],
 ): Promise<ActionResult<null>> {
-  if (!isUuid(personId) || !isUuid(body.id)) return refused(t("errors.notFound"), "not_found");
+  if (!isUuid(personId) || !isUuid(body?.id ?? ""))
+    return refused(t("errors.notFound"), "not_found");
   // Only what the web form records: a dose now. A dose already given is not sent from here,
   // whatever a crafted call holds.
   const parsed = RecordHomelyDose.safeParse({
@@ -174,10 +171,9 @@ export async function recordHomelyDose(
     alreadyGiven: null,
   });
   if (!parsed.success) return refused(t("errors.generic"), "invalid");
-  const api = await tenantApi();
   const out = await send(
-    () =>
-      api.POST("/v1/people/{id}/homely-remedy-doses", {
+    async () =>
+      (await tenantApi()).POST("/v1/people/{id}/homely-remedy-doses", {
         params: { path: { id: personId } },
         body: parsed.data,
       }),
@@ -193,15 +189,14 @@ export async function markHomelyDoseInError(
   doseId: string,
   body: Schemas["HomelyDoseEnteredInError"],
 ): Promise<ActionResult<null>> {
-  if (!isUuid(personId) || !isUuid(doseId) || !isUuid(body.id)) {
+  if (!isUuid(personId) || !isUuid(doseId) || !isUuid(body?.id ?? "")) {
     return refused(t("errors.notFound"), "not_found");
   }
   const parsed = HomelyDoseEnteredInError.safeParse({ id: body.id, reason: body.reason });
   if (!parsed.success) return refused(t("errors.generic"), "invalid");
-  const api = await tenantApi();
   const out = await send(
-    () =>
-      api.POST("/v1/homely-remedy-doses/{id}/entered-in-error", {
+    async () =>
+      (await tenantApi()).POST("/v1/homely-remedy-doses/{id}/entered-in-error", {
         params: { path: { id: doseId } },
         body: parsed.data,
       }),

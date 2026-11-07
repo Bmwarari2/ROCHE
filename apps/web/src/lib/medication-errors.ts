@@ -7,10 +7,10 @@ import {
   CircleCheck,
   CircleHelp,
   Clock,
+  Info,
   Landmark,
   type LucideIcon,
   ShieldAlert,
-  ShieldCheck,
   Stethoscope,
   TriangleAlert,
   Users,
@@ -159,7 +159,7 @@ export function reachedChip(nearMiss: boolean | null, t: Translator): Chip {
   return nearMiss
     ? {
         status: "info",
-        icon: ShieldCheck,
+        icon: Info,
         label: t("medicines.errors.reached", { state: "near_miss" }),
       }
     : {

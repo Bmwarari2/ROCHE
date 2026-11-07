@@ -32,7 +32,9 @@ async function WitnessTab({ params }: { readonly params: Params }) {
   const { person } = await getPerson(id);
   if (!person) return null;
   const { me } = await getShellContext();
-  if (!stockManaged(me.permissions)) return <NoAccess />;
+  // The permissions that reach this person, as the API decides (security review m2).
+  const reaching = person.access?.reaching ?? me.permissions;
+  if (!stockManaged(reaching)) return <NoAccess />;
   const api = await tenantApi();
   const data = readOrFail(
     await api.GET("/v1/people/{id}/medicine-stock", { params: { path: { id } } }),
@@ -66,7 +68,8 @@ async function WitnessTab({ params }: { readonly params: Params }) {
           ) : (
             <p className="m-0">{t("medicines.stock.witness.notListed")}</p>
           )}
-          {found && found.movement.recordedBy === me.tenantUserId ? (
+          {/* A witness signs only for a disposal on screen, of this person (security review M1). */}
+          {!found ? null : found.movement.recordedBy === me.tenantUserId ? (
             <p className="m-0">{t("medicines.stock.witness.youRecorded")}</p>
           ) : (
             <WitnessDisposalForm personId={id} disposalId={disposalId} />

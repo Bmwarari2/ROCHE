@@ -185,8 +185,8 @@ export async function createOrder(
 ): Promise<ActionResult<Schemas["MedicineOrderOut"] | null>> {
   if (!isUuid(locationId)) return notFound();
   const parsed = NewMedicineOrder.safeParse({
-    cycleStartsOn: body.cycleStartsOn,
-    lines: body.lines.map((l) => ({
+    cycleStartsOn: body?.cycleStartsOn,
+    lines: (body?.lines ?? []).map((l) => ({
       personId: l.personId,
       medicationId: l.medicationId,
       quantity: l.quantity,

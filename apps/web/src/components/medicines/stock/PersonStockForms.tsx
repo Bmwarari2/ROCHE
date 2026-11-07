@@ -303,7 +303,7 @@ export function DisposalForm({
         />
       ) : null}
       {witnessed === "witness" && witnesses === null ? (
-        <p className="m-0 max-w-prose" id={ids.witnessId}>
+        <p className="m-0 max-w-prose" id={ids.witnessId} tabIndex={-1}>
           {errorFor(result, "witnessId") ?? t("medicines.stock.disposal.noWitnessList")}
         </p>
       ) : null}
@@ -319,6 +319,7 @@ export function DisposalForm({
           error={errorFor(result, "noWitnessReason")}
         />
       ) : null}
+      <p className="m-0 max-w-prose">{t("medicines.stock.disposal.consequence")}</p>
       <div>
         <Button type="submit" variant="destructive" icon={<Trash2 {...icon} />} disabled={pending}>
           {pending ? t("common.saving") : t("medicines.stock.disposal.submit")}

@@ -1851,12 +1851,10 @@ belong to.
    not connected); an order not yet received can be cancelled.
 4. **A fridge's or room's readings** (`/medicines-stock/{locationId}/storage/{storageId}`) lists the
    last 100, newest first. Each shows its state as an icon and words, never colour alone: "In
-   range", or "Out of range, too warm", "too cold" or "since the last reading" (the thermometer's
-   maximum or minimum). Whether a reading is out of range is the API's (the database's) decision,
+   range" or "Out of range", with no direction or cause (the figures beside it say that). Whether a reading is out of range is the API's (the database's) decision,
    from the rate table; the screen never works it out. Each shows the range that applied, as the API
    stored it, and the thermometer's lowest and highest since the last reading. An out-of-range
-   reading with a task says an urgent task asks the person in charge to check the storage and ask
-   the pharmacist.
+   reading with a task says a task was raised and points to the tasks list.
 5. **Recording a reading**: the temperature now and, optionally, the lowest and highest since the
    last reading, each from -50 to 60 with at most one decimal place (8.04 is refused, so a reading at
    a range's edge is never rounded into it; HZ-132). After it is recorded the form shows its state

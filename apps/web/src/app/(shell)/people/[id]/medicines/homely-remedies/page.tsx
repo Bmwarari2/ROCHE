@@ -14,6 +14,7 @@ import { getShellContext, tenantApi } from "@/lib/api";
 import { tabHref } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import {
+  currentMedicines,
   doseRows,
   HOMELY_GIVER,
   homelyShown,
@@ -54,9 +55,10 @@ async function PersonHomely({
   const { me } = await getShellContext();
   if (!homelyShown(me.permissions)) return <NoAccess />;
   const api = await tenantApi();
-  const [doses, protocols] = await Promise.all([
+  const [doses, protocols, medicines] = await Promise.all([
     api.GET("/v1/people/{id}/homely-remedy-doses", { params: { path: { id } } }),
     api.GET("/v1/locations/{id}/homely-remedies", { params: { path: { id: person.locationId } } }),
+    api.GET("/v1/people/{id}/medicines", { params: { path: { id } } }),
   ]);
   const data = readOrFail(doses, tabHref(id, "medicines"));
   if (!data) return <NoAccess />;
@@ -101,6 +103,30 @@ async function PersonHomely({
               protocols={usable}
               recordId={randomUUID()}
               person={<PersonCheck person={person} />}
+              currentMedicines={
+                // What the person takes now, to compare with the remedy (HZ-120).
+                <section aria-labelledby="homely-current" className="flex flex-col gap-2">
+                  <h4 id="homely-current" className="m-0 text-body font-semibold">
+                    {t("medicines.homely.dose.currentTitle")}
+                  </h4>
+                  {!medicines.data ? (
+                    <p className="m-0 inline-flex items-start gap-2 font-semibold">
+                      <TriangleAlert {...iconProps} />
+                      {t("medicines.homely.dose.currentUnreadable")}
+                    </p>
+                  ) : currentMedicines(medicines.data.entries).length === 0 ? (
+                    <p className="m-0">{t("medicines.homely.dose.currentNone")}</p>
+                  ) : (
+                    <ul className="m-0 flex flex-col gap-1 pl-5">
+                      {currentMedicines(medicines.data.entries).map((m) => (
+                        <li key={`${m.product}-${m.directions}`}>
+                          {t("medicines.homely.dose.currentItem", m)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              }
             />
           )}
         </Card>
@@ -108,6 +134,7 @@ async function PersonHomely({
       <Card as="section" title={t("medicines.homely.doses")} headingLevel={3}>
         {rows.length === 0 ? (
           <EmptyState
+            headingLevel={4}
             icon={<Pill {...iconProps} />}
             title={t("medicines.homely.noDoses")}
             description={t("medicines.homely.noDosesAbout")}
@@ -135,8 +162,14 @@ async function PersonHomely({
                     <span className={struck ? "line-through" : undefined}>
                       {t("medicines.homely.doseLine", {
                         product: dose.productName,
-                        quantity: dose.quantity ?? 0,
-                        unit: dose.unitName,
+                        // A missing quantity says so, never as zero (clinical review).
+                        amount:
+                          dose.quantity === null
+                            ? t("medicines.homely.quantityNotRecorded")
+                            : t("medicines.stock.balance", {
+                                balance: dose.quantity,
+                                unit: dose.unitName,
+                              }),
                         at: when(dose.givenAt),
                       })}
                     </span>

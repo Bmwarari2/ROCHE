@@ -348,6 +348,11 @@ export function readDose(
   if (text(form, "allergiesChecked") !== "yes") {
     errors.allergiesChecked = t("medicines.homely.dose.allergiesError");
   }
+  // The person compares the remedy with every current medicine: the API matches only the same
+  // dm+d product, never an ingredient (ADR-0082; clinical review of slice 55, HZ-120).
+  if (text(form, "medicinesChecked") !== "yes") {
+    errors.medicinesChecked = t("medicines.homely.dose.medicinesError");
+  }
   if (!check.ok || Object.keys(errors).length > 0) return { ok: false, errors };
   return {
     ok: true,
@@ -415,4 +420,17 @@ export function protocolDefaults(p: HomelyProtocol): Record<string, string> {
     approvedOn: p.approvedOn,
     reviewOn: p.reviewOn,
   };
+}
+
+/**
+ * The medicines on the person's eMAR now, to compare with a homely remedy (HZ-120): stopped,
+ * replaced and withdrawn entries are left out. The API checks only the same dm+d product; the
+ * person giving the remedy compares the ingredients with these.
+ */
+export function currentMedicines(
+  entries: readonly { state: string; product: { name: string }; directionsInWords: string }[],
+): { product: string; directions: string }[] {
+  return entries
+    .filter((e) => !["stopped", "replaced", "withdrawn"].includes(e.state))
+    .map((e) => ({ product: e.product.name, directions: e.directionsInWords }));
 }
