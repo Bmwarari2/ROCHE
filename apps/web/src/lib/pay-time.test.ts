@@ -4,6 +4,7 @@ import {
   absenceChip,
   absencesShown,
   coverChip,
+  decisionOptions,
   difference,
   exceptionChip,
   hoursAndMinutes,
@@ -72,6 +73,7 @@ describe("status chips say it in words with an icon", () => {
     ["declined", "Declined"],
     ["cancelled", "Cancelled"],
     ["recorded", "Recorded"],
+    ["postponed", "Postponed"],
     ["strange", "Not known"],
   ])("absence %s", (state, label) => {
     const c = absenceChip(state, t);
@@ -190,6 +192,141 @@ describe("readDecision and readOverride", () => {
     [{}, { ok: false, errors: { decision: "Choose approve or decline." } }],
   ])("decision %j", (fields, want) => {
     expect(readDecision(form(fields), t, 3)).toEqual(want);
+  });
+
+  // H-970: statutory leave is never declined; carer's and parental leave may be postponed.
+  it.each<[string, boolean, readonly string[]]>([
+    ["annual_leave", true, ["approve", "decline"]],
+    ["compassionate", false, ["approve", "decline"]],
+    ["carers_leave", true, ["approve", "postpone"]],
+    ["parental_leave", true, ["approve", "postpone"]],
+    ["carers_leave", false, ["approve"]],
+    ["maternity", true, ["approve"]],
+    ["parental_bereavement", false, ["approve"]],
+  ])("the choices for %s (postponing allowed now: %s)", (kind, canPostpone, want) => {
+    expect(decisionOptions(kind, canPostpone)).toEqual(want);
+  });
+
+  const carers = {
+    kind: "carers_leave",
+    startsOn: "2026-12-07",
+    endsOn: "2026-12-08",
+    latestStartsOn: "2027-01-07",
+    canPostpone: true,
+  };
+  const parental = { ...carers, kind: "parental_leave", latestStartsOn: "2027-06-07" };
+  const postpone = (more: Record<string, string> = {}) => ({
+    decision: "postpone",
+    reason: "Two others are away that week",
+    ...date("newStartsOn", "14", "12", "2026"),
+    ...date("newEndsOn", "15", "12", "2026"),
+    ...more,
+  });
+  it.each<[string, typeof carers, Record<string, string>, unknown]>([
+    [
+      "carer's leave is never declined",
+      carers,
+      { decision: "decline", reason: "Short-staffed" },
+      { ok: false, errors: { decision: "Choose approve or postpone." } },
+    ],
+    [
+      "maternity leave is approved only",
+      { ...carers, kind: "maternity", canPostpone: false },
+      { decision: "decline", reason: "Short-staffed" },
+      { ok: false, errors: { decision: "Choose approve." } },
+    ],
+    [
+      "a postponement of carer's leave with new dates",
+      carers,
+      postpone(),
+      {
+        ok: true,
+        body: {
+          version: 3,
+          decision: "postpone",
+          reason: "Two others are away that week",
+          startsOn: "2026-12-14",
+          endsOn: "2026-12-15",
+        },
+      },
+    ],
+    [
+      "a postponement of parental leave with the confirmation",
+      parental,
+      postpone({ confirmsPostponable: "yes" }),
+      {
+        ok: true,
+        body: {
+          version: 3,
+          decision: "postpone",
+          reason: "Two others are away that week",
+          startsOn: "2026-12-14",
+          endsOn: "2026-12-15",
+          confirmsPostponable: true,
+        },
+      },
+    ],
+    [
+      "parental leave without the confirmation",
+      parental,
+      postpone(),
+      {
+        ok: false,
+        errors: { confirmsPostponable: "Confirm this to postpone parental leave." },
+      },
+    ],
+    [
+      "a postponement needs a reason",
+      carers,
+      postpone({ reason: "" }),
+      {
+        ok: false,
+        errors: { reason: "Give a reason of at least 3 characters when you postpone." },
+      },
+    ],
+    [
+      "the same number of days",
+      carers,
+      postpone(date("newEndsOn", "16", "12", "2026")),
+      {
+        ok: false,
+        errors: { newEndsOn: "Give the same number of days as were asked for: 2 days." },
+      },
+    ],
+    [
+      "a later first day",
+      carers,
+      postpone({
+        ...date("newStartsOn", "7", "12", "2026"),
+        ...date("newEndsOn", "8", "12", "2026"),
+      }),
+      {
+        ok: false,
+        errors: { newStartsOn: "The new first day must be after the first day asked for." },
+      },
+    ],
+    [
+      "no later than the latest day",
+      carers,
+      postpone({
+        ...date("newStartsOn", "8", "1", "2027"),
+        ...date("newEndsOn", "9", "1", "2027"),
+      }),
+      { ok: false, errors: { newStartsOn: "The new first day must be no later than 07/01/2027." } },
+    ],
+  ])("%s", (_name, request, fields, want) => {
+    expect(readDecision(form(fields), t, 3, request)).toEqual(want);
+  });
+
+  it("asks for both new days", () => {
+    const out = readDecision(
+      form({ decision: "postpone", reason: "Two others away" }),
+      t,
+      3,
+      carers,
+    );
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(Object.keys(out.errors).sort()).toEqual(["newEndsOn", "newStartsOn"]);
   });
 
   it("an override needs a reason of 3 to 500 characters", () => {

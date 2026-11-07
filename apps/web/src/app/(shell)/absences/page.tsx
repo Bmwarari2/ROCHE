@@ -49,6 +49,7 @@ export default async function AbsencesPage() {
     return failWith(error, response, "/absences");
   }
   const canDecide = me.permissions.includes(ROTA_APPROVE);
+  const today = ukToday();
   const canAsk = me.permissions.includes(SELF);
   const items = [...data.items].sort(
     (a, b) =>
@@ -85,7 +86,7 @@ export default async function AbsencesPage() {
         <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {items.map((a) => {
             const cover =
-              a.state === "cancelled" || a.state === "declined"
+              a.state === "cancelled" || a.state === "declined" || a.state === "postponed"
                 ? null
                 : coverChip(a.coverNeeded, t);
             return (
@@ -105,6 +106,19 @@ export default async function AbsencesPage() {
                         open: a.endsOn ? "no" : "yes",
                       })}
                     </p>
+                    {a.state === "postponed" && a.postponedTo ? (
+                      <p className="m-0 text-body-dense">
+                        {t("payTime.absence.postponedTo", {
+                          from: formatDate(a.postponedTo.startsOn) ?? "",
+                          to: formatDate(a.postponedTo.endsOn) ?? "",
+                        })}
+                      </p>
+                    ) : null}
+                    {a.postponedFromId ? (
+                      <p className="m-0 text-body-dense text-text-secondary">
+                        {t("payTime.absence.postponedFrom")}
+                      </p>
+                    ) : null}
                     {a.decisionReason ? (
                       <p className="m-0 text-body-dense text-text-secondary">
                         {t("payTime.absence.reason", { reason: a.decisionReason })}
@@ -114,7 +128,20 @@ export default async function AbsencesPage() {
                     a.state === "requested" &&
                     a.member.id !== me.tenantUserId &&
                     !fromHrPlatform(a) ? (
-                      <DecisionForm id={a.id} version={a.version} />
+                      <DecisionForm
+                        id={a.id}
+                        version={a.version}
+                        // H-970: the statutory limits on postponing come from the API (the rate
+                        // table); a postponement is offered only until the last day for notice.
+                        request={{
+                          kind: a.kind,
+                          startsOn: a.startsOn,
+                          endsOn: a.endsOn,
+                          latestStartsOn: a.postponement?.latestStartsOn ?? null,
+                          canPostpone: a.postponement !== null && a.postponement.noticeBy >= today,
+                        }}
+                        noticeBy={a.postponement?.noticeBy ?? null}
+                      />
                     ) : null}
                   </div>
                 </Card>

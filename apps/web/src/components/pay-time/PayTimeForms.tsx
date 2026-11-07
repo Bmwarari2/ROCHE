@@ -3,6 +3,7 @@
 import {
   Button,
   ButtonLink,
+  Checkbox,
   DateInput,
   RadioGroup,
   SelectField,
@@ -44,16 +45,22 @@ import { StepUpNotice } from "@/components/safety/ManageForms";
 import { useSubmit } from "@/components/safety-silos/use-submit";
 import { isUuid } from "@/lib/context-cookies";
 import { uuidv7 } from "@/lib/entry-id";
+import { formatDate } from "@/lib/format";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, partsFor } from "@/lib/outcome";
 import {
   ABSENCE_REQUEST_KINDS,
+  type DecisionChoice,
+  type DecisionRequest,
+  decisionOptions,
   PAY_FREQUENCIES,
+  POSTPONABLE_KINDS,
   readDecision,
   readLeaveRequest,
   readOverride,
   readPayRun,
   readRuleSet,
+  STATUTORY_LEAVE_KINDS,
 } from "@/lib/pay-time";
 import { dateBoxesOf, dateTimeLabels } from "@/lib/uk-time";
 
@@ -337,14 +344,55 @@ export function LeaveRequestForm({ locationId }: { readonly locationId: string }
   );
 }
 
-export function DecisionForm({ id, version }: { readonly id: string; readonly version: number }) {
-  const ids = useFieldIds(["decision", "reason"]);
+/**
+ * An approver's decision on a request. Statutory leave is never declined (H-970): carer's and
+ * parental leave offer approve or postpone while the law allows a postponement, other statutory
+ * leave approve only, each saying why. Postponing asks for the new dates (the same number of days,
+ * no later than the latest day from the rate table) and, for parental leave, the approver's
+ * confirmation about the child's birth, placement and 18th birthday. The API checks it all again.
+ */
+export function DecisionForm({
+  id,
+  version,
+  request,
+  noticeBy,
+}: {
+  readonly id: string;
+  readonly version: number;
+  readonly request: DecisionRequest;
+  /** For carer's and parental leave: the last day a postponement may be given, if known. */
+  readonly noticeBy: string | null;
+}) {
+  const ids = useFieldIds([
+    "decision",
+    "reason",
+    "newStartsOn",
+    "newEndsOn",
+    "confirmsPostponable",
+  ]);
+  const [choice, setChoice] = useState<DecisionChoice | null>(null);
+  const options = decisionOptions(request.kind, request.canPostpone);
   const { submit, result, pending } = useSubmit(
-    (form) => readDecision(form, t, version),
+    (form) => readDecision(form, t, version, request),
     (body) => decideAbsence(id, body),
     undefined,
     t("payTime.absence.decide.done"),
   );
+  const choiceLabels: Record<DecisionChoice, string> = {
+    approve: t("payTime.absence.decide.approve"),
+    decline: t("payTime.absence.decide.decline"),
+    postpone: t("payTime.absence.decide.postpone"),
+  };
+  const postponable = (POSTPONABLE_KINDS as readonly string[]).includes(request.kind);
+  const statutory = (STATUTORY_LEAVE_KINDS as readonly string[]).includes(request.kind);
+  const shownNoticeBy = noticeBy ? (formatDate(noticeBy) ?? "") : "";
+  const why = !statutory
+    ? null
+    : postponable && request.canPostpone && noticeBy
+      ? t("payTime.absence.decide.noticeBy", { date: shownNoticeBy })
+      : postponable && noticeBy
+        ? t("payTime.absence.decide.noticePassed", { date: shownNoticeBy })
+        : t("payTime.absence.decide.statutory");
   return (
     <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
       <Feedback
@@ -353,16 +401,49 @@ export function DecisionForm({ id, version }: { readonly id: string; readonly ve
         fieldIds={ids}
         path="/absences"
       />
-      <RadioGroup
+      <RadioGroup<DecisionChoice>
         id={ids.decision}
         name="decision"
         legend={t("payTime.absence.decide.legend")}
-        options={[
-          { value: "approve", label: t("payTime.absence.decide.approve") },
-          { value: "decline", label: t("payTime.absence.decide.decline") },
-        ]}
+        {...(why ? { hint: why } : {})}
+        value={choice}
+        onValueChange={setChoice}
+        options={options.map((value) => ({ value, label: choiceLabels[value] }))}
         error={errorFor(result, "decision")}
       />
+      {choice === "postpone" ? (
+        <>
+          <DateInput
+            id={ids.newStartsOn}
+            name="newStartsOn"
+            legend={t("payTime.absence.decide.newStart")}
+            labels={dateTimeLabels(t)}
+            hint={t("payTime.absence.decide.newStartHint", {
+              latest: formatDate(request.latestStartsOn) ?? "",
+            })}
+            error={errorFor(result, "newStartsOn")}
+            errorParts={dateBoxesOf(partsFor(result, "newStartsOn"))}
+          />
+          <DateInput
+            id={ids.newEndsOn}
+            name="newEndsOn"
+            legend={t("payTime.absence.decide.newEnd")}
+            labels={dateTimeLabels(t)}
+            hint={t("care.date.hint")}
+            error={errorFor(result, "newEndsOn")}
+            errorParts={dateBoxesOf(partsFor(result, "newEndsOn"))}
+          />
+          {request.kind === "parental_leave" ? (
+            <Checkbox
+              id={ids.confirmsPostponable}
+              name="confirmsPostponable"
+              value="yes"
+              label={t("payTime.absence.decide.confirm")}
+              error={errorFor(result, "confirmsPostponable")}
+            />
+          ) : null}
+        </>
+      ) : null}
       <TextArea
         id={ids.reason}
         name="reason"

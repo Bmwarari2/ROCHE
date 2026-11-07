@@ -1,4 +1,5 @@
 import type { Translator } from "@harbour/i18n";
+import { formatDate } from "@/lib/format";
 import type { SafetyChip } from "@/lib/incidents";
 import { readDateField } from "@/lib/uk-time";
 
@@ -29,6 +30,37 @@ export const ABSENCE_REQUEST_KINDS = [
 ] as const;
 export const PAY_FREQUENCIES = ["weekly", "monthly"] as const;
 
+/**
+ * Statutory leave, never declined (H-970; `STATUTORY_LEAVE_KINDS` in packages/domain, and the
+ * database's `absence_statutory` check): the absences screen never offers a decline for it.
+ */
+export const STATUTORY_LEAVE_KINDS = [
+  "maternity",
+  "paternity",
+  "adoption",
+  "parental_bereavement",
+  "carers_leave",
+  "parental_leave",
+] as const;
+/** Of those, the kinds an employer may postpone as the law allows (`POSTPONABLE_KINDS`). */
+export const POSTPONABLE_KINDS = ["carers_leave", "parental_leave"] as const;
+
+export type DecisionChoice = "approve" | "decline" | "postpone";
+
+/**
+ * The choices an approver has for a request (H-970): approve or decline ordinary leave; approve
+ * or postpone carer's and parental leave while the law still allows a postponement
+ * (`canPostpone`: the API gave the limits and the last day for notice has not passed); approve
+ * only for other statutory leave.
+ */
+export function decisionOptions(kind: string, canPostpone: boolean): readonly DecisionChoice[] {
+  if ((POSTPONABLE_KINDS as readonly string[]).includes(kind)) {
+    return canPostpone ? ["approve", "postpone"] : ["approve"];
+  }
+  if ((STATUTORY_LEAVE_KINDS as readonly string[]).includes(kind)) return ["approve"];
+  return ["approve", "decline"];
+}
+
 const chip = (
   status: SafetyChip["status"],
   icon: SafetyChip["icon"],
@@ -55,6 +87,7 @@ const ABSENCE: Record<string, Omit<SafetyChip, "label">> = {
   approved: { status: "done", icon: "circle-check" },
   recorded: { status: "info", icon: "file-pen" },
   declined: { status: "notApplicable", icon: "circle-minus" },
+  postponed: { status: "info", icon: "clock" },
   cancelled: { status: "notApplicable", icon: "circle-minus" },
 };
 
@@ -226,21 +259,116 @@ export function readLeaveRequest(
   return { ok: true, body: { locationId, kind, startsOn, endsOn, selfCertified: false } };
 }
 
-/** A decision on a request: approve, or decline with a reason. */
+/** The request a decision is about, for the statutory choices (H-970). */
+export interface DecisionRequest {
+  readonly kind: string;
+  readonly startsOn: string;
+  readonly endsOn: string | null;
+  /** The latest new first day a postponement may have, from the API (the rate table). */
+  readonly latestStartsOn: string | null;
+  /** Whether a postponement is still allowed today. */
+  readonly canPostpone: boolean;
+}
+
+export type DecisionBody = {
+  version: number;
+  decision: DecisionChoice;
+  reason?: string;
+  startsOn?: string;
+  endsOn?: string;
+  confirmsPostponable?: boolean;
+};
+
+const DAY_MS = 86_400_000;
+const calendarDays = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / DAY_MS);
+
+/**
+ * A decision on a request: approve, decline with a reason, or postpone carer's or parental leave
+ * with a reason and new dates of the same length, after the first day asked for and no later than
+ * the latest day the API gave (H-970). The API checks every limit again, with the notice period.
+ */
 export function readDecision(
   form: FormData,
   t: Translator,
   version: number,
-): Read<{ version: number; decision: "approve" | "decline"; reason?: string }> {
+  request?: DecisionRequest,
+): Read<DecisionBody> {
+  const options = request
+    ? decisionOptions(request.kind, request.canPostpone)
+    : decisionOptions("annual_leave", false);
   const decision = text(form, "decision");
   const reason = text(form, "reason");
-  if (decision !== "approve" && decision !== "decline") {
-    return { ok: false, errors: { decision: t("payTime.absence.decide.choose") } };
+  if (!(options as readonly string[]).includes(decision)) {
+    const key = options.includes("postpone")
+      ? "payTime.absence.decide.choosePostpone"
+      : options.includes("decline")
+        ? "payTime.absence.decide.choose"
+        : "payTime.absence.decide.chooseApprove";
+    return { ok: false, errors: { decision: t(key) } };
   }
-  if (decision === "decline" && (reason.length < 3 || reason.length > 500)) {
+  const chosen = decision as DecisionChoice;
+  if (chosen === "decline" && (reason.length < 3 || reason.length > 500)) {
     return { ok: false, errors: { reason: t("payTime.absence.decide.reasonError") } };
   }
-  return { ok: true, body: { version, decision, ...(reason ? { reason } : {}) } };
+  if (chosen !== "postpone" || !request) {
+    return { ok: true, body: { version, decision: chosen, ...(reason ? { reason } : {}) } };
+  }
+  const errors: Record<string, string> = {};
+  const parts: Record<string, readonly string[]> = {};
+  if (reason.length < 3 || reason.length > 500) {
+    errors.reason = t("payTime.absence.decide.postponeReasonError");
+  }
+  const startsOn = dateOf(
+    form,
+    "newStartsOn",
+    t("payTime.absence.decide.newStartSubject"),
+    t,
+    errors,
+    parts,
+  );
+  const endsOn = dateOf(
+    form,
+    "newEndsOn",
+    t("payTime.absence.decide.newEndSubject"),
+    t,
+    errors,
+    parts,
+  );
+  if (startsOn && endsOn) {
+    if (endsOn < startsOn) {
+      errors.newEndsOn = t("payTime.absence.form.orderError");
+    } else if (startsOn <= request.startsOn) {
+      errors.newStartsOn = t("payTime.absence.decide.laterError");
+    } else if (request.latestStartsOn && startsOn > request.latestStartsOn) {
+      errors.newStartsOn = t("payTime.absence.decide.tooLateError", {
+        latest: formatDate(request.latestStartsOn) ?? "",
+      });
+    } else if (
+      request.endsOn &&
+      calendarDays(startsOn, endsOn) !== calendarDays(request.startsOn, request.endsOn)
+    ) {
+      errors.newEndsOn = t("payTime.absence.decide.durationError", {
+        count: calendarDays(request.startsOn, request.endsOn) + 1,
+      });
+    }
+  }
+  const confirmed = form.get("confirmsPostponable") !== null;
+  if (request.kind === "parental_leave" && !confirmed) {
+    errors.confirmsPostponable = t("payTime.absence.decide.confirmError");
+  }
+  if (Object.keys(errors).length > 0) return failed(errors, parts);
+  return {
+    ok: true,
+    body: {
+      version,
+      decision: "postpone",
+      reason,
+      startsOn,
+      endsOn,
+      ...(request.kind === "parental_leave" ? { confirmsPostponable: true } : {}),
+    },
+  };
 }
 
 /** A reason to override a pay run exception (3 to 500 characters). */

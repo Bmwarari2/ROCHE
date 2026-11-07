@@ -1076,7 +1076,7 @@ actions H-970 to H-979.
 
 | Table | Kind | Columns | Retention class |
 | --- | --- | --- | --- |
-| `absence` | mutable, `expected_version` | `member_id` (the `tenant_user` absent), `location_id` (the home whose rota it touches), `kind` (`ABSENCE_KINDS`), `starts_on`, `ends_on` (null while a sickness is open), `state` (`requested`, `approved`, `declined`, `cancelled`, `recorded`), `decided_by`, `decided_at`, `decision_reason`, `self_certified_at`, `ended_at`; never a diagnosis | `sickness_absence` for sickness, else `rota_and_timesheet` |
+| `absence` | mutable, `expected_version` | `member_id` (the `tenant_user` absent), `location_id` (the home whose rota it touches), `kind` (`ABSENCE_KINDS`), `starts_on`, `ends_on` (null while a sickness is open), `state` (`requested`, `approved`, `declined`, `postponed`, `cancelled`, `recorded`), `decided_by`, `decided_at`, `decision_reason`, `self_certified_at`, `ended_at`, `postponed_from_id` (migration 0153); never a diagnosis | `sickness_absence` for sickness, else `rota_and_timesheet` |
 | `fit_note` | append-only | `absence_id`, `document_id` (an HR-only staff document, retention `sickness_absence`), `issued_on`, `covers_from`, `covers_to`, `fitness` (`not_fit`, `may_be_fit`), the four ticked adjustments (`phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations`); never the condition written on the note | `sickness_absence` |
 | `return_to_work` | append-only | `absence_id`, `member_id`, `held_on`, `held_by`, `fit_for_usual_duties`, `adjustments_agreed` (the same four), `notes` (the conversation, special category); one per absence | `sickness_absence` |
 | `shift_cover_need` | append-only, then resolved once | `shift_id`, `assignment_id`, `absence_id`, `location_id`, `raised_at`, `resolved_at`, `resolution` (`assignment_removed`, `absence_ended`) | `rota_and_timesheet` |
@@ -1107,10 +1107,37 @@ reads it.
    their own, a decline with a reason. Statutory leave is never declined (H-970, recommended answer
    applied 31/10/2026): maternity, paternity, adoption and parental bereavement leave are notified
    and approved or recorded; carer's leave and unpaid parental leave may only be postponed as the law
-   allows (`postponed`, with a reason; the member asks again for the later dates). The database
-   refuses a decline of these kinds and a postponement of any other (`absence_statutory`). A rota manager records a sickness or leave for a member
+   allows (rule 1a). The database refuses a decline of these kinds and a postponement of any other
+   (`absence_statutory`), and the absences screen never offers a decline for any statutory kind:
+   for carer's and parental leave it offers approve or postpone, for the others approve only. A rota manager records a sickness or leave for a member
    (`recorded`). The member cancels their own request before it is decided; a manager cancels an
    approved or recorded absence with a reason.
+1a. **Postponing carer's and parental leave** (H-970; `checkPostponement`, `postponementLimits`;
+   migration 0153). Only where the business would be unduly disrupted, which the approver judges
+   and writes as the reason. The approver gives the new first and last days, and the request moves
+   to `postponed` while the new dates become `approved` leave pointing back at it
+   (`postponed_from_id`, one per request, never changed), raising cover needs as any approved
+   leave; the database lets only the approver who postponed it write that leave, for the same
+   member, home and kind. The domain refuses, from the rate table in force on the day of the
+   request (no figure is a literal; none for Northern Ireland until its nation pack, so
+   `postpone_no_rate`):
+   - new dates of a different number of calendar days from those asked for (`postpone_duration`;
+     reg 8(2)(b) and Sch 2 para 6(c)(i): leave "of the same duration");
+   - a new first day on or before the first day asked for, or on or before today
+     (`postpone_not_later`);
+   - a new first day later than `carers_leave.postpone_max_months` (one month; Carer's Leave
+     Regulations 2024 reg 8(2)(b)) or `parental_leave.postpone_max_months` (six months; Maternity and
+     Parental Leave etc. Regulations 1999 Sch 2 para 6(c)(ii)) after the first day asked for, a day
+     the month lacks becoming its last day (`postpone_too_late`);
+   - a decision after the last day for notice (`postpone_notice_passed`): the request's day plus
+     `carers_leave.postpone_notice_days` or `parental_leave.postpone_notice_days` (seven days), and
+     for carer's leave no later than the day before the leave was due to start (reg 8(3));
+   - parental leave without the approver's confirmation that it does not start on the child's birth
+     or placement for adoption (Sch 2 paras 4 and 5) and that the new dates end before the child's
+     18th birthday (para 6(c)(iii)) (`postpone_unconfirmed`): Thapsus Care holds neither date.
+   The request's day is when it was received (`created_at`, UK date). The approver sees the latest
+   new first day and the last day for notice on the request (`postponement`). The written notice to
+   the member is the decision itself, with its reason and dates, on their absences screen.
 2. **Kinds** (`ABSENCE_KINDS`): `annual_leave`, `sickness`, `compassionate`, `carers_leave`,
    `parental_leave`, `maternity`, `paternity`, `adoption`, `parental_bereavement`, `unpaid`,
    `other`. Compassionate leave stays the organisation's own policy until bereavement leave under
@@ -1164,7 +1191,7 @@ reads it.
 | --- | --- |
 | Ask for own leave; read and cancel own absences | `scheduling.timesheet.self` |
 | Record a sickness or leave for a member; read absences at a home | `scheduling.rota.manage` there |
-| Approve or decline leave (never own) | `scheduling.rota.approve` there |
+| Approve, decline or postpone leave (never own) | `scheduling.rota.approve` there |
 | Add and open fit notes; record return to work; the Bradford factor; SSP working | `workforce.hr_document.read` there |
 
 ### API, audit and outbox
@@ -1173,7 +1200,9 @@ reads it.
 `/{id}/decision`, `/{id}/cancel`, `/{id}/end` (a sickness's last day), `/{id}/fit-notes` (upload
 the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNoteId}/content`,
 `/{id}/return-to-work`, `/{id}/bradford-exclusion`, `/v1/members/{id}/bradford`, `POST /{id}/ssp` (the earnings in the body, never the address). Audit:
-`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
+`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.postponed` (with the id
+of the leave given on the new dates, itself audited as `.approved` with the request's id),
+`.cancelled`, `.ended`;
 `workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
 `workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
 a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (cover need, shift, absence, location; consumed by the worker).
@@ -1183,14 +1212,20 @@ a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` 
 - Domain: `packages/domain/src/scheduling/absence.test.ts` (table-driven: decisions never by the
   member; state moves; days of an absence; fit note needed after the self-certification days, the
   days uncovered; periods of incapacity at the minimum length and linked within the link weeks;
-  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs).
+  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs;
+  H-970 postponement limits read from the rate table: the latest new first day, the last day for
+  notice, same length, later dates, parental leave confirmation, no rows for the nation).
 - Database: `packages/db/test/absence.test.ts` (cross-tenant denial on all four tables; a member
   sees only their own; a rota manager reads but never a fit note or return to work; decisions only
-  by an approver, never the member; state moves; fit notes and return to work append-only).
+  by an approver, never the member; state moves; fit notes and return to work append-only; leave on
+  new dates written only by the approver who postponed the request, for its member and kind, once).
 - API: `apps/api/test/absence.test.ts` (ask and approve with cover needs raised; decline and cancel
   resolving them; recording a sickness; fit note upload and open audited; return to work; the
   Bradford factor with its working; SSP working; assigning onto an absence refused; the rota check
-  counting a cover need as open with a warning).
+  counting a cover need as open with a warning; postponing within the limits, each refusal, the
+  notice passed, both audit events without the reason).
+- Web: `apps/web/src/lib/pay-time.test.ts` (the decision options per kind, the postponement form
+  read); E2E `apps/web/e2e/pay-time.spec.ts`.
 
 ## 18. Pay calculation runs (slice 36; SCHED-005, SCHED-006, SCHED-007)
 
