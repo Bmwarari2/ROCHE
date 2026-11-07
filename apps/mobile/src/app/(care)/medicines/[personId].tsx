@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useTenantId } from "../../../care/hooks";
 import { CarePersonHeader } from "../../../components/CarePersonHeader";
+import { CorrectionPanel } from "../../../components/CorrectionPanel";
 import { type DoseChoice, DoseRecordPanel } from "../../../components/DoseRecordPanel";
 import { Screen } from "../../../components/Screen";
 import { StatusLine } from "../../../components/StatusLine";
@@ -61,7 +62,7 @@ export default function PersonMedicinesScreen() {
   const theme = useTheme();
   const { personId } = useLocalSearchParams<{ personId: string }>();
   const tenantId = useTenantId();
-  const { gate, rounds, people } = useMedicinesRound();
+  const { gate, rounds, people, administrations } = useMedicinesRound();
   const params = useMemo(() => [tenantId], [tenantId]);
   const { data: meds } = useQuery<MedicationLocalRow>(ROUND_MEDICATION_SQL, params);
   const { data: times } = useQuery<ScheduleLocalRow>(ROUND_SCHEDULE_SQL, params);
@@ -80,12 +81,27 @@ export default function PersonMedicinesScreen() {
     dmdMeta.find((m) => m.id === DMD_SUBSET_FAILED_META_ID)?.value ?? null,
   );
   const [choice, setChoice] = useState<DoseChoice | null>(null);
+  const [correcting, setCorrecting] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const person = personId ? people.get(personId) : undefined;
   const name = person ? personName(person) : t("mobile.meds.personNotOnPhone");
   const allergy = allergyLine(person?.allergy_status ?? null, allergies);
   const round = rounds.find((r) => r.personId === personId);
   const blocked = gateWords(gate);
+  // The person's records of the last day that nothing has corrected yet, newest first, to correct.
+  const recent = useMemo(() => {
+    const corrected = new Set(administrations.map((a) => a.supersedes_id).filter(Boolean));
+    const since = Date.now() - 24 * 3_600_000;
+    return administrations
+      .filter(
+        (a) =>
+          a.person_id === personId &&
+          !corrected.has(a.id) &&
+          a.given_at !== null &&
+          new Date(a.given_at).getTime() >= since,
+      )
+      .sort((a, b) => (b.given_at ?? "").localeCompare(a.given_at ?? ""));
+  }, [administrations, personId]);
 
   const choose = (
     entryId: string,
@@ -149,6 +165,36 @@ export default function PersonMedicinesScreen() {
           <StatusLine tone="warning" testID="medicines-blocked">
             {blocked}
           </StatusLine>
+        ) : correcting ? (
+          (() => {
+            const rec = recent.find((r) => r.id === correcting);
+            const med = meds.find((m) => m.id === rec?.medication_id);
+            return rec && rec.given_at ? (
+              <CorrectionPanel
+                personId={personId ?? ""}
+                personName={name}
+                productName={med?.product_name ?? ""}
+                original={{
+                  id: rec.id,
+                  entryId: rec.medication_id,
+                  dueAt: rec.due_at,
+                  givenAt: rec.given_at,
+                  outcome: rec.outcome ?? "",
+                  quantity: rec.quantity,
+                  unitCode: rec.unit_code,
+                  synced: rec.request === null,
+                }}
+                unitName={
+                  times.find((x) => x.medication_id === rec.medication_id)?.unit_name ?? null
+                }
+                controlledDrug={Boolean(med?.cd_schedule)}
+                onDone={(ok) => {
+                  setCorrecting(null);
+                  setSaved(ok);
+                }}
+              />
+            ) : null;
+          })()
         ) : choice ? (
           <DoseRecordPanel
             dose={choice}
@@ -233,6 +279,27 @@ export default function PersonMedicinesScreen() {
                   })
                 }
                 testID={`person-prn-${w.entryId}`}
+              />
+            ))}
+            {recent.length > 0 ? (
+              <Text variant="callout" accessibilityRole="header">
+                {t("mobile.meds.recentHeading")}
+              </Text>
+            ) : null}
+            {recent.map((r) => (
+              <ListItem
+                key={r.id}
+                title={meds.find((m) => m.id === r.medication_id)?.product_name ?? ""}
+                subtitle={[
+                  t("mobile.meds.outcomeName", { outcome: r.outcome ?? "other" }),
+                  r.given_at ? ukInstantWords(r.given_at) : null,
+                  r.request === null ? null : t("mobile.meds.notSyncedYet"),
+                ]
+                  .filter(Boolean)
+                  .join(". ")}
+                onPress={() => setCorrecting(r.id)}
+                accessibilityHint={t("mobile.meds.correctHint")}
+                testID={`recent-${r.id}`}
               />
             ))}
             {round && round.doses.length === 0 && round.whenRequired.length === 0 ? (

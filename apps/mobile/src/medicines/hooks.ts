@@ -56,6 +56,8 @@ export function useMedicinesRound(): {
   readonly rounds: readonly PersonRound[];
   readonly people: ReadonlyMap<string, RoundPersonRow>;
   readonly rates: MedicinesRates | null;
+  /** The administrations on this phone, for corrections (slice 70). */
+  readonly administrations: readonly AdministrationLocalRow[];
   readonly loading: boolean;
   readonly now: Date;
 } {
@@ -102,6 +104,7 @@ export function useMedicinesRound(): {
     rounds,
     people,
     rates,
+    administrations: given.data,
     loading: !tenantId || meds.isLoading || given.isLoading,
     now,
   };

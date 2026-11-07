@@ -2,6 +2,7 @@ import { Button, ListItem, PersonFlags, StatusChip, Text, useTheme } from "@harb
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { AccessibilityInfo, FlatList, View } from "react-native";
+import { useSession } from "../../../app-state/session";
 import { Screen } from "../../../components/Screen";
 import { StatusLine } from "../../../components/StatusLine";
 import { UploadIssues } from "../../../components/UploadIssues";
@@ -29,6 +30,9 @@ export default function MedicinesRoundScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { gate, rounds, people, loading } = useMedicinesRound();
+  const { me } = useSession();
+  // The nurse in charge (medicines.record.manage) reviews doses recorded on two phones.
+  const manages = (me?.permissions ?? []).includes("medicines.record.manage");
   const blocked = gateWords(gate);
   const slots = doseSlots(rounds);
   const unreadable = rounds.flatMap((r) => r.unreadable);
@@ -52,6 +56,15 @@ export default function MedicinesRoundScreen() {
           onPress={() => router.push("/medicines/pins")}
           testID="open-pins"
         />
+        {manages ? (
+          <Button
+            label={t("mobile.meds.conflictsLink")}
+            accessibilityHint={t("mobile.meds.conflictsLinkHint")}
+            variant="secondary"
+            onPress={() => router.push("/medicines/conflicts")}
+            testID="open-conflicts"
+          />
+        ) : null}
       </View>
       {blocked ? (
         <View style={{ padding: theme.space[2] }}>

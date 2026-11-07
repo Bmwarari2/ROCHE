@@ -63,11 +63,31 @@ export function toMedicinesUpload(
     return refused();
   }
   if (typeof queued !== "object" || queued === null) return refused();
-  const { personId: forPerson, body } = queued as { personId?: unknown; body?: unknown };
+  const {
+    personId: forPerson,
+    body,
+    kind,
+    supersedesId,
+  } = queued as { personId?: unknown; body?: unknown; kind?: unknown; supersedesId?: unknown };
   if (forPerson !== personId || typeof body !== "object" || body === null) return refused();
   const record = body as Record<string, unknown>;
   // The row's id is the record's own: the idempotency key and the server's id.
   if (record.id !== entry.id || record.entryId !== data.medication_id) return refused();
+  // A correction (slice 70) names the record it corrects, as the row does.
+  if (kind === "correction") {
+    if (typeof supersedesId !== "string" || !UUID.test(supersedesId)) return refused();
+    if (data.supersedes_id !== supersedesId) return refused();
+    return {
+      kind: "request",
+      table: entry.table,
+      recordId: entry.id,
+      tenantId,
+      personId,
+      path: `/v1/medicine-administrations/${encodeURIComponent(supersedesId)}/corrections`,
+      body: record,
+    };
+  }
+  if (kind !== undefined) return refused();
   return {
     kind: "request",
     table: entry.table,

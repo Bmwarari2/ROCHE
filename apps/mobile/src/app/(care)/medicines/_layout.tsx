@@ -18,6 +18,7 @@ export default function MedicinesLayout() {
       <Stack.Screen name="index" options={{ title: t("mobile.meds.title") }} />
       <Stack.Screen name="[personId]" options={{ title: t("mobile.meds.personTitle") }} />
       <Stack.Screen name="pins" options={{ title: t("mobile.meds.pinsTitle") }} />
+      <Stack.Screen name="conflicts" options={{ title: t("mobile.meds.conflictsTitle") }} />
     </Stack>
   );
 }
