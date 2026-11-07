@@ -79,6 +79,15 @@ gain; one for all would put payroll, casework and care rounds in one blast radiu
   app` to the owner, `SET ROLE` to it, replace the function, `RESET ROLE`, then revoke CREATE, as
   migration 0151 moves them.
 
+From migration 0151 on, each migration that creates a definer function sets its owner itself, to
+its context's definer role (or a narrower NOLOGIN owner it already uses), with only the grants the
+function needs, before any execute rights change (the add-migration skill's order). Migration 0151
+also took over the definers batch 4 had added: the sync routing functions of 0146 went to
+`harbour_platform_definer` with column grants on the routing columns only (and
+`app.is_sync_location_move` now names that role, so a move is let through only inside
+`app.move_sync_location`), and `app.request_sign_in_erasure` of 0149 to `harbour_member_owner`,
+which owns the rest of the member lifecycle.
+
 ### Consequences
 
 - Good, because a flaw in a definer function reaches only its context's tables, as a role that

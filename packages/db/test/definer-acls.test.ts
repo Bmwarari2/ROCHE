@@ -271,7 +271,7 @@ describe("ADR-0133 definer functions are owned by NOLOGIN roles and pin their se
 
   it("holds every context definer in each restrictive policy that holds harbour_owner", async () => {
     // A definer function runs as its owner, so a restrictive policy written for harbour_owner
-    // alone would not bind the context definers: add them to it (see 0154).
+    // alone would not bind the context definers: add them to it (see 0151).
     const { rows } = await db.pool("harbour_owner").query<{ policy: string; missing: string[] }>(
       `SELECT format('%s on %s', pol.polname, pol.polrelid::regclass) AS policy,
               array(SELECT d FROM unnest($1::text[]) d
@@ -312,6 +312,13 @@ const DEFINER_TABLE_GRANTS: Readonly<Record<(typeof DEFINER_ROLES)[number], read
   harbour_finance_definer: ["public.pay_run: SELECT", "public.pay_run_line: SELECT"],
   harbour_platform_definer: [
     "app.audit_chain_head: SELECT, INSERT, UPDATE",
+    // The sync routing functions (migration 0146): what the row-level policies of the tables
+    // they read and move evaluate as this role. Their own reads and moves are column grants
+    // (see the next test).
+    "public.access_grant: SELECT",
+    "public.break_glass_event: SELECT",
+    "public.location: SELECT",
+    "public.person_assignment: SELECT",
     "public.record_version: INSERT",
     "public.role: SELECT, INSERT",
     "public.role_assignment: SELECT, INSERT",
@@ -377,5 +384,37 @@ describe("ADR-0133 context definers hold only the grants their functions use", (
     const found: Record<string, string[]> = {};
     for (const row of rows) found[row.role] = [...(found[row.role] ?? []), row.grant];
     expect(found).toEqual(DEFINER_TABLE_GRANTS);
+  });
+});
+
+/**
+ * Batch 4 (ADR-0133): the sync routing functions read a person's or a handover's home and move
+ * only the routing columns, so their owner holds column grants, never whole tables.
+ */
+const PLATFORM_DEFINER_COLUMN_UPDATES = [
+  "public.activity_record.sync_location_id",
+  "public.assessment.sync_location_id",
+  "public.body_map_mark.sync_location_id",
+  "public.care_note.sync_location_id",
+  "public.handover_item.at_home",
+  "public.handover_item.person_location_id",
+  "public.handover_note.at_home",
+  "public.handover_note.person_location_id",
+  "public.medication_administration.sync_location_id",
+  "public.observation.sync_location_id",
+  "public.task.sync_location_id",
+  "public.visit_log.sync_location_id",
+];
+
+describe("ADR-0133 the sync routing definer updates only the routing columns", () => {
+  it("lets harbour_platform_definer update exactly the routing columns, and no whole table", async () => {
+    const { rows } = await db.pool("harbour_owner").query<{ col: string }>(
+      `SELECT format('%s.%s.%s', table_schema, table_name, column_name) AS col
+         FROM information_schema.role_column_grants
+        WHERE grantee = 'harbour_platform_definer' AND privilege_type = 'UPDATE'
+          AND table_schema = 'public'
+        ORDER BY 1`,
+    );
+    expect(rows.map((r) => r.col)).toEqual(PLATFORM_DEFINER_COLUMN_UPDATES);
   });
 });

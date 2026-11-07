@@ -106,6 +106,62 @@ GRANT USAGE ON SCHEMA public, app TO harbour_finance_definer;
 GRANT SELECT ON public.pay_run, public.pay_run_line TO harbour_finance_definer;
 --> statement-breakpoint
 
+-- harbour_platform_definer, batch 4: the sync routing functions of migration 0146 (ADR-0134):
+-- sync_person, set_sync_location, set_task_sync_location, set_handover_sync, move_sync_location.
+-- Column grants only: they read a person's or a handover's home, and move only the routing
+-- columns of the last 35 days' records when a person moves home (the append-only tables let
+-- nothing else change, app.is_sync_location_move).
+-- What the row-level policies of those tables read and call, evaluated as this role.
+GRANT SELECT ON public.access_grant, public.break_glass_event, public.location, public.person_assignment
+  TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.holds_permission_at(text,uuid) TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.holds_role_permission_at(text,uuid) TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.holds_role_permission_somewhere(text) TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, id, location_id, status) ON public.person TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, id, location_id, shift_end) ON public.handover TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, occurred_at, sync_location_id), UPDATE (sync_location_id)
+  ON public.care_note TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, occurred_at, sync_location_id), UPDATE (sync_location_id)
+  ON public.observation TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, occurred_at, sync_location_id), UPDATE (sync_location_id)
+  ON public.body_map_mark TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, occurred_at, sync_location_id), UPDATE (sync_location_id)
+  ON public.assessment TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, occurred_at, sync_location_id), UPDATE (sync_location_id)
+  ON public.activity_record TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, occurred_at, sync_location_id), UPDATE (sync_location_id)
+  ON public.visit_log TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, recorded_at, sync_location_id), UPDATE (sync_location_id)
+  ON public.medication_administration TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, location_id, due_at, sync_location_id), UPDATE (sync_location_id)
+  ON public.task TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, shift_end, sync_location_id),
+  UPDATE (person_location_id, at_home) ON public.handover_item TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, person_id, shift_end, sync_location_id),
+  UPDATE (person_location_id, at_home) ON public.handover_note TO harbour_platform_definer;
+--> statement-breakpoint
+
+-- harbour_member_owner, batch 4: app.request_sign_in_erasure (migration 0149) joins the member
+-- lifecycle functions that role already owns; it sets the member's own request time only.
+GRANT SELECT (tenant_id, id, sign_in_erasure_requested_at), UPDATE (sign_in_erasure_requested_at)
+  ON public.tenant_user TO harbour_member_owner;
+--> statement-breakpoint
+
 -- The audit chain (app.audit_event_chain, on every audit event).
 GRANT SELECT, INSERT, UPDATE ON app.audit_chain_head TO harbour_platform_definer;
 --> statement-breakpoint
@@ -310,6 +366,38 @@ ALTER FUNCTION app.has_locked_pay_line(uuid) OWNER TO harbour_finance_definer;
 ALTER FUNCTION app.pay_run_calculation(uuid) OWNER TO harbour_finance_definer;
 --> statement-breakpoint
 ALTER FUNCTION app.pay_run_status(uuid) OWNER TO harbour_finance_definer;
+--> statement-breakpoint
+-- The routing columns move only inside app.move_sync_location, which now runs as its new owner:
+-- the append-only and version triggers let a move through for that role alone (migration 0146
+-- named harbour_owner, the owner it had then).
+CREATE OR REPLACE FUNCTION app.is_sync_location_move(p_table oid, p_new jsonb, p_old jsonb)
+RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog AS $$
+  SELECT current_user = 'harbour_platform_definer'
+     AND coalesce(current_setting('app.sync_location_move', true), '') = 'on'
+     AND (p_new - ARRAY['sync_location_id', 'at_home', 'shift_end', 'person_location_id']
+                - app.generated_columns(p_table))
+       = (p_old - ARRAY['sync_location_id', 'at_home', 'shift_end', 'person_location_id']
+                - app.generated_columns(p_table))
+$$;
+--> statement-breakpoint
+-- Batch 4: the definers migrations 0146 and 0149 added (ADR-0133: from here on each migration
+-- sets its own definers' owner).
+ALTER FUNCTION app.sync_person(uuid,uuid) OWNER TO harbour_platform_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.set_sync_location() OWNER TO harbour_platform_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.set_task_sync_location() OWNER TO harbour_platform_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.set_handover_sync() OWNER TO harbour_platform_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.move_sync_location() OWNER TO harbour_platform_definer;
+--> statement-breakpoint
+GRANT CREATE ON SCHEMA app TO harbour_member_owner;
+--> statement-breakpoint
+ALTER FUNCTION app.request_sign_in_erasure() OWNER TO harbour_member_owner;
+--> statement-breakpoint
+REVOKE CREATE ON SCHEMA app FROM harbour_member_owner;
 --> statement-breakpoint
 REVOKE CREATE ON SCHEMA app FROM harbour_platform_definer, harbour_care_definer, harbour_workforce_definer,
   harbour_scheduling_definer, harbour_finance_definer;
