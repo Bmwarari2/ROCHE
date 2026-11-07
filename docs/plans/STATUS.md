@@ -36,13 +36,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 The owner paused every session at about 11:00 on 07/11 (UK time). Work in progress was finished
 or committed and pushed; nothing is uncommitted. The owner expects plans for new integrated
-projects on 08/11. Main ends at migration 0152 (`a2a4abca`, after #191).
+projects on 08/11. Main ends at migration 0152 (after #190 and #191).
 
-**Merged on 07/11:** #174 to #187, #189 and #191 (batch 3c, the sync buckets per home, no SMS at
+**Merged on 07/11:** #174 to #187, #189, #190 and #191 (batch 3c, the sync buckets per home, no SMS at
 launch, the dm+d job, batch 4, the rename to Thapsus Care, the add-migration skill, the
 workforce, medicines and safety guides, the Training tab, the scheduling spec headings, the paper
-register until controlled drug recording is turned on, and absconding opening a missing person
-episode).
+register until controlled drug recording is turned on, absconding opening a missing person
+episode, and the DPIA section 7B for Phase 2).
 
 **Open pull requests, in merge order.** Each migration takes the next free number at merge
 (migration-journal test).
@@ -56,23 +56,22 @@ episode).
    recording is off gets the audited 409 and becomes a refused entry with an urgent review.
    `3fe419cd` also records the CD witness schema correction in `openapi-breaking-ignore.txt`. The
    null alternative the API never accepted is no longer in the document.
-2. **#190** (slice 84, the DPIA section 7B, `ba7014e9`). Docs and tests; merge when green.
-3. **#197** (H-1555, `fix/scheduling-clock-evidence-dpia`, `5df65b77`, label `data-protection`).
+2. **#197** (H-1555, `fix/scheduling-clock-evidence-dpia`, `5df65b77`, label `data-protection`).
    A security fix: clock evidence and lone-worker location only under a signed DPIA. Renumber its
    migration after #188. Two DPO decisions are noted in the PR.
-4. **#192** (leave postponement, `554f6689`, label `data-protection`). Renumber its migration.
+3. **#192** (leave postponement, `554f6689`, label `data-protection`). Renumber its migration.
    Approved by the security and accessibility reviewers.
-5. **#195** (Care Certificate and revalidation separation of duties, `2bd0bc65`). Renumber its two
+4. **#195** (Care Certificate and revalidation separation of duties, `2bd0bc65`). Renumber its two
    migrations. Approved; the journeys were not re-run on the last commit.
-6. **#198** (Regulation 28 date sent and the coroner's extension, SAFE-016, `cfe310c4`).
+5. **#198** (Regulation 28 date sent and the coroner's extension, SAFE-016, `cfe310c4`).
    Migration 0157 is provisional. The due date stays at 56 days after the date sent (reg 29(4));
    the clinical reviewer confirmed it. H-1570 to H-1572.
-7. **#194** (copy from the slice 83 guides review, label `clinical`, `189899ba`). It conflicts with
+6. **#194** (copy from the slice 83 guides review, label `clinical`, `189899ba`). It conflicts with
    main again after #191, in `record-a-missing-person.md`, and its unit job failed on that head.
    Merge main and re-run.
-8. **#196** (a police call recorded after the person is found, HZ-127, `919ed6d2`, label
+7. **#196** (a police call recorded after the person is found, HZ-127, `919ed6d2`, label
    `clinical`). Expect conflicts with #194 in human actions and the HZ-127 rows.
-9. **#193** (retention sweeps plan, docs only, `19cc1e08`). It needs an ADR number (before
+8. **#193** (retention sweeps plan, docs only, `19cc1e08`). It needs an ADR number (before
    slice 7), 7 more H-numbers for its 12 DPO questions, and the lead's call on whether those
    questions are provisional with recommended answers or open.
 
