@@ -946,6 +946,14 @@ now, until the testing-phase review.
 | H-1365 | Decide where training sits in the app: for now Settings, then Training courses (not a tab), so it does not clash with slice 71's Shifts tab. Recommended: the integrator moves it beside Shifts when slices 71 and 72 are both merged | Brian | `apps/mobile/src/app/(care)/training/` | None | Open, recommended answer in force |
 | H-1366 | Decide whether to add a platform-level block on the course WebView's network (an iOS content rule list and Android `setBlockNetworkLoads` through an Expo config plugin) and to serve each course from its own scheme rooted at its folder with file access off, beyond the content security policy and interceptions built (security review of slice 72, M1 and L7). Recommended: yes, before courses are offered offline beyond the pilot; until then training leads assign offline only courses they have tried on a phone (H-1362) | Brian with the security lead | workforce.md section 14.5 rule 2 | Offering courses offline beyond the pilot | Open, recommended answer in force |
 
+## Definer function owners (ADR-0133)
+
+| # | Action | Owner | What the build produced | Unblocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1491 | Run `pnpm db:bootstrap` in every environment (Cloud SQL as its `postgres` user) before migration 0154, so the five context definer roles exist and `harbour_owner` may act as them; the migration fails without them | Brian | `packages/db/src/admin/roles.ts`; migration 0154 | Deploying migration 0154 | open |
+| H-1492 | Confirm the split of definer functions into five context owners, and that owners reading tables only for their row-level policies is acceptable. Recommended answer: as built (ADR-0133) | Brian | ADR-0133 | Security sign-off | open (recommended answer in force) |
+| H-1493 | Add the definer-owner rule to the security review checklist: a new SECURITY DEFINER function names a NOLOGIN owner, its grants and a `search_path` ending in `pg_temp`. Recommended answer: as enforced by `definer-acls.test.ts` | Brian | `packages/db/test/definer-acls.test.ts` | None | open (recommended answer in force) |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
