@@ -40,7 +40,7 @@ links the care worker's incident guide.
 
 ## Register rows and their guides
 
-Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 safety, quality and platform rows (slice 83), that have a guide. Rows marked "screens with the next merge" describe screens on the `feat/quality-dashboard-pir` branch. The register's user
+Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 safety, quality and platform rows (slice 83) and medicines rows (slice 81), that have a guide. Rows marked "screens with the next merge" describe screens on the `feat/quality-dashboard-pir` branch. The register's user
 docs column links the same guides.
 
 | Row | Guides |
@@ -97,6 +97,16 @@ docs column links the same guides.
 | COMMS-001 | [Publish a family update](senior-carer/publish-a-family-update.md), [Read updates from the home](family-member/read-updates.md) |
 | COMMS-006 | [Read and acknowledge the handover](care-worker/read-and-acknowledge-the-handover.md) |
 | COMMS-007 | [Write a letter template](registered-manager/write-a-letter-template.md), [Make a letter](registered-manager/make-a-letter.md) |
+| MEDS-001 | [Add a medicine to the MAR](nurse/add-a-medicine-to-the-mar.md), [Reconcile medicines](nurse/reconcile-medicines.md), [Second-check a medicine](nurse/second-check-a-medicine.md), [Stop a medicine](nurse/stop-a-medicine.md) |
+| MEDS-002 | [Give a when-required (PRN) medicine in the browser](care-worker/give-a-when-required-medicine-in-the-browser.md), [Give medicines in the browser round](care-worker/give-medicines-in-the-browser-round.md) |
+| MEDS-003 | [Give a when-required (PRN) medicine in the browser](care-worker/give-a-when-required-medicine-in-the-browser.md), [Read the medicines reports](registered-manager/read-the-medicines-reports.md) |
+| MEDS-004 | [Give medicines in the browser round](care-worker/give-medicines-in-the-browser-round.md) |
+| MEDS-005 | [Correct a controlled drugs register entry](nurse/correct-a-controlled-drugs-register-entry.md), [Count controlled drugs stock](nurse/count-controlled-drugs-stock.md), [Record a controlled drug received, returned, disposed of or destroyed](nurse/record-a-controlled-drug-movement.md), [Sign as a controlled drugs witness in the browser](care-worker/sign-as-a-controlled-drugs-witness.md) |
+| MEDS-007 | [Add a homely remedy protocol](nurse/add-a-homely-remedy-protocol.md), [Change or withdraw a homely remedy protocol](nurse/change-or-withdraw-a-homely-remedy-protocol.md), [Give a homely remedy](care-worker/give-a-homely-remedy.md) |
+| MEDS-008 | [Add a medicines fridge or room](nurse/add-a-medicines-fridge-or-room.md), [Dispose of medicines with a witness](nurse/dispose-of-medicines-with-a-witness.md), [Order medicines for the next cycle](nurse/order-medicines-for-the-next-cycle.md), [Receive, return and count medicines stock](nurse/receive-return-and-count-medicines-stock.md), [Record a medicines fridge or room temperature](care-worker/record-a-medicines-fridge-or-room-temperature.md) |
+| MEDS-012 | [Add medication error details to an incident](care-worker/add-medication-error-details-to-an-incident.md), [Read the medicines reports](registered-manager/read-the-medicines-reports.md) |
+| MEDS-013 | [Book and record a medication review](nurse/book-and-record-a-medication-review.md), [Check the medication review tracker](registered-manager/check-the-medication-review-tracker.md), [Read the medicines reports](registered-manager/read-the-medicines-reports.md) |
+| MEDS-014 | [Print a controlled drugs register page](nurse/print-a-controlled-drugs-register-page.md), [Print the MAR chart](care-worker/print-the-mar-chart.md) |
 
 **Phase 1 rows with no guide yet**, because they have no web screen on `main` (or are paused with
 mobile): PLAT-002, PLAT-009, PLAT-011, PLAT-012, PEOP-003, PEOP-005, PEOP-007, PEOP-013,
