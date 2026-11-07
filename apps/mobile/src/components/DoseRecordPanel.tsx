@@ -8,15 +8,23 @@ import {
   parsePackBarcode,
 } from "@harbour/domain";
 import { Button, Text, useTheme } from "@harbour/ui-native";
-import { usePowerSync } from "@powersync/react";
-import { useEffect, useRef, useState } from "react";
+import { usePowerSync, useQuery } from "@powersync/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, findNodeHandle, View } from "react-native";
 import { useSession } from "../app-state/session";
 import { useTenantId } from "../care/hooks";
 import { t } from "../i18n/t";
+import { signCdDose } from "../medicines/cd-sign";
+import {
+  DEVICE_KEYS_SQL,
+  deviceKeysParams,
+  keysFrom,
+  saveWrappedKey,
+} from "../medicines/device-key-store";
 import { useRecordDose } from "../medicines/hooks";
 import { DEVICE_GTINS_SQL, DEVICE_PRODUCTS_SQL } from "../medicines/queries";
 import {
+  type CdDeviceSignatures,
   type PackEvidence,
   PHONE_OUTCOMES,
   type RecordProblem,
@@ -94,6 +102,17 @@ export function DoseRecordPanel({
   const [amount, setAmount] = useState(dose.quantity === null ? "" : String(dose.quantity));
   const [problems, setProblems] = useState<readonly RecordProblem[]>([]);
   const [saving, setSaving] = useState(false);
+  // A controlled drug (ADR-0084; slice 70): the witness chosen from those with a PIN on this phone,
+  // and both PINs, typed here and never kept.
+  const { data: keyRows } = useQuery<{ id: string; value: string }>(
+    DEVICE_KEYS_SQL,
+    deviceKeysParams,
+  );
+  const keys = useMemo(() => keysFrom(keyRows), [keyRows]);
+  const [witnessId, setWitnessId] = useState<string | null>(null);
+  const [recorderPin, setRecorderPin] = useState("");
+  const [witnessPin, setWitnessPin] = useState("");
+  const [signWords, setSignWords] = useState<string | null>(null);
 
   // Focus moves to the panel's title when it opens (WCAG 2.4.3).
   useEffect(() => {
@@ -178,8 +197,44 @@ export function DoseRecordPanel({
   const save = async () => {
     if (!outcome || saving) return;
     const quantity = Number(amount);
+    const id = newEntryId();
+    const at = new Date();
+    let cdSignatures: CdDeviceSignatures | null = null;
+    if (dose.controlledDrug && outcome === "given" && dose.unitCode && Number.isFinite(quantity)) {
+      const myId = me?.tenantUserId ?? "";
+      const signed = signCdDose({
+        recorderKey: keys.find((k) => k.memberId === myId) ?? null,
+        recorderPin,
+        witnessKey: keys.find((k) => k.memberId === witnessId && k.memberId !== myId) ?? null,
+        witnessPin,
+        dose: {
+          tenantId,
+          deviceId: await db.getClientId(),
+          personId: dose.personId,
+          entryId: dose.entryId,
+          administrationId: id,
+          quantity,
+          unitCode: dose.unitCode,
+        },
+        now: at,
+      });
+      for (const k of signed.keys) await saveWrappedKey(db, k);
+      setRecorderPin("");
+      setWitnessPin("");
+      if (signed.kind === "refused") {
+        const words = t("mobile.meds.signProblem", {
+          problem: signed.problem.kind,
+          who: signed.problem.who,
+        });
+        setSignWords(words);
+        announce(words);
+        return;
+      }
+      setSignWords(null);
+      cdSignatures = signed.signatures;
+    }
     const input = {
-      id: newEntryId(),
+      id,
       tenantId,
       personId: dose.personId,
       entryId: dose.entryId,
@@ -194,13 +249,14 @@ export function DoseRecordPanel({
       identity: identity ? ("photo" as const) : null,
       pack: outcome === "given" ? packEvidence : null,
       memberId: me?.tenantUserId ?? "",
-      at: new Date(),
+      at,
       deviceOffsetMs: null,
       mayGive: dose.mayGive,
       controlledDrug: dose.controlledDrug,
       nextAllowedAt: dose.nextAllowedAt,
       lastDoseNotOnDevice: dose.lastDoseNotOnDevice,
       packRefused,
+      cdSignatures,
     };
     const found = recordProblems(input);
     setProblems(found);
@@ -341,6 +397,48 @@ export function DoseRecordPanel({
             onChangeText={setAmount}
             keyboardType="decimal-pad"
           />
+          {dose.controlledDrug ? (
+            <View style={{ gap: theme.space[1] }} testID="cd-signatures">
+              <Text variant="callout" accessibilityRole="header">
+                {t("mobile.meds.cdTitle")}
+              </Text>
+              <Text>{t("mobile.meds.cdIntro")}</Text>
+              <View accessibilityRole="radiogroup" style={{ gap: theme.space[1] }}>
+                {keys
+                  .filter((k) => k.memberId !== me?.tenantUserId)
+                  .map((k) => (
+                    <Button
+                      key={k.memberId}
+                      label={t("mobile.meds.cdWitnessIs", {
+                        person: k.name ?? t("mobile.meds.personNotOnPhone"),
+                      })}
+                      selection={{ kind: "radio", selected: witnessId === k.memberId }}
+                      onPress={() => setWitnessId(k.memberId)}
+                    />
+                  ))}
+              </View>
+              {keys.every((k) => k.memberId === me?.tenantUserId) ? (
+                <StatusLine tone="warning">{t("mobile.meds.cdNoWitness")}</StatusLine>
+              ) : null}
+              <TextField
+                label={t("mobile.meds.cdWitnessPin")}
+                value={witnessPin}
+                onChangeText={setWitnessPin}
+                secureTextEntry
+                keyboardType="number-pad"
+                testID="witness-pin"
+              />
+              <TextField
+                label={t("mobile.meds.cdRecorderPin")}
+                value={recorderPin}
+                onChangeText={setRecorderPin}
+                secureTextEntry
+                keyboardType="number-pad"
+                testID="recorder-pin"
+              />
+              {signWords ? <StatusLine tone="danger">{signWords}</StatusLine> : null}
+            </View>
+          ) : null}
         </View>
       ) : null}
 

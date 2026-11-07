@@ -1,4 +1,4 @@
-import { ListItem, PersonFlags, StatusChip, Text, useTheme } from "@harbour/ui-native";
+import { Button, ListItem, PersonFlags, StatusChip, Text, useTheme } from "@harbour/ui-native";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { AccessibilityInfo, FlatList, View } from "react-native";
@@ -44,6 +44,15 @@ export default function MedicinesRoundScreen() {
   return (
     <Screen testID="medicines-round">
       <UploadIssues />
+      <View style={{ paddingHorizontal: theme.space[2], paddingTop: theme.space[1] }}>
+        <Button
+          label={t("mobile.meds.pinsLink")}
+          accessibilityHint={t("mobile.meds.pinsLinkHint")}
+          variant="secondary"
+          onPress={() => router.push("/medicines/pins")}
+          testID="open-pins"
+        />
+      </View>
       {blocked ? (
         <View style={{ padding: theme.space[2] }}>
           <StatusLine tone="warning" testID="medicines-blocked">

@@ -47,7 +47,39 @@ describe("hazard HZ-001 a dose recorded on the phone needs identity and the pack
       ["note_required"],
     ],
     ["a dose given without an amount", { amount: null }, ["amount_required"]],
-    ["a controlled drug", { controlledDrug: true }, ["controlled_drug_on_phone"]],
+    ["a controlled drug with no signatures", { controlledDrug: true }, ["cd_signatures_required"]],
+    [
+      "a controlled drug signed by two people",
+      {
+        controlledDrug: true,
+        cdSignatures: {
+          recorder: { keyId: "k1", signature: "s", signedAt: "2026-11-03T08:05:00Z" },
+          witness: {
+            keyId: "k2",
+            signature: "s",
+            signedAt: "2026-11-03T08:05:30Z",
+            witnessId: "member-2",
+          },
+        },
+      },
+      [],
+    ],
+    [
+      "a controlled drug the recorder witnesses",
+      {
+        controlledDrug: true,
+        cdSignatures: {
+          recorder: { keyId: "k1", signature: "s", signedAt: "2026-11-03T08:05:00Z" },
+          witness: {
+            keyId: "k1",
+            signature: "s",
+            signedAt: "2026-11-03T08:05:00Z",
+            witnessId: "member-1",
+          },
+        },
+      },
+      ["witness_is_recorder"],
+    ],
     ["an entry that may not be given from now", { mayGive: false }, ["may_not_give"]],
     [
       "a dose inside the minimum interval",

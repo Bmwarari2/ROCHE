@@ -24,7 +24,8 @@ export type RecordProblem =
   | "reason_required"
   | "note_required"
   | "amount_required"
-  | "controlled_drug_on_phone"
+  | "cd_signatures_required"
+  | "witness_is_recorder"
   | "may_not_give"
   | "inside_interval"
   | "last_dose_unknown"
@@ -67,6 +68,25 @@ export interface DoseRecordInput {
   readonly lastDoseNotOnDevice?: boolean;
   /** The last scan was another medicine or an expired pack: no override clears it (HZ-113). */
   readonly packRefused?: boolean;
+  /**
+   * For a controlled drug given (ADR-0084; slice 70): the recorder's and the witness's signatures,
+   * made on this phone with their own PINs over `cdDoseStatementText`.
+   */
+  readonly cdSignatures?: CdDeviceSignatures | null;
+}
+
+export interface CdDeviceSignatures {
+  readonly recorder: {
+    readonly keyId: string;
+    readonly signature: string;
+    readonly signedAt: string;
+  };
+  readonly witness: {
+    readonly keyId: string;
+    readonly signature: string;
+    readonly signedAt: string;
+    readonly witnessId: string;
+  };
 }
 
 const GIVES = new Set<AdministrationOutcome>(["given"]);
@@ -75,7 +95,11 @@ const GIVES = new Set<AdministrationOutcome>(["given"]);
 export function recordProblems(input: DoseRecordInput): RecordProblem[] {
   const problems: RecordProblem[] = [];
   const gives = GIVES.has(input.outcome);
-  if (gives && input.controlledDrug) problems.push("controlled_drug_on_phone");
+  // A controlled drug given needs the recorder's and a witness's signatures on this phone.
+  if (gives && input.controlledDrug && !input.cdSignatures) problems.push("cd_signatures_required");
+  if (input.cdSignatures && input.cdSignatures.witness.witnessId === input.memberId) {
+    problems.push("witness_is_recorder");
+  }
   if (gives && !input.mayGive) problems.push("may_not_give");
   // The phone never records a dose inside the minimum interval, or when the last dose may be older
   // than its records: the nurse in charge decides, on the web with an override reason (clinical
@@ -124,6 +148,7 @@ export function recordRequestBody(input: DoseRecordInput): Record<string, unknow
     deviceOffsetMs: input.deviceOffsetMs,
     // Always sent from the phone: the API requires it on a phone's upload (ADR-0081).
     pointOfCare: { identity: input.identity, pack: input.pack },
+    controlledDrug: input.cdSignatures ? { deviceSignatures: input.cdSignatures } : null,
   };
 }
 
