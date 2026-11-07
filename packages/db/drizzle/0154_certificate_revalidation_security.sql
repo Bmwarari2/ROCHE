@@ -76,6 +76,9 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_te
       AND r.scope_kind::text IN ('tenant', 'location', 'none')
       AND r.permissions && ARRAY['workforce.training.manage',
         'workforce.supervision.manage']::text[])
+    -- Only HR, who names the confirmer, may ask (security review: no one else learns a
+    -- colleague's permissions this way).
+    AND app.holds_staff_permission('workforce.training.manage')
 $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION app.member_may_confirm_revalidation(uuid) FROM PUBLIC;
