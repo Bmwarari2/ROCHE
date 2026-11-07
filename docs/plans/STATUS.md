@@ -39,6 +39,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
 and about 30 brought up to `main`, linked from the indexes and the register. Gaps and findings:
 `docs/changelog-dev/2026-11-07-docs-guides-safety-quality-platform-2.md`.
 
+## DPIA for the Phase 2 processing (07/11/2026)
+
+`feat/platform-dpia-phase-2` (Phase 2 slice 84), from `main` at daa038a7: DPIA section 7B, the R20
+to R29 rows and the prefill's tests now match what is on `main` (still a draft for the DPO).
+H-1552 to H-1555; H-1555 (clock-in evidence switched on by a self-declared tick) is a security fix
+before any tenant turns location evidence on. See
+`docs/changelog-dev/2026-11-07-feat-platform-dpia-phase-2.md`.
+
 ## User guides: workforce and scheduling (07/11/2026)
 
 `docs/guides-workforce-scheduling` (Phase 2 slice 82), from `main` at b65e7b61: 63 guides for the
