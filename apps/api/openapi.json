@@ -42708,6 +42708,17 @@
                 "type": "string",
                 "format": "date"
               },
+              "statutoryDueOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "extendedTo": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
               "responseDueOn": {
                 "type": "string",
                 "format": "date"
@@ -42730,6 +42741,8 @@
             },
             "required": [
               "reportOn",
+              "statutoryDueOn",
+              "extendedTo",
               "responseDueOn",
               "respondedOn",
               "state"
@@ -43248,6 +43261,13 @@
             "format": "date"
           },
           "respondedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "extendedTo": {
             "type": [
               "string",
               "null"
@@ -113852,7 +113872,7 @@
           "safety"
         ],
         "summary": "Record a coroner's Regulation 28 report and the response",
-        "description": "safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). The response is due coroner.prevention_report_response_days after the report (rate table). Dates not in the future; the response not before the report. Audited (safety.disclosure.prevention_recorded).",
+        "description": "safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). reportOn is the date the report was sent: the response is due within coroner.prevention_report_response_days (rate table) of that date (Coroners (Investigations) Regulations 2013 reg 29(4)), or by extendedTo, a later date the coroner allowed (reg 29(5); 422 extension_not_later otherwise, naming the due date). A field left out keeps what was recorded; null clears it. Dates sent and responded not in the future (422 date_in_future); the response not before the report (422 response_before_report). Audited (safety.disclosure.prevention_recorded).",
         "security": [
           {
             "bearerAuth": []

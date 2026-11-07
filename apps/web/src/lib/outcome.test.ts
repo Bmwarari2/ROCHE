@@ -152,3 +152,14 @@ describe("a refusal the record's state makes (HZ-013)", () => {
     );
   });
 });
+
+describe("a coroner's Regulation 28 dates refused (SAFE-016)", () => {
+  it("says the API's words on the extension field, naming the due date", () => {
+    const detail = "An extension must be later than the date the response is due, 26/02/2026.";
+    expect(problemMessage({ code: "extension_not_later", detail }, t)).toEqual({
+      code: "extension_not_later",
+      message: detail,
+      fields: { extendedTo: detail },
+    });
+  });
+});

@@ -40,6 +40,10 @@ import {
   handOverProblems,
   legalBasis,
   type Permission,
+  PREVENTION_REPORT_PROBLEM_MESSAGES,
+  preventionReportProblems,
+  preventionResponse,
+  preventionStatutoryDueOn,
   type RateNation,
   resolveRate,
   resolveSafetyPhase2Rates,
@@ -265,9 +269,6 @@ async function preventionDays(tx: Tx, tenantId: string, nation: string, on: stri
   );
 }
 
-const addDays = (day: string, n: number) =>
-  new Date(Date.parse(`${day}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-
 async function requestOut(tx: Tx, access: TenantAccess, row: RequestRow) {
   const items = await itemsOf(tx, row.id);
   const count = (d: string) => items.filter((i) => i.decision === d).length;
@@ -280,16 +281,20 @@ async function requestOut(tx: Tx, access: TenantAccess, row: RequestRow) {
       t?.nation ?? "england",
       row.preventionReportOn,
     );
-    const due = addDays(row.preventionReportOn, days);
+    const response = preventionResponse({
+      sentOn: row.preventionReportOn,
+      responseDays: days,
+      extendedTo: row.preventionExtendedTo,
+      respondedOn: row.preventionRespondedOn,
+      today: ukIsoDate(new Date()),
+    });
     prevention = {
       reportOn: row.preventionReportOn,
-      responseDueOn: due,
+      statutoryDueOn: response.statutoryDueOn,
+      extendedTo: response.extended ? row.preventionExtendedTo : null,
+      responseDueOn: response.dueOn,
       respondedOn: row.preventionRespondedOn,
-      state: row.preventionRespondedOn
-        ? "responded"
-        : ukIsoDate(new Date()) > due
-          ? "overdue"
-          : "due",
+      state: response.state,
     };
   }
   return {
@@ -1269,7 +1274,7 @@ export const disclosuresRouter = createRouter()
       tags,
       summary: "Record a coroner's Regulation 28 report and the response",
       description:
-        "safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). The response is due coroner.prevention_report_response_days after the report (rate table). Dates not in the future; the response not before the report. Audited (safety.disclosure.prevention_recorded).",
+        "safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). reportOn is the date the report was sent: the response is due within coroner.prevention_report_response_days (rate table) of that date (Coroners (Investigations) Regulations 2013 reg 29(4)), or by extendedTo, a later date the coroner allowed (reg 29(5); 422 extension_not_later otherwise, naming the due date). A field left out keeps what was recorded; null clears it. Dates sent and responded not in the future (422 date_in_future); the response not before the report (422 response_before_report). Audited (safety.disclosure.prevention_recorded).",
       security,
       request: versioned(RecordPreventionReport),
       responses: requestResponses,
@@ -1278,13 +1283,6 @@ export const disclosuresRouter = createRouter()
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
       const input = c.req.valid("json");
-      const today = ukIsoDate(new Date());
-      if (input.reportOn > today || (input.respondedOn && input.respondedOn > today)) {
-        throw unprocessable("date_in_future", "The dates cannot be in the future.");
-      }
-      if (input.respondedOn && input.respondedOn < input.reportOn) {
-        throw unprocessable("response_before_report", "The response cannot be before the report.");
-      }
       const out = await inTx(c, async (tx) => {
         const row = await loadRequest(tx, id);
         requireReach(access, MANAGE, row.locationId);
@@ -1295,11 +1293,43 @@ export const disclosuresRouter = createRouter()
           );
         }
         if (row.version !== input.expectedVersion) throw stale();
+        const [t] = await tx.select({ nation: tenant.nation }).from(tenant);
+        const responseDays = await preventionDays(
+          tx,
+          access.tenantId,
+          t?.nation ?? "england",
+          input.reportOn,
+        );
+        // A field left out keeps what was recorded; null clears it.
+        const respondedOn =
+          input.respondedOn === undefined ? row.preventionRespondedOn : input.respondedOn;
+        const extendedTo =
+          input.extendedTo === undefined ? row.preventionExtendedTo : input.extendedTo;
+        const problems = preventionReportProblems({
+          sentOn: input.reportOn,
+          respondedOn,
+          extendedTo,
+          responseDays,
+          today: ukIsoDate(new Date()),
+        });
+        const [first] = problems;
+        if (first) {
+          const due = preventionStatutoryDueOn(input.reportOn, responseDays);
+          throw unprocessable(
+            first === "sent_in_future" || first === "responded_in_future"
+              ? "date_in_future"
+              : first,
+            first === "extension_not_later"
+              ? `An extension must be later than the date the response is due, ${due.split("-").reverse().join("/")}.`
+              : PREVENTION_REPORT_PROBLEM_MESSAGES[first],
+          );
+        }
         const [saved] = await tx
           .update(disclosureRequest)
           .set({
             preventionReportOn: input.reportOn,
-            preventionRespondedOn: input.respondedOn ?? null,
+            preventionRespondedOn: respondedOn,
+            preventionExtendedTo: extendedTo,
           })
           .where(
             and(eq(disclosureRequest.id, id), eq(disclosureRequest.version, input.expectedVersion)),
@@ -1307,7 +1337,8 @@ export const disclosuresRouter = createRouter()
           .returning();
         if (!saved) throw stale();
         await audit(c, tx, access, "prevention_recorded", id, {
-          responded: input.respondedOn !== undefined && input.respondedOn !== null,
+          responded: respondedOn !== null,
+          extended: extendedTo !== null,
         });
         return requestOut(tx, access, saved);
       });
