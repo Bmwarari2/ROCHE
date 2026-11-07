@@ -5,7 +5,7 @@ connection.
 
 **Who can do this**: anyone who clocks their own time or works alone: care and support workers, team
 leaders or senior carers, nurses and clinical leads, Registered Managers, deputy managers, owners,
-activities, catering, housekeeping and maintenance staff, and agency and bank workers. If you do not
+activities, catering, housekeeping and maintenance staff, and agency or bank workers. If you do not
 see **Shifts**, your role does not include it: ask your manager.
 
 **Register rows**: SCHED-002, MOB-007.

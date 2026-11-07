@@ -4,7 +4,7 @@ Download an e-learning course while you have a connection, so you can take it la
 
 **Who can do this**: staff who take training in Thapsus Care: care and support workers, team leaders
 or senior carers, nurses and clinical leads, Registered Managers, deputy managers, owners,
-activities, catering, housekeeping and maintenance staff, and agency and bank workers.
+activities, catering, housekeeping and maintenance staff, and agency or bank workers.
 
 **Register rows**: WORK-006, MOB-007.
 
