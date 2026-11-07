@@ -3,8 +3,8 @@
 The medicines reports count what was recorded at a home over a period: competence overrides and
 late records, when-required and psychotropic use, and medication errors by month.
 
-**Who can do this**: owners, Registered Managers, deputy managers and nurses (clinical lead or
-nurse), for the homes they work at.
+**Who can do this**: nurses (clinical lead or nurse), deputy managers, Registered Managers and
+owners, for the homes they work at.
 
 **Register rows**: MEDS-012, MEDS-013, MEDS-003.
 
@@ -31,7 +31,8 @@ nurse), for the homes they work at.
   the exception, never routine (HZ-119).
 - Every dose recorded after it was given raises a task to review the record.
 - The PRN report shows its note above the table every time. Read it before drawing any conclusion.
-- The trend counts only the kinds and stages that happened. Its categories follow the NRLS (HZ-134).
+- The trend counts only the kinds and stages that happened. The error categories follow the
+  National Reporting and Learning System (NRLS), the NHS list of medication error types (HZ-134).
 - A member of staff no longer listed is shown as "A member of staff no longer listed".
 - A period longer than your organisation allows is refused, in Thapsus Care's words.
 - For the medication review tracker, see

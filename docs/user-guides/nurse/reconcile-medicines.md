@@ -1,6 +1,6 @@
 # How to reconcile medicines
 
-Reconciliation compares the MAR with the latest documents, such as a discharge letter after a
+Reconciliation compares the MAR (medicines administration record) with the latest documents, such as a discharge letter after a
 hospital stay, and records a person's decision about every medicine. It is due after an admission,
 a transfer or a return from hospital, and whenever a new list of medicines arrives.
 
@@ -49,8 +49,8 @@ owners. Completing it needs current medicines competence.
   until the reconciliation is completed (HZ-121).
 - **Medicines started or changed by a reconciliation are "Not yet checked"** until a second person
   checks them (see [How to second-check a medicine](second-check-a-medicine.md)) (HZ-005).
-- **Thapsus Care never matches allergies.** You compare the sources' allergies with the person's
-  and confirm it (HZ-007).
+- **Thapsus Care never decides a dose, an interaction or an allergy match.** You compare the
+  sources' allergies with the person's and confirm it (HZ-007).
 - It cannot be completed while a question is open or anything is undecided. If it is refused,
   each problem is listed in Thapsus Care's words.
 - If someone else saved a decision since you opened the page, yours is refused. Reload and check

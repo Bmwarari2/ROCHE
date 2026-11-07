@@ -1,7 +1,8 @@
 # How to print the MAR chart
 
-A printed MAR chart is a copy of one month of the person's medicines record, for example for a
-hospital visit or to keep with the downtime pack. It is a snapshot, not the live record.
+A printed MAR (medicines administration record) chart is a copy of one month of the person's
+medicines record, for example for a hospital visit or to keep with the downtime pack. It is a
+snapshot, not the live record. The live record is the eMAR, the electronic MAR in Thapsus Care.
 
 **Who can do this**: anyone who can open the person's **Medicines** tab: staff who give medicines,
 nurses, managers, and roles that read care plans.

@@ -1,6 +1,6 @@
 # How to second-check a medicine
 
-Every new or changed medicine on the MAR, and every imported one, is checked against its source
+Every new or changed medicine on the MAR (medicines administration record), and every imported one, is checked against its source
 document by a second person before it is treated as checked.
 
 **Who can do this**: nurses (clinical lead or nurse), deputy managers, Registered Managers and
@@ -30,10 +30,11 @@ owners, with current medicines competence. Never the person who added the medici
   medicines (HZ-005).
 - For other medicines, your organisation decides whether a dose may be given before the check.
   The notice under the medicine says which.
-- **A check that finds a difference holds the medicine: "Do not give".** Tell the nurse in charge.
+- **A check that finds a difference holds the medicine: "Do not give".** Tell the nurse or senior in charge (whoever your home gives medicines record management).
   The corrected version is added as a new version, and it is checked again (HZ-005).
 - If you added the medicine, the form is not offered to you. The page says someone else checks it.
 - If your medicines competence is not current, the check is refused in Thapsus Care's words.
-- **Thapsus Care never matches a medicine to an allergy or to the person.** You compare them (HZ-007).
+- **Thapsus Care never decides a dose, an interaction or an allergy match**, and never matches a
+  medicine to the person. You compare them (HZ-007).
 - The medicine's page shows every version, newest first. A withdrawn version is struck through
   with **Withdrawn** and its reason; a replaced one says **Replaced**.

@@ -20,6 +20,23 @@ Branch `docs/guides-medicines`, from `main` at b65e7b61 (after the rename, #181)
   fixes, checked against it.
 - The role indexes, the guides README and the register's user docs column link every guide.
 
+## Reviews and decisions
+
+- The accessibility and clinical safety reviewers read every guide; their findings are fixed. The
+  main clinical fixes: a when-required dose over the 24-hour maximum is refused, not recorded;
+  covert doses only as the current covert administration record says; giving a controlled drug
+  cannot be recorded on the web; terms (MAR, eMAR, covert, dm+d, NRLS) are explained and "confirm
+  it is you" is in plain words.
+- The lead's recommended answers, recorded as H-1517 to H-1520 and H-1541 (provisional, pending
+  CSO review): every controlled drug record stays in the paper register until both the web and the
+  phone record controlled drugs for a home (the controlled drugs guides say so at the top); the web
+  when-required round is accepted for the pilot, with staff reading the protocol in the care plan
+  and recording the outcome themselves; escalations go to "the nurse or senior in charge (whoever
+  your home gives medicines record management)"; the guides name the open items they depend on.
+- For the builders: the round's controlled drugs notice (`medicines.round.cdNotice`) still says to
+  record in the controlled drugs register; the register screens are to show a banner where
+  controlled drug recording is not turned on (H-1517).
+
 ## No screen yet, so no guide (or only part)
 
 - MEDS-006 self-administration assessments (H-1281): no web screen; the level shows on the round.

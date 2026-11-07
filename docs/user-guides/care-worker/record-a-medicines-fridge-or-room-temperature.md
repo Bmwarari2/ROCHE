@@ -22,7 +22,7 @@ and agency or bank workers) and staff who manage medicines stock.
 
 ## Important
 
-- **If a reading is out of range, Thapsus Care raises an urgent task for the nurse in charge**,
+- **If a reading is out of range, Thapsus Care raises an urgent task for the nurse or senior in charge (whoever your home gives medicines record management)**,
   due at once. It says "Medicines storage out of range. Check the storage, and ask the pharmacist
   whether the medicines in it can still be used." If nobody completes it, it escalates. A reading
   with a task says **A task was raised for this reading** (HZ-132).

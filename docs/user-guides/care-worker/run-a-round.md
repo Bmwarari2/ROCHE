@@ -6,7 +6,8 @@ The round lists the care tasks due on this shift, room by room.
 people assigned to them. Some roles can see the round but not act on it.
 
 **Register row**: CARE-013. These steps are for the web. The phone app has the round too, on its
-**Round** tab, with its own buttons; medicines are not on either round.
+**Round** tab, with its own buttons. Medicines are not on this round: use **Medicines round** on
+the web.
 
 ## Steps
 
@@ -40,10 +41,10 @@ people assigned to them. Some roles can see the round but not act on it.
 ## "Not recorded" is not "none"
 
 - **Allergies not recorded** means nobody has recorded whether the person has allergies. It does
-  **not** mean they have none. Check with the nurse in charge.
+  **not** mean they have none. Check with the nurse or senior in charge (whoever your home gives medicines record management).
 - **CPR decision not recorded** means no ReSPECT plan or DNACPR decision is in Thapsus Care. Check the
-  paper record and tell the nurse in charge.
-- **Not recorded: check with the nurse in charge before giving any food** (or drink) means no food
+  paper record and tell the nurse or senior in charge.
+- **Not recorded: check with the nurse or senior in charge before giving any food** (or drink) means no food
   or drink level is recorded. Do not guess.
 - **No level prescribed** is different: someone has recorded that no special level is needed.
 

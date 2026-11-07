@@ -48,6 +48,10 @@ For team leaders and senior carers. You can do everything a care worker does for
 
 ## From the nurse guides
 
+- [How to correct a controlled drugs register entry](../nurse/correct-a-controlled-drugs-register-entry.md)
+- [How to count controlled drugs stock](../nurse/count-controlled-drugs-stock.md)
+- [How to print a controlled drugs register page](../nurse/print-a-controlled-drugs-register-page.md)
+- [How to record a controlled drug received, returned, disposed of or destroyed](../nurse/record-a-controlled-drug-movement.md)
 - [How to run MUST, Waterlow or Braden, or ask the falls questions](../nurse/run-a-validated-tool.md)
 
 Back to [all user guides](../README.md).

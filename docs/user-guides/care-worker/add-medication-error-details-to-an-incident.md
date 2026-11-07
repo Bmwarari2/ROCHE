@@ -3,7 +3,7 @@
 A medication error or near miss is first recorded as a medication incident. Its medication error
 details say what went wrong with the medicine, what was done, and what is still to do.
 
-**Who can do this**: the person who raised the incident, the member who added the details, and
+**Who can do this**: the person who raised the incident, the member of staff who added the details, and
 managers of incidents (nurses and managers). The incident must be a medication incident, still
 open, and one you can see in full.
 
@@ -55,4 +55,5 @@ goes from the list once what answers it is recorded.
   involved?** with yes, and says why.
 - A closed incident shows its details but they cannot be changed. If you cannot see everyone on
   the incident, the details are not shown to you (HZ-134).
-- The error categories follow the NRLS. The manager sees trends in **Medicines reports**.
+- The error categories follow the National Reporting and Learning System (NRLS), the NHS list of
+  medication error types. The manager sees trends in **Medicines reports**.

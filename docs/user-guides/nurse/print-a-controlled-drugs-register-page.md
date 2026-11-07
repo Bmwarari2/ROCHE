@@ -8,6 +8,11 @@ medicines or witness controlled drugs, nurses, managers, and roles that read car
 
 **Register row**: MEDS-014.
 
+> **Until your home's electronic controlled drugs register is turned on**, keep every controlled
+> drug record for your home (receipts, doses given, counts and returns) in the paper controlled
+> drugs register, and do not use these screens. One register is the record, so its balance is
+> never split between paper and Thapsus Care (H-1517).
+
 ## Steps
 
 1. Open the person's record, choose **Controlled drugs** and choose the drug.

@@ -3,8 +3,8 @@
 The medication review tracker lists everyone living at a home with medicines, overdue first, so no
 one's medication review is missed.
 
-**Who can do this**: owners, Registered Managers, deputy managers and nurses (clinical lead or
-nurse), for the homes they work at.
+**Who can do this**: nurses (clinical lead or nurse), deputy managers, Registered Managers and
+owners, for the homes they work at.
 
 **Register row**: MEDS-013.
 
