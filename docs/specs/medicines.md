@@ -1062,24 +1062,39 @@ a register.
 - `GET /v1/people/{id}/medicine-round?at=`: the doses due around a time with their state
   (`scheduledDoseState`), notices, and each when-required entry's status (`prnStatus`).
 
-### 13.8 Sync stream contract (slices 68 and 69)
+### 13.8 Medicines on the phone (slice 68; ADR-0130)
 
-The round reaches devices through a stream specified here as a contract only. It is not in
-`sync-config.yaml` until slice 68, and a test fails if a medicines table appears there before the
-stream's isolation tests exist.
-- **Stream `location_medicines_round`**: for members holding `medicines.emar.administer` at a
-  location, the live people there.
-  - Their checked or not-yet-checked entry versions in force or starting within the cycle, with
-    their schedule times.
-  - Dosing records covering the next 7 UK days.
-  - Administrations in the last 48 hours (for intervals, the 24-hour maximum and the last given).
-  - The member's own competence reading.
-- **Rules**: the same person scope as the care streams (replication bypasses RLS, so the stream
-  query carries the scope itself); no stopped or withdrawn versions after their end; no documents.
-- **Uploads**: decided with slices 68 and 69 (H-1164): a record made offline is recorded after the
-  event, so it is checked at its drift-corrected time, idempotent by id, and a refusal comes back
-  to the device as a conflict for the nurse in charge (slice 70). Today the API takes a request's
-  own time only through the given-before-recorded route.
+Built in slice 68 (migration 0149; the routing column of migration 0146, ADR-0134), for members holding `medicines.emar.administer` where `people.person.read` and `care.plan.read` reach too (so a MAR never syncs without the person's identity and allergies), in the two
+person scopes of the care streams (replication bypasses RLS, so the stream queries carry the scope;
+`medicines-streams.test.ts` proves it):
+- **`*_medicines`** (priority 1, with the allergy streams, HZ-002): MAR entry versions not
+  withdrawn or removed, a stopped or replaced one included (the phone judges `stop_at`,
+  `stop_effective_at` and `replaced_from`, so a change from tomorrow never takes today's doses off
+  the round), with the person's schedule times, dosing records and covert records (not removed)
+  whatever version they belong to, in buckets per person (ADR-0130; H-1425); the phone shows only
+  those of a version it holds.
+  The round on the phone (slice 69) works out each version's doses with the domain's
+  `marEntryEnd` and `marEntryDosesFrom` on these rows, so a replaced version and its replacement
+  never both show the same dose (HZ-003).
+- **`*_medicine_administrations`**: administrations recorded in a ten-day block of
+  `meds_recent_days` (today, the 34 UTC days before and tomorrow, minted by the API; `meds_recent_blocks`):
+  at the token's homes, one bucket per home and block by the row's own `sync_location_id` (the
+  person's home while they receive care, set and moved by the database; ADR-0134); for assigned
+  people, one bucket per person and block. For the last given of a monthly or
+  weekly medicine, intervals and the 24-hour maximum (H-1421); never one bucket per person and day,
+  which went past PowerSync's buckets per connection (ADR-0130, ADR-0134; H-1426).
+- **`my_medicines_competence`**: the member's own medicines competence sign-offs and their
+  withdrawals.
+- **dm+d**: `GET /v1/medicines/device-subset` (integrations.md section 12 rule 9), for the products
+  on the MARs of the people the streams give the member, fetched on connecting, when those products
+  change and at most hourly otherwise, and replaced whole on the phone; a failed request keeps the
+  last copy and records when it failed (`meta:dmd-subset-failed-at`).
+- Token claims `meds_location_ids`, `meds_assigned`, `meds_recent_days` (the 35 days the phone counts) and `meds_recent_blocks` (their ten-day blocks, which the streams filter on); none reach a device
+  without them (fails closed). No document, reconciliation, error, review, stock or controlled drug
+  register row syncs.
+- **Uploads**: decided with slice 69 (H-1164): a record made offline is recorded after the event,
+  so it is checked at its drift-corrected time, idempotent by id, and a refusal comes back to the
+  device as a conflict for the nurse in charge (slice 70).
 
 ### 13.9 Audit and outbox
 
@@ -1796,7 +1811,7 @@ policy; the person's scope on the three about a person; the home's scope on prot
 (`capture_version`) on the two mutable tables; append-only triggers and no UPDATE or DELETE grant
 on the other two; no DELETE on any. `medication_administration` gains `covert` (default false:
 expand only) and four flags. Retention `mar_chart`. Sample data removal lists the new person tables.
-Not sent to devices yet (the round stream is a contract until slice 68).
+Sent to devices from slice 68 (section 13.8).
 
 ### 15.6 Test list
 

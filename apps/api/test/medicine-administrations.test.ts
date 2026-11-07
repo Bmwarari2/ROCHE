@@ -660,3 +660,61 @@ describe("hazard HZ-011 audit by id only", () => {
     expect(JSON.stringify(rows)).not.toMatch(/Paracetamol|Lactulose|tablet|Dr A Example/);
   });
 });
+
+describe("administrations carry the person's home for the phone (migration 0146; ADR-0134)", () => {
+  it("stores every administration with the person's home, set by the database", async () => {
+    const rows = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ total: string; wrong: string }>(
+            `SELECT count(*) AS total,
+                    count(*) FILTER (WHERE a.sync_location_id IS DISTINCT FROM CASE WHEN p.status IN ('active', 'on_leave', 'in_hospital') THEN p.location_id END) AS wrong
+               FROM medication_administration a JOIN person p ON p.id = a.person_id`,
+          )
+        ).rows[0],
+    );
+    expect(Number(rows?.total)).toBeGreaterThan(0);
+    expect(Number(rows?.wrong)).toBe(0);
+  });
+});
+
+describe("hazard HZ-113 the dm+d rows a phone needs (slice 68; ADR-0130)", () => {
+  it("gives the products the MAR entries name, with their packs and barcodes, or says which the data lacks", async () => {
+    // Ada's paracetamol is on the MAR from the tests above.
+    const response = await send("manager", "/v1/medicines/device-subset");
+    expect(response.status, await response.clone().text()).toBe(200);
+    const subset = await json<{
+      products: { kind: string; id: string; vmpId: string | null }[];
+      gtins: { gtin: string; amppId: string }[];
+      unresolved: string[];
+    }>(response);
+    const named =
+      subset.products.some((p) => p.kind === "vmp" && p.id === PARACETAMOL.vmpId) ||
+      subset.unresolved.includes(PARACETAMOL.vmpId);
+    expect(named).toBe(true);
+    // Every barcode belongs to a pack the phone holds.
+    const packs = new Set(subset.products.filter((p) => p.kind === "ampp").map((p) => p.id));
+    for (const g of subset.gtins) expect(packs.has(g.amppId), g.gtin).toBe(true);
+    // Nothing about a person: products and barcodes only.
+    expect(JSON.stringify(subset)).not.toContain(ADA);
+    // Ben's lactulose too: every person on the member's MARs.
+    expect(
+      subset.products.some((p) => p.kind === "vmp" && p.id === LACTULOSE.vmpId) ||
+        subset.unresolved.includes(LACTULOSE.vmpId),
+    ).toBe(true);
+    for (const id of subset.unresolved) expect(id).toMatch(/^[1-9]\d{5,17}$/);
+  });
+
+  it("gives a care worker the products on their assigned people's MARs, and needs the permission to give medicines", async () => {
+    const carer = await send("carer", "/v1/medicines/device-subset");
+    expect(carer.status).toBe(200);
+    const subset = await json<{ products: { id: string }[]; unresolved: string[] }>(carer);
+    const ids = new Set([...subset.products.map((p) => p.id), ...subset.unresolved]);
+    // The demo seed assigns the carer to its first three residents: Ada, Ben and Carl.
+    expect(ids.has(PARACETAMOL.vmpId)).toBe(true);
+    expect(ids.has(LACTULOSE.vmpId)).toBe(true);
+    // A quality lead reads records but does not give medicines.
+    const quality = await send("quality", "/v1/medicines/device-subset");
+    expect(quality.status).toBe(403);
+  });
+});

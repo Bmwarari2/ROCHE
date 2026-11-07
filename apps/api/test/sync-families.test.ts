@@ -132,6 +132,8 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
       // reads them.
       handover: ["care.handover.manage"],
       entries_write: ["care.note.write"],
+      // Medicines sync to those who give them (slice 68; ADR-0130).
+      meds: ["medicines.emar.administer", "people.person.read", "care.plan.read"],
     });
   });
 
@@ -147,6 +149,9 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
     expect(familyReach(effective, "entries", all)).toEqual(entries);
     expect(familyReach(effective, "handover", all)).toEqual(handover);
     expect(familyReach(effective, "entries_write", all)).toEqual(write);
+    // Giving medicines is a point-of-care permission, granted with recording notes: the medicines
+    // streams reach exactly the people the member records for.
+    expect(familyReach(effective, "meds", all)).toEqual(write);
   });
 
   it("syncs no person where people.person.read reaches but care.plan.read does not (review round 2)", () => {
