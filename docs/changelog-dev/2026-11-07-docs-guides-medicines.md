@@ -4,7 +4,7 @@ Branch `docs/guides-medicines`, from `main` at b65e7b61 (after the rename, #181)
 
 ## What changed
 
-- 31 new guides and one corrected (`care-worker/run-a-round.md`: the care round is on the phone's
+- 24 new guides and one corrected (`care-worker/run-a-round.md`: the care round is on the phone's
   Round tab; medicines are on neither round).
 - **Web (24, slices 50 and 52 to 55)**: the browser round with allergies beside the medicine,
   when-required doses with last given, homely remedies, temperatures, signing as a controlled drugs
@@ -13,12 +13,11 @@ Branch `docs/guides-medicines`, from `main` at b65e7b61 (after the rename, #181)
   and stock counts, printing a register page, medication reviews, homely remedy protocols, ordering,
   fridges and rooms, stock and witnessed disposal (nurse); the review tracker and the medicines
   reports (Registered Manager). Each cites its hazards.
-- **Phone (7, slices 69 and 70)**: giving medicines, scanning a pack, the medicines PIN, witnessing
-  and giving a controlled drug, corrections and reviewing doses recorded twice. They describe
+- **Phone (slices 69 and 70)**: seven guides wait on `docs/guides-medicines-phone`. They describe
   `feat/mobile-meds-cd-offline` with the fixes the lead asked for (the phone stops someone without
   controlled drug permission before recording; a controlled drug conflict decision takes a fresh
-  second sign-in step or goes to the web), carry an "Arrives with the phone release" line, and are
-  checked against that pull request before it merges.
+  second sign-in step or goes to the web), so they merge only after that pull request and its
+  fixes, checked against it.
 - The role indexes, the guides README and the register's user docs column link every guide.
 
 ## No screen yet, so no guide (or only part)

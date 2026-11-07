@@ -35,9 +35,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
 ## User guides: medicines (07/11/2026)
 
 `docs/guides-medicines` (Phase 2 slice 81), from `main` at b65e7b61: 24 web guides for slices 50
-and 52 to 55 and 7 phone guides for slices 69 and 70 (from `feat/mobile-meds-cd-offline`, final
-once that pull request merges), for the care worker, nurse and Registered Manager, linked from the
-indexes and the register. Gaps and findings: `docs/changelog-dev/2026-11-07-docs-guides-medicines.md`.
+and 52 to 55, for the care worker, nurse and Registered Manager, linked from the indexes and the
+register. The 7 phone guides for slices 69 and 70 wait on `docs/guides-medicines-phone` until
+`feat/mobile-meds-cd-offline` and its fixes merge. Gaps and findings: `docs/changelog-dev/2026-11-07-docs-guides-medicines.md`.
 
 ## Product rename: Thapsus Care (07/11/2026)
 
