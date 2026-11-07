@@ -1,11 +1,10 @@
 # How to record a missing person
 
-Record that a person we support is missing, or has left without agreement, so the police steps and
-the search log start straight away.
+Record that a person we support is missing, or has left without agreement, so the police call
+and the search log start straight away.
 
 **Who can do this**: anyone who records incidents (care and support workers, agency and bank
-workers, team leaders or senior carers, nurses, managers and the owner). The police steps in Thapsus
-Care are for nurses and managers.
+workers, team leaders or senior carers, nurses, managers and the owner).
 
 **Register rows**: SAFE-015, SAFE-001.
 
@@ -29,20 +28,23 @@ Care are for nurses and managers.
 
 ## What happens next
 
-- Thapsus Care drafts **Missing person: Herbert Protocol profile to the police** on the incident. Its
-  time is Thapsus Care's target, not a legal deadline: it is done as soon as possible all the same.
-- It sets urgent tasks for nurses and managers, **Give the police the Herbert Protocol profile**
-  and **Keep the missing person search log**, and a task **Check welfare on return** for when the
-  person comes back.
+- Open the missing person episode straight away from the incident: choose **Record the missing
+  person episode**. The episode shows when the police must be called and keeps the search log (see
+  [How to keep a missing person's timeline](keep-a-missing-person-timeline.md)). If you cannot
+  see the button, tell the person in charge.
+- Thapsus Care drafts **Missing person: Herbert Protocol profile to the police** on the incident.
+  Its time is Thapsus Care's target, not a legal deadline: it is done as soon as possible all the
+  same.
+- It sets urgent tasks for nurses and managers: "Give the police the Herbert Protocol profile",
+  "Keep the missing person search log", and "Check welfare on return" for when the person comes
+  back.
 
 ## Good to know
 
-- The Herbert Protocol profile (photograph, description, places they may go, routines), the
-  missing person timeline (last seen, search, sightings, police reference, found, welfare check,
-  debrief) and the reminder to call the police have **no web screen yet**. Keep the search log as
-  your procedure says, and give the police the profile your home keeps.
-- If the person is under a Deprivation of Liberty Safeguards authorisation or the Mental Health
-  Act, a manager may need to notify the Care Quality Commission. Thapsus Care never notifies anyone
-  itself.
+- The person's Herbert Protocol profile (what they look like, places they may go, routines) is on
+  their record, under **Herbert Protocol**. Anyone who can read incidents can read it.
+- If the person is under a Deprivation of Liberty Safeguards (DoLS) authorisation or the Mental
+  Health Act, or the police are involved, a manager may need to notify the Care Quality
+  Commission. Thapsus Care never notifies anyone itself.
 - The rules: [safety specification, deaths and missing persons](../../specs/safety.md#deaths-and-missing-persons-plan-slice-37-safe-014-safe-015)
   and hazard [HZ-127](../../clinical-safety/hazard-log.md#hz-127-a-missing-persons-escalation-delayed-or-the-herbert-protocol-profile-out-of-date).

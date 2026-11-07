@@ -22,7 +22,8 @@ workers cannot: tell the person in charge.
 4. Answer **Was the death expected?** with what the clinician judged. An unexpected death is
    referred to the coroner.
 5. Answer **Did the person have a learning disability, or were they autistic?** from what is
-   known. It is needed for LeDeR and never assumed.
+   known. It is needed for LeDeR (the NHS programme that learns from the lives and deaths of people
+   with a learning disability and autistic people) and never assumed.
 6. Add **Death verified by (name, optional)**, **Their role (optional)** and **Funeral director
    (optional)** if you know them.
 7. Under **What the home holds for the person**, tick each that applies, for example **Personal
@@ -38,7 +39,10 @@ workers cannot: tell the person in charge.
   itself (see [How to follow up after a death](../registered-manager/follow-up-after-a-death.md)).
 - If the death is part of an incident, for example after a fall, record the incident too and answer
   **Did the person die?** (see [How to record an incident](../care-worker/record-an-incident.md)).
-- The death record's own steps (verification, family told, police, leaving the room as it is) and
-  the mortality review have no web screen yet.
+- Recording the death opens a death record, under **Deaths** in the menu. Nurses and managers use
+  it to record the clinician's judgement, the steps (verification of death, family told, police
+  told, the room and equipment left as they are) and the mortality review (see
+  [How to keep a death record](../nurse/keep-a-death-record.md)). Team leaders or senior carers
+  can read it but not change it.
 - The rules: [safety specification, deaths and missing persons](../../specs/safety.md#deaths-and-missing-persons-plan-slice-37-safe-014-safe-015)
   and hazard [HZ-013](../../clinical-safety/hazard-log.md#hz-013-statutory-notification-missed-or-late).

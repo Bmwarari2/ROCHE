@@ -51,5 +51,8 @@ Managers, the owner and the quality lead cannot see cases unless the lead names 
   yourself.
 - Appointing the lead has no web screen yet. Ask the person who manages Thapsus Care for your
   organisation.
+- Exporting every case has no web screen yet. Your organisation's full export leaves speak-up
+  cases out. If you need a copy of the cases, ask the person who manages Thapsus Care for your
+  organisation.
 - The rules: [safety specification, Phase 2 rule 3](../../specs/safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012)
   and [ADR-0089](../../decisions/0089-restricted-silos-whistleblowing.md).

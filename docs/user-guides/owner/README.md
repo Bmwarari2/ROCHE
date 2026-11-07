@@ -5,6 +5,7 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 ## Your guides
 
 - [How to get a full export of your data](request-a-full-export.md)
+- [How to import medicines, care plans or staff file checks](import-medicines-care-plans-or-staff-file-checks.md)
 - [How to import people from another system](import-people-from-another-system.md)
 - [How to run and lock a pay run](run-and-lock-a-pay-run.md)
 - [How to set the staff privacy notice](set-the-staff-privacy-notice.md)
@@ -29,6 +30,7 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 
 - [How to add, schedule and retire an audit template](../registered-manager/set-up-an-audit-template.md)
 - [How to answer the notification questions on an incident](../registered-manager/answer-notification-questions.md)
+- [How to approve or refuse a disclosure request](../registered-manager/approve-or-refuse-a-disclosure-request.md)
 - [How to approve timesheets](../registered-manager/approve-timesheets.md)
 - [How to build a rota](../registered-manager/build-a-rota.md)
 - [How to carry out an audit or mock inspection](../registered-manager/carry-out-an-audit.md)

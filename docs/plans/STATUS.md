@@ -32,6 +32,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## User guides: safety, quality and platform, second pass (07/11/2026)
+
+`docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
+(outbreaks, deaths, missing persons, disclosures, importing medicines, care plans and staff checks)
+and about 30 brought up to `main`, linked from the indexes and the register. Gaps and findings:
+`docs/changelog-dev/2026-11-07-docs-guides-safety-quality-platform-2.md`.
+
 ## User guides: workforce and scheduling (07/11/2026)
 
 `docs/guides-workforce-scheduling` (Phase 2 slice 82), from `main` at b65e7b61: 63 guides for the
