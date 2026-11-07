@@ -46,3 +46,14 @@ Branch `docs/guides-safety-quality-platform-2`, from `main` at daa038a7. The fir
 - Import: the undo dialog says "Remove {n} people" for medicines, care plan and staff imports;
   **Import records** shows only to people who can add and see people.
 - `docs/specs/quality.md` has duplicated section numbers and two empty stub headings.
+
+## Reviews
+
+- The accessibility and clinical safety reviewers read every changed guide; their blocking
+  findings are fixed: the outbreak report time is Thapsus Care's target, not a legal deadline;
+  the complaint acknowledgement is the legal deadline; staff record the police call before
+  **Found**; the doctor or medical examiner, not the guide, decides a coroner referral; the
+  Regulation 28 date is the date the report was sent; a request logged again keeps its original
+  received date; reporting an outbreak never waits for missing details.
+- Decisions for the CSO with the lead's recommended answers: H-1543 to H-1551 (provisional). The
+  screen and copy fixes they name are with the death and transfer screens builder.
