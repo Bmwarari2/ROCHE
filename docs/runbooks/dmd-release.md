@@ -18,7 +18,8 @@ leaves the release in use unchanged until a whole new one has loaded.
   and 2 CPUs until a real release is measured (H-1243). No bucket is used.
 - **Environments:** staging and prod download from TRUD. Dev has no TRUD key and serves the
   invented fixture, which the built image does not carry, so a dev run finds no release
-  (`dmd.release.none`) and succeeds. The job runs without `NODE_ENV=production` (H-1505); its
+  (`dmd.release.none`) and succeeds. The job runs with `NODE_ENV=production` and reads only its
+  own settings (`loadDmdJobConfig`: its database URL, TRUD and the loader's limits); its
   `HARBOUR_ENV` marks staging and prod as places where real people work.
 - **Egress:** the job reaches `isd.digital.nhs.uk` over HTTPS from the environment's NAT addresses.
   The network has no egress firewall, so the job itself refuses any other host, redirects included

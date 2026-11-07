@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "../src/config";
+import { loadConfig, loadDmdJobConfig } from "../src/config";
 
 const PRODUCTION = {
   NODE_ENV: "production",
@@ -282,5 +282,46 @@ describe("the TRUD settings (slice 75)", () => {
     ["a key too short to be one", { TRUD_API_KEY: "short" }],
   ])("refuses %s", (_case, env) => {
     expect(() => loadConfig({ NODE_ENV: "test", ...env })).toThrow();
+  });
+});
+
+describe("the dm+d job's own settings (H-1505)", () => {
+  const DMD_URL = "postgres://harbour_dmd_job:secret@10.0.0.5:5432/harbour?sslmode=verify-ca";
+
+  it("runs in production with only its own settings, none of the API's secrets", () => {
+    const config = loadDmdJobConfig({ NODE_ENV: "production", DATABASE_DMD_URL: DMD_URL });
+    expect(config.NODE_ENV).toBe("production");
+    expect(config.DATABASE_DMD_URL).toBe(DMD_URL);
+    expect(config.TRUD_DMD_ITEM).toBe(24);
+    expect(Object.keys(config)).not.toContain("BETTER_AUTH_SECRET");
+    expect(() => loadConfig({ NODE_ENV: "production", DATABASE_DMD_URL: DMD_URL })).toThrow();
+  });
+
+  it.each([
+    ["the local database role in production", { NODE_ENV: "production" }],
+    [
+      "an address off the allowed hosts",
+      {
+        NODE_ENV: "production",
+        DATABASE_DMD_URL: DMD_URL,
+        TRUD_BASE_URL: "https://example.invalid/t",
+      },
+    ],
+    [
+      "a key with a path in it",
+      {
+        NODE_ENV: "production",
+        DATABASE_DMD_URL: DMD_URL,
+        TRUD_API_KEY: "abc/def/0123456789abcdef",
+      },
+    ],
+  ])("refuses %s", (_case, env) => {
+    expect(() => loadDmdJobConfig(env)).toThrow();
+  });
+
+  it("leaves a missing TRUD key to the job, which logs it and fails", () => {
+    expect(
+      loadDmdJobConfig({ NODE_ENV: "production", DATABASE_DMD_URL: DMD_URL }).TRUD_API_KEY,
+    ).toBeUndefined();
   });
 });

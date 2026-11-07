@@ -33,4 +33,5 @@ Branch `feat/infra-dmd-download`, no PR yet.
 
 - Brian applies it: the TRUD key, the bootstrap, the first apply and a run by hand (H-1501 to
   H-1504).
-- Let the job run with `NODE_ENV=production` (H-1505).
+- The job runs with `NODE_ENV=production` and checks only its own settings
+  (`loadDmdJobConfig` in `apps/api/src/config.ts`), so it holds none of the API's secrets (H-1505).

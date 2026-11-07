@@ -321,6 +321,12 @@ run "dmd_job" {
     error_message = "The dm+d job must run one task at a time and retry it at most once."
   }
 
+  # Production mode on its own settings only (H-1505): no API secret is bound to it.
+  assert {
+    condition     = module.job_dmd.env["NODE_ENV"] == "production"
+    error_message = "The dm+d job must run with NODE_ENV=production (it loads only its own settings)."
+  }
+
   # The task timeout covers the load's own limit and the download.
   assert {
     condition     = module.job_dmd.timeout_seconds > local.dmd.load_timeout_minutes * 60

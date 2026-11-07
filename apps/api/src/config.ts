@@ -377,6 +377,43 @@ export function flagsmithHost(betterAuthUrl: string): string | null {
   return host.startsWith("api.") ? `flags.${host.slice("api.".length)}` : null;
 }
 
+/**
+ * The dm+d release job's settings only (H-1505): its own database URL, the TRUD download and the
+ * loader's limits. The job runs with NODE_ENV=production and holds none of the API's secrets, so
+ * it never goes through `loadConfig`, whose production rules demand them.
+ */
+const DmdJobEnv = Env.pick({
+  NODE_ENV: true,
+  LOG_LEVEL: true,
+  DATABASE_DMD_URL: true,
+  DMD_RELEASE_MAX_FILES: true,
+  DMD_RELEASE_MAX_BYTES: true,
+  DMD_LOAD_TIMEOUT_MINUTES: true,
+  TRUD_API_KEY: true,
+  TRUD_BASE_URL: true,
+  TRUD_DMD_ITEM: true,
+  TRUD_ALLOWED_HOSTS: true,
+  DMD_ARCHIVE_MAX_BYTES: true,
+  DMD_WORK_DIR: true,
+});
+export type DmdJobConfig = z.infer<typeof DmdJobEnv>;
+
+export function loadDmdJobConfig(env: NodeJS.ProcessEnv = process.env): DmdJobConfig {
+  const parsed = DmdJobEnv.parse(env);
+  if (!trudUrlAllowed(parsed.TRUD_BASE_URL, parsed.TRUD_ALLOWED_HOSTS)) {
+    throw new Error("TRUD_BASE_URL must be https on one of TRUD_ALLOWED_HOSTS");
+  }
+  // In production the job's own role is required; a missing TRUD key is left to the job, which
+  // logs `trud_unconfigured` and exits non-zero so the alert fires (runbook).
+  if (
+    parsed.NODE_ENV === "production" &&
+    parsed.DATABASE_DMD_URL.includes("harbour_dmd_job_local")
+  ) {
+    throw new Error("DATABASE_DMD_URL must be set in production");
+  }
+  return parsed;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.parse(env);
   for (const domain of list(parsed.SMTP_ALLOWED_FROM_DOMAINS)) {

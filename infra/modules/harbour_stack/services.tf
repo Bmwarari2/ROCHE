@@ -288,10 +288,11 @@ module "job_dmd" {
   parallelism = 1
   max_retries = 1
 
-  # NODE_ENV is deliberately not "production": the API's configuration then demands every API
-  # secret, which this job must never hold. HARBOUR_ENV alone marks staging and prod as places
-  # where real people work, so the job uses TRUD, never the invented fixture (H-1505).
+  # The job reads only its own settings (loadDmdJobConfig, H-1505), so it runs in production mode
+  # without any of the API's secrets. HARBOUR_ENV marks staging and prod as places where real
+  # people work, so the job uses TRUD, never the invented fixture.
   env = {
+    NODE_ENV                 = "production"
     HARBOUR_ENV              = var.environment
     APP_VERSION              = var.initial_image_tag
     NODE_EXTRA_CA_CERTS      = local.db_ca_file

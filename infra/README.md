@@ -246,9 +246,9 @@ missing.
 dm+d job (`node apps/api/dist/dmd-job.js`): `HARBOUR_ENV`, `APP_VERSION`, `NODE_EXTRA_CA_CERTS`,
 `DMD_LOAD_TIMEOUT_MINUTES`; secrets `DATABASE_DMD_URL` (from `db-harbour_dmd_job-url`) and, in
 staging and prod, `TRUD_API_KEY` (from `trud-api-key`, put there by hand, H-1501). No other service
-reads either. `NODE_ENV` is left unset: with `production` the API's configuration would demand
-every API secret, which this job must never hold, and `HARBOUR_ENV` already marks staging and prod
-as places where real people work (H-1505). Dev has no TRUD key and loads nothing real. Egress: the
+reads either. It runs with `NODE_ENV=production` and reads only its own settings
+(`loadDmdJobConfig`), so it needs none of the API's secrets; `HARBOUR_ENV` marks staging and prod
+as places where real people work. Dev has no TRUD key and loads nothing real. Egress: the
 job reaches `isd.digital.nhs.uk` over HTTPS from the NAT addresses. The VPC has no egress firewall
 (a rule by host name needs Cloud NGFW), so the job itself refuses any host but `TRUD_ALLOWED_HOSTS`,
 redirects included (H-1245).

@@ -54,3 +54,8 @@ output "job" {
     invokers    = var.job_invokers
   } : null
 }
+
+output "env" {
+  description = "The plain (non-secret) environment variables, for the plan tests."
+  value       = var.env
+}
