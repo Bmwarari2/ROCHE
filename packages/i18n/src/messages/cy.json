@@ -2949,6 +2949,7 @@
   "missing.timeline.title": "Timeline and search log",
   "missing.timeline.empty": "Nothing recorded yet.",
   "missing.timeline.add": "Add to the timeline",
+  "missing.timeline.latePoliceCall": "If the police were called before the person was found, record it now: choose Police called and enter the time of the call, with their reference.",
   "missing.timeline.kind": "What happened",
   "missing.timeline.choose": "Choose",
   "missing.timeline.kindError": "Choose what happened",

@@ -428,6 +428,69 @@ describe("hazard HZ-127 the missing person episode (slice 37)", () => {
   });
 });
 
+describe("hazard HZ-127 a police call recorded after the person was found", () => {
+  it("hazard HZ-127 takes a call made before they were found at its true time, answering police involved and drafting the CQC notification", async () => {
+    // A resident with no episode still searching or found (the tests above leave some open).
+    let episodeId = "";
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      const created = await as("carer", "/v1/incidents", {
+        method: "POST",
+        body: {
+          locationId: DEMO.locationId,
+          type: "missing_person",
+          occurredAt: ago(90 * MIN),
+          description: "Not at lunch; found later at the bus stop.",
+          people: [{ kind: "service_user", role: "affected", personId: resident(n) }],
+        },
+      });
+      if (created.status !== 201) continue;
+      const incidentId = (await json<IncidentDetail>(created)).id;
+      const id = newId();
+      const opened = await as("carer", "/v1/missing-episodes", {
+        method: "POST",
+        body: {
+          id,
+          incidentId,
+          personId: resident(n),
+          immediateRisk: false,
+          noticedMissingAt: ago(90 * MIN),
+        },
+      });
+      if (opened.status === 201) {
+        episodeId = id;
+        break;
+      }
+    }
+    expect(episodeId, "a resident free to go missing").not.toBe("");
+    const add = (body: Record<string, unknown>) =>
+      as("carer", `/v1/missing-episodes/${episodeId}/events`, {
+        method: "POST",
+        body: { id: newId(), ...body },
+      });
+    const found = await add({
+      kind: "found",
+      at: ago(30 * MIN),
+      note: "At the bus stop on the main road.",
+    });
+    expect(found.status, await found.clone().text()).toBe(200);
+    // Timed after they were found: refused in words.
+    const after = await add({ kind: "police_called", at: ago(20 * MIN), reference: "CAD 77" });
+    expect(after.status).toBe(422);
+    expect((await json<ProblemDetails>(after)).detail).toMatch(/before they were found/);
+    // The call made while they were missing, recorded now at its true time.
+    const called = await add({ kind: "police_called", at: ago(70 * MIN), reference: "CAD 77" });
+    expect(called.status, await called.clone().text()).toBe(200);
+    const view = await json<MissingEpisodeView>(called);
+    expect(view).toMatchObject({
+      status: "found",
+      policeReference: "CAD 77",
+      cqcNotificationPrompt: true,
+    });
+    expect(view.notifications.map((n) => n.kind)).toContain("cqc_reg18_police");
+    expect(view.timeline.map((e) => e.kind)).toEqual(["noticed_missing", "police_called", "found"]);
+  });
+});
+
 describe("hazard HZ-127 an episode at immediate risk tells those on site at once (H-771)", () => {
   it("hazard HZ-127 notifies every clinical lead and team leader on site when it opens, without waiting", async () => {
     const created = await as("carer", "/v1/incidents", {

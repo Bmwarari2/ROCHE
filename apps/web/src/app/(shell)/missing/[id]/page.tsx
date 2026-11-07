@@ -15,6 +15,7 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import {
   kindsFor,
+  latePoliceCallShown,
   MISSING_MANAGE,
   missingShown,
   missingStatusChip,
@@ -126,6 +127,9 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       </Card>
       {kinds.length > 0 ? (
         <Card as="section" headingLevel={2} title={t("missing.timeline.add")}>
+          {latePoliceCallShown(data) ? (
+            <p className="m-0 mb-3">{t("missing.timeline.latePoliceCall")}</p>
+          ) : null}
           <TimelineEntryForm episodeId={data.id} kinds={kinds} />
         </Card>
       ) : null}

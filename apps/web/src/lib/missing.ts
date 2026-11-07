@@ -13,6 +13,18 @@ export const MISSING_READ = "safety.incident.read";
 export const MISSING_REPORT = "safety.incident.report";
 export const MISSING_MANAGE = "safety.incident.manage";
 
+/**
+ * A found episode with no police call on its timeline says a call made while the person was
+ * missing may still be recorded, at its true time (HZ-127): the API takes it until the episode
+ * closes, answering police involved for the CQC notification.
+ */
+export function latePoliceCallShown(episode: {
+  readonly status: string;
+  readonly policeReference: string | null;
+}): boolean {
+  return episode.status === "found" && !episode.policeReference;
+}
+
 /** Shown to whoever may read incidents (the API's own check). */
 export function missingShown(permissions: readonly string[]): boolean {
   return permissions.includes(MISSING_READ);

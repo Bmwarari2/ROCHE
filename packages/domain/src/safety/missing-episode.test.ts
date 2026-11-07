@@ -89,6 +89,34 @@ describe("hazard HZ-127 the missing person timeline (slice 37)", () => {
     ]);
   });
 
+  it("hazard HZ-127 takes a police call made before they were found, recorded afterwards at its true time", () => {
+    const found = [...started, { kind: "found" as const, at: at(40), note: "In the next street." }];
+    const call = { kind: "police_called" as const, at: at(20), reference: "CAD 123" };
+    expect(problems(found, call)).toEqual([]);
+    // Never timed after they were found, and once only.
+    expect(problems(found, { ...call, at: at(41) })).toEqual([
+      "The person has been found: record the time the police were called, which was before they were found, or add a note instead.",
+    ]);
+    expect(problems([...found, call], { ...call, at: at(25) })).toEqual([
+      "That is already on the timeline: add a note instead.",
+    ]);
+    // Read at its true time: called within the target, the CQC prompt, the reference.
+    const view = missingEpisodeView({
+      status: "found",
+      timeline: [...found, call],
+      underDolsOrMha: false,
+      immediateRisk: false,
+      herbertProfileReviewedOn: null,
+      now: NOW,
+      rates,
+    });
+    expect(view).toMatchObject({
+      policeCallLate: false,
+      cqcNotificationPrompt: true,
+      policeReference: "CAD 123",
+    });
+  });
+
   it("hazard HZ-127 says when the police call is due, and late once it passes", () => {
     const view = (timeline: readonly TimelineEntry[], immediateRisk = false, now = NOW) =>
       missingEpisodeView({

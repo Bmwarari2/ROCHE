@@ -2,6 +2,7 @@ import type { Translator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
   kindsFor,
+  latePoliceCallShown,
   missingShown,
   missingStatusChip,
   policeCallChip,
@@ -218,5 +219,16 @@ describe("missing persons", () => {
       ["record", "about_me"],
     );
     expect(prefillSources("Allergies (from the record): penicillin")).toEqual(["record"]);
+  });
+});
+
+describe("a police call recorded after the person was found", () => {
+  it.each([
+    [{ status: "found", policeReference: null }, true],
+    [{ status: "found", policeReference: "CAD 1" }, false],
+    [{ status: "open", policeReference: null }, false],
+    [{ status: "closed", policeReference: null }, false],
+  ])("hazard HZ-127 says a late call may be recorded for %j: %s", (episode, shown) => {
+    expect(latePoliceCallShown(episode)).toBe(shown);
   });
 });
