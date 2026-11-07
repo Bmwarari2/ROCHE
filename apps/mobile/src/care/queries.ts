@@ -222,7 +222,8 @@ export interface AssessmentRow {
  * a payload that is not JSON names no one and never stops the list.
  */
 export const UPLOAD_ISSUES_SQL = `SELECT i.id, i.person_id, i.record_table, i.http_status, i.code,
-  i.message, i.payload, i.rejected_at, i.server_copy, p.preferred_name, p.given_name, p.family_name
+  i.message, i.payload, i.rejected_at, i.server_copy, p.preferred_name, p.given_name, p.family_name,
+  m.product_name AS medicine_name
 FROM (SELECT u.id, u.tenant_id, u.record_table, u.http_status, u.code, u.message, u.payload,
     u.rejected_at, u.server_copy,
     COALESCE(u.person_id, CASE WHEN u.record_table = 'task' AND json_valid(u.payload) THEN
@@ -231,11 +232,15 @@ FROM (SELECT u.id, u.tenant_id, u.record_table, u.http_status, u.code, u.message
     END) AS person_id
   FROM upload_issue u) i
 LEFT JOIN person p ON p.id = i.person_id AND p.tenant_id = i.tenant_id
+LEFT JOIN medication m ON i.record_table = 'medication_administration' AND json_valid(i.payload)
+  AND m.id = json_extract(i.payload, '$.medication_id')
 WHERE (i.tenant_id = ? OR i.tenant_id IS NULL)
 ORDER BY i.rejected_at DESC, i.id`;
 
 export interface UploadIssueRow {
   readonly id: string;
+  /** For a dose recorded on this phone: the medicine, as the phone holds it (slice 70). */
+  readonly medicine_name?: string | null;
   readonly person_id: string | null;
   readonly record_table: string | null;
   readonly http_status: number | null;

@@ -25,6 +25,7 @@ export type RecordProblem =
   | "note_required"
   | "amount_required"
   | "cd_signatures_required"
+  | "cd_not_permitted"
   | "witness_is_recorder"
   | "may_not_give"
   | "inside_interval"
@@ -73,6 +74,8 @@ export interface DoseRecordInput {
    * made on this phone with their own PINs over `cdDoseStatementText`.
    */
   readonly cdSignatures?: CdDeviceSignatures | null;
+  /** Whether the member may record controlled drugs (`medicines.cd.administer`). */
+  readonly mayRecordCd?: boolean;
 }
 
 export interface CdDeviceSignatures {
@@ -98,6 +101,10 @@ const GIVES = new Set<AdministrationOutcome>(["given"]);
 export function recordProblems(input: DoseRecordInput): RecordProblem[] {
   const problems: RecordProblem[] = [];
   const gives = GIVES.has(input.outcome);
+  // Checked before anything is given: a witness who may not record controlled drugs is never the
+  // recorder; the API would refuse it only after the dose (HZ-116; lead's batch 5 review, 1).
+  if (gives && input.controlledDrug && input.mayRecordCd === false)
+    problems.push("cd_not_permitted");
   // A controlled drug given needs the recorder's and a witness's signatures on this phone.
   if (gives && input.controlledDrug && !input.cdSignatures) problems.push("cd_signatures_required");
   if (input.cdSignatures?.witness && input.cdSignatures.witness.witnessId === input.memberId) {

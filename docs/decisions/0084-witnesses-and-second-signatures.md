@@ -62,6 +62,9 @@ Option 3.
 - Bad: a witness types their password and code into another member's phone once to set a PIN; a
   copy of the phone's database can be attacked offline against the PIN (scrypt slows it; H-1440);
   a refused offline dose has already been given (HZ-116 control and H-1439).
+- Accepted: `member_device_key`'s restrictive read policy lets the app role read every key in the
+  tenant when it runs with system rights (to check a signature on upload). The keys are public
+  halves, so this is accepted rather than moved into a definer function (merge security review).
 
 ### Confirmation
 

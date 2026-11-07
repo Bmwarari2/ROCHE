@@ -2460,7 +2460,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "How the witness signed: step_up in their own session, or device_factor with their PIN on the recorder's device (ADR-0084).",
       },
       device_key_id: { description: "The device key that signed (member_device_key.id)." },
-      signature: "internal",
+      signature: {
+        description:
+          "The witness's ECDSA P-256 signature over the dose statement, checked by the API on upload (ADR-0084); proof for the register, not exported.",
+        class: "internal",
+      },
       signed_at: {
         description: "When the witness signed on the device, by its clock (instant, UTC).",
       },

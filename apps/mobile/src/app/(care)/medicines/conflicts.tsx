@@ -15,6 +15,7 @@ import {
   type ApiOptions,
   type ConflictRecord,
   type ConflictView,
+  decidableOnPhone,
   fetchConflicts,
   type ResolveOutcome,
   resolveConflict,
@@ -118,6 +119,7 @@ export default function MedicinesConflictsScreen() {
             const medicine = meds.find((m) => m.id === c.entryId)?.product_name ?? null;
             const unit = times.find((x) => x.medication_id === c.entryId)?.unit_name ?? null;
             const asking = confirming?.id === c.id ? confirming.outcome : null;
+            const decidable = decidableOnPhone(meds.find((m) => m.id === c.entryId));
             return (
               <Card
                 key={c.id}
@@ -159,7 +161,11 @@ export default function MedicinesConflictsScreen() {
                     onChangeText={(v) => setNotes((n) => ({ ...n, [c.id]: v }))}
                     maxLength={2000}
                   />
-                  {asking ? (
+                  {!decidable ? (
+                    <StatusLine tone="warning" testID={`conflict-${c.id}-on-web`}>
+                      {t("mobile.meds.conflictCdOnWeb")}
+                    </StatusLine>
+                  ) : asking ? (
                     // One more step before a decision is sent: what it does, in words (WCAG 3.3.4).
                     <View style={{ gap: theme.space[1] }} testID={`conflict-${c.id}-confirm`}>
                       <StatusLine tone="warning">

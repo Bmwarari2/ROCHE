@@ -31,7 +31,7 @@ const base: DoseRecordInput = {
   controlledDrug: false,
 };
 
-describe("hazard HZ-001 a dose recorded on the phone needs identity and the pack checked (ADR-0081)", () => {
+describe("hazards HZ-001 and HZ-116 a dose recorded on the phone needs identity, the pack checked and, for a controlled drug, a recorder who may record it", () => {
   it.each([
     ["a dose given with both checks", {}, []],
     ["a dose given without identity", { identity: null }, ["identity_not_confirmed"]],
@@ -48,6 +48,11 @@ describe("hazard HZ-001 a dose recorded on the phone needs identity and the pack
     ],
     ["a dose given without an amount", { amount: null }, ["amount_required"]],
     ["a controlled drug with no signatures", { controlledDrug: true }, ["cd_signatures_required"]],
+    [
+      "a controlled drug from someone who may not record controlled drugs",
+      { controlledDrug: true, mayRecordCd: false },
+      ["cd_not_permitted", "cd_signatures_required"],
+    ],
     [
       "a controlled drug signed by two people",
       {

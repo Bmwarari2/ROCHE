@@ -151,3 +151,14 @@ export async function resolveConflict(
     return { ok: false, detail: null };
   }
 }
+
+/**
+ * Whether the nurse in charge may decide a conflict on the phone: a controlled drug's decision
+ * needs a fresh step-up the phone does not ask for, so it is decided on the web (lead's batch 5
+ * review, 2). A medicine the phone does not hold is treated as a controlled drug.
+ */
+export function decidableOnPhone(
+  medicine: { readonly cd_schedule: string | null } | undefined,
+): boolean {
+  return medicine !== undefined && !medicine.cd_schedule;
+}

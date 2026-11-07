@@ -737,6 +737,9 @@
     "mobile.meds.conflictConfirmButton",
     "mobile.meds.conflictKeepReviewing",
     "mobile.meds.correctAction",
-    "mobile.meds.saveFailed"
+    "mobile.meds.saveFailed",
+    "mobile.meds.issueContent",
+    "mobile.meds.cdNotPermitted",
+    "mobile.meds.conflictCdOnWeb"
   ]
 }

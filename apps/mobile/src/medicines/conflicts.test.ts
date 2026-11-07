@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseConflicts, resolveConflict, sameDose } from "./conflicts";
+import { decidableOnPhone, parseConflicts, resolveConflict, sameDose } from "./conflicts";
 
 const conflict = (overrides: Record<string, unknown> = {}) => ({
   id: "c1",
@@ -57,5 +57,15 @@ describe("hazard HZ-004 the nurse in charge reviews a dose recorded on two phone
       correctionId: null,
       note: "Same dose sent twice",
     });
+  });
+});
+
+describe("hazard HZ-116 a controlled drug's conflict is decided on the web, with step-up", () => {
+  it.each([
+    ["an ordinary medicine", { cd_schedule: null }, true],
+    ["a controlled drug", { cd_schedule: "2" }, false],
+    ["a medicine not on the phone", undefined, false],
+  ] as const)("%s", (_case, medicine, decidable) => {
+    expect(decidableOnPhone(medicine)).toBe(decidable);
   });
 });

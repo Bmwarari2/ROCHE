@@ -122,6 +122,8 @@ export function DoseRecordPanel({
   } | null>(null);
   const [noWitnessReason, setNoWitnessReason] = useState("");
   const [lone, setLone] = useState(false);
+  // Whether this member may record a controlled drug: checked before the dose, never after.
+  const mayRecordCd = (me?.permissions ?? []).includes("medicines.cd.administer");
 
   const cdFields = async (
     id: string,
@@ -264,6 +266,11 @@ export function DoseRecordPanel({
 
   const save = async () => {
     if (!outcome || saving) return;
+    if (dose.controlledDrug && outcome === "given" && !mayRecordCd) {
+      setProblems(["cd_not_permitted"]);
+      announce(t("mobile.meds.cdNotPermitted"));
+      return;
+    }
     const quantity = Number(amount);
     // A controlled drug's record is made when the witness signs, which fixes its id, amount and
     // time given; otherwise now.
@@ -337,6 +344,7 @@ export function DoseRecordPanel({
       lastDoseNotOnDevice: dose.lastDoseNotOnDevice,
       packRefused,
       cdSignatures,
+      mayRecordCd,
     };
     const found = recordProblems(input);
     setProblems(found);
@@ -478,7 +486,11 @@ export function DoseRecordPanel({
             onChangeText={setAmount}
             keyboardType="decimal-pad"
           />
-          {dose.controlledDrug ? (
+          {dose.controlledDrug && !mayRecordCd ? (
+            <StatusLine tone="danger" testID="cd-not-permitted">
+              {t("mobile.meds.cdNotPermitted")}
+            </StatusLine>
+          ) : dose.controlledDrug ? (
             <View style={{ gap: theme.space[1] }} testID="cd-signatures">
               <Text variant="callout" accessibilityRole="header">
                 {t("mobile.meds.cdTitle")}

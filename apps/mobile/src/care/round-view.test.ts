@@ -150,7 +150,7 @@ describe("what each task on the round says", () => {
     const item = roundItem(row({ kind: "medicines.administration" }), NOW);
     expect(item.action).toBe("none");
     expect(item.notices).toContain(
-      "Medicines are recorded on the Medicines tab, where it is on, or in Thapsus Care on the web.",
+      "Medicines are recorded on the Medicines tab, if your organisation has switched it on, or in Thapsus Care on the web.",
     );
   });
 

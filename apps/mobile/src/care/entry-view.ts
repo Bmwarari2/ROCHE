@@ -253,6 +253,19 @@ export function issueItem(row: UploadIssueRow): IssueItem {
       mark_type: typeof payload.mark_type === "string" ? payload.mark_type : null,
     });
   }
+  // A dose recorded on this phone: the medicine, what was recorded and the dose it was for, so a
+  // refused dose is never only "an entry" (slice 70; HZ-115).
+  let doseAt: string | null = null;
+  if (row.record_table === "medication_administration") {
+    const due = typeof payload.due_at === "string" ? parseInstant(payload.due_at) : null;
+    doseAt = typeof payload.given_at === "string" ? payload.given_at : null;
+    content = t("mobile.meds.issueContent", {
+      medicine: row.medicine_name ?? t("mobile.meds.medicineNotOnPhone"),
+      outcome: typeof payload.outcome === "string" ? payload.outcome : "other",
+      due: due ? when(due) : "none",
+      correction: typeof payload.supersedes_id === "string" && payload.supersedes_id ? "yes" : "no",
+    });
+  }
   // A task's move or a handover acknowledgement: what the carer did, and when on the device.
   const move = row.record_table === "task" ? parseQueuedMove(payload.queued_transition) : null;
   if (move) {
@@ -280,6 +293,7 @@ export function issueItem(row: UploadIssueRow): IssueItem {
   const at =
     move?.at ??
     shiftAt ??
+    doseAt ??
     (typeof payload.acknowledged_at === "string" ? payload.acknowledged_at : null) ??
     (typeof payload.occurred_at === "string" ? payload.occurred_at : null);
   const occurred = parseInstant(at);
