@@ -41,6 +41,7 @@ links the care worker's incident guide.
 
 ## Register rows and their guides
 
+Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 safety, quality and platform rows (slice 83) and medicines rows (slice 81), that have a guide. Rows marked "screens with the next merge" describe screens on the `feat/quality-dashboard-pir` branch. The register's user
 Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 safety, quality and platform rows (slice 83) and workforce and scheduling rows (slice 82), that have a guide. Rows marked "screens with the next merge" describe screens on the `feat/quality-dashboard-pir` branch. The register's user
 docs column links the same guides.
 
@@ -74,7 +75,7 @@ docs column links the same guides.
 | CARE-015 | [Record a resuscitation decision](nurse/record-a-resuscitation-decision.md), [Check the person's details](care-worker/check-the-person-before-you-act.md) |
 | CARE-021 | [Check consent, capacity and DoLS](care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
 | CARE-022 | [Check consent, capacity and DoLS](care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
-| SAFE-001 | [Record an incident](care-worker/record-an-incident.md), [Review and close an incident](registered-manager/review-and-close-an-incident.md) |
+| SAFE-001 | [Record an incident](care-worker/record-an-incident.md), [Review and close an incident](registered-manager/review-and-close-an-incident.md), [Record a missing person](care-worker/record-a-missing-person.md) |
 | SAFE-002 | [Answer the notification questions](registered-manager/answer-notification-questions.md), [Read the notification clocks](registered-manager/read-notification-clocks.md), [Record a notification as submitted](registered-manager/record-a-notification-as-submitted.md) |
 | SAFE-003 | [Prepare a statutory notification](registered-manager/prepare-a-statutory-notification.md), [Record a notification as submitted](registered-manager/record-a-notification-as-submitted.md) |
 | SAFE-004 | [Prepare a statutory notification](registered-manager/prepare-a-statutory-notification.md), [Read the notification clocks](registered-manager/read-notification-clocks.md) |
@@ -98,13 +99,23 @@ docs column links the same guides.
 | COMMS-001 | [Publish a family update](senior-carer/publish-a-family-update.md), [Read updates from the home](family-member/read-updates.md) |
 | COMMS-006 | [Read and acknowledge the handover](care-worker/read-and-acknowledge-the-handover.md) |
 | COMMS-007 | [Write a letter template](registered-manager/write-a-letter-template.md), [Make a letter](registered-manager/make-a-letter.md) |
+| MEDS-001 | [Add a medicine to the MAR](nurse/add-a-medicine-to-the-mar.md), [Reconcile medicines](nurse/reconcile-medicines.md), [Second-check a medicine](nurse/second-check-a-medicine.md), [Stop a medicine](nurse/stop-a-medicine.md) |
+| MEDS-002 | [Give a when-required (PRN) medicine in the browser](care-worker/give-a-when-required-medicine-in-the-browser.md), [Give medicines in the browser round](care-worker/give-medicines-in-the-browser-round.md) |
+| MEDS-003 | [Give a when-required (PRN) medicine in the browser](care-worker/give-a-when-required-medicine-in-the-browser.md), [Read the medicines reports](registered-manager/read-the-medicines-reports.md) |
+| MEDS-004 | [Give medicines in the browser round](care-worker/give-medicines-in-the-browser-round.md) |
+| MEDS-005 | [Correct a controlled drugs register entry](nurse/correct-a-controlled-drugs-register-entry.md), [Count controlled drugs stock](nurse/count-controlled-drugs-stock.md), [Record a controlled drug received, returned, disposed of or destroyed](nurse/record-a-controlled-drug-movement.md), [Sign as a controlled drugs witness in the browser](care-worker/sign-as-a-controlled-drugs-witness.md) |
+| MEDS-007 | [Add a homely remedy protocol](nurse/add-a-homely-remedy-protocol.md), [Change or withdraw a homely remedy protocol](nurse/change-or-withdraw-a-homely-remedy-protocol.md), [Give a homely remedy](care-worker/give-a-homely-remedy.md) |
+| MEDS-008 | [Add a medicines fridge or room](nurse/add-a-medicines-fridge-or-room.md), [Dispose of medicines with a witness](nurse/dispose-of-medicines-with-a-witness.md), [Order medicines for the next cycle](nurse/order-medicines-for-the-next-cycle.md), [Receive, return and count medicines stock](nurse/receive-return-and-count-medicines-stock.md), [Record a medicines fridge or room temperature](care-worker/record-a-medicines-fridge-or-room-temperature.md) |
+| MEDS-012 | [Add medication error details to an incident](care-worker/add-medication-error-details-to-an-incident.md), [Read the medicines reports](registered-manager/read-the-medicines-reports.md) |
+| MEDS-013 | [Book and record a medication review](nurse/book-and-record-a-medication-review.md), [Check the medication review tracker](registered-manager/check-the-medication-review-tracker.md), [Read the medicines reports](registered-manager/read-the-medicines-reports.md) |
+| MEDS-014 | [Print a controlled drugs register page](nurse/print-a-controlled-drugs-register-page.md), [Print the MAR chart](care-worker/print-the-mar-chart.md) |
 | CARE-004 | [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Record a dependency category](senior-carer/record-a-dependency-category.md), [Set up a dependency scale](registered-manager/set-up-a-dependency-scale.md) |
 | MOB-007 | [Ask for help while lone working on the phone](care-worker/ask-for-help-while-lone-working-on-the-phone.md), [Check in while lone working on the phone](care-worker/check-in-while-lone-working-on-the-phone.md), [Clock in and out on the phone](care-worker/clock-in-and-out-on-the-phone.md), [Download a training course to the phone](care-worker/download-a-training-course-to-the-phone.md), [See your shifts on the phone](care-worker/see-your-shifts-on-the-phone.md), [Start and finish lone working on the phone](care-worker/start-and-finish-lone-working-on-the-phone.md), [Take a training course offline on the phone](care-worker/take-a-training-course-offline-on-the-phone.md) |
 | SCHED-001 | [Build a rota](registered-manager/build-a-rota.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Set up a dependency scale](registered-manager/set-up-a-dependency-scale.md) |
-| SCHED-002 | [Build a rota](registered-manager/build-a-rota.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Check your shifts](care-worker/check-your-shifts.md), [Override the rostering rule](registered-manager/override-the-rostering-rule.md), [See your shifts on the phone](care-worker/see-your-shifts-on-the-phone.md), [Set up shift templates and patterns](registered-manager/set-up-shift-templates-and-patterns.md) |
+| SCHED-002 | [Build a rota](registered-manager/build-a-rota.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Check your shifts](care-worker/check-your-shifts.md), [Override the rostering rule](registered-manager/override-the-rostering-rule.md), [See your shifts on the phone](care-worker/see-your-shifts-on-the-phone.md), [Set up shift templates and patterns](registered-manager/set-up-shift-templates-and-patterns.md), [Release absence copies from the HR platform](registered-manager/release-absence-copies.md) |
 | SCHED-003 | [Approve timesheets](registered-manager/approve-timesheets.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Read working time results](registered-manager/read-working-time-results.md) |
 | SCHED-004 | [Approve timesheets](registered-manager/approve-timesheets.md), [Clock in and out on the phone](care-worker/clock-in-and-out-on-the-phone.md), [Clock in and out on the web](care-worker/clock-in-and-out.md) |
-| SCHED-005 | [Check your pay](care-worker/check-your-pay.md), [Run and lock a pay run](owner/run-and-lock-a-pay-run.md), [Write and approve a pay rule set](owner/write-and-approve-a-pay-rule-set.md) |
+| SCHED-005 | [Check your pay](care-worker/check-your-pay.md), [Run and lock a pay run](owner/run-and-lock-a-pay-run.md), [Write and approve a pay rule set](owner/write-and-approve-a-pay-rule-set.md), [Pay staff through the HR platform](registered-manager/set-the-route-to-payroll.md) |
 | SCHED-006 | [Check your pay](care-worker/check-your-pay.md), [Run and lock a pay run](owner/run-and-lock-a-pay-run.md) |
 | SCHED-007 | [Check your pay](care-worker/check-your-pay.md), [Run and lock a pay run](owner/run-and-lock-a-pay-run.md) |
 | SCHED-010 | [Ask for leave](care-worker/ask-for-leave.md), [Decide a leave request](registered-manager/decide-a-leave-request.md) |
@@ -121,6 +132,9 @@ docs column links the same guides.
 | WORK-010 | [Decide an employee relations case outcome or appeal](hr-lead/decide-a-case-outcome-or-appeal.md), [Export an employee relations case](hr-lead/export-an-employee-relations-case.md), [Open an employee relations case](hr-lead/open-an-employee-relations-case.md), [Run an employee relations case](hr-lead/run-an-employee-relations-case.md) |
 | WORK-012 | [Record a nurse's revalidation evidence](hr-lead/record-revalidation-evidence.md), [Record a pre-employment check](hr-lead/record-a-pre-employment-check.md) |
 | WORK-013 | [End a leaver's access now](hr-lead/end-a-leavers-access-now.md), [Record a member of staff leaving](hr-lead/record-a-leaver.md), [Record and answer a reference request](hr-lead/answer-a-reference-request.md) |
+| PLAT-012 | [Destroy the organisation's stored files when it leaves Thapsus Care](data-protection-lead/shred-the-organisations-records.md) |
+| INTG-014 | [Link Thapsus Care to your HR platform](registered-manager/link-to-the-hr-platform.md), [Release absence copies from the HR platform](registered-manager/release-absence-copies.md), [Pay staff through the HR platform](registered-manager/set-the-route-to-payroll.md) |
+| SCHED-008 | [Pay staff through the HR platform](registered-manager/set-the-route-to-payroll.md) |
 
 **Phase 1 rows with no guide yet**, because they have no web screen on `main` (or are paused with
 mobile): PLAT-002, PLAT-009, PLAT-011, PLAT-012, PEOP-003, PEOP-005, PEOP-007, PEOP-013,

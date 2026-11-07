@@ -6,11 +6,26 @@ Registered Manager does that.
 
 ## Your guides
 
+- [How to add a homely remedy protocol](add-a-homely-remedy-protocol.md)
+- [How to add a medicine to the MAR](add-a-medicine-to-the-mar.md)
+- [How to add a medicines fridge or room](add-a-medicines-fridge-or-room.md)
 - [How to add, review or close a risk assessment](add-a-risk-assessment.md)
+- [How to book and record a medication review](book-and-record-a-medication-review.md)
+- [How to change or withdraw a homely remedy protocol](change-or-withdraw-a-homely-remedy-protocol.md)
+- [How to correct a controlled drugs register entry](correct-a-controlled-drugs-register-entry.md)
+- [How to count controlled drugs stock](count-controlled-drugs-stock.md)
+- [How to dispose of medicines with a witness](dispose-of-medicines-with-a-witness.md)
+- [How to order medicines for the next cycle](order-medicines-for-the-next-cycle.md)
+- [How to print a controlled drugs register page](print-a-controlled-drugs-register-page.md)
+- [How to receive, return and count medicines stock](receive-return-and-count-medicines-stock.md)
+- [How to reconcile medicines](reconcile-medicines.md)
+- [How to record a controlled drug received, returned, disposed of or destroyed](record-a-controlled-drug-movement.md)
 - [How to record a ReSPECT plan or DNACPR decision](record-a-resuscitation-decision.md)
 - [How to record a review or a change in need](record-a-review.md)
 - [How to run MUST, Waterlow or Braden, or ask the falls questions](run-a-validated-tool.md)
+- [How to second-check a medicine](second-check-a-medicine.md)
 - [How to set food and drink levels and the fluid target](set-food-and-drink-levels.md)
+- [How to stop a medicine](stop-a-medicine.md)
 - [How to write and publish a care plan](write-and-publish-a-care-plan.md)
 
 ## Everyone
@@ -27,6 +42,7 @@ Registered Manager does that.
 
 ## From the care worker guides
 
+- [How to add medication error details to an incident](../care-worker/add-medication-error-details-to-an-incident.md)
 - [How to answer a staff survey](../care-worker/answer-a-staff-survey.md)
 - [How to ask for help while lone working on the phone](../care-worker/ask-for-help-while-lone-working-on-the-phone.md)
 - [How to ask for leave](../care-worker/ask-for-leave.md)
@@ -42,17 +58,23 @@ Registered Manager does that.
 - [How to do a round](../care-worker/run-a-round.md)
 - [How to download a training course to the phone](../care-worker/download-a-training-course-to-the-phone.md)
 - [How to enter paper records after an outage](../care-worker/enter-paper-records-after-an-outage.md)
+- [How to give a homely remedy](../care-worker/give-a-homely-remedy.md)
+- [How to give a when-required (PRN) medicine in the browser](../care-worker/give-a-when-required-medicine-in-the-browser.md)
+- [How to give medicines in the browser round](../care-worker/give-medicines-in-the-browser-round.md)
 - [How to keep a wellbeing check-in](../care-worker/keep-a-wellbeing-check-in.md)
 - [How to mark the body map](../care-worker/mark-the-body-map.md)
+- [How to print the MAR chart](../care-worker/print-the-mar-chart.md)
 - [How to raise a safeguarding concern](../care-worker/raise-a-safeguarding-concern.md)
 - [How to read and acknowledge the shift handover](../care-worker/read-and-acknowledge-the-handover.md)
 - [How to read the staff privacy notice and choose how your photo is used](../care-worker/check-your-privacy-choices.md)
 - [How to record a chart entry (fluids, food, repositioning, bowel, weight)](../care-worker/record-a-chart-entry.md)
+- [How to record a medicines fridge or room temperature](../care-worker/record-a-medicines-fridge-or-room-temperature.md)
 - [How to record a missing person](../care-worker/record-a-missing-person.md)
 - [How to record an activity or a visit](../care-worker/record-an-activity-or-visit.md)
 - [How to record an incident](../care-worker/record-an-incident.md)
 - [How to record vital signs and read the NEWS2 result](../care-worker/record-vital-signs.md)
 - [How to see your shifts on the phone](../care-worker/see-your-shifts-on-the-phone.md)
+- [How to sign as a controlled drugs witness in the browser](../care-worker/sign-as-a-controlled-drugs-witness.md)
 - [How to start and finish lone working on the phone](../care-worker/start-and-finish-lone-working-on-the-phone.md)
 - [How to take a training course offline on the phone](../care-worker/take-a-training-course-offline-on-the-phone.md)
 - [How to take an e-learning course](../care-worker/take-an-e-learning-course.md)

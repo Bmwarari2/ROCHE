@@ -29,7 +29,7 @@ Notes add to the handover. They never change an item.
 
 - Acknowledging means you have read the items shown to you. If something new is added later, you
   will be asked to read it too.
-- If nobody on the incoming shift acknowledges it, the nurse in charge is alerted an hour after the
+- If nobody on the incoming shift acknowledges it, the nurse or senior in charge (whoever your home gives medicines record management) is alerted an hour after the
   shift ends: "A handover has not been acknowledged".
 - Day shift starts at 08:00 and night shift at 20:00 unless your home has set other times.
 - Once the shift ends the handover is locked. Add anything new to the next shift's handover.
