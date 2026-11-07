@@ -19,7 +19,7 @@ import { ACCOUNT_DELETION_TASK_KIND } from "./account-deletion";
  * the nightly sweep (`sweepSignInErasures`) erases every sign-in due without one, so a member's
  * account deletion request completes within `account_deletion.confirmation_days`: the member
  * asked, that membership has ended, and no membership of the sign-in in an onboarding or active
- * organisation is invited, active or suspended (`app.sign_ins_due_for_erasure`, migration 0153).
+ * organisation is invited, active or suspended (`app.sign_ins_due_for_erasure`, migration 0149).
  */
 
 export const ERASED_ACTION = "platform.member.sign_in_erased";

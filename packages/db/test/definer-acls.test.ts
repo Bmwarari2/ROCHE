@@ -85,7 +85,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.induction_policy_signing(uuid)": ["harbour_app"],
   "app.end_leaver_access(uuid)": ["harbour_app"],
   // Membership changes held by the database (migration 0129, H-566).
-  // The member lifecycle completed (migration 0153): the erasure sweep's reads, and the member's
+  // The member lifecycle completed (migration 0149): the erasure sweep's reads, and the member's
   // own request.
   "app.sign_in_erasure_due(text)": [],
   "app.sign_ins_due_for_erasure()": ["harbour_worker"],

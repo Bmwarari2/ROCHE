@@ -93,7 +93,7 @@ export async function requestAccountDeletion(
       })
       .returning({ id: task.id, createdAt: task.createdAt });
     if (!created) throw new Error("The account deletion request was not stored.");
-    // Recorded on the member's own row (H-566, migration 0153): once that membership has ended
+    // Recorded on the member's own row (H-566, migration 0149): once that membership has ended
     // and none is held elsewhere, the nightly sweep erases their sign-in. Acting for the member.
     await tx.execute(sql`SELECT app.request_sign_in_erasure()`);
     if (assignee) {

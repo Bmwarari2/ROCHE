@@ -6,7 +6,7 @@ changes a member's status; `app.change_membership` and `tenant_user_membership_g
 
 ## What changed
 
-- **Migration 0153**: `status_changed_at`, `sign_in_erasure_requested_at`, `sign_in_erased_at` on
+- **Migration 0149**: `status_changed_at`, `sign_in_erasure_requested_at`, `sign_in_erased_at` on
   `tenant_user`, set by `app.change_membership` (replaced in place as `harbour_member_owner`) and
   `app.request_sign_in_erasure` (own row); the application role cannot write them.
   `app.change_membership` may now, as the system, remove the link of an ended membership whose

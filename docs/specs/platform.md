@@ -327,7 +327,7 @@ shows it; upload and remove a logo; axe in light and dark).
   `app.end_leaver_access`) takes the same per-organisation lock first and then its row locks in id
   order, so a suspension never deadlocks with an invitation being accepted and a leaver's access is
   never ended while they suspend the last other user manager.
-- Completing the lifecycle (H-566 v2, migration 0153; `feat/platform-member-lifecycle-v2`):
+- Completing the lifecycle (H-566 v2, migration 0149; `feat/platform-member-lifecycle-v2`):
   - `POST /v1/members/{tenantUserId}/reinstate` (H-1463; step-up, `MEMBER_REINSTATE_REASONS`)
     undoes a suspension before the end through `app.change_membership` (`reinstate`), and only
     when the manager holds every permission of the member's roles and grants where they apply

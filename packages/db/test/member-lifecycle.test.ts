@@ -132,7 +132,7 @@ describe("H-566 app.change_membership", () => {
     expect(await asManager(change(XAVI, "unlink_sign_in"))).toBe("left");
     expect(await stateOf(XAVI)).toEqual({ status: "left", auth_user_id: null });
     expect(await asManager(change(XAVI, "unlink_sign_in"))).toBe("unchanged");
-    // Once the sign-in is gone, an ended membership never comes back (migration 0153, H-1469).
+    // Once the sign-in is gone, an ended membership never comes back (migration 0149, H-1469).
     await expect(asManager(change(XAVI, "reinstate"))).rejects.toThrow(/membership_ended/);
   });
 
@@ -219,7 +219,7 @@ describe("H-566 the guard trigger for any role but the owner", () => {
   it("brings an ended membership back only as active or invited, never to another state", async () => {
     await setState(QUIN, "left");
     try {
-      // Migration 0153 (H-1469): back to active with its sign-in, through app.change_membership.
+      // Migration 0149 (H-1469): back to active with its sign-in, through app.change_membership.
       await expect(
         asMemberOwner("UPDATE tenant_user SET status = 'suspended' WHERE id = $1", [QUIN]),
       ).rejects.toThrow(/cannot change from left to suspended/);
@@ -305,7 +305,7 @@ describe("H-566 a leaver's access and a suspension never race past the last user
   });
 });
 
-describe("H-566 the lifecycle times and the erasure sweep (migration 0153)", () => {
+describe("H-566 the lifecycle times and the erasure sweep (migration 0149)", () => {
   const ROSA = "0199f000-0000-7000-8000-000000000741";
   const times = (member: string, tenant: string = TENANT_A) =>
     owner(

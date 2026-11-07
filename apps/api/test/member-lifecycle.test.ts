@@ -657,7 +657,7 @@ describe("H-566 the member's status for a manager", () => {
   });
 });
 
-describe("H-566 the erasure sweep completes a deletion request (migration 0153)", () => {
+describe("H-566 the erasure sweep completes a deletion request (migration 0149)", () => {
   it("erases the sign-in of a member who asked, once ended, and closes the request; never twice", async () => {
     const { sweepSignInErasures } = await import("../src/services/member-erasure");
     const ned = await newMember("Ned");
