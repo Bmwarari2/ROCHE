@@ -72,7 +72,10 @@ test("hazard HZ-125 a manager names the route, a carer checks in and asks for he
 
   // A step that reaches people only inside Harbour is refused in words, before anything is sent.
   const step2 = page.getByRole("group", { name: "Step 2" });
-  for (const channel of ["Phone notification", "Email", "Text message"]) {
+  // No SMS at launch (ADR-0132): text messages are not offered, and the page says why.
+  await expect(step2.getByLabel("Text message")).toHaveCount(0);
+  await expect(page.getByText("Text messages are not offered")).toBeVisible();
+  for (const channel of ["Phone notification", "Email"]) {
     await step2.getByLabel(channel).uncheck();
   }
   await page.getByRole("button", { name: "Save route" }).click();

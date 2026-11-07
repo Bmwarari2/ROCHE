@@ -104,7 +104,7 @@ const notificationsOf = (userId: string, kind?: string) =>
 const ON_CALL = DEMO.users.owner.id;
 const ROUTE = {
   steps: [
-    { afterMinutes: 1, targetTenantUserId: ON_CALL, channels: ["push", "sms"] },
+    { afterMinutes: 1, targetTenantUserId: ON_CALL, channels: ["push", "email"] },
     { afterMinutes: 10, targetRoleKey: "registered_manager", channels: ["push", "email"] },
   ],
   version: null,
@@ -192,6 +192,34 @@ describe("off until the organisation names its on-call route (H-539)", () => {
     expect((await json<ProblemDetails>(inApp)).detail).toMatch(/away from the app/);
   });
 
+  // ADR-0132: no SMS gateway at launch, so a text message from an alarm would go nowhere.
+  it("hazard HZ-125 refuses a step that relies on text messages while no SMS gateway is set up, in words", async () => {
+    for (const channels of [["push", "sms"], ["sms"]]) {
+      const r = await as("manager", "/v1/lone-worker/route", {
+        method: "PUT",
+        body: { steps: [{ ...ROUTE.steps[0], channels }, ROUTE.steps[1]], version: null },
+      });
+      expect(r.status).toBe(422);
+      expect((await json<ProblemDetails>(r)).detail).toMatch(
+        /Text messages cannot be sent: no text message service is set up/,
+      );
+    }
+    const route = await as("manager", "/v1/lone-worker/route");
+    expect(await json<{ smsAvailable: boolean; pushAvailable: boolean }>(route)).toMatchObject({
+      smsAvailable: false,
+      pushAvailable: false,
+    });
+  });
+
+  it("hazard HZ-125 refuses a step with a phone notification only while staff phones cannot receive them", async () => {
+    const r = await as("manager", "/v1/lone-worker/route", {
+      method: "PUT",
+      body: { steps: [{ ...ROUTE.steps[0], channels: ["push"] }, ROUTE.steps[1]], version: null },
+    });
+    expect(r.status).toBe(422);
+    expect((await json<ProblemDetails>(r)).detail).toMatch(/Include email/);
+  });
+
   it("refuses a family or visitor role, or a person who cannot acknowledge alarms, on the route", async () => {
     const family = await as("manager", "/v1/lone-worker/route", {
       method: "PUT",
@@ -233,6 +261,23 @@ describe("off until the organisation names its on-call route (H-539)", () => {
 });
 
 describe("sessions", () => {
+  it("hazard HZ-125 keeps a saved route on when a text message it lists cannot be sent, and says so", async () => {
+    const setSteps = (steps: unknown) =>
+      asDemoTenant((c) =>
+        c.query(
+          "UPDATE escalation_chain SET steps = $1 WHERE key = 'scheduling.lone_worker.alarm'",
+          [JSON.stringify(steps)],
+        ),
+      );
+    await setSteps([{ ...ROUTE.steps[0], channels: ["email", "sms"] }, ROUTE.steps[1]]);
+    const route = await json<{ on: boolean; problems: { code: string }[] }>(
+      await as("manager", "/v1/lone-worker/route"),
+    );
+    expect(route.on).toBe(true);
+    expect(route.problems.map((p) => p.code)).toEqual(["sms_unavailable"]);
+    await setSteps(ROUTE.steps);
+  });
+
   it("refuses a location where the worker does not work, and figures outside the organisation's", async () => {
     expect((await start("carer", { locationId: LODGE.locationId })).status).toBe(422);
     const short = await start("carer", { intervalMinutes: 1 });

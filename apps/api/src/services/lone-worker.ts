@@ -27,6 +27,7 @@ import {
   sessionStatus,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { STAFF_PUSH_AVAILABLE, smsAvailable } from "../integrations/registry";
 import { publish } from "../outbox";
 import { rateNumber } from "./rates";
 import { roleHolders, toldOf } from "./role-holders";
@@ -120,7 +121,14 @@ export async function loneWorkerRoute(tx: Transaction): Promise<RouteState> {
   return {
     chainId: chain.id,
     steps,
-    on: checkRoute(steps).problems.length === 0,
+    // A text message that cannot be sent blocks saving a route, never switches a saved one off: a
+    // gateway dropping out must not stop check-ins or skip the on-call person (HZ-125). It simply
+    // does not count as reaching anyone; email at every step still does.
+    on:
+      checkRoute(steps, {
+        smsAvailable: await smsAvailable(tx),
+        pushAvailable: STAFF_PUSH_AVAILABLE,
+      }).problems.filter((p) => p !== "sms_unavailable").length === 0,
     version: chain.version,
   };
 }

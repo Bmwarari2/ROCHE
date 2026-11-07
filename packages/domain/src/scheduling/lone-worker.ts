@@ -319,14 +319,18 @@ export type RouteProblem =
   | "too_few_steps"
   | "no_registered_manager"
   | "manager_first"
-  | "in_app_only";
+  | "in_app_only"
+  | "sms_unavailable";
 
 export const ROUTE_PROBLEM_MESSAGES: Record<RouteProblem, string> = {
   chain: "The steps are not in a valid order or have no target or channel.",
   too_few_steps: "Name the on-call person or role first, then the Registered Manager.",
   no_registered_manager: "A later step must go to the Registered Manager.",
   manager_first: "The first step is the on-call person or role, before the Registered Manager.",
-  in_app_only: "Every step must reach people away from the app, by push, email or text message.",
+  in_app_only:
+    "Every step must reach people away from the app. Include email: phone notifications and text messages cannot reach staff yet.",
+  sms_unavailable:
+    "Text messages cannot be sent: no text message service is set up. Include email at each step instead.",
 };
 
 /**
@@ -334,8 +338,17 @@ export const ROUTE_PROBLEM_MESSAGES: Record<RouteProblem, string> = {
  * Harbour always does it), then step 1, the on-call person or role, is told the moment the alarm
  * is raised; later steps follow by their minutes, and one of them is the Registered Manager. Every
  * step must reach people outside the app. The feature stays off until a valid route is saved.
+ *
+ * A channel counts as reaching people away from the app only if it can really reach staff: email
+ * always; a phone notification once staff phones register for them (`pushAvailable`); a text
+ * message once an SMS gateway is connected (`smsAvailable`). Neither is at launch (ADR-0132; no
+ * push destination yet), so every step must include email (HZ-125). No step may choose a text
+ * message while no gateway is set up.
  */
-export function checkRoute(steps: readonly EscalationStep[]): {
+export function checkRoute(
+  steps: readonly EscalationStep[],
+  options: { readonly smsAvailable: boolean; readonly pushAvailable: boolean },
+): {
   readonly problems: RouteProblem[];
   readonly chainProblems: string[];
 } {
@@ -348,7 +361,14 @@ export function checkRoute(steps: readonly EscalationStep[]): {
     problems.push("manager_first");
   if (steps.length >= 2 && !later.some((s) => s.targetRoleKey === "registered_manager"))
     problems.push("no_registered_manager");
-  if (steps.some((s) => !s.channels.some((c) => c !== "in_app"))) problems.push("in_app_only");
+  const reaches = (c: string) =>
+    c === "email" ||
+    (c === "push" && options.pushAvailable) ||
+    (c === "sms" && options.smsAvailable);
+  if (steps.some((s) => !s.channels.some(reaches))) problems.push("in_app_only");
+  if (!options.smsAvailable && steps.some((s) => s.channels.includes("sms"))) {
+    problems.push("sms_unavailable");
+  }
   return { problems, chainProblems };
 }
 

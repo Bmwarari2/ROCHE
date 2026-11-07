@@ -1,6 +1,11 @@
 import type { Transaction } from "@harbour/db";
 import { integrationConnection } from "@harbour/db";
-import type { OutboundMessage, PortName, SendResult } from "@harbour/domain";
+import {
+  type OutboundMessage,
+  type PortName,
+  type SendResult,
+  smsGatewayConfigured,
+} from "@harbour/domain";
 import { eq } from "drizzle-orm";
 import { type AdapterFactoryOptions, createAdapter } from "./adapters";
 
@@ -57,3 +62,22 @@ export function createAdapterResolver(options: AdapterFactoryOptions) {
     return adapter as ChannelAdapter;
   };
 }
+
+/**
+ * Whether the organisation can really send text messages: a connected SMS gateway, never the mock
+ * (ADR-0132: no SMS at launch). Read in the caller's transaction, under its RLS.
+ */
+export async function smsAvailable(tx: Transaction): Promise<boolean> {
+  const [connection] = await tx
+    .select({ provider: integrationConnection.provider, status: integrationConnection.status })
+    .from(integrationConnection)
+    .where(eq(integrationConnection.port, "comms.sms"));
+  return smsGatewayConfigured(connection ?? null);
+}
+
+/**
+ * Whether a phone notification can reach a member of staff. Not yet: staff devices do not register
+ * push tokens, so `processDeliveries` finds no destination and skips it. Until they do, a lone-worker
+ * route step must include email (HZ-125; ADR-0132).
+ */
+export const STAFF_PUSH_AVAILABLE = false;
