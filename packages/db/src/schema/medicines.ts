@@ -646,7 +646,7 @@ export const medicationAdministration = pgTable(
     /** The entry version the dose was recorded against. */
     medicationId: uuid("medication_id").notNull(),
     /**
-     * The home whose phones hold the record (migration 0145; ADR-0134): the person's home while
+     * The home whose phones hold the record (migration 0146; ADR-0134): the person's home while
      * they receive care, else none, set and moved by the database for records in the sync window
      * (HZ-138).
      */

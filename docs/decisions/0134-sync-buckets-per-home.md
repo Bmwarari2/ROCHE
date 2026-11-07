@@ -35,9 +35,9 @@ window, and over 8,000 once handovers exist; a care worker with 20 people, over 
 
 ## Decision outcome
 
-Option 3, with the limits set explicitly at their default (1,000), an estimate in the API, and the
-rules of the security and clinical-safety reviews.
-- **Routing columns, set by the database (migration 0145), never by a client, never synced**:
+Option 3, with the limits set explicitly at their default (1,000), an estimate in the API that
+refuses a token above them by name, and the rules of the security and clinical-safety reviews.
+- **Routing columns, set by the database (migration 0146), never by a client, never synced**:
   - `sync_location_id` on the five point-of-care entry tables, assessments and administrations:
     the person's home while they receive care (active, on leave or in hospital), none once they
     have left care, so their record leaves the home's phones as before (L1). (Assessments carry it
@@ -49,9 +49,10 @@ rules of the security and clinical-safety reviews.
     items and notes `person_location_id`, the home of the person they are about now, and `at_home`,
     whether that is the handover's home (about nobody: yes). No care-status rule, so a death in the
     shift reaches the handover (HZ-018).
-  - The person is read in the organisation's view (`app.sync_person`, a definer), so an inserter
-    whose scope does not reach the person never leaves the column empty, and under a per-person
-    advisory lock that a move takes too, so an entry written during a move never keeps the old home.
+  - The person is read in the organisation's view (`app.sync_person`, called only by the routing
+    triggers, which run as their owner; no application role may call it), so an inserter whose
+    scope does not reach the person never leaves the column empty, and under a per-person advisory
+    lock that a move takes too, so an entry written during a move never keeps the old home.
 - **Moves (HZ-138)**: when a person's home changes, or they leave or return to care, their entries,
   assessments and administrations of the last 35 days follow (more than the longest offline
   window, 31 days and tomorrow; a test keeps the two in step), in the same transaction, as
@@ -61,10 +62,11 @@ rules of the security and clinical-safety reviews.
   version and history triggers let that, and nothing else, through (`app.is_sync_location_move`); a
   task's version does not change, so a phone's next write is not refused as stale.
 - **Whole-home streams**: filter on the row's own `sync_location_id` (or the handover's home) and
-  the UTC day: one bucket per home and day. A whole reader's handover items and notes are those
-  about nobody in their homes' handovers and those about anyone who now lives at their homes, as
-  the API shows them (`staffCanSee`), including from a handover at another home (such an item
-  reaches the phone without its handover's header).
+  the UTC day: one bucket per home and day. A whole reader's handover items and notes are those in
+  their homes' handovers about nobody or about someone who lives at the handover's home, and those
+  about someone who moved between two of their homes (both the handover's home and the person's
+  home theirs, per pair of homes and ten-day block), as row-level security and the API show them;
+  never from a handover they cannot open.
 - **Assigned streams**: by person and ten-day block (`offline_blocks`, the first nine characters of
   the window's days: blocks of 9, 10, 10 and 1 or 2 days, at most six for 32 days across
   February). The phone may hold up to nine days before the window's first day, and up to nine after
@@ -76,10 +78,12 @@ rules of the security and clinical-safety reviews.
   `*_assigned` to false when its whole-home claims already carry every person the member is
   assigned to (each lives at such a home and receives care). Tasks about nobody given to the
   member have their own claim (`care_own_tasks`), which this never turns off.
-- **Estimate and narrowing**: the API estimates the token's buckets (`estimateBuckets`, an upper
-  bound tested against the engine) and, above the limit, narrows the whole-home reach to the homes
-  the member works at, says so in the token (`sync_narrowed`), the audit and the log (counts and
-  opaque ids). The phone's notice for it is H-1430.
+- **Estimate and refusal**: the API estimates the token's buckets (`estimateBuckets`, an upper
+  bound tested against the engine, after the whole-home cover) and, above the limit, refuses the
+  token by name (`sync_scope_too_large`, 409, logged with counts and opaque ids), so the phone shows
+  a failed sync with a retry rather than a connection PowerSync refuses out of sight; a 403 would
+  instead read as access withdrawn. Narrowing such a member to the homes they work at, with a
+  notice on the phone, is H-1430.
 - **Budget**: `packages/sync/test/bucket-budget.test.ts` measures, at the 31-day window and on
   the dates whose windows span the most blocks: a whole 120-bed home and a care worker with 20
   people at two homes at or under 500; groups of up to five homes and up to 100 assigned people
@@ -93,18 +97,18 @@ rules of the security and clinical-safety reviews.
 - Bad: the homes a limited reader opens, and whether a whole home covers their assignments, come
   from the token, so an assignment change, or an assigned person's move, reaches the phone within
   the token's 15 minutes rather than at the next sync (H-1428, H-1429).
-- Bad: a member reaching many homes may be narrowed to the homes they work at; until H-1430 the
-  phone does not say so.
+- Bad: a member reaching about four or more whole homes of 60 people at the 31-day window is
+  refused a phone token until H-1430 narrows them; they use the web app meanwhile.
 - Bad: the server's handover and round source rows by where they were made, so an event at the old
   home earlier in the shift of a move is in the old home's handover, which the old home's whole
   readers no longer see on the phone (the API agrees), and not in the new home's (H-1429).
 - Bad: handovers are never soft-deleted today; if they are, their items, notes and
   acknowledgements keep syncing to the end of the window, without the header.
-- Bad: `app.sync_person` and `app.move_sync_location` are owned by `harbour_owner`, a login role,
-  rather than a narrow NOLOGIN owner (ADR-0002); both are trigger-only or granted to `harbour_app`
-  only, and pinned to the caller's organisation.
+- Bad: the routing definers are owned by `harbour_owner`, a login role, rather than a narrow
+  NOLOGIN owner (ADR-0002); they are trigger-only (`app.sync_person` has no grant) and pinned to
+  the caller's organisation.
 - Bad: the backfill rewrites every row of eleven tables; PowerSync replicates them again.
 
 ## More information
 
-Questions for people: H-1428 (DPO), H-1429 (CSO), H-1430 (the phone's notice). Migration 0145; HZ-002, HZ-011, HZ-018, HZ-138.
+Questions for people: H-1428 (DPO), H-1429 (CSO), H-1430 (the phone's notice). Migration 0146; HZ-002, HZ-011, HZ-018, HZ-138.

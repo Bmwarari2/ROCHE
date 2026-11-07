@@ -61,7 +61,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.provision_tenant(jsonb, jsonb, jsonb)": ["harbour_operator"],
   "app.record_invitation_sign_in(text, text)": ["harbour_app"],
   "app.seed_discard_reasons(uuid)": [],
-  // A person's home and status for the sync routing columns (migration 0145; ADR-0134): called
+  // A person's home and status for the sync routing columns (migration 0146; ADR-0134): called
   // only by the routing triggers, which run as their owner.
   "app.sync_person(uuid, uuid)": [],
   // Supervision notes (slice 57, migration 0114): read rule of supervision_note.
@@ -105,6 +105,11 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.sample_people()": ["harbour_app"],
   // Cover needs at any home of the organisation (HZ-123, migration 0107).
   "app.raise_cover_need(uuid, uuid)": ["harbour_app"],
+  // Cover needs for Thapsus-HR absences, raised by the link's sync (migration 0142).
+  "app.raise_hr_cover_need(uuid, uuid)": ["harbour_app"],
+  // A reinstated member given a real leaving by the link's sync (migration 0142); no caller since
+  // batch 3c refuses withdrawing a leaving once access has ended (migration 0144).
+  "app.end_relinked_leaver_access(uuid)": [],
   "app.absence_member(uuid)": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
   // Import wizard (Phase 2 slice 26, migration 0088).

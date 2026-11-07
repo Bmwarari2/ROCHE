@@ -62,7 +62,7 @@ const entryColumns = () => ({
   /** The person's location when the entry was made (handover and round views). */
   locationId: uuid("location_id").notNull(),
   /**
-   * The home whose phones hold the entry (migration 0145; ADR-0134): the person's home while they
+   * The home whose phones hold the entry (migration 0146; ADR-0134): the person's home while they
    * receive care, else none, set and moved by the database for entries in the sync window, so the
    * new home's phones keep the recent record (HZ-138). Routing only: `location_id` stays where it
    * was made.
@@ -943,7 +943,7 @@ export const handoverItem = pgTable(
     tenantId: tenantId(),
     handoverId: uuid("handover_id").notNull(),
     /**
-     * Copied from the handover by the database (migration 0145; ADR-0134), so the phone's streams
+     * Copied from the handover by the database (migration 0146; ADR-0134), so the phone's streams
      * filter on this row alone, one bucket per home and day: the handover's home and its shift's
      * end; and whether the row is about nobody or about someone who still lives at that home (the
      * whole home's readers see only those; set and moved by the database, HZ-138).
@@ -991,7 +991,7 @@ export const handoverItem = pgTable(
     ),
     check(
       "handover_item_source_type",
-      sql`source_type IN ('task', 'observation', 'incident', 'body_map_mark', 'care_note', 'notification')`,
+      sql`source_type IN ('task', 'observation', 'incident', 'body_map_mark', 'care_note', 'notification', 'medication_administration')`,
     ),
     // One of the eleven summary keys and an object of parameters, nothing else, each a string,
     // number or boolean, at most 4 KiB in all. The key and codes are never English, but a task's
@@ -1012,7 +1012,7 @@ export const handoverNote = pgTable(
     tenantId: tenantId(),
     handoverId: uuid("handover_id").notNull(),
     /**
-     * Copied from the handover by the database (migration 0145; ADR-0134), so the phone's streams
+     * Copied from the handover by the database (migration 0146; ADR-0134), so the phone's streams
      * filter on this row alone, one bucket per home and day: the handover's home and its shift's
      * end; and whether the row is about nobody or about someone who still lives at that home (the
      * whole home's readers see only those; set and moved by the database, HZ-138).
@@ -1066,7 +1066,7 @@ export const handoverAcknowledgement = pgTable(
     tenantId: tenantId(),
     handoverId: uuid("handover_id").notNull(),
     /**
-     * Copied from the handover by the database (migration 0145; ADR-0134), so the phone's streams
+     * Copied from the handover by the database (migration 0146; ADR-0134), so the phone's streams
      * filter on this row alone, one bucket per home and day: the handover's home and its shift's
      * end.
      */

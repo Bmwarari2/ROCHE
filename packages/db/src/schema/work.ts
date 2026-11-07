@@ -138,7 +138,7 @@ export const task = pgTable(
     locationId: uuid("location_id"),
     personId: uuid("person_id"),
     /**
-     * The home whose phones hold the task (migration 0145; ADR-0134): the task's own home for a
+     * The home whose phones hold the task (migration 0146; ADR-0134): the task's own home for a
      * task about nobody; for a task about someone, their home while they receive care, else none.
      * Set and moved by the database (HZ-138); routing only.
      */

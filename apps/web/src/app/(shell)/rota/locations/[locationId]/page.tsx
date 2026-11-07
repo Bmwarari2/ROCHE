@@ -3,6 +3,7 @@ import { CalendarDays } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { HrLinkStaleness } from "@/components/rota/HrLinkStaleness";
 import { StartRotaForm } from "@/components/rota/RotaForms";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
@@ -54,6 +55,7 @@ export default async function RotaHomePage({
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader eyebrow={home.name} title={title} description={t("rota.home.description")} />
+      <HrLinkStaleness api={api} />
       {done === "archived" ? (
         <RecordedArrival message={t("rota.done", { done })} param="done" />
       ) : null}

@@ -282,7 +282,7 @@ describe("sync streams definition", () => {
       `(${column} = 'active' OR ${column} = 'on_leave' OR ${column} = 'in_hospital')`;
     for (const { stream, query } of location) {
       // The entries and tasks go by the row's sync home, which the database empties once the
-      // person has left care (migration 0145; ADR-0134), so one bucket serves a home and day.
+      // person has left care (migration 0146; ADR-0134), so one bucket serves a home and day.
       const filtered =
         query.includes(live("status")) ||
         query.includes(live("person.status")) ||

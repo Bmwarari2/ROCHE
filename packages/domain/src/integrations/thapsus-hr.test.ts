@@ -4,8 +4,15 @@ import {
   DEFAULT_HR_OWNERS,
   editRefusal,
   effectiveLeavingDate,
+  employeeDrift,
+  HR_WEBHOOK_REPLAY_SECONDS,
+  type HrAbsence,
+  type HrAbsenceCopy,
   type HrEmployee,
   type HrOwners,
+  hrAbsenceTypeKnown,
+  hrClockEventOf,
+  hrShiftOf,
   hrStaleness,
   inboundAbsence,
   leaverMaySignIn,
@@ -18,8 +25,11 @@ import {
   payRouteChangeProblem,
   payrollExportAllowed,
   payUnitsToHrAllowed,
+  planHrAbsence,
   type StaffCandidate,
   stalenessLimitProblem,
+  ukLocalStamp,
+  webhookTimestampProblem,
 } from "./thapsus-hr";
 
 const at = (iso: string) => new Date(iso);
@@ -37,7 +47,7 @@ describe("hazard HZ-133 one owner for each kind of staff data (rule 2)", () => {
     expect(editRefusal(DEFAULT_HR_OWNERS, kind, editor)).toBe(want);
   });
 
-  it("refuses moving care-specific records, clocking or (until slice 88) the rota to Thapsus-HR", () => {
+  it("refuses moving care-specific records, clocking or the rota to Thapsus-HR", () => {
     const owners: HrOwners = {
       ...DEFAULT_HR_OWNERS,
       recruitment_and_vetting: "thapsus_hr",
@@ -442,5 +452,192 @@ describe("hazard HZ-133 nobody is paid twice (rule 12)", () => {
     ["an earlier period", "2026-10-01", "2026-11-01", "not_a_later_period"],
   ])("a route change from %s", (_name, from, currentPeriodStart, want) => {
     expect(payRouteChangeProblem({ from, currentPeriodStart })).toBe(want);
+  });
+});
+
+describe("hazard HZ-133 a webhook outside the replay window is refused", () => {
+  const now = new Date("2026-11-06T12:00:00Z");
+  const at = Math.floor(now.getTime() / 1000);
+  it.each([
+    [at, null],
+    [at - HR_WEBHOOK_REPLAY_SECONDS, null],
+    [at - HR_WEBHOOK_REPLAY_SECONDS - 1, "too_old"],
+    [at + HR_WEBHOOK_REPLAY_SECONDS, null],
+    [at + HR_WEBHOOK_REPLAY_SECONDS + 1, "in_future"],
+    [0, "invalid"],
+    [-5, "invalid"],
+    [at + 0.5, "invalid"],
+    [Number.NaN, "invalid"],
+  ])("signed at %s gives %s", (sent, expected) => {
+    expect(webhookTimestampProblem(sent, now)).toBe(expected);
+  });
+});
+
+describe("hazard HZ-133 reconciliation finds where Harbour's copy drifted from the owner (rule 2)", () => {
+  const employee = (over: Partial<HrEmployee> = {}): HrEmployee => ({
+    id: "emp_1",
+    employeeNumber: "E1",
+    workEmail: "ada@example.invalid",
+    dateOfBirth: "1990-01-01",
+    givenName: "Ada",
+    familyName: "Example",
+    ...over,
+  });
+  const copy = { jobTitle: "Care worker", startsOn: "2026-01-05" };
+  it.each([
+    ["nothing sent", {}, []],
+    ["the same values", { jobTitle: "Care worker", startDate: "2026-01-05" }, []],
+    ["a new job title", { jobTitle: "Senior care worker" }, ["job_title"]],
+    ["a new start date", { startDate: "2026-02-01" }, ["start_date"]],
+    ["both", { jobTitle: "Nurse", startDate: "2026-02-01" }, ["job_title", "start_date"]],
+    ["a start date that is not a real day", { startDate: "2026-02-30" }, []],
+    ["a job title too short to be one", { jobTitle: "x" }, []],
+    ["a null job title", { jobTitle: null }, []],
+  ] as const)("%s", (_, over, expected) => {
+    expect(employeeDrift(copy, employee(over))).toEqual(expected);
+  });
+});
+
+describe("hazard HZ-133 an absence from Thapsus-HR becomes a read-only copy that blocks rostering (rule 10; HZ-123)", () => {
+  const hr = (over: Partial<HrAbsence> = {}): HrAbsence => ({
+    id: "abs_1",
+    employeeId: "emp_1",
+    type: "leave",
+    startsOn: "2026-12-01",
+    endsOn: "2026-12-05",
+    status: "approved",
+    ...over,
+  });
+  const copy = (over: Partial<HrAbsenceCopy> = {}): HrAbsenceCopy => ({
+    id: "c1",
+    kind: "annual_leave",
+    startsOn: "2026-12-01",
+    endsOn: "2026-12-05",
+    cancelled: false,
+    ...over,
+  });
+  it.each([
+    [
+      "new approved leave",
+      null,
+      hr(),
+      { action: "create", kind: "annual_leave", startsOn: "2026-12-01", endsOn: "2026-12-05" },
+    ],
+    [
+      "new open sickness",
+      null,
+      hr({ type: "sickness", endsOn: null }),
+      { action: "create", kind: "sickness", startsOn: "2026-12-01", endsOn: null },
+    ],
+    [
+      "leave with no end blocks until it is ended",
+      null,
+      hr({ endsOn: null }),
+      { action: "create", kind: "annual_leave", startsOn: "2026-12-01", endsOn: null },
+    ],
+    [
+      "other with no end blocks until it is ended",
+      null,
+      hr({ type: "other", endsOn: null }),
+      { action: "create", kind: "other", startsOn: "2026-12-01", endsOn: null },
+    ],
+    ["a request does not block yet", null, hr({ status: "requested" }), { action: "none" }],
+    ["a cancellation with no copy", null, hr({ status: "cancelled" }), { action: "none" }],
+    ["unchanged", copy(), hr(), { action: "none" }],
+    [
+      "a new end date",
+      copy(),
+      hr({ endsOn: "2026-12-03" }),
+      { action: "set_end", endsOn: "2026-12-03" },
+    ],
+    ["cancelled in Thapsus-HR", copy(), hr({ status: "cancelled" }), { action: "cancel" }],
+    ["back to a request", copy(), hr({ status: "requested" }), { action: "cancel" }],
+    [
+      "a new start replaces it",
+      copy(),
+      hr({ startsOn: "2026-11-30" }),
+      { action: "replace", kind: "annual_leave", startsOn: "2026-11-30", endsOn: "2026-12-05" },
+    ],
+    [
+      "a new type replaces it",
+      copy(),
+      hr({ type: "sickness" }),
+      { action: "replace", kind: "sickness", startsOn: "2026-12-01", endsOn: "2026-12-05" },
+    ],
+    [
+      "approved again after a cancelled copy",
+      copy({ cancelled: true }),
+      hr(),
+      { action: "create", kind: "annual_leave", startsOn: "2026-12-01", endsOn: "2026-12-05" },
+    ],
+    [
+      "other stays other",
+      null,
+      hr({ type: "other" }),
+      { action: "create", kind: "other", startsOn: "2026-12-01", endsOn: "2026-12-05" },
+    ],
+  ] as const)("%s", (_, known, incoming, expected) => {
+    expect(planHrAbsence(known, incoming)).toEqual(expected);
+  });
+});
+
+describe("hazard HZ-133 shifts and clock events go out with their listed fields only (rules 4 and 7)", () => {
+  it.each([
+    ["winter (GMT)", "2026-01-15T07:00:00Z", "2026-01-15T07:00"],
+    ["summer (BST)", "2026-07-15T07:00:00Z", "2026-07-15T08:00"],
+    ["the night the clocks go back", "2026-10-25T01:30:00Z", "2026-10-25T01:30"],
+  ])("gives the UK wall-clock time beside UTC in %s", (_, utc, local) => {
+    expect(ukLocalStamp(new Date(utc))).toBe(local);
+  });
+
+  it("builds a shift with exactly the shift fields", () => {
+    const shift = hrShiftOf({
+      assignmentId: "a1",
+      hrEmployeeId: "emp_1",
+      hrLocationId: "loc_1",
+      kind: "work",
+      startsAt: new Date("2026-07-15T20:00:00Z"),
+      endsAt: new Date("2026-07-16T08:00:00Z"),
+      breakMinutes: 30,
+    });
+    expect(Object.keys(shift).sort()).toEqual([...OUTBOUND_FIELDS.shift].sort());
+    expect(outboundProblems("shift", shift)).toEqual([]);
+    expect(shift).toMatchObject({
+      startsAtLocal: "2026-07-15T21:00",
+      endsAtLocal: "2026-07-16T09:00",
+    });
+  });
+
+  it.each([
+    ["in", true],
+    ["out", true],
+    ["break_start", false],
+    ["break_end", false],
+  ])("sends a clock event of kind %s: %s", (kind, sent) => {
+    const event = hrClockEventOf({
+      id: "c1",
+      hrEmployeeId: "emp_1",
+      hrLocationId: "loc_1",
+      kind,
+      at: new Date("2026-01-15T07:02:00Z"),
+    });
+    expect(event !== null).toBe(sent);
+    if (event) expect(outboundProblems("clock_event", event)).toEqual([]);
+  });
+});
+
+describe("hazard HZ-123 an absence type this product does not know still blocks, and is told", () => {
+  it.each([
+    ["sickness", true],
+    ["Sick_Leave", true],
+    ["illness", true],
+    ["annual_leave", true],
+    ["holiday", true],
+    ["other", true],
+    ["suspension", false],
+    ["maternity", false],
+    ["", false],
+  ])("%s is known: %s", (type, known) => {
+    expect(hrAbsenceTypeKnown({ type })).toBe(known);
   });
 });

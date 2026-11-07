@@ -151,6 +151,9 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.self_administration_assessment",
   "public.homely_remedy_protocol",
   "public.homely_remedy_administration",
+  "public.medicine_list_item",
+  "public.prn_protocol",
+  "public.prn_outcome",
   "public.pre_admission_assessment",
   "public.admission_decision",
   "public.admission_condition",
@@ -406,7 +409,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       id: "exported",
@@ -673,7 +676,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       id: "exported",
@@ -979,7 +982,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       id: "exported",
@@ -2010,7 +2013,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       id: { description: "The record's id, chosen by the device or browser that made it." },
@@ -2088,6 +2091,93 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       witnessed_at: { description: "When they signed (instant, UTC)." },
       method: { description: "How they signed: step_up on the web, device_factor on a device." },
       created_at: "exported",
+    },
+  },
+  "public.medicine_list_item": {
+    context: "medicines",
+    description:
+      "One dm+d product on one of the organisation's medicine lists (for example psychotropic), with its removal kept.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      list: {
+        description: "The list: time_critical, paracetamol, bisphosphonate or psychotropic.",
+      },
+      vmp_id: { description: "The dm+d product (VMP)." },
+      product_name: { description: "The dm+d name when added." },
+      reason: { description: "Why it was added." },
+      removed_at: { description: "When it was removed (instant, UTC)." },
+      removed_reason: { description: "Why it was removed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.prn_protocol": {
+    context: "medicines",
+    description:
+      "The home's protocol for one when-required medicine (MEDS-003): what it is for, the signs, what to try first, the order of use, the agreement and its review. The limits stay the entry's.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      medication_id: { description: "The entry version it was written against (medication.id)." },
+      medicine_id: { description: "The medicine across its versions (medication.medicine_id)." },
+      purpose: { description: "What it is for, in words." },
+      triggers: { description: "The signs that mean it may be needed." },
+      non_drug_alternatives: { description: "What to try first." },
+      purpose_group: {
+        description: "The group of medicines for one purpose it is ordered within.",
+      },
+      order_of_use: { description: "Its place in the group.", unit: "position" },
+      expected_effect: { description: "What it is expected to do." },
+      agreed_with_name: { description: "The prescriber or pharmacist it was agreed with." },
+      agreed_with_role: { description: "prescriber or pharmacist." },
+      agreed_on: { description: "When it was agreed (UK date)." },
+      review_on: { description: "When it is next reviewed (UK date)." },
+      withdrawn_on: { description: "When it was withdrawn (UK date)." },
+      withdrawn_reason: { description: "Why it was withdrawn." },
+      change_reason: { description: "Why it was last changed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.prn_outcome": {
+    context: "medicines",
+    description: "The outcome of a when-required dose, or a correction of one.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      administration_id: { description: "The dose (medication_administration.id)." },
+      outcome: {
+        description:
+          "effective, partly_effective, not_effective, person_asleep or could_not_assess.",
+      },
+      note: { description: "What was seen, in words." },
+      observed_at: { description: "When the outcome was seen (instant, UTC)." },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      recorded_at: { description: "When it was stored (instant, UTC)." },
+      supersedes_id: { description: "The outcome this one corrects (prn_outcome.id)." },
+      correction_reason: { description: "Why it was corrected." },
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.covert_medication_record": {
@@ -2781,7 +2871,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       id: "exported",
@@ -5223,17 +5313,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       shift_end: {
         description:
-          "The handover's shift end, copied by the database for the phone's streams (migration 0145); not exported.",
+          "The handover's shift end, copied by the database for the phone's streams (migration 0146); not exported.",
         class: "internal",
       },
       at_home: {
         description:
-          "Whether the row is about nobody or someone who lives at the handover's home, for the phone's streams (migration 0145); not exported.",
+          "Whether the row is about nobody or someone who lives at the handover's home, for the phone's streams (migration 0146); not exported.",
         class: "internal",
       },
       id: "exported",
@@ -5254,7 +5344,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       person_id: { description: "The person the item is about (person.id), if any." },
       source_type: {
         description:
-          "The table of the record: task, observation, incident, body_map_mark, care_note or notification.",
+          "The table of the record: task, observation, incident, body_map_mark, care_note, notification or medication_administration (a refused dose, from slice 49).",
       },
       source_id: { description: "The record's id in that table." },
       at: { description: "When it happened, or when the task fell due (instant, UTC)." },
@@ -5280,12 +5370,12 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       shift_end: {
         description:
-          "The handover's shift end, copied by the database for the phone's streams (migration 0145); not exported.",
+          "The handover's shift end, copied by the database for the phone's streams (migration 0146); not exported.",
         class: "internal",
       },
       id: "exported",
@@ -5314,17 +5404,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       shift_end: {
         description:
-          "The handover's shift end, copied by the database for the phone's streams (migration 0145); not exported.",
+          "The handover's shift end, copied by the database for the phone's streams (migration 0146); not exported.",
         class: "internal",
       },
       at_home: {
         description:
-          "Whether the row is about nobody or someone who lives at the handover's home, for the phone's streams (migration 0145); not exported.",
+          "Whether the row is about nobody or someone who lives at the handover's home, for the phone's streams (migration 0146); not exported.",
         class: "internal",
       },
       id: "exported",
@@ -5518,6 +5608,111 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     reasonNotExported:
       "Transient quarantine of an upload, deleted when its batch commits, is discarded or expires (import.staging_expiry_days); committed rows are exported as the records they became, and the organisation holds the file it uploaded.",
     columns: {},
+  },
+  "public.hr_delivery": {
+    context: "integrations",
+    description:
+      "What was sent to Thapsus-HR (integrations.md section 11.3): the kind, this product's record, Thapsus-HR's identifier, the idempotency key, the state and attempts.",
+    treatment: "tenant_rows",
+    retention: "operational",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      kind: { description: "starter, shift, clock_event or pay_units." },
+      harbour_ref: { description: "This product's record that was sent (by id)." },
+      hr_id: { description: "Thapsus-HR's identifier for what it created." },
+      idempotency_key: { description: "The key sent with the write, so a retry is not doubled." },
+      state: { description: "pending, sent, failed or refused." },
+      attempts: { description: "How many times it was tried.", unit: "attempts" },
+      last_error_code: { description: "An opaque code for the last failure." },
+      next_attempt_at: "exported",
+      payload_sha256: {
+        description: "SHA-256 of what was last sent (a changed shift goes again).",
+      },
+      sent_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.hr_location_link": {
+    context: "integrations",
+    description: "Which Thapsus-HR location each location is (integrations.md section 11.3).",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: { description: "The location (location.id)." },
+      hr_location_id: { description: "Thapsus-HR's identifier for the location." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.hr_person_link": {
+    context: "integrations",
+    description:
+      "Which Thapsus-HR employee each staff file is (integrations.md section 11.3; HZ-133): how the match was made, who confirmed it, and the earliest leaving date Thapsus-HR gave. Identifiers only.",
+    treatment: "tenant_rows",
+    retention: "staff_file",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      hr_employee_id: { description: "Thapsus-HR's identifier for the employee." },
+      employee_number: { description: "The employee number Thapsus-HR holds." },
+      staff_profile_id: { description: "The staff file (staff_profile.id), linked or proposed." },
+      state: { description: "linked, review or rejected." },
+      match_method: {
+        description: "employee_number, email_and_birth_date, manual or starter; never a name.",
+      },
+      review_reason: {
+        description: "Why it needs a person: conflict, ambiguous, already_linked or no_match.",
+      },
+      confirmed_by: { description: "Who confirmed or rejected the match (tenant_user.id)." },
+      confirmed_at: "exported",
+      leaving_on: { description: "The earliest leaving date Thapsus-HR gave." },
+      last_seen_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.hr_sync_state": {
+    context: "integrations",
+    description:
+      "Where each Thapsus-HR sync is up to (integrations.md section 11.3): the cursor, the last good sync and the last failure.",
+    treatment: "tenant_rows",
+    retention: "operational",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      kind: { description: "employees, locations, absences or rates." },
+      cursor: { description: "Thapsus-HR's paging cursor." },
+      last_good_sync_at: "exported",
+      last_attempt_at: "exported",
+      last_error_code: { description: "An opaque code for the last failure." },
+      failures: { description: "Failures since the last good sync.", unit: "failures" },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
   },
   "public.incident": {
     context: "safety",
@@ -7198,7 +7393,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       id: "exported",
@@ -8445,6 +8640,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       bradford_excluded_reason: {
         description: "Why a manager left the sickness out of the Bradford factor.",
       },
+      source: { description: "Where it came from: harbour, or thapsus_hr for a read-only copy." },
+      hr_id: { description: "Thapsus-HR's identifier for the absence it copies." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -9959,7 +10156,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       id: "exported",
@@ -10406,7 +10603,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     columns: {
       sync_location_id: {
         description:
-          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+          "The home whose phones hold the row, set and moved by the database (migration 0146; ADR-0134); routing only, not exported.",
         class: "internal",
       },
       id: "exported",

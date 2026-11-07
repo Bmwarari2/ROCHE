@@ -19,7 +19,7 @@ import type { SyncTokenClaims } from "../../src/streams/index";
 export type SourceRows = Record<string, SqliteRow[]>;
 
 /**
- * The tables whose `sync_location_id` the database sets from the person (migration 0145;
+ * The tables whose `sync_location_id` the database sets from the person (migration 0146;
  * ADR-0134). A fixture row that leaves it out gets it here as the trigger would: the person's
  * home while they receive care, else none; a task, its own home while its person receives care;
  * a task about nobody, its own home. A row whose person is not in the fixture gets none, as in the
@@ -40,7 +40,7 @@ const RECEIVES_CARE = new Set(["active", "on_leave", "in_hospital"]);
 
 /**
  * A handover's items, notes and acknowledgements carry its home and shift end, and an item or
- * note whether it is about nobody or someone who lives at that home (`at_home`; migration 0145).
+ * note whether it is about nobody or someone who lives at that home (`at_home`; migration 0146).
  */
 const HANDOVER_CHILD_TABLES = new Set([
   "handover_item",

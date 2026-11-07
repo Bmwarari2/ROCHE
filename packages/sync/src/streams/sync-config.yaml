@@ -46,13 +46,13 @@
 # Buckets per connection (ADR-0134; HZ-002, HZ-138). PowerSync refuses a connection over its
 # limits (infra/powersync/powersync.yaml), so no stream keys a home's rows by person: a home's
 # entries, tasks and handover rows filter on columns of the row itself, which the database sets
-# and moves with the person (migration 0145): `sync_location_id`, the person's home while they
+# and moves with the person (migration 0146): `sync_location_id`, the person's home while they
 # receive care, else none (so L1 below still holds); a task, its own home while its person receives
 # care; on a handover's rows its home and `shift_end`, and on items and notes `person_location_id`
 # (the person's home now) and `at_home`. Assigned rows key by person and ten-day block. A family's
 # assigned streams are left off when its whole-home claims already carry everyone the member is
 # assigned to (tasks about nobody given to the member keep their own claim, care_own_tasks); the
-# API estimates a token's buckets and narrows a member reaching many homes (sync_narrowed).
+# API estimates a token's buckets and refuses one above the limit by name (sync_scope_too_large).
 # packages/sync/test/bucket-budget.test.ts measures the worst cases.
 #
 # Assignments end by soft delete (deleted_at) when valid_to passes or when revoked, because sync

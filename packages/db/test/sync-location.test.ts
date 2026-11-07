@@ -3,7 +3,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A } from "./support/fixtures";
 
 /**
- * The home whose phones hold a record (migration 0145; ADR-0134). The sync streams go by the row's
+ * The home whose phones hold a record (migration 0146; ADR-0134). The sync streams go by the row's
  * own `sync_location_id`, one bucket per home and day, so the database sets it from the person's
  * home on insert, and moves it with the person, for the records in the sync window (the last 35
  * days), when their home changes (HZ-138): the new home's phones keep the recent record. The

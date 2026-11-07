@@ -127,7 +127,7 @@ describe("hazard HZ-002 a phone stays under PowerSync's buckets per connection (
 
   it("moves a person's records over more days than any offline window holds (HZ-138)", () => {
     const migration = readFileSync(
-      new URL("../../db/drizzle/0145_sync_location.sql", import.meta.url),
+      new URL("../../db/drizzle/0146_sync_location.sql", import.meta.url),
       "utf8",
     );
     const moved = migration.match(/- interval '(\d+) days'/);
