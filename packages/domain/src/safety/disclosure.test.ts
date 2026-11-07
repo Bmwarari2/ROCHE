@@ -12,6 +12,8 @@ import {
   HAND_OVER_PROBLEM_MESSAGES,
   handOverProblems,
   legalBasis,
+  preventionReportProblems,
+  preventionResponse,
 } from "./disclosure";
 import { resolveSafetyPhase2Rates } from "./phase2-rates";
 
@@ -194,5 +196,77 @@ describe("handing a released pack over (H-958)", () => {
     for (const message of Object.values(HAND_OVER_PROBLEM_MESSAGES)) {
       expect(message).toMatch(/^[A-Z].*\.$/);
     }
+  });
+});
+
+describe("a coroner's Regulation 28 report (rule 43)", () => {
+  // The period's length comes from the rate table (coroner.prevention_report_response_days).
+  const days = Number(
+    readRateTable().find((r) => r.key === "coroner.prevention_report_response_days")?.value,
+  );
+
+  it("reads the response period from the rate table", () => {
+    expect(days).toBeGreaterThan(0);
+  });
+
+  it.each([
+    // sent on, extended to, responded on, today: due on, extended, state
+    ["2026-01-01", null, null, "2026-01-01", 0, false, "due"],
+    ["2026-01-01", null, null, "lastDay", 0, false, "due"],
+    ["2026-01-01", null, null, "dayAfter", 0, false, "overdue"],
+    ["2026-01-01", null, "2026-01-10", "dayAfter", 0, false, "responded"],
+    ["2026-01-01", "extension", null, "dayAfter", 30, true, "due"],
+    ["2026-03-20", null, null, "2026-03-20", 0, false, "due"],
+  ] as const)(
+    "a report sent on %s (extended %s, responded %s), seen on %s",
+    (sentOn, extendedTo, respondedOn, today, extraDays, extended, state) => {
+      const last = new Date(Date.parse(`${sentOn}T12:00:00Z`) + (days - 1) * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      const after = new Date(Date.parse(`${last}T12:00:00Z`) + 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      const extension = new Date(Date.parse(`${last}T12:00:00Z`) + 30 * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      const seen = today === "lastDay" ? last : today === "dayAfter" ? after : today;
+      const out = preventionResponse({
+        sentOn,
+        responseDays: days,
+        extendedTo: extendedTo === "extension" ? extension : extendedTo,
+        respondedOn,
+        today: seen,
+      });
+      // The day the report was sent is the first day of the period.
+      expect(out.statutoryDueOn).toBe(last);
+      expect(out.dueOn).toBe(
+        extraDays === 0
+          ? last
+          : new Date(Date.parse(`${last}T12:00:00Z`) + extraDays * 86_400_000)
+              .toISOString()
+              .slice(0, 10),
+      );
+      expect(out.extended).toBe(extended);
+      expect(out.state).toBe(state);
+    },
+  );
+
+  it.each([
+    [{ sentOn: "2026-02-01" }, ["sent_in_future"]],
+    [{ respondedOn: "2026-02-01" }, ["responded_in_future"]],
+    [{ respondedOn: "2025-12-31" }, ["response_before_report"]],
+    [{ extendedTo: "2026-01-02" }, ["extension_not_later"]],
+    [{}, []],
+  ] as const)("refuses %j with %j", (change, problems) => {
+    expect(
+      preventionReportProblems({
+        sentOn: "2026-01-01",
+        respondedOn: null,
+        extendedTo: null,
+        responseDays: days,
+        today: "2026-01-20",
+        ...change,
+      }),
+    ).toEqual(problems);
   });
 });

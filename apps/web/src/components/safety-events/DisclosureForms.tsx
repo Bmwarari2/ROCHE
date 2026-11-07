@@ -281,7 +281,7 @@ export function PreventionReportForm({
   readonly id: string;
   readonly version: number;
 }) {
-  const ids = useFieldIds(["reportOn", "respondedOn"]);
+  const ids = useFieldIds(["reportOn", "respondedOn", "extendedTo"]);
   const { submit, result, pending } = useSubmit(
     (form) => readPreventionReport(form, t, { expectedVersion: version }),
     (body) => recordPreventionReport(id, body),
@@ -306,6 +306,15 @@ export function PreventionReportForm({
         labels={labels}
         error={errorFor(result, "respondedOn")}
         errorParts={dateBoxesOf(partsFor(result, "respondedOn"))}
+      />
+      <DateInput
+        id={ids.extendedTo}
+        name="extendedTo"
+        legend={t("disclosures.prevention.extendedTo")}
+        hint={t("disclosures.prevention.extendedHint")}
+        labels={labels}
+        error={errorFor(result, "extendedTo")}
+        errorParts={dateBoxesOf(partsFor(result, "extendedTo"))}
       />
       <div>
         <Button type="submit" variant="secondary" icon={<Send {...icon} />} disabled={pending}>

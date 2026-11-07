@@ -29,7 +29,13 @@ type Request = {
   dueAt: string | null;
   packSha256: string | null;
   items: { total: number; pending: number };
-  prevention: { reportOn: string; responseDueOn: string; state: string } | null;
+  prevention: {
+    reportOn: string;
+    statutoryDueOn: string;
+    extendedTo: string | null;
+    responseDueOn: string;
+    state: string;
+  } | null;
 };
 type Item = { id: string; version: number; tableName: string };
 
@@ -503,9 +509,36 @@ describe("SAFE-016 rule 44: a coroner's Regulation 28 report", () => {
     expect(r.status).toBe(200);
     const out = (await r.json()) as Request;
     expect(out.prevention?.state).toBe("due");
+    // Within the rate's 56 days beginning with the day the report was sent: that day is day one.
     const days =
       (Date.parse(out.prevention?.responseDueOn ?? "") - Date.parse(today())) / 86_400_000;
-    expect(days).toBe(56);
+    expect(days).toBe(55);
+    expect(out.prevention?.statutoryDueOn).toBe(out.prevention?.responseDueOn);
+    // The coroner allows longer: the response is due then; an "extension" no later is refused.
+    const shortExtension = await post(`/v1/disclosures/${req.id}/prevention-report`, {
+      expectedVersion: out.version,
+      reportOn: today(),
+      extendedTo: out.prevention?.statutoryDueOn,
+    });
+    expect(shortExtension.status).toBe(422);
+    expect(await codeOf(shortExtension)).toBe("extension_not_later");
+    const later = new Date(
+      Date.parse(`${out.prevention?.statutoryDueOn}T12:00:00Z`) + 28 * 86_400_000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    const extended = await post(`/v1/disclosures/${req.id}/prevention-report`, {
+      expectedVersion: out.version,
+      reportOn: today(),
+      extendedTo: later,
+    });
+    expect(extended.status, await extended.clone().text()).toBe(200);
+    const withExtension = (await extended.json()) as Request;
+    expect(withExtension.prevention).toMatchObject({
+      extendedTo: later,
+      responseDueOn: later,
+      state: "due",
+    });
     const police = await logRequest({
       type: "police",
       requester: { name: "DC Example", organisation: "Example Police" },

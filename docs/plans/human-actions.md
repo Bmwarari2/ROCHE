@@ -1036,6 +1036,15 @@ gates stay unsigned until H-20.
 | H-1496 | Decide whether invoker helper functions called from definers (for example `app.holds_permission_at`) also pin `pg_temp` last. Recommended answer: yes, in one later migration; low risk today as they qualify every table | Lead engineer | ADR-0133 (security review L4) | None | open (recommended answer in force) |
 | H-1497 | Decide whether the audit chain trigger (`app.audit_event_chain`) gets its own NOLOGIN owner, apart from `harbour_platform_definer`, which also provisions organisations from operator input. Recommended answer: yes, in a later migration | Lead engineer | ADR-0133 (security review L5) | None | open (recommended answer in force) |
 
+## Guide gaps from the slice 83 review: Regulation 28 (H-1570 to H-1571)
+
+Logged by the Regulation 28 PR (lead's list of 07/11/2026, item 5; block H-1561 to H-1580).
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1570 | Verify the Regulation 28 response period: 56 days beginning with the day the report is sent (so the date sent is day one and the response is due 55 days later), as built, against the Coroners (Investigations) Regulations 2013 and the Coroners and Justice Act 2009 Schedule 5 paragraph 7, and mark `coroner.prevention_report_response_days` verified in the rate table. Before this change the due date was a day later | DPO with legal review | [rates.md](../specs/rates.md); `preventionResponse` (domain) | First coroner request at a real tenant | open |
+| H-1571 | Confirm that only a later date the coroner allowed counts as an extension (one on or before the usual due date is refused), and that an extension may be recorded after the request is released, refused or withdrawn | DPO | safety.md rule 43; migration 0157 | None | provisional: owner-accepted recommendation, pending review at the testing phase |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

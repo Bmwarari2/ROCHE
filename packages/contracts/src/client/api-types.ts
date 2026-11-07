@@ -45472,7 +45472,7 @@ export interface paths {
     put?: never;
     /**
      * Record a coroner's Regulation 28 report and the response
-     * @description safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). The response is due coroner.prevention_report_response_days after the report (rate table). Dates not in the future; the response not before the report. Audited (safety.disclosure.prevention_recorded).
+     * @description safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). reportOn is the date the report was sent: the response is due within coroner.prevention_report_response_days (rate table) beginning with that day, or by extendedTo, a later date the coroner allowed (422 extension_not_later otherwise). Dates sent and responded not in the future (422 date_in_future); the response not before the report (422 response_before_report). Audited (safety.disclosure.prevention_recorded).
      */
     post: {
       parameters: {
@@ -76003,6 +76003,10 @@ export interface components {
         /** Format: date */
         reportOn: string;
         /** Format: date */
+        statutoryDueOn: string;
+        /** Format: date */
+        extendedTo: string | null;
+        /** Format: date */
         responseDueOn: string;
         /** Format: date */
         respondedOn: string | null;
@@ -76138,6 +76142,8 @@ export interface components {
       reportOn: string;
       /** Format: date */
       respondedOn?: string | null;
+      /** Format: date */
+      extendedTo?: string | null;
     };
     QualityDashboard: {
       /** Format: uuid */

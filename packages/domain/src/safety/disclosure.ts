@@ -194,3 +194,75 @@ export function handOverProblems(
   if ((input.reference?.trim().length ?? 0) > 200) problems.push("reference_too_long");
   return problems;
 }
+
+// ------------------------------------------------------------------------------------------------
+// A coroner's Regulation 28 report (rule 43)
+// ------------------------------------------------------------------------------------------------
+
+const addIsoDays = (day: string, n: number) =>
+  new Date(Date.parse(`${day}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+export interface PreventionResponse {
+  /** The last day of the statutory period, counted from the day the report was sent. */
+  readonly statutoryDueOn: string;
+  /** The day the response is due: the coroner's extension when one was given. */
+  readonly dueOn: string;
+  readonly extended: boolean;
+  readonly state: "due" | "overdue" | "responded";
+}
+
+/**
+ * When the response to a prevention of future deaths report is due (Coroners and Justice Act 2009,
+ * Schedule 5 paragraph 7; Coroners (Investigations) Regulations 2013 regulation 29): within
+ * `coroner.prevention_report_response_days` (the rate table) beginning with the day the report was
+ * sent, so that day is the first of the period and the last is that many days less one later; or
+ * by the later date the coroner allowed. Dates are UK calendar days (`YYYY-MM-DD`).
+ */
+export function preventionResponse(input: {
+  readonly sentOn: string;
+  readonly responseDays: number;
+  readonly extendedTo: string | null;
+  readonly respondedOn: string | null;
+  readonly today: string;
+}): PreventionResponse {
+  const statutoryDueOn = addIsoDays(input.sentOn, input.responseDays - 1);
+  const extended = input.extendedTo !== null && input.extendedTo > statutoryDueOn;
+  const dueOn = extended && input.extendedTo ? input.extendedTo : statutoryDueOn;
+  const state = input.respondedOn ? "responded" : input.today > dueOn ? "overdue" : "due";
+  return { statutoryDueOn, dueOn, extended, state };
+}
+
+export type PreventionReportProblem =
+  | "sent_in_future"
+  | "responded_in_future"
+  | "response_before_report"
+  | "extension_not_later";
+
+export const PREVENTION_REPORT_PROBLEM_MESSAGES: Record<PreventionReportProblem, string> = {
+  sent_in_future: "The date the report was sent cannot be in the future.",
+  responded_in_future: "The date the response was sent cannot be in the future.",
+  response_before_report: "The response cannot be before the report was sent.",
+  extension_not_later: "An extension must be later than the date the response is due.",
+};
+
+/** The checks on recording the report, its response and an extension (the database holds most). */
+export function preventionReportProblems(input: {
+  readonly sentOn: string;
+  readonly respondedOn: string | null;
+  readonly extendedTo: string | null;
+  readonly responseDays: number;
+  readonly today: string;
+}): PreventionReportProblem[] {
+  const problems: PreventionReportProblem[] = [];
+  if (input.sentOn > input.today) problems.push("sent_in_future");
+  if (input.respondedOn && input.respondedOn > input.today) problems.push("responded_in_future");
+  if (input.respondedOn && input.respondedOn < input.sentOn)
+    problems.push("response_before_report");
+  if (
+    input.extendedTo !== null &&
+    input.extendedTo <= addIsoDays(input.sentOn, input.responseDays - 1)
+  ) {
+    problems.push("extension_not_later");
+  }
+  return problems;
+}
