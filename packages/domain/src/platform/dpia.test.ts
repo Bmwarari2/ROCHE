@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { tablePlatformRates } from "../../test/rate-table";
@@ -29,6 +29,7 @@ const RATES = tablePlatformRates();
 const TEMPLATE = fileURLToPath(
   new URL("../../../../docs/compliance/dpia-template.md", import.meta.url),
 );
+const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const SHA = "c".repeat(64);
 /** The Phase 1 risks every tenant's DPIA carries, after any optional processing's own risk. */
 const PHASE_1_RISK_IDS = ["R13", "R14", "R15", "R16", "R17", "R18", "R19"];
@@ -200,6 +201,149 @@ describe("DPIA prefill", () => {
       NOW,
     );
     expect(draft.missingConfig).toEqual([]);
+  });
+});
+
+/** The template's text from one heading up to the next heading of the same or a higher level. */
+function templateSection(template: string, heading: string): string {
+  const start = template.indexOf(`${heading}\n`);
+  if (start < 0) throw new Error(`no heading ${heading}`);
+  const level = heading.split(" ")[0] ?? "";
+  const rest = template.slice(start + heading.length + 1);
+  const next = rest.search(new RegExp(`^#{1,${level.length}} `, "m"));
+  return next < 0 ? rest : rest.slice(0, next);
+}
+
+/** The cells of the table row that starts with `| <id> |`, trimmed. */
+function rowCells(section: string, id: string): string[] {
+  const line = section.split("\n").find((l) => l.startsWith(`| ${id} | `));
+  if (!line) throw new Error(`no row ${id}`);
+  return line
+    .split("|")
+    .slice(1, -1)
+    .map((c) => c.trim());
+}
+
+describe("Phase 2 risks R20 to R29 (dpia-template.md sections 6, 7 and 7B)", () => {
+  const template = readFileSync(TEMPLATE, "utf8");
+  const section6 = templateSection(template, "## 6. Risks to individuals");
+  const section7 = templateSection(template, "## 7. Measures to reduce risk");
+  const section7B = templateSection(
+    template,
+    "## 7B. Phase 2 processing: workforce, rights and safety (draft)",
+  );
+  const mapping = templateSection(template, "### 7B.2 Which risks apply to which processing");
+  const risks = prefillDpia(config(), NOW).risks;
+  const capital = (word: string) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+
+  it("puts every Phase 2 risk in every tenant's prefill, after the Phase 1 risks", () => {
+    expect(risks.map((r) => r.id).slice(-PHASE_2_RISK_IDS.length)).toEqual(PHASE_2_RISK_IDS);
+    expect(standardRiskIds().slice(-PHASE_2_RISK_IDS.length)).toEqual(PHASE_2_RISK_IDS);
+  });
+
+  it.each(PHASE_2_RISK_IDS)("%s carries a likelihood, severity and overall rating", (id) => {
+    const risk = risks.find((r) => r.id === id);
+    expect(risk).toBeDefined();
+    expect(["remote", "possible", "probable"]).toContain(risk?.likelihood);
+    expect(["minimal", "significant", "severe"]).toContain(risk?.severity);
+    expect(["low", "medium", "high"]).toContain(risk?.overall);
+  });
+
+  it.each(PHASE_2_RISK_IDS)("%s matches its section 6 row word for word", (id) => {
+    const risk = risks.find((r) => r.id === id);
+    if (!risk) throw new Error(id);
+    expect(rowCells(section6, id)).toEqual([
+      id,
+      risk.risk,
+      capital(risk.likelihood),
+      capital(risk.severity),
+      capital(risk.overall),
+    ]);
+  });
+
+  it.each(PHASE_2_RISK_IDS)("%s has the same wording and initial rating in section 7B.3", (id) => {
+    const risk = risks.find((r) => r.id === id);
+    if (!risk) throw new Error(id);
+    const detail = templateSection(template, `#### ${id} ${risk.risk}`);
+    expect(detail).toContain(
+      `| Initial | ${capital(risk.likelihood)}, ${risk.severity}, **${risk.overall}** |`,
+    );
+    for (const field of ["Slices", "Measures built (evidence)", "Expected residual", "DPO decides"])
+      expect(detail).toContain(`| ${field} | `);
+  });
+
+  it.each(PHASE_2_RISK_IDS)("%s has measures in section 7 and processing in section 7B.2", (id) => {
+    const [, measures, , effect] = rowCells(section7, id);
+    expect(measures).toContain("section 7B");
+    expect(effect).toBe("Reduced");
+    expect(mapping).toMatch(new RegExp(`\\b${id}\\b`));
+  });
+
+  it("names only evidence that exists on this branch, never a feature branch", () => {
+    expect(section7B).not.toMatch(/\b(feat|fix|chore|docs)\/[a-z0-9-]+/);
+    expect(section7B).toContain("Status: draft for the DPO, not signed and not approved.");
+    const paths = [
+      ...section7B.matchAll(/`((?:apps|packages|docs)\/[A-Za-z0-9_./-]+\.(?:ts|tsx|sql|md))`/g),
+    ].map((m) => m[1] ?? "");
+    expect(paths.length).toBeGreaterThan(20);
+    expect(paths.filter((p) => !existsSync(`${REPO_ROOT}${p}`))).toEqual([]);
+  });
+
+  it.each(PHASE_2_RISK_IDS)("refuses sign-off while %s has no residual rating", (id) => {
+    const draft = prefillDpia(config(), NOW);
+    const residualRisk = Object.fromEntries(
+      draft.risks.map((r) => [r.id, r.id === id ? null : ("low" as const)]),
+    );
+    const result = checkDpiaSignOff({
+      draft,
+      status: "prepared",
+      preparedBy: ["rm-1"],
+      completedFields: Object.fromEntries(draft.sections.map((s) => [s.key, s.tenantFields])),
+      residualRisk,
+      icoConsultationReference: null,
+      versionSha256: SHA,
+      actor: { tenantUserId: "ql-1", access: accessFor("quality_lead") },
+      stepUpAt: new Date(NOW.getTime() - 60_000),
+      now: NOW,
+      stepUpWindowSeconds: 600,
+      designatedLeadIds: ["ql-1"],
+      signature: { typedName: "Ada Example", sha256Seen: SHA },
+    });
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.issues).toEqual([
+      expect.objectContaining({ problem: "residual_not_rated", detail: [id] }),
+    ]);
+  });
+
+  const signedAt = new Date("2026-03-15T12:00:00Z");
+  const soon = new Date("2026-06-01T09:00:00Z");
+  const current = dpiaBasis(config());
+  it.each<[string, readonly string[] | undefined, string[]]>([
+    ["before standard risks were recorded", undefined, [...PHASE_1_RISK_IDS, ...PHASE_2_RISK_IDS]],
+    [
+      "with the base and Phase 1 risks only",
+      standardRiskIds().filter((id) => !PHASE_2_RISK_IDS.includes(id)),
+      PHASE_2_RISK_IDS,
+    ],
+    [
+      "with R20 to R24 only of Phase 2",
+      standardRiskIds().filter((id) => !["R25", "R26", "R27", "R28", "R29"].includes(id)),
+      ["R25", "R26", "R27", "R28", "R29"],
+    ],
+    ["with every standard risk", standardRiskIds(), []],
+  ])("flags a DPIA signed %s for the risks it never assessed", (_label, standardRisks, items) => {
+    const { standardRisks: _left, ...rest } = current;
+    const signed: DpiaBasis = standardRisks === undefined ? rest : { ...rest, standardRisks };
+    const triggers = dpiaReviewTriggers({ signedAt, basis: signed }, current, soon, RATES);
+    expect(triggers).toEqual(items.length > 0 ? [{ kind: "new_standard_risk", items }] : []);
+    const state = dpiaState(
+      { status: "signed", signedAt, basis: signed },
+      { status: "draft", signedAt: null, basis: null },
+      current,
+      soon,
+      RATES,
+    );
+    expect(state.state).toBe(items.length > 0 ? "review_due" : "signed");
   });
 });
 
