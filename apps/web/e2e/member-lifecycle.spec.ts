@@ -69,7 +69,8 @@ test("the manager suspends, then ends, a membership after a coded reason", async
   await expect(
     main(page).getByRole("status").filter({ hasText: "Membership reinstated" }),
   ).toBeFocused();
-  await expect(about).toContainText("Active");
+  // Lee never made a sign-in, so the membership comes back as invited.
+  await expect(about).toContainText("Invited");
   await membership(page).getByRole("button", { name: "Suspend membership" }).click();
   await suspend.getByLabel("Reason").selectOption({ label: "They are leaving or have left" });
   await suspend.getByRole("button", { name: "Suspend membership" }).click();
@@ -86,7 +87,7 @@ test("the manager suspends, then ends, a membership after a coded reason", async
   await expect(end).toBeHidden();
   await expect(endTrigger).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(end).toContainText("cannot be undone");
+  await expect(end).toContainText("roles end");
   await expect(end.getByRole("button", { name: "Keep membership" })).toBeVisible();
   await bothThemes(page, "end confirmation");
   await end.getByLabel("Reason").selectOption({ label: "They are leaving or have left" });

@@ -72,7 +72,7 @@ export function membershipChip(state: MembershipState, t: Translator): TeamChip 
 export type MembershipKind = "suspend" | "reinstate" | "end" | "erase";
 
 /**
- * Which changes to offer (H-566): suspend an active membership; reinstate or end a suspended one
+ * Which changes to offer (H-566): suspend an active or invited membership; reinstate or end a suspended one
  * (ending only once the member's held entries are handed over); for an ended one, reinstate it
  * when the API allows this manager (H-1469) and erase a sign-in nobody else relies on. Never the manager's own; the API refuses that too.
  */
@@ -81,7 +81,8 @@ export function membershipChanges(
   myId: string,
 ): readonly MembershipKind[] {
   if (member.id === myId) return [];
-  if (member.state === "active") return ["suspend"];
+  // An invited member can be suspended too (their invitations end), as the API allows.
+  if (member.state === "active" || member.state === "invited") return ["suspend"];
   if (member.state === "suspended") {
     return member.entriesToHandOver === 0 ? ["reinstate", "end"] : ["reinstate"];
   }

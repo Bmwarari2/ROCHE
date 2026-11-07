@@ -154,7 +154,7 @@ describe("the membership lifecycle (H-566)", () => {
     [member({ state: "left", mayReinstate: true }), ["reinstate", "erase"]],
     [member({ state: "left", signIn: "kept_other_organisation" }), []],
     [member({ state: "left", signIn: "erased" }), []],
-    [member({ state: "invited", signIn: "none" }), []],
+    [member({ state: "invited", signIn: "none" }), ["suspend"]],
     [member({ id: me }), []],
     [member({ id: me, state: "suspended" }), []],
   ] as const)("offers %o the changes %o", (m, expected) => {
