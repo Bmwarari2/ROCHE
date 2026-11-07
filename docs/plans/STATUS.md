@@ -168,6 +168,15 @@ officer items are provisional owner-accepted recommendations, pending CSO review
 MEDS-007, MEDS-008, MEDS-012, MEDS-013, from batch 3b; no migration): stock, ordering and temperatures
 for a home and a person; homely remedy protocols and doses checked against them; the medication
 error record on the incident; medication reviews and the tracker; the override, PRN and trend reports.
+Reviewed (security, clinical and accessibility, two rounds); HZ-120 and HZ-132 fixed, H-1410 and
+H-1411 provisional. Follow-ups:
+- Security: an API to list the staff who may witness a disposal (the web reads the location's
+  members today); show the witness link only to the named witness; per-resident reads on the order
+  pages, so a reader who may not see a resident does not see their lines.
+- HZ-120: store the current-medicines confirmation on the homely remedy dose (an API field; H-1410).
+- Accessibility (minor): unit plurals ("56 tablet"), page titles unique per record, corrections
+  shown struck through, keyboard-only steps in the three journeys, the period error summary linked
+  to its fields, the flag words for homely remedy doses taken from the API.
 
 **Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
 recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
