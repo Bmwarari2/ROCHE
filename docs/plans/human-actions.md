@@ -1036,6 +1036,17 @@ gates stay unsigned until H-20.
 | H-1496 | Decide whether invoker helper functions called from definers (for example `app.holds_permission_at`) also pin `pg_temp` last. Recommended answer: yes, in one later migration; low risk today as they qualify every table | Lead engineer | ADR-0133 (security review L4) | None | open (recommended answer in force) |
 | H-1497 | Decide whether the audit chain trigger (`app.audit_event_chain`) gets its own NOLOGIN owner, apart from `harbour_platform_definer`, which also provisions organisations from operator input. Recommended answer: yes, in a later migration | Lead engineer | ADR-0133 (security review L5) | None | open (recommended answer in force) |
 
+## Guide gaps from the slice 83 review: copy (H-1564 to H-1566)
+
+Logged by the copy PR (lead's list of 07/11/2026, item 6; block H-1561 to H-1580). Each open
+question takes its recommended answer until the testing-phase review.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1564 | Approve the death form's hint for an unexpected death (make sure 999 and the police have been called; a doctor or the medical examiner usually refers to the coroner; anyone worried can contact the coroner), and decide whether it must be nation-specific before a Scottish or Northern Ireland tenant (the procurator fiscal; the Coroners Act (Northern Ireland) 1959 s.7 duty on the person in charge). Recommended answer: as built for England and Wales; a nation-pack select before either nation goes live | CSO | HZ-013; `people.exit.death.expectedHint` | First Scottish or Northern Ireland tenant | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1565 | Confirm that every missing person reported to the police, or under DoLS or the Mental Health Act, is a Regulation 18(2)(f) notification (H-63), and with it the prompt's "is needed without delay". Recommended answer: yes | CSO | HZ-013, HZ-127; `missing.notifications.cqcPrompt` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1566 | Rule on the undo's phone gate for medicines and staff file imports: the API stops offering undo once phones sync for every type, the database refuses it only for people and care plans. Recommended answer: keep the API's stricter gate and record it in HZ-130 | CSO with the lead engineer | HZ-130; `apps/api/src/services/platform-imports.ts` (`undoState`); migration 0136 | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

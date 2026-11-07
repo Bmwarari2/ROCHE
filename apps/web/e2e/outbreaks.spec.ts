@@ -78,7 +78,7 @@ test("SAFE-013 the manager declares an outbreak, records and updates a case, and
   await page.waitForURL(/\/outbreaks\/[0-9a-f-]{36}$/);
   await expect(page.getByText("Declared", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Open the UKHSA report in notifications" }),
+    page.getByRole("link", { name: "Open the outbreak report in notifications" }),
   ).toBeVisible();
   await accessibleInBothThemes(page, "outbreak record");
 
