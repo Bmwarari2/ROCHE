@@ -49,7 +49,7 @@ Option 2.
   versions off the phone needs a flag copied onto each child row by trigger (a migration, through
   the tables' write-once guards); H-1425 asks the DPO whether that is needed.
 - **Administrations**: those recorded in a ten-day block (`meds_recent_blocks`) of
-  `meds_recent_days` (today and the 34 UTC days before, both minted by the API for the member's
+  `meds_recent_days` (today, the 34 UTC days before and tomorrow, both minted by the API for the member's
   homes and assigned people alike), so the last given of a monthly or weekly medicine, an interval of up
   to 34 days and the 24-hour maximum are always on the phone (clinical review, M3; H-1421). A
   longer interval needs the server, which still checks every record when it arrives.

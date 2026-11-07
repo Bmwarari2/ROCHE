@@ -1,11 +1,16 @@
 import { SyncBanner } from "@harbour/ui-native";
 import { useStatus } from "@powersync/react";
 import { useNetworkState } from "expo-network";
+import { useEffect } from "react";
 import { useVault } from "../app-state/vault";
 import { useHeldEntryCount, useQueuedChanges, useUploadIssueState } from "../care/hooks";
 import { appEnv } from "../config/app-env";
 import { STALE_AFTER_MS } from "../config/constants";
-import { announceRefusalOnce, useScopeRefused } from "../sync/scope-refusal-store";
+import {
+  announceRefusalOnce,
+  forgetRefusalAnnouncement,
+  useScopeRefused,
+} from "../sync/scope-refusal-store";
 import { deriveConnectionState, lastSyncedAtOf } from "../sync/sync-state";
 
 /**
@@ -31,6 +36,10 @@ export function AppSyncBanner() {
   const derived = appEnv.demoMode ? "offline" : deriveConnectionState(status, network);
   const showRefusal = scopeRefused && !appEnv.demoMode && derived !== "offline";
   const state = showRefusal ? "failed" : derived;
+  // Said again after the phone has been offline, when the refusal shows once more (review, minor 2).
+  useEffect(() => {
+    if (!showRefusal) forgetRefusalAnnouncement();
+  }, [showRefusal]);
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);
 
   return (

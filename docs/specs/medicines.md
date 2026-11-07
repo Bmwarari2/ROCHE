@@ -1077,7 +1077,7 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
   `marEntryEnd` and `marEntryDosesFrom` on these rows, so a replaced version and its replacement
   never both show the same dose (HZ-003).
 - **`*_medicine_administrations`**: administrations recorded in a ten-day block of
-  `meds_recent_days` (today and the 34 UTC days before, minted by the API; `meds_recent_blocks`):
+  `meds_recent_days` (today, the 34 UTC days before and tomorrow, minted by the API; `meds_recent_blocks`):
   at the token's homes, one bucket per home and block by the row's own `sync_location_id` (the
   person's home while they receive care, set and moved by the database; ADR-0134); for assigned
   people, one bucket per person and block. For the last given of a monthly or

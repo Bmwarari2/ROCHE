@@ -213,7 +213,7 @@ on the phones of members who give medicines (`medicines.emar.administer`), of th
 versions not withdrawn or removed (a stopped or replaced one included, until the person leaves
 scope) of the people in their scope (assigned people, or every live person at the homes it
 reaches), with the person's schedule times, dosing records and covert administration records
-not removed (of any version, including one withdrawn as entered in error; H-1425), and the administrations recorded today and the 34 days before (for monthly and
+not removed (of any version, including one withdrawn as entered in error; H-1425), and the administrations recorded today, the 34 days before and tomorrow (for monthly and
 weekly medicines), by ten-day block, so up to nine days either side (H-1426); a person who has left
 care leaves the home's phones, and a transferred person's records follow them (ADR-0134); and each member's own
 medicines competence sign-offs and withdrawals (B3) on their own phone. In the encrypted device

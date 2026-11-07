@@ -101,7 +101,7 @@ export function shiftWindowDays(now: Date): string[] {
 
 /**
  * The UTC days of the administrations a phone holds (`meds_recent_days`; medicines.md section
- * 13.8; slice 68): today and the 34 days before, so the last given of a monthly medicine, an
+ * 13.8; slice 68): today, the 34 days before and tomorrow, so the last given of a monthly medicine, an
  * interval of up to 34 days and the last 24 hours are always there (clinical review of slice 68,
  * M3). A product setting, not a statutory figure; the server decides when a record arrives.
  */
@@ -109,7 +109,10 @@ export const MEDS_RECENT_DAYS_BEHIND = 34;
 
 export function medsRecentDays(now: Date): string[] {
   const days: string[] = [];
-  for (let d = MEDS_RECENT_DAYS_BEHIND; d >= 0; d -= 1) {
+  // Tomorrow too, as the offline window has it: a token minted just before UTC midnight still
+  // takes the doses recorded after it, until the phone's next token (clinical review of the slice
+  // 68 rebuild, m1; HZ-004). The phone counts only the 35 days.
+  for (let d = MEDS_RECENT_DAYS_BEHIND; d >= -1; d -= 1) {
     days.push(new Date(now.getTime() - d * 86_400_000).toISOString().slice(0, 10));
   }
   return days;
@@ -120,7 +123,7 @@ export function medsRecentDays(now: Date): string[] {
  * days (`offline_blocks`, `meds_recent_blocks`): the assigned streams key their buckets by person
  * and block, not by person and day, so a phone stays far under PowerSync's buckets per connection
  * (ADR-0134). Blocks hold 9, 10, 10 and 1 or 2 days, so a 32-day window spans at most six (across
- * February; 35 days at most seven); the phone may hold up to nine days either side of the window, and shows only the
+ * February; the 36 medicines days, at most eight); the phone may hold up to nine days either side of the window, and shows only the
  * window.
  */
 export function offlineWindowBlocks(days: readonly string[]): string[] {

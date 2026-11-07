@@ -535,10 +535,10 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       claims({ sub: "nurse", meds_assigned: false, meds_location_ids: [NORTH] }),
     );
     expect(count(nurse.buckets)).toBe(BLOCKS.length);
-    // Assigned to every resident: at most seven blocks each, never 35 days each.
+    // Assigned to every resident: at most eight blocks each, never 36 days each.
     const carer = await syncFor(hydrated, big, claims());
     expect(count(carer.buckets)).toBeLessThanOrEqual(120 * BLOCKS.length);
-    expect(BLOCKS.length).toBeLessThanOrEqual(7);
+    expect(BLOCKS.length).toBeLessThanOrEqual(8);
   });
 
   it("syncs no medicine to a token without a tenant, or with only a member (fails closed)", async () => {
@@ -580,19 +580,19 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
 
 describe("hazard HZ-004 the medicines window", () => {
   it.each([
-    ["midday", "2026-11-06T12:00:00Z", "2026-10-03", "2026-11-06"],
-    ["just after midnight UTC", "2026-11-06T00:05:00Z", "2026-10-03", "2026-11-06"],
-    ["just before midnight UTC", "2026-11-06T23:55:00Z", "2026-10-03", "2026-11-06"],
-    ["across a year", "2027-01-10T09:00:00Z", "2026-12-07", "2027-01-10"],
-    ["across a leap day", "2028-03-15T09:00:00Z", "2028-02-10", "2028-03-15"],
-    ["on the day the clocks go back", "2026-10-25T00:30:00Z", "2026-09-21", "2026-10-25"],
-    ["on the day the clocks go forward", "2027-03-28T01:30:00Z", "2027-02-22", "2027-03-28"],
-  ])("covers today and the 34 UTC days before (%s)", (_case, now, first, last) => {
+    ["midday", "2026-11-06T12:00:00Z", "2026-10-03", "2026-11-07"],
+    ["just after midnight UTC", "2026-11-06T00:05:00Z", "2026-10-03", "2026-11-07"],
+    ["just before midnight UTC", "2026-11-06T23:55:00Z", "2026-10-03", "2026-11-07"],
+    ["across a year", "2027-01-10T09:00:00Z", "2026-12-07", "2027-01-11"],
+    ["across a leap day", "2028-03-15T09:00:00Z", "2028-02-10", "2028-03-16"],
+    ["on the day the clocks go back", "2026-10-25T00:30:00Z", "2026-09-21", "2026-10-26"],
+    ["on the day the clocks go forward", "2027-03-28T01:30:00Z", "2027-02-22", "2027-03-29"],
+  ])("covers today, the 34 UTC days before and tomorrow (%s)", (_case, now, first, last) => {
     const days = medsRecentDays(new Date(now));
-    expect(days).toHaveLength(35);
+    expect(days).toHaveLength(36);
     expect(days[0]).toBe(first);
     expect(days.at(-1)).toBe(last);
-    expect(new Set(days).size).toBe(35);
+    expect(new Set(days).size).toBe(36);
     expect([...days].sort()).toEqual(days);
   });
 
@@ -613,11 +613,17 @@ describe("hazard HZ-004 the medicines window", () => {
       ["2026-12-0", "2026-12-1", "2026-12-2", "2026-12-3", "2027-01-0", "2027-01-1"],
     ],
   ])(
-    "names the ten-day blocks that cover the 35 days, at most seven (%s)",
+    "names the ten-day blocks that cover the 36 days, at most eight (%s)",
     (_case, now, blocks) => {
       expect(offlineWindowBlocks(medsRecentDays(new Date(now)))).toEqual(blocks);
     },
   );
+
+  it("takes tomorrow's block when tomorrow starts one, so a token minted before midnight keeps the new doses (m1)", () => {
+    expect(offlineWindowBlocks(medsRecentDays(new Date("2026-11-09T23:55:00Z"))).at(-1)).toBe(
+      "2026-11-1",
+    );
+  });
 
   it("spans seven blocks on some dates (clinical review of the rebuild, m2)", () => {
     expect(offlineWindowBlocks(medsRecentDays(new Date("2026-05-02T09:00:00Z")))).toEqual([

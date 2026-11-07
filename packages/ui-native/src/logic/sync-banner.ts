@@ -72,7 +72,7 @@ const titles: Record<SyncConnectionState, string> = {
  */
 export const SCOPE_TOO_LARGE_TITLE = "This phone cannot sync";
 export const SCOPE_TOO_LARGE_REASON =
-  "You can see more homes and people than a phone can keep. Before giving medicines, check the paper MAR or ask the nurse in charge. Use the web app, or ask your manager to reduce the homes and people you can see. Your changes are safe on this phone.";
+  "Before giving medicines, check the paper MAR or ask the nurse in charge. You can see more homes and people than a phone can keep: use the web app, or ask your manager to reduce the homes and people you can see. Your changes are safe on this phone.";
 const RETRY_HINT = "Tries to connect and sync again";
 const SCOPE_RETRY_HINT = "Checks again whether this phone can sync";
 

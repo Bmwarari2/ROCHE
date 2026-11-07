@@ -47,3 +47,8 @@ export function announceRefusalOnce(text: string): void {
   lastAnnounced = text;
   AccessibilityInfo.announceForAccessibility?.(text);
 }
+
+/** Lets the refusal be said again, when the banner stops showing it (offline, then back). */
+export function forgetRefusalAnnouncement(): void {
+  lastAnnounced = null;
+}
