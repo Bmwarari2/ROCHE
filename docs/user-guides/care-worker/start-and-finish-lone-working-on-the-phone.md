@@ -5,7 +5,7 @@ You then check in on a schedule. If you miss a check-in, the people on call are 
 
 **Who can do this**: anyone who may work alone: care and support workers, team leaders or senior
 carers, nurses and clinical leads, Registered Managers, deputy managers, owners, activities,
-catering, housekeeping and maintenance staff, and agency and bank workers. Your organisation must
+catering, housekeeping and maintenance staff, and agency or bank workers. Your organisation must
 have switched lone working on.
 
 **Register rows**: SCHED-012, MOB-007.

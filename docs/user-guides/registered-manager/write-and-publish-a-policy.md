@@ -3,9 +3,6 @@
 Add a policy with its first draft, change it in later drafts, and publish a draft to put it in
 force. Publishing asks the roles you choose to read and sign it.
 
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
-
 **Who can do this**: the Registered Manager, the deputy manager, the owner and the quality and
 compliance lead. Where a policy needs a second reviewer, the person who worked on the draft cannot
 publish it. Care and support workers, team leaders or senior carers, and nurses cannot.
@@ -14,7 +11,7 @@ publish it. Care and support workers, team leaders or senior carers, and nurses 
 
 ## Add a new policy
 
-1. In the side bar, choose **Policies**, then **New policy**.
+1. In the menu, choose **Policies**, then **New policy**.
 2. Under **Policy and first draft**, fill in:
    - **Title**;
    - **Short name**: lower-case letters, numbers and underscores, starting with a letter, for
@@ -62,8 +59,7 @@ The first version is always a major change: everyone asked will read and sign it
 - A published version cannot be changed. To change it, start a new draft.
 - Only one draft at a time.
 - Thapsus Care gives the author (or the publisher) a task when the review date is near or past.
-- The rules: [quality spec section 17, rules 25 to 28](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
-  [section 18, policy library](../../specs/quality.md#18-policy-library-and-read-and-sign-slice-25-qual-008-migration-0087)
-  and section 21 of the quality spec on the `feat/quality-dashboard-pir` branch; the hazard
+- The rules are in the [quality specification](../../specs/quality.md#19-policy-library-and-read-and-sign-slice-25-qual-008-migration-0087) and its
+  [policy screens](../../specs/quality.md#21-web-screens-policies-and-data-security-slice-65-qual-008-qual-012); the hazard is
   [HZ-128](../../clinical-safety/hazard-log.md#hz-128-staff-follow-a-superseded-policy-or-procedure).
 - Staff sign with [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md).
