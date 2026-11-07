@@ -498,3 +498,181 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
     expect(JSON.stringify(rows)).not.toMatch(/Morphine|tablet|Example Pharmacy|cupboard/);
   });
 });
+
+describe("hazard HZ-115 nothing goes in the register where controlled drug recording is not turned on (H-1517)", () => {
+  const setRecording = (enabled: boolean) =>
+    asDemo((c) =>
+      c.query(
+        "UPDATE feature_flag SET enabled = $2 WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+        [DEMO.locationId, enabled],
+      ),
+    );
+  const refusedFor = async (r: Response) => {
+    expect(r.status, await r.clone().text()).toBe(409);
+    expect((await json<{ code: string }>(r)).code).toBe("cd_recording_not_enabled");
+  };
+
+  it("refuses every write with 409 cd_recording_not_enabled, audited, and takes them again once released", async () => {
+    // A page opened while recording is released, then recording turned off at the home.
+    const entryId = await morphineEntry(BEN);
+    const opened = await send("manager", `/v1/people/${BEN}/controlled-drugs/pages`, {
+      method: "POST",
+      body: { entryId },
+    });
+    expect(opened.status, await opened.clone().text()).toBe(200);
+    const pageId = (await json<{ id: string }>(opened)).id;
+    const registerRows = () =>
+      asDemo(
+        async (c) =>
+          (
+            await c.query(
+              `SELECT (SELECT count(*) FROM controlled_drug_page)::int AS pages,
+                      (SELECT count(*) FROM controlled_drug_entry)::int AS entries,
+                      (SELECT count(*) FROM controlled_drug_stock_check)::int AS checks`,
+            )
+          ).rows[0],
+      );
+    // A receipt and a dose given while released, so there is something to correct later.
+    const receipt = await send("manager", `/v1/controlled-drugs/pages/${pageId}/entries`, {
+      method: "POST",
+      body: {
+        movement: "receipt",
+        quantity: 28,
+        counterparty: "Example Pharmacy",
+        reference: "Delivery note 2002",
+        witness: { witnessAssertionId: await witness(pageId, "receipt", 28) },
+      },
+    });
+    expect(receipt.status, await receipt.clone().text()).toBe(201);
+    const dueRound = await json<{ doses: { entryId: string; dueAt: string; state: string }[] }>(
+      await send("manager", `/v1/people/${BEN}/medicine-round`),
+    );
+    const givenDue = dueRound.doses.find((d) => d.entryId === entryId && d.state !== "late")
+      ?.dueAt as string;
+    const givenId = randomUUID();
+    const gave = await send("manager", `/v1/people/${BEN}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: givenId,
+        entryId,
+        dueAt: givenDue,
+        outcome: "given",
+        amount: { quantity: 1, unitCode: TABLET.code },
+        controlledDrug: {
+          witnessAssertionId: await witness(pageId, "administration", 1, givenId),
+        },
+      },
+    });
+    expect(gave.status, await gave.clone().text()).toBe(201);
+    const givenAt = (await json<{ administration: { givenAt: string } }>(gave)).administration
+      .givenAt;
+    const before = await registerRows();
+    await setRecording(false);
+    try {
+      // Opening a page.
+      const another = await morphineEntry(BEN);
+      await refusedFor(
+        await send("manager", `/v1/people/${BEN}/controlled-drugs/pages`, {
+          method: "POST",
+          body: { entryId: another },
+        }),
+      );
+      // Signing as a witness.
+      await refusedFor(
+        await send("carer", `/v1/controlled-drugs/pages/${pageId}/witness-assertions`, {
+          method: "POST",
+          body: {
+            movement: "receipt",
+            quantity: 28,
+            administrationId: null,
+            recorderId: DEMO.users.manager.id,
+          },
+        }),
+      );
+      // A receipt (any movement or correction goes through the same route).
+      await refusedFor(
+        await send("manager", `/v1/controlled-drugs/pages/${pageId}/entries`, {
+          method: "POST",
+          body: {
+            movement: "receipt",
+            quantity: 28,
+            counterparty: "Example Pharmacy",
+            reference: "Delivery note 2001",
+            witness: { witnessAssertionId: randomUUID() },
+          },
+        }),
+      );
+      // A stock count.
+      await refusedFor(
+        await send("manager", `/v1/controlled-drugs/pages/${pageId}/stock-checks`, {
+          method: "POST",
+          body: { counted: 0, reason: null, witness: { witnessAssertionId: randomUUID() } },
+        }),
+      );
+      // A controlled drug given, which would write its register entry.
+      const round = await json<{ doses: { entryId: string; dueAt: string }[] }>(
+        await send("manager", `/v1/people/${BEN}/medicine-round`),
+      );
+      const dueAt = round.doses.find((d) => d.entryId === entryId)?.dueAt;
+      await refusedFor(
+        await send("manager", `/v1/people/${BEN}/medicine-administrations`, {
+          method: "POST",
+          body: {
+            id: randomUUID(),
+            entryId,
+            dueAt,
+            outcome: "given",
+            amount: { quantity: 1, unitCode: TABLET.code },
+            controlledDrug: { witnessAssertionId: randomUUID() },
+          },
+        }),
+      );
+      // Correcting the amount of the controlled drug given while recording was released.
+      await refusedFor(
+        await send("manager", `/v1/medicine-administrations/${givenId}/corrections`, {
+          method: "POST",
+          body: {
+            id: randomUUID(),
+            correctionReason: "Two tablets were given, not one",
+            entryId,
+            dueAt: givenDue,
+            outcome: "given",
+            // A different amount moves the register's balance, so it would write a margin entry.
+            amount: { quantity: 2, unitCode: TABLET.code },
+            amountDifferenceReason: "Two tablets were given by mistake",
+            givenAt: givenAt,
+          },
+        }),
+      );
+      // Nothing reached the register.
+      expect(await registerRows()).toEqual(before);
+      // Each refusal is audited as denied, with its code.
+      const denied = await asDemo(async (c) =>
+        (
+          await c.query(
+            `SELECT action FROM audit_event
+              WHERE outcome = 'denied' AND scope::text LIKE '%cd_recording_not_enabled%'`,
+          )
+        ).rows.map((r) => r.action as string),
+      );
+      expect(new Set(denied)).toEqual(
+        new Set([
+          "medicines.cd.page_opened",
+          "medicines.cd.witness_asserted",
+          "medicines.cd.entry_recorded",
+          "medicines.cd.stock_checked",
+          "medicines.administration.recorded",
+          "medicines.administration.corrected",
+        ]),
+      );
+    } finally {
+      await setRecording(true);
+    }
+    // Released again: the page opens as before.
+    const again = await send("manager", `/v1/people/${BEN}/controlled-drugs/pages`, {
+      method: "POST",
+      body: { entryId },
+    });
+    expect(again.status).toBe(200);
+  });
+});
