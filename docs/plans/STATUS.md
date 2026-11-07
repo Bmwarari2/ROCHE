@@ -32,6 +32,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Retention sweeps: plan (07/11/2026)
+
+`feat/platform-retention-sweeps`: `docs/plans/retention-sweeps.md`, a draft inventory and plan for
+destroying Phase 2 records when their retention class ends. Nothing destroys database rows today;
+133 of the 135 Phase 2 tables with personal data are never swept. 15 slices, report only first;
+an ADR and 12 DPO questions come before any record is destroyed.
+
 ## User guides: workforce and scheduling (07/11/2026)
 
 `docs/guides-workforce-scheduling` (Phase 2 slice 82), from `main` at b65e7b61: 63 guides for the
