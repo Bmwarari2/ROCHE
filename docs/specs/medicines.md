@@ -1114,6 +1114,20 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
    `scan_evidence`. A refused record moves to "needs attention" and leaves the round.
 5. Local reminders when a time-critical dose's window opens, naming no one.
 
+### 13.10 Controlled drugs, corrections and conflicts on the phone (slice 70; ADR-0084)
+
+1. Each member who records or witnesses controlled drugs sets a medicines PIN on the phone while
+   online (`POST /v1/me/device-keys`, with a fresh step-up; a witness signs in on that phone for
+   this alone). The PIN unlocks their own key on that phone; wrong PINs are throttled.
+2. A controlled drug given needs the witness's PIN and the recorder's: both sign the dose statement
+   and the API verifies them on upload, then writes the register entry with a `device_factor`
+   witness. The phone always asks for a witness.
+3. A record that has reached Harbour is corrected by a new record naming it, with why (at least 20
+   characters), sent to the corrections route; a record still waiting on the phone, or a controlled
+   drug's record, is not corrected on the phone.
+4. The nurse in charge reviews doses recorded on two phones online on the phone: the same dose sent
+   twice, or given twice (a medication incident); a correction of the MAR is made on the web.
+
 ### 13.9 Audit and outbox
 
 Audit actions, carrying ids, outcomes, flags and problem codes, never the medicine or the dose:

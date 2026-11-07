@@ -229,6 +229,15 @@ on the phone, encrypted, until it is sent. The camera reads barcodes on the devi
 is kept or sent. Reminders for time-critical doses are local notifications that name no one. No
 new recipient or sub-processor (H-1432 adds attestation vendors when it lands).
 
+Controlled drugs on the phone (Phase 2 slice 70, migration 0153; ADR-0084): B3 now also covers each
+member's public signing key for each phone they set a medicines PIN on (when, which phone), and
+B1 the witness's signature on a controlled drug's dose made on the phone (which key, when). The
+private key stays on the phone, sealed by the member's PIN in the encrypted database, and goes with
+that database. A witness signs in on another member's phone once to set their PIN; that sign-in
+ends straight away and nothing of it is kept but the key. Corrections and conflict decisions made
+on the phone are the records they already were on the web. No new recipient or sub-processor
+(H-1440).
+
 Rounds and conflict review (Phase 2 slice 48, migration 0134): B1 now also covers a second record
 of a dose uploaded from a device after one was held (the record as the device sent it, who sent
 it and when, and what the server found wrong with it), kept for the nurse in charge, and its
