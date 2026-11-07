@@ -6060,6 +6060,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "person_location_id": {
+          "name": "person_location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "key": {
           "name": "key",
           "type": "text",
@@ -6249,6 +6255,12 @@
         "at_home": {
           "name": "at_home",
           "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "person_location_id": {
+          "name": "person_location_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },

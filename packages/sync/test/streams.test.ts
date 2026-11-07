@@ -207,7 +207,13 @@ describe("sync streams definition", () => {
             query.includes("IN auth.parameter('handover_assigned_location_ids')"),
           stream,
         ).toBe(true);
-        expect(query, stream).toContain(`AND auth.parameter('${family}_assigned') = true`);
+        // Tasks about nobody given to the member have their own claim, which the whole-home cover
+        // never turns off (ADR-0134).
+        expect(query, stream).toContain(
+          query.includes("task.person_id IS NULL")
+            ? "AND auth.parameter('care_own_tasks') = true"
+            : `AND auth.parameter('${family}_assigned') = true`,
+        );
       } else {
         expect(query, stream).toContain(`IN auth.parameter('${family}_location_ids')`);
         for (const other of ["people", "care", "entries", "handover"].filter((f) => f !== family)) {
@@ -238,8 +244,9 @@ describe("sync streams definition", () => {
       ({ stream }) => stream.endsWith("_open_tasks") || stream.endsWith("_handovers"),
     );
     // Since ADR-0134: the location tasks are one query (every task at the home, by its sync home);
-    // whole readers' handovers five, limited readers' seven (with the mixed scope's two).
-    expect(shiftQueries).toHaveLength(15);
+    // whole readers' handovers seven (items and notes about nobody here, or about people living
+    // at their homes now), limited readers' seven (with the mixed scope's two).
+    expect(shiftQueries).toHaveLength(17);
     for (const { stream, query } of shiftQueries) {
       // By day where the bucket is a whole home's; by ten-day block where it is a person's, the
       // member's or a home a limited reader may open (ADR-0134).

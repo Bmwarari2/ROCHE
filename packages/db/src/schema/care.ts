@@ -951,6 +951,8 @@ export const handoverItem = pgTable(
     syncLocationId: uuid("sync_location_id"),
     shiftEnd: timestamp("shift_end", { withTimezone: true }),
     atHome: boolean("at_home"),
+    /** The home of the person the row is about, now (moved with them); none for nobody. */
+    personLocationId: uuid("person_location_id"),
     /** Stable identity within the handover: the same record never appears twice under one kind. */
     key: text("key").notNull(),
     /** The order items were compiled and added in (0 first). */
@@ -1018,6 +1020,8 @@ export const handoverNote = pgTable(
     syncLocationId: uuid("sync_location_id"),
     shiftEnd: timestamp("shift_end", { withTimezone: true }),
     atHome: boolean("at_home"),
+    /** The home of the person the row is about, now (moved with them); none for nobody. */
+    personLocationId: uuid("person_location_id"),
     /**
      * The item annotated (`handover_item.key`); null for a note on the whole handover. The writer
      * must be able to see the item (a trigger reads it under their row-level security).

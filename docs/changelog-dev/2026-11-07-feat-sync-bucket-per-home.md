@@ -14,9 +14,15 @@ Branch `feat/sync-bucket-per-home`, from `main` (no PR yet).
   before.
 - The API leaves a family's assigned streams off where its whole-home streams already carry
   everyone the member is assigned to, and names the homes a limited reader's handovers come from.
-- `packages/sync/test/bucket-budget.test.ts`: a 120-bed home 354 buckets, a care worker with 20
-  people 392, at the 31-day window.
-- Docs: ADR-0134, HZ-002, HZ-138, data standards, records of processing, H-1428 and H-1429.
+- The API estimates each token's buckets and narrows a member reaching many homes to the homes
+  they work at (`sync_narrowed`; the phone's notice is H-1430).
+- `packages/sync/test/bucket-budget.test.ts`: a whole 120-bed home and a care worker with 20
+  people at or under 500 at the 31-day window, on the dates with the most ten-day blocks; groups
+  and large assignment counts estimated at or above the engine.
+- Review fixes: an insert during a move waits for it (advisory lock); the person read in the
+  organisation's view; tasks stay with their home; whole readers' handover items about people
+  now at their homes (HZ-018); tasks about nobody given to the member keep their own claim.
+- Docs: ADR-0134, HZ-002, HZ-011, HZ-018, HZ-138, data standards, records of processing, H-1428 to H-1430.
 
 ## What is next
 

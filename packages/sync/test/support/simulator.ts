@@ -21,8 +21,10 @@ export type SourceRows = Record<string, SqliteRow[]>;
 /**
  * The tables whose `sync_location_id` the database sets from the person (migration 0145;
  * ADR-0134). A fixture row that leaves it out gets it here as the trigger would: the person's
- * home while they receive care, else none; a task about nobody keeps its own home. A row whose
- * person is not in the fixture keeps its own `location_id`.
+ * home while they receive care, else none; a task, its own home while its person receives care;
+ * a task about nobody, its own home. A row whose person is not in the fixture gets none, as in the
+ * database. The rows are routed by the person's state now: moves within the window, and the
+ * insert-move race, are tested against Postgres (packages/db/test/sync-location.test.ts).
  */
 const SYNC_LOCATION_TABLES = new Set([
   "care_note",
@@ -64,6 +66,12 @@ function withHandoverSync(source: SourceRows): SourceRows {
               ...(name === "handover_acknowledgement"
                 ? {}
                 : {
+                    person_location_id:
+                      r.person_location_id !== undefined
+                        ? r.person_location_id
+                        : person === null
+                          ? null
+                          : (homes.get(String(person)) ?? null),
                     at_home:
                       r.at_home !== undefined
                         ? r.at_home
@@ -97,9 +105,11 @@ function withSyncLocation(source: SourceRows): SourceRows {
                   sync_location_id:
                     r.person_id === null || r.person_id === undefined
                       ? (r.location_id ?? null)
-                      : homes.has(r.person_id)
-                        ? (homes.get(r.person_id) ?? null)
-                        : (r.location_id ?? null),
+                      : name === "task"
+                        ? homes.has(r.person_id) && homes.get(r.person_id) !== null
+                          ? (r.location_id ?? null)
+                          : null
+                        : (homes.get(r.person_id) ?? null),
                 },
           )
         : rows,
@@ -155,6 +165,10 @@ export async function syncFor(
       .map((a) => homes.get(a.person_id))
       .filter((l): l is string => typeof l === "string");
     claims = { ...claims, handover_assigned_location_ids: [...new Set(assignedHomes)].sort() };
+  }
+  // Tasks about nobody given to the member follow the care family's own assigned reach.
+  if (!("care_own_tasks" in claims)) {
+    claims = { ...claims, care_own_tasks: claims.care_assigned === true };
   }
   source = withHandoverSync(withSyncLocation(source));
   // Replication: assign every row to buckets and build the parameter lookup index.

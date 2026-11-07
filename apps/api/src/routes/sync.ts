@@ -25,10 +25,12 @@ import {
   scopeFor,
 } from "@harbour/domain";
 import {
+  estimateBuckets,
   isValidWindowDays,
   OFFLINE_WINDOW_RATE_KEY,
   offlineWindowBlocks,
   offlineWindowDays,
+  SYNC_BUCKET_LIMIT,
   shiftWindowDays,
 } from "@harbour/sync/streams";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -286,11 +288,12 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             assignedCovered(reach.locationIds, assignedHomes)
               ? { ...reach, assigned: false }
               : reach;
-          const people = covered(familyReach(access.effective, "people", allIds));
-          const care = covered(familyReach(access.effective, "care", allIds));
-          const entries = covered(familyReach(access.effective, "entries", allIds));
-          const handovers = covered(familyReach(access.effective, "handover", allIds));
-          const recording = familyReach(access.effective, "entries_write", allIds);
+          let people = covered(familyReach(access.effective, "people", allIds));
+          const careReach = familyReach(access.effective, "care", allIds);
+          let care = covered(careReach);
+          let entries = covered(familyReach(access.effective, "entries", allIds));
+          let handovers = covered(familyReach(access.effective, "handover", allIds));
+          let recording = familyReach(access.effective, "entries_write", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
           const rated = await rateNumber(tx, access.tenantId, OFFLINE_WINDOW_RATE_KEY).catch(
@@ -305,6 +308,58 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             );
           }
           const offlineDays = offlineWindowDays(new Date(), windowDays);
+          // Buckets per connection (ADR-0134; HZ-002): a phone over PowerSync's limit gets no
+          // fresh data at all, so where the estimate passes it the whole-home reach narrows to the
+          // homes the member works at, and the phone is told (`sync_narrowed`).
+          const estimateFor = async () => {
+            const wholeHomes = [...new Set([...people.locationIds, ...care.locationIds])];
+            const [{ n } = { n: 0 }] =
+              wholeHomes.length > 0
+                ? await tx
+                    .select({ n: sql<number>`count(*)::int` })
+                    .from(person)
+                    .where(
+                      and(
+                        inArray(person.locationId, wholeHomes),
+                        inArray(person.status, ["active", "on_leave", "in_hospital"]),
+                      ),
+                    )
+                : [{ n: 0 }];
+            const anyAssigned =
+              people.assigned || care.assigned || entries.assigned || handovers.assigned;
+            return estimateBuckets({
+              days: offlineDays.length,
+              blocks: offlineWindowBlocks(offlineDays).length,
+              shiftDays: shiftWindowDays(new Date()).length,
+              entriesHomes: entries.locationIds.length,
+              careHomes: care.locationIds.length,
+              handoverHomes: handovers.locationIds.length,
+              wholePeople: n,
+              assignedPeople: anyAssigned ? assignedHomes.length : 0,
+              assignedHomes: new Set(assignedHomes.map((a) => a.locationId)).size,
+            });
+          };
+          let estimate = await estimateFor();
+          let narrowed = false;
+          if (estimate > SYNC_BUCKET_LIMIT) {
+            const work = new Set(workIds);
+            const toWork = (reach: { locationIds: string[]; assigned: boolean }) => ({
+              ...reach,
+              locationIds: reach.locationIds.filter((l) => work.has(l)),
+            });
+            people = toWork(people);
+            care = toWork(care);
+            entries = toWork(entries);
+            handovers = toWork(handovers);
+            recording = toWork(recording);
+            narrowed = true;
+            estimate = await estimateFor();
+            // Opaque ids and counts only.
+            c.get("services").logger.warn(
+              { tenantId: access.tenantId, estimate, limit: SYNC_BUCKET_LIMIT },
+              "sync token narrowed to the member's work locations to stay under the buckets limit",
+            );
+          }
           // Where handovers reach the phone, the shift pattern of each nation the organisation
           // has homes in (the rate table's two shifts, until rotas define them per location), so
           // the phone can work out, offline, which handover it should hold and say when it is not
@@ -347,6 +402,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               entriesAssigned: entries.assigned,
               handoverAssigned: handovers.assigned,
               offlineWindowDays: windowDays,
+              bucketEstimate: estimate,
+              narrowed,
             },
             requestId: c.get("requestId"),
           });
@@ -382,19 +439,29 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             entries_location_ids: entries.locationIds,
             people_assigned: people.assigned,
             care_assigned: care.assigned,
+            // Tasks about nobody given to the member, at any home: never left off by the cover
+            // above, which only knows about people (security review of ADR-0134, M2).
+            care_own_tasks: careReach.assigned,
             entries_assigned: entries.assigned,
             handover_location_ids: handovers.locationIds,
             handover_assigned: handovers.assigned,
             // The homes where the member's assigned people live: the handovers they may open
             // there sync per home and day (`app.handover_location_visible`; ADR-0134).
             handover_assigned_location_ids: handovers.assigned
-              ? [...new Set(assignedHomes.map((a) => a.locationId))].sort()
+              ? [
+                  ...new Set(
+                    assignedHomes
+                      .map((a) => a.locationId)
+                      .filter((l): l is string => typeof l === "string"),
+                  ),
+                ].sort()
               : [],
             entries_write_location_ids: recording.locationIds,
             entries_write_assigned: recording.assigned,
             ...(writePersonIds ? { entries_write_person_ids: writePersonIds } : {}),
             offline_days: offlineDays,
             offline_blocks: offlineWindowBlocks(offlineDays),
+            ...(narrowed ? { sync_narrowed: true } : {}),
             handover_shifts: handoverShifts,
             // The member's own shifts and clock events (scheduling.md section 18): only for those
             // who clock their own time; empty otherwise, so no shift syncs (fails closed).

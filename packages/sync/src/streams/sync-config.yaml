@@ -40,14 +40,19 @@
 #                         by person and block, not by person and day (ADR-0134)
 #   handover_assigned_location_ids  the homes where the member's assigned people live: the
 #                         handovers a limited reader may open there, per home and block
+#   care_own_tasks        whether tasks about nobody given to the member sync (care.plan.read
+#                         reaching assigned people); never turned off by the whole-home cover
 #
 # Buckets per connection (ADR-0134; HZ-002, HZ-138). PowerSync refuses a connection over its
 # limits (infra/powersync/powersync.yaml), so no stream keys a home's rows by person: a home's
 # entries, tasks and handover rows filter on columns of the row itself, which the database sets
 # and moves with the person (migration 0145): `sync_location_id`, the person's home while they
-# receive care, else none (so L1 below still holds); on a handover's rows its home, `shift_end`
-# and `at_home`. Assigned rows key by person and ten-day block. A family's assigned streams are
-# left off when its whole-home claims already carry everyone the member is assigned to.
+# receive care, else none (so L1 below still holds); a task, its own home while its person receives
+# care; on a handover's rows its home and `shift_end`, and on items and notes `person_location_id`
+# (the person's home now) and `at_home`. Assigned rows key by person and ten-day block. A family's
+# assigned streams are left off when its whole-home claims already carry everyone the member is
+# assigned to (tasks about nobody given to the member keep their own claim, care_own_tasks); the
+# API estimates a token's buckets and narrows a member reaching many homes (sync_narrowed).
 # packages/sync/test/bucket-budget.test.ts measures the worst cases.
 #
 # Assignments end by soft delete (deleted_at) when valid_to passes or when revoked, because sync
@@ -584,7 +589,7 @@ streams:
           AND (task.status = 'open' OR task.status = 'in_progress')
           AND task.deleted_at IS NULL
           AND substring(task.due_at, 1, 9) IN auth.parameter('offline_blocks')
-          AND auth.parameter('care_assigned') = true
+          AND auth.parameter('care_own_tasks') = true
 
   location_open_tasks:
     auto_subscribe: true
@@ -740,7 +745,17 @@ streams:
         FROM handover_item
         WHERE handover_item.tenant_id = auth.parameter('tenant_id')
           AND handover_item.sync_location_id IN auth.parameter('handover_location_ids')
-          AND handover_item.at_home = true
+          AND handover_item.person_id IS NULL
+          AND substring(handover_item.shift_end, 1, 10) IN auth.parameter('offline_days')
+      - >-
+        SELECT handover_item.id, handover_item.tenant_id, handover_item.handover_id,
+               handover_item.key AS item_key, handover_item.position, handover_item.kind,
+               handover_item.person_id, handover_item.source_type, handover_item.source_id,
+               handover_item.at, handover_item.late_addition, handover_item.added_at,
+               handover_item.summary
+        FROM handover_item
+        WHERE handover_item.tenant_id = auth.parameter('tenant_id')
+          AND handover_item.person_location_id IN auth.parameter('handover_location_ids')
           AND substring(handover_item.shift_end, 1, 10) IN auth.parameter('offline_days')
       - >-
         SELECT handover_note.id, handover_note.tenant_id, handover_note.handover_id,
@@ -749,7 +764,15 @@ streams:
         FROM handover_note
         WHERE handover_note.tenant_id = auth.parameter('tenant_id')
           AND handover_note.sync_location_id IN auth.parameter('handover_location_ids')
-          AND handover_note.at_home = true
+          AND handover_note.person_id IS NULL
+          AND substring(handover_note.shift_end, 1, 10) IN auth.parameter('offline_days')
+      - >-
+        SELECT handover_note.id, handover_note.tenant_id, handover_note.handover_id,
+               handover_note.item_key, handover_note.person_id, handover_note.body,
+               handover_note.created_at, handover_note.created_by
+        FROM handover_note
+        WHERE handover_note.tenant_id = auth.parameter('tenant_id')
+          AND handover_note.person_location_id IN auth.parameter('handover_location_ids')
           AND substring(handover_note.shift_end, 1, 10) IN auth.parameter('offline_days')
       - >-
         SELECT handover_acknowledgement.id, handover_acknowledgement.tenant_id,
