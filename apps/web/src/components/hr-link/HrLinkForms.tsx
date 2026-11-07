@@ -24,7 +24,7 @@ import {
   UserX,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useState, useTransition } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState, useTransition } from "react";
 import {
   changeHrLinkSettings,
   changePayCodes,
@@ -84,6 +84,8 @@ function useHrLinkSend() {
     startTransition(async () => {
       const outcome = await call();
       setResult(outcome);
+      // The copies to release changed: the page reads them again, so the new list is offered.
+      if (!outcome.ok && outcome.code === "hr_link_drift_changed") router.refresh();
       if (outcome.ok) {
         after?.();
         const params = new URLSearchParams({ ...arrival(outcome.data), at: String(Date.now()) });
@@ -94,14 +96,49 @@ function useHrLinkSend() {
   return { result, pending, send, setResult };
 }
 
-const feedback = (result: ActionResult<unknown> | null, fieldIds?: Record<string, string>) => (
+const feedback = (
+  result: ActionResult<unknown> | null,
+  fieldIds?: Record<string, string>,
+  kept = false,
+) => (
   <ManageFeedback
     result={result}
     path={HR_LINK_PAGE}
-    stepUp={t("hrLink.stepUp")}
+    stepUp={kept ? t("hrLink.stepUpKept") : t("hrLink.stepUp")}
     {...(fieldIds ? { fieldIds } : {})}
   />
 );
+
+/**
+ * What a pay form held when the API asked for a fresh step-up, kept in this tab's session
+ * storage (pay codes and a date: no personal data) and put back once, when the person comes back
+ * from confirming it is them. Storage that is not available keeps nothing, as before.
+ */
+function useKeptDraft<T>(key: string) {
+  const name = `harbour.hr-link.${key}`;
+  const [draft, setDraft] = useState<T | null>(null);
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(name);
+      if (raw === null) return;
+      window.sessionStorage.removeItem(name);
+      setDraft(JSON.parse(raw) as T);
+    } catch {
+      // Nothing kept: the form starts from the saved settings.
+    }
+  }, [name]);
+  const keep = (value: T) => {
+    try {
+      window.sessionStorage.setItem(name, JSON.stringify(value));
+    } catch {
+      // Storage refused: the step-up notice still says what to do.
+    }
+  };
+  return { draft, keep };
+}
+
+const stepUpAsked = (result: ActionResult<unknown>) =>
+  !result.ok && result.code === "step_up_required";
 
 const appName = () => t("app.name");
 
@@ -169,7 +206,10 @@ export function CheckButtons() {
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [checked, setChecked] = useState<Checked | null>(null);
   const [pending, startTransition] = useTransition();
-  const run = (which: "test" | "sync") =>
+  // While working the buttons stay focusable (aria-disabled, not disabled), so focus never drops
+  // to the page; a second press is ignored. The result is said in the status below them.
+  const run = (which: "test" | "sync") => {
+    if (pending) return;
     startTransition(async () => {
       setChecked(null);
       if (which === "test") {
@@ -194,6 +234,7 @@ export function CheckButtons() {
       }
       router.refresh();
     });
+  };
   const good = checked && (checked.kind === "test" ? checked.ok : checked.error === null);
   return (
     <div className="flex flex-col gap-3">
@@ -201,7 +242,7 @@ export function CheckButtons() {
         <Button
           variant="secondary"
           icon={<ShieldCheck {...icon} />}
-          disabled={pending}
+          aria-disabled={pending}
           onClick={() => run("test")}
         >
           {t("hrLink.check.test")}
@@ -209,7 +250,7 @@ export function CheckButtons() {
         <Button
           variant="secondary"
           icon={<RefreshCw {...icon} />}
-          disabled={pending}
+          aria-disabled={pending}
           onClick={() => run("sync")}
         >
           {t("hrLink.check.sync")}
@@ -228,16 +269,14 @@ export function CheckButtons() {
               {checked.kind === "test"
                 ? checked.ok
                   ? t("hrLink.check.testOk")
-                  : t("hrLink.check.testFailed", {
-                      reason: t("hrLink.code", { code: checked.code ?? "unavailable" }),
-                    })
-                : t("hrLink.check.synced", {
-                    linked: checked.linked,
-                    review: checked.review,
-                    failed: checked.failed,
-                    error: checked.error ? "yes" : "no",
-                    reason: checked.error ? t("hrLink.code", { code: checked.error }) : "",
-                  })}
+                  : `${t("hrLink.check.testFailed")} ${t("hrLink.reason", { code: checked.code ?? "unavailable" })}`
+                : checked.error
+                  ? `${t("hrLink.check.syncStopped")} ${t("hrLink.reason", { code: checked.error })}`
+                  : t("hrLink.check.synced", {
+                      linked: checked.linked,
+                      review: checked.review,
+                      failed: checked.failed,
+                    })}
             </span>
           </p>
         ) : null}
@@ -359,7 +398,7 @@ export function DisconnectForm() {
               )
             }
           >
-            {pending ? t("common.saving") : t("hrLink.disconnect.confirm")}
+            {pending ? t("hrLink.disconnect.pending") : t("hrLink.disconnect.confirm")}
           </Button>
         </div>
         {feedback(result)}
@@ -498,6 +537,12 @@ export function PayRouteForm({
   const [route, setRoute] = useState<"harbour_export" | "thapsus_hr">(
     current === "thapsus_hr" ? "harbour_export" : "thapsus_hr",
   );
+  const { draft, keep } = useKeptDraft<{ route: "harbour_export" | "thapsus_hr"; from: string }>(
+    "pay-route",
+  );
+  useEffect(() => {
+    if (draft) setRoute(draft.route);
+  }, [draft]);
   const { result, pending, send, setResult } = useHrLinkSend();
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -509,7 +554,15 @@ export function PayRouteForm({
       });
     }
     send(
-      () => changePayRoute({ expectedVersion: version, route: read.route, from: read.from }),
+      async () => {
+        const outcome = await changePayRoute({
+          expectedVersion: version,
+          route: read.route,
+          from: read.from,
+        });
+        if (stepUpAsked(outcome)) keep({ route: read.route, from: read.from });
+        return outcome;
+      },
       () => ({ done: "payRoute" }),
     );
   };
@@ -536,8 +589,10 @@ export function PayRouteForm({
         error={errorFor(result, "route")}
       />
       <DateInput
+        key={draft?.from ?? "none"}
         id={ids.from}
         name="from"
+        defaultValue={draft?.from ?? null}
         legend={t("hrLink.pay.from")}
         hint={t("hrLink.pay.fromHint")}
         labels={{
@@ -553,7 +608,7 @@ export function PayRouteForm({
           {pending ? t("common.saving") : t("hrLink.pay.routeSubmit")}
         </Button>
       </div>
-      {feedback(result, ids)}
+      {feedback(result, ids, true)}
     </form>
   );
 }
@@ -567,19 +622,28 @@ export function PayCodesForm({
   readonly codes: Readonly<Record<string, string>>;
 }) {
   const ids = useFieldIds(PAY_UNIT_KINDS.map(payCodeField));
+  const { draft, keep } = useKeptDraft<Record<string, string>>("pay-codes");
+  const shown = draft ?? codes;
   const { result, pending, send, setResult } = useHrLinkSend();
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const read = readPayCodes(new FormData(event.currentTarget), t);
     if (!read.ok) return setResult(fieldErrors(read.errors));
     send(
-      () => changePayCodes({ expectedVersion: version, codes: read.codes }),
+      async () => {
+        const outcome = await changePayCodes({ expectedVersion: version, codes: read.codes });
+        if (stepUpAsked(outcome)) keep(read.codes);
+        return outcome;
+      },
       () => ({ done: "payCodes" }),
     );
   };
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
-      <fieldset className="m-0 grid gap-3 border-0 p-0 sm:grid-cols-2">
+      <fieldset
+        key={draft ? "kept" : "saved"}
+        className="m-0 grid gap-3 border-0 p-0 sm:grid-cols-2"
+      >
         <legend className="mb-2 font-semibold">{t("hrLink.pay.codesLegend")}</legend>
         {PAY_UNIT_KINDS.map((kind) => (
           <TextField
@@ -590,7 +654,7 @@ export function PayCodesForm({
             autoComplete="off"
             spellCheck={false}
             maxLength={32}
-            defaultValue={codes[kind] ?? ""}
+            defaultValue={shown[kind] ?? ""}
             error={errorFor(result, payCodeField(kind))}
           />
         ))}
@@ -600,7 +664,7 @@ export function PayCodesForm({
           {pending ? t("common.saving") : t("hrLink.pay.codesSubmit")}
         </Button>
       </div>
-      {feedback(result, ids)}
+      {feedback(result, ids, true)}
     </form>
   );
 }
@@ -657,7 +721,9 @@ export function ReleaseForm({
       />
       <div>
         <Button type="submit" icon={<Undo2 {...icon} />} disabled={pending}>
-          {pending ? t("common.saving") : t("hrLink.release.submit", { count: hrIds.length })}
+          {pending
+            ? t("hrLink.release.pending")
+            : t("hrLink.release.submit", { count: hrIds.length })}
         </Button>
       </div>
       {feedback(result, ids)}

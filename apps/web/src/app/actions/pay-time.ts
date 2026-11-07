@@ -4,7 +4,7 @@ import { sendAndRevalidate } from "@/lib/care-actions";
 import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
-import { ABSENCE_REQUEST_KINDS } from "@/lib/pay-time";
+import { ABSENCE_REQUEST_KINDS, confirmExportRefusal } from "@/lib/pay-time";
 
 /**
  * Writes for the time, absence and pay screens (Phase 2 slice 60). The API checks every
@@ -114,22 +114,33 @@ export async function decideAbsence(
   );
 }
 
+/**
+ * Starts a pay run. `confirmExport` sends a period set for the HR platform to the payroll export
+ * instead while its link is down (HZ-140): the API allows it only to a pay approver with a fresh
+ * step-up, and says so when not.
+ */
 export async function createPayRun(body: {
   frequency: "weekly" | "monthly";
   periodStart: string;
   periodEnd: string;
+  confirmExport?: boolean;
 }): Promise<ActionResult<{ id: string }>> {
   if (
     (body.frequency !== "weekly" && body.frequency !== "monthly") ||
     !isDate(body.periodStart) ||
-    !isDate(body.periodEnd)
+    !isDate(body.periodEnd) ||
+    (body.confirmExport !== undefined && typeof body.confirmExport !== "boolean")
   ) {
     return invalid();
   }
   const { frequency, periodStart, periodEnd } = body;
-  return sendAndRevalidate(["/pay"], (api) =>
-    api.POST("/v1/pay-runs", { body: { frequency, periodStart, periodEnd } }),
+  const confirmExport = body.confirmExport === true;
+  const result = await sendAndRevalidate(["/pay"], (api) =>
+    api.POST("/v1/pay-runs", {
+      body: { frequency, periodStart, periodEnd, ...(confirmExport ? { confirmExport } : {}) },
+    }),
   );
+  return confirmExport ? confirmExportRefusal(result, t) : result;
 }
 
 export async function calculatePayRun(id: string, version: number): Promise<ActionResult<unknown>> {

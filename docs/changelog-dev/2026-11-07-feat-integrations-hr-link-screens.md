@@ -40,8 +40,12 @@ INTG-014; HZ-133, HZ-140. Built on slice 89 (feat/integrations-hr-link-pay).
   never retired; the "link down" refusal is explained in the web with a confirm for pay approvers;
   the guides say what the screens do (pay run label, staff file still to come, held list while
   connected or disconnected); each held copy shows whose it is.
-- Accessibility reviewer, request changes (fixed): Storybook stories with axe for the linked
-  states; focus kept on check and sync; wording, pending labels, `<time>` dates and the date hint.
+- Accessibility reviewer, request changes (fixed): the linked states (status, matches, deliveries,
+  pay, release, connect, owners, locations, the disconnect sheet, the managed label) are rendered
+  with linked data and checked with axe in light and dark in `HrLinkForms.test.tsx` (jsdom, so no
+  contrast check; Storybook here loads `@harbour/ui` only, which gained a `ManagedElsewhere`
+  `StatusChip` story for contrast); focus kept on check and sync; wording, pending labels, `<time>`
+  dates, the date hint; typed pay values kept across a step-up.
 
 ## Left
 
@@ -50,4 +54,7 @@ INTG-014; HZ-133, HZ-140. Built on slice 89 (feat/integrations-hr-link-pay).
 - The end-to-end environment cannot connect a link (the demo seed does not turn the flag on), so
   the linked screens are covered by unit and API tests only.
 - Welsh translations of the new strings.
+- Zod at the web server-action boundary for the link's actions: zod is not a dependency of the web
+  app; the actions use strict checks matching the API's limits (`lib/hr-link.ts`, tested), and the
+  API validates every field.
 - Thapsus-HR's partner pay items and pay read (H-1443).

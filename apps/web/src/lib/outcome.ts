@@ -129,6 +129,10 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     case "referenced_by_other_records":
     case "remove_sample_data_first":
       return { code, message: t("onboarding.sample.refusal", { code }) };
+    // A period set for the HR platform while its link is down (integrations.md rule 12; HZ-140):
+    // the pay run form offers sending it to the payroll export instead, on a pay approver's say.
+    case "hr_link_down_for_pay":
+      return { code, message: t("payTime.run.hrLinkDown") };
     // A copy from the HR platform (integrations.md section 11.5 rule 2): changed there, never here.
     case "managed_in_thapsus_hr":
       return { code, message: t("hrLink.managed.refusal", { app: t("app.name") }) };

@@ -53,11 +53,13 @@ export function hrLinkNavShown(me: {
   return hrLinkShown(me.permissions) && me.flags[HR_LINK_FLAG] === true;
 }
 
-export function hrLinkMay(permissions: readonly string[]): {
+export interface HrLinkMay {
   readonly manage: boolean;
   readonly review: boolean;
   readonly payCodes: boolean;
-} {
+}
+
+export function hrLinkMay(permissions: readonly string[]): HrLinkMay {
   const manage = permissions.includes(HR_LINK_MANAGE);
   return {
     manage,
@@ -361,8 +363,12 @@ const problemCodeOf = (error: unknown): string =>
  */
 export function hrLinkProblem(error: unknown, form: HrLinkForm, t: Translator): Problem {
   const code = problemCodeOf(error);
-  const say = (key: Parameters<Translator>[0], field?: string): Problem => {
-    const message = t(key, { app: t("app.name") });
+  const say = (
+    key: Parameters<Translator>[0],
+    field?: string,
+    values: Record<string, string | number> = {},
+  ): Problem => {
+    const message = t(key, { app: t("app.name"), ...values });
     return { code, message, ...(field ? { fields: { [field]: message } } : {}) };
   };
   switch (code) {
@@ -370,6 +376,8 @@ export function hrLinkProblem(error: unknown, form: HrLinkForm, t: Translator): 
       return say("hrLink.problem.notUk", form === "connect" ? "workspaceSlug" : undefined);
     case "hr_link_unavailable":
       return say("hrLink.problem.unavailable");
+    case "rate_limited":
+      return say("hrLink.problem.rateLimited");
     case "hr_link_not_connected":
       return say("hrLink.problem.notConnected");
     case "hr_link_pay_owners":
@@ -380,8 +388,13 @@ export function hrLinkProblem(error: unknown, form: HrLinkForm, t: Translator): 
       return say("hrLink.problem.payRouteNotLater", "from");
     case "not_hr_pay_period_start":
       return say("hrLink.problem.notPayPeriodStart", "from");
-    case "hr_link_drift_changed":
-      return say("hrLink.problem.driftChanged");
+    case "hr_link_drift_changed": {
+      const now = heldNow(error);
+      return say("hrLink.problem.driftChanged", undefined, {
+        known: now === null ? "no" : "yes",
+        count: now ?? 0,
+      });
+    }
     case "hr_link_release_reason":
       return say("hrLink.problem.releaseReason", "reason");
     case "hr_link_off_while_connected":
@@ -400,9 +413,88 @@ export function hrLinkProblem(error: unknown, form: HrLinkForm, t: Translator): 
     case "invalid":
       if (form === "location") return say("hrLink.locations.chooseError", "hrLocationId");
       if (form === "payCodes") return say("hrLink.pay.codeError");
-      if (form === "settings") return say("hrLink.problem.settingsInvalid");
+      if (form === "settings") {
+        return say("hrLink.problem.settingsInvalid", undefined, {
+          min: STALENESS_MIN_MINUTES,
+          max: STALENESS_MAX_MINUTES,
+        });
+      }
       return problemMessage(error, t);
     default:
       return problemMessage(error, t);
   }
 }
+
+/** How many copies are held now, from the API's refusal ("... (7 now) ..."), or null. */
+export function heldNow(error: unknown): number | null {
+  const detail =
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as { detail?: unknown }).detail === "string"
+      ? (error as { detail: string }).detail
+      : "";
+  const match = /\((\d{1,6}) now\)/.exec(detail);
+  return match ? Number(match[1]) : null;
+}
+
+// ---- Checks at the server actions' boundary ---------------------------------------------------
+// The same rules as the forms and the API's request schemas, again where the browser's input
+// reaches the server (a server action can be called with anything).
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isInt = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n);
+
+export const validVersion = (n: unknown): n is number => isInt(n) && n >= 0;
+
+export function validConnect(body: unknown): body is {
+  readonly workspaceSlug: string;
+  readonly secretRef: string | null;
+} {
+  if (typeof body !== "object" || body === null) return false;
+  const { workspaceSlug, secretRef, ...rest } = body as Record<string, unknown>;
+  return (
+    Object.keys(rest).length === 0 &&
+    typeof workspaceSlug === "string" &&
+    WORKSPACE_SLUG.test(workspaceSlug) &&
+    (secretRef === null || (typeof secretRef === "string" && SECRET_REF.test(secretRef)))
+  );
+}
+
+export function validOwners(owners: unknown): owners is HrOwners {
+  if (typeof owners !== "object" || owners === null) return false;
+  const entries = Object.entries(owners as Record<string, unknown>);
+  return (
+    entries.length === HR_DATA_KINDS.length &&
+    HR_DATA_KINDS.every((kind) => {
+      const value = (owners as Record<string, unknown>)[kind];
+      const fixed = FIXED_HR_OWNERS[kind];
+      return fixed ? value === fixed : value === "harbour" || value === "thapsus_hr";
+    })
+  );
+}
+
+export const validStaleness = (n: unknown): n is number =>
+  isInt(n) && n >= STALENESS_MIN_MINUTES && n <= STALENESS_MAX_MINUTES;
+
+export const validPayRoute = (route: unknown, from: unknown): boolean =>
+  (route === "harbour_export" || route === "thapsus_hr") &&
+  typeof from === "string" &&
+  ISO_DATE.test(from) &&
+  !Number.isNaN(Date.parse(`${from}T00:00:00Z`));
+
+export function validPayCodes(codes: unknown): codes is Record<string, string> {
+  if (typeof codes !== "object" || codes === null) return false;
+  const entries = Object.entries(codes as Record<string, unknown>);
+  return (
+    entries.length <= PAY_UNIT_KINDS.length &&
+    entries.every(
+      ([kind, code]) =>
+        PAY_UNIT_KINDS.includes(kind) && typeof code === "string" && PAY_CODE.test(code),
+    )
+  );
+}
+
+export const validReleaseReason = (reason: unknown): reason is ReleaseReason =>
+  reason === "checked_in_hr_platform" ||
+  reason === "link_ended" ||
+  reason === "other_recorded_in_review";

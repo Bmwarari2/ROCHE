@@ -5,6 +5,7 @@ import {
   deliveryChip,
   enhancementsOf,
   FIXED_KINDS,
+  heldNow,
   hrLinkMay,
   hrLinkNavShown,
   hrLinkProblem,
@@ -22,9 +23,17 @@ import {
   syncChip,
   unitKindWords,
   unmappedKinds,
+  validConnect,
+  validOwners,
+  validPayCodes,
+  validPayRoute,
+  validReleaseReason,
+  validStaleness,
+  validVersion,
 } from "./hr-link";
 import { t } from "./i18n";
-import { fromHrPlatform, paidThroughHrPlatform } from "./pay-time";
+import { problemMessage } from "./outcome";
+import { confirmExportRefusal, fromHrPlatform, paidThroughHrPlatform } from "./pay-time";
 
 const TENANT = "0194d000-0000-7000-8000-000000000001";
 const form = (values: Record<string, string>) => ({ get: (name: string) => values[name] ?? null });
@@ -323,5 +332,92 @@ describe("states in words with an icon, never colour alone", () => {
     ["mystery", "Not known", "neutral"],
   ])("delivery %s", (state, label, status) => {
     expect(deliveryChip(state, t)).toMatchObject({ label, status });
+  });
+});
+
+describe("refusals carry what the API knows", () => {
+  it("says how many copies are waiting now when the list changed", () => {
+    const p = hrLinkProblem(
+      {
+        code: "hr_link_drift_changed",
+        detail: "The absences to release have changed (7 now). Check them again.",
+      },
+      "release",
+      t,
+    );
+    expect(p.message).toBe(
+      "The absence copies to release have changed since you checked them, so nothing was released. 7 copies are waiting now. Check the list again.",
+    );
+    expect(heldNow({ detail: "no count" })).toBeNull();
+  });
+
+  it("says the limit's range from the same figures the form checks", () => {
+    expect(hrLinkProblem({ code: "invalid" }, "settings", t).message).toContain(
+      "from 10 to 60 minutes",
+    );
+  });
+
+  it("says the HR platform asked for fewer requests in plain words", () => {
+    expect(hrLinkProblem({ code: "rate_limited" }, "release", t).message).toBe(
+      "The HR platform has been asked too often just now. Wait a minute, then try again.",
+    );
+  });
+});
+
+describe("the server actions check what reaches them", () => {
+  it.each([
+    [{ workspaceSlug: "sunrise-care", secretRef: null }, true],
+    [{ workspaceSlug: "Sunrise", secretRef: null }, false],
+    [{ workspaceSlug: "sunrise-care", secretRef: "x" }, false],
+    [{ workspaceSlug: "sunrise-care", secretRef: null, apiBaseUrl: "https://x" }, false],
+    [null, false],
+  ])("connect %o: %s", (body, ok) => {
+    expect(validConnect(body)).toBe(ok);
+  });
+
+  it("takes owners only with every kind and the fixed ones this product's", () => {
+    expect(validOwners(DEFAULT_HR_OWNERS)).toBe(true);
+    expect(validOwners({ ...DEFAULT_HR_OWNERS, care_shifts: "thapsus_hr" })).toBe(false);
+    expect(validOwners({ ...DEFAULT_HR_OWNERS, leavers: "elsewhere" })).toBe(false);
+    expect(validOwners({ ...DEFAULT_HR_OWNERS, extra: "harbour" })).toBe(false);
+  });
+
+  it.each([
+    [validStaleness(10), true],
+    [validStaleness(61), false],
+    [validStaleness(12.5), false],
+    [validPayRoute("thapsus_hr", "2026-11-30"), true],
+    [validPayRoute("elsewhere", "2026-11-30"), false],
+    [validPayRoute("thapsus_hr", "30/11/2026"), false],
+    [validPayCodes({ hours: "BASIC" }), true],
+    [validPayCodes({ wages: "BASIC" }), false],
+    [validPayCodes({ hours: "BASIC PAY" }), false],
+    [validReleaseReason("link_ended"), true],
+    [validReleaseReason("because"), false],
+    [validVersion(0), true],
+    [validVersion(-1), false],
+  ])("check %#: %s", (got, want) => {
+    expect(got).toBe(want);
+  });
+});
+
+describe("hazard HZ-140 a period for the HR platform while the link is down", () => {
+  it("says what to do instead of a generic error", () => {
+    expect(problemMessage({ code: "hr_link_down_for_pay", detail: "Thapsus" }, t)).toEqual({
+      code: "hr_link_down_for_pay",
+      message:
+        "This period is set to be paid through the HR platform, but the link is off or disconnected. Wait for the link, or confirm this period goes to the payroll export instead.",
+    });
+  });
+
+  it("tells a pay manager who does not approve pay who can send it to the export", () => {
+    const refused = { ok: false as const, code: "missing_permission", message: "x" };
+    expect(confirmExportRefusal(refused, t).message).toBe(
+      "Only someone who approves pay can send this period to the payroll export instead. Ask a pay approver, or wait for the link.",
+    );
+    const stepUp = { ok: false as const, code: "step_up_required", message: "y" };
+    expect(confirmExportRefusal(stepUp, t)).toBe(stepUp);
+    const done = { ok: true as const, data: { id: "x" } };
+    expect(confirmExportRefusal(done, t)).toBe(done);
   });
 });

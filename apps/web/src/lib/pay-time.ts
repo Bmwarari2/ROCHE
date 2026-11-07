@@ -66,6 +66,22 @@ export function fromHrPlatform(absence: { readonly source?: string | null }): bo
   return absence.source === "thapsus_hr";
 }
 
+/**
+ * What the new pay run form says when sending a period set for the HR platform to the payroll
+ * export instead was refused (HZ-140): a pay manager who does not approve pay is told who can;
+ * a step-up is asked for in words that say to choose it again. Anything else as it came.
+ */
+export function confirmExportRefusal<R extends { ok: boolean; code?: string; message?: string }>(
+  result: R,
+  t: Translator,
+): R {
+  if (result.ok) return result;
+  if (result.code === "missing_permission") {
+    return { ...result, message: t("payTime.run.confirmExportNotAllowed") };
+  }
+  return result;
+}
+
 /** A pay run whose route to payroll is the HR platform (rule 12): its units go there by pay code. */
 export function paidThroughHrPlatform(run: { readonly payRoute?: string | null }): boolean {
   return run.payRoute === "thapsus_hr";

@@ -12,6 +12,13 @@ import {
   hrLinkProblem,
   type PayRoute,
   type ReleaseReason,
+  validConnect,
+  validOwners,
+  validPayCodes,
+  validPayRoute,
+  validReleaseReason,
+  validStaleness,
+  validVersion,
 } from "@/lib/hr-link";
 import { t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
@@ -19,7 +26,9 @@ import { type ActionResult, refused } from "@/lib/outcome";
 /**
  * The link to the HR platform's writes (integrations.md sections 11.5 and 11.6; slice 90). The
  * API checks every permission, the fresh step-up, the expected version and each rule again; the
- * web keeps nothing. A refusal comes back in the catalogue's words, tied to its field.
+ * web keeps nothing. Each input is checked again here, where the browser's values reach the
+ * server, with the API's own limits (lib/hr-link.ts; zod is not a dependency of the web app). A
+ * refusal comes back in the catalogue's words, tied to its field.
  */
 
 const HR_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -40,13 +49,18 @@ async function send<T>(
 }
 
 const notFound = () => refused(t("errors.notFound"), "not_found");
-const version = (n: number) => Number.isInteger(n) && n >= 0;
+const invalid = () => refused(t("care.errors.invalid"));
+const version = validVersion;
 
 export async function connectHrLink(body: {
   readonly workspaceSlug: string;
   readonly secretRef: string | null;
 }) {
-  return send("connect", (api) => api.POST("/v1/integrations/hr-link", { body }));
+  if (!validConnect(body)) return invalid();
+  const { workspaceSlug, secretRef } = body;
+  return send("connect", (api) =>
+    api.POST("/v1/integrations/hr-link", { body: { workspaceSlug, secretRef } }),
+  );
 }
 
 export async function changeHrLinkSettings(input: {
@@ -55,6 +69,7 @@ export async function changeHrLinkSettings(input: {
   readonly stalenessMinutes: number;
 }) {
   if (!version(input.expectedVersion)) return notFound();
+  if (!validOwners(input.owners) || !validStaleness(input.stalenessMinutes)) return invalid();
   return send("settings", (api) =>
     api.PATCH("/v1/integrations/hr-link", {
       body: {
@@ -72,6 +87,7 @@ export async function changePayRoute(input: {
   readonly from: string;
 }) {
   if (!version(input.expectedVersion)) return notFound();
+  if (!validPayRoute(input.route, input.from)) return invalid();
   return send("payRoute", (api) =>
     api.PATCH("/v1/integrations/hr-link", {
       body: {
@@ -87,6 +103,7 @@ export async function changePayCodes(input: {
   readonly codes: Readonly<Record<string, string>>;
 }) {
   if (!version(input.expectedVersion)) return notFound();
+  if (!validPayCodes(input.codes)) return invalid();
   return send("payCodes", (api) =>
     api.PATCH("/v1/integrations/hr-link", {
       body: { expectedVersion: input.expectedVersion, payCodes: { ...input.codes } },
@@ -154,6 +171,7 @@ export async function releaseHrCopies(input: {
   if (ids.length === 0 || ids.length > 10_000 || !ids.every((id) => HR_ID.test(id))) {
     return notFound();
   }
+  if (!validReleaseReason(input.reason)) return invalid();
   return send("release", (api) =>
     api.POST("/v1/integrations/hr-link/absences/release", {
       body: { expectedHrIds: ids, reason: input.reason },
