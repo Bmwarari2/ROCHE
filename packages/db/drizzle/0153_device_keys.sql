@@ -33,12 +33,14 @@ CREATE POLICY tenant_isolation ON public.member_device_key AS PERMISSIVE FOR ALL
   WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 CREATE POLICY member_device_key_scope ON public.member_device_key AS RESTRICTIVE FOR SELECT
-  TO harbour_app, harbour_owner
+  TO harbour_app, harbour_owner, harbour_care_definer, harbour_finance_definer,
+    harbour_platform_definer, harbour_scheduling_definer, harbour_workforce_definer
   USING (tenant_user_id = app.current_user_id()
     OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant'));
 --> statement-breakpoint
 CREATE POLICY member_device_key_own_insert ON public.member_device_key AS RESTRICTIVE FOR INSERT
-  TO harbour_app, harbour_owner
+  TO harbour_app, harbour_owner, harbour_care_definer, harbour_finance_definer,
+    harbour_platform_definer, harbour_scheduling_definer, harbour_workforce_definer
   WITH CHECK (tenant_user_id = app.current_user_id());
 --> statement-breakpoint
 CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.member_device_key
