@@ -53,8 +53,10 @@ export const LoneWorkerRoute = z
     steps: z.array(LoneWorkerRouteStep),
     problems: z.array(z.object({ code: z.string(), message: z.string() })),
     /**
-     * Whether the organisation attaches location evidence to events: its flag on AND its signed
-     * DPIA covering it (off by default; H-527, H-1555).
+     * Whether the organisation attaches location evidence to events, organisation-wide: its flag
+     * on for the organisation AND its signed DPIA covering it (off by default; H-527, H-1555). A
+     * location's own flag row may switch it on or off at that location alone; this value does not
+     * show that.
      */
     locationEvidence: z.boolean(),
     /**

@@ -205,7 +205,8 @@ describe("feature flags", () => {
           "module.workforce",
           "dols.post_2026_review_workflow",
           "locale.welsh",
-          // Employee monitoring (H-527, H-1555): only the organisation's own row, under its DPIA.
+          // Employee monitoring (H-527, H-1555): only the organisation's own rows (its organisation
+          // row and its location rows), under its DPIA.
           "scheduling.lone_worker.location",
           "scheduling.clock.location_evidence",
         ].includes(k),

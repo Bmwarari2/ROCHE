@@ -71,8 +71,18 @@ export const ClockSettingItem = z
   .object({
     locationId: uuid,
     version: z.number().int().nullable(),
+    /** The evidence the setting asks for; it is kept only while `inUse` (H-1555). */
     evidence: ClockEvidence,
     nfcTagRefs: z.array(z.string()),
+    /**
+     * Whether the evidence asked for is in effect at the location: not none, the flag
+     * scheduling.clock.location_evidence on there, and the organisation's signed DPIA covering it
+     * (H-1555). While false, clock events keep no location or NFC evidence.
+     */
+    inUse: z.boolean().meta({
+      description:
+        "Whether the evidence asked for is in effect at the location: not none, the flag scheduling.clock.location_evidence on there, and the organisation's signed DPIA covering it (H-1555). While false, clock events keep no location or NFC evidence.",
+    }),
   })
   .meta({ id: "ClockSettingItem" });
 

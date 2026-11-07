@@ -744,6 +744,8 @@ export const timeAttendanceRouter = createRouter()
       path: "/v1/locations/{id}/clock-setting",
       tags: ["scheduling"],
       summary: "Clock evidence at a location",
+      description:
+        "scheduling.rota.manage, .rota.read or .timesheet.self. The evidence the location's setting asks for, and whether it is in effect (inUse): not none, the flag scheduling.clock.location_evidence on at the location, and the organisation's signed DPIA covering it (H-1555). While inUse is false, clock events keep no location or NFC evidence.",
       security,
       request: { params: IdParam },
       responses: {
@@ -760,15 +762,22 @@ export const timeAttendanceRouter = createRouter()
       ]);
       const { id } = c.req.valid("param");
       requireLocationInScope(access, id);
-      const [row] = await withTenant(c, (tx) =>
-        tx.select().from(clockSetting).where(eq(clockSetting.locationId, id)),
-      );
+      const { row, inUse } = await withTenant(c, async (tx) => {
+        const [found] = await tx.select().from(clockSetting).where(eq(clockSetting.locationId, id));
+        // The effective value at this location (H-1555), not only what the setting asks for.
+        const monitoring =
+          found && found.evidence !== "none"
+            ? await monitoringInUse(c.get("services").flags, tx, access.tenantId, id, EVIDENCE_FLAG)
+            : null;
+        return { row: found, inUse: monitoring?.on === true };
+      });
       return c.json(
         {
           locationId: id,
           version: row?.version ?? null,
           evidence: (row?.evidence ?? "none") as "none",
           nfcTagRefs: row?.nfcTagRefs ?? [],
+          inUse,
         },
         200,
       );
@@ -781,7 +790,7 @@ export const timeAttendanceRouter = createRouter()
       tags: ["scheduling"],
       summary: "Set clock evidence at a location",
       description:
-        "scheduling.rota.approve. Location or NFC evidence is employee monitoring (H-527, H-1555): it is refused (422 dpia_monitoring_not_covered) unless the flag scheduling.clock.location_evidence is on at the location and the organisation's signed DPIA lists it among its features. dpiaApproved is deprecated and ignored. Setting none is always allowed. Never a position: only whether the phone was at the location or read the location's tag. Audited with the evidence and the signed DPIA version relied on.",
+        "scheduling.rota.approve. Location or NFC evidence is employee monitoring (H-527, H-1555): it is refused (422 dpia_monitoring_not_covered) unless the flag scheduling.clock.location_evidence is on at the location and the organisation's signed DPIA lists it among its features. dpiaApproved is deprecated and ignored. Setting none is always allowed. Never a position: only whether the phone was at the location or read the location's tag. Audited with the evidence and the id of the signed DPIA relied on (dpiaId). The answer says whether the evidence is in effect (inUse).",
       security,
       request: { params: IdParam, body: jsonBody(ChangeClockSetting, "The setting") },
       responses: {
@@ -862,6 +871,8 @@ export const timeAttendanceRouter = createRouter()
           version: row.version,
           evidence: row.evidence as "none",
           nfcTagRefs: row.nfcTagRefs,
+          // Saved only when covered, so evidence other than none is in effect (H-1555).
+          inUse: row.evidence !== "none",
         },
         200,
       );

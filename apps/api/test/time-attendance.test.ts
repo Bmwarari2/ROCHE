@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { DEMO } from "@harbour/db/seed";
 import { ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, OTHER } from "./support/harness";
 
 /**
  * Time and attendance through the API (scheduling.md section 16; hazards HZ-010, HZ-124, HZ-011):
@@ -16,13 +16,17 @@ let h: Harness;
 const as = (who: string, path: string, init: { method?: string; body?: unknown } = {}) =>
   h.request(path, { ...init, token: h.tokens[who], tenant: DEMO.tenantId });
 
-async function sql<T = Record<string, unknown>>(text: string, params: unknown[] = []) {
+async function sql<T = Record<string, unknown>>(
+  text: string,
+  params: unknown[] = [],
+  tenantId: string = DEMO.tenantId,
+) {
   const client = await h.db.pool("harbour_owner").connect();
   try {
     await client.query("BEGIN");
     await client.query(
       "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
-      [DEMO.tenantId],
+      [tenantId],
     );
     const { rows } = await client.query(text, params);
     await client.query("COMMIT");
@@ -556,22 +560,52 @@ describe("hazard H-1555 clock evidence only under the signed DPIA", () => {
       ]);
     }
   };
-  /** The organisation's signed DPIA, listing these features; null for none signed. */
-  const signDpia = async (features: string[] | null): Promise<string | null> => {
+  const basis = (features: string[]) =>
+    JSON.stringify({ purposes: [], subProcessors: [], dataCategories: [], features });
+  /**
+   * The organisation's DPIA: signed, listing these features; null for none signed; or a version
+   * that listed `superseded` superseded by a signed one listing `signed`, as the sign path leaves
+   * them (both rows meet dpia_signed, and dpia_one_signed_key keeps one signed).
+   */
+  const signDpia = async (
+    features: string[] | null | { superseded: string[]; signed: string[] },
+  ): Promise<string | null> => {
     await sql("DELETE FROM dpia");
     if (!features) return null;
+    if (!Array.isArray(features)) {
+      const rows = await sql<{ id: string; status: string }>(
+        `INSERT INTO dpia (dpia_version, status, prefill, prepared_by, version_sha256, prepared_at,
+                           signed_by, signed_at, typed_name, statement, basis)
+         VALUES (1, 'superseded', '{}'::jsonb, ARRAY[$1::uuid], repeat('a', 64), now(), $2, now(),
+                 'Olive Owner', 'Signed for the test', $3::jsonb),
+                (2, 'signed', '{}'::jsonb, ARRAY[$1::uuid], repeat('b', 64), now(), $2, now(),
+                 'Olive Owner', 'Signed for the test', $4::jsonb)
+         RETURNING id, status`,
+        [MANAGER, OWNER, basis(features.superseded), basis(features.signed)],
+      );
+      return rows.find((r) => r.status === "signed")?.id ?? null;
+    }
     const [row] = await sql<{ id: string }>(
       `INSERT INTO dpia (dpia_version, status, prefill, prepared_by, version_sha256, prepared_at,
                          signed_by, signed_at, typed_name, statement, basis)
        VALUES (1, 'signed', '{}'::jsonb, ARRAY[$1::uuid], repeat('a', 64), now(), $2, now(),
                'Olive Owner', 'Signed for the test', $3::jsonb) RETURNING id`,
-      [
-        MANAGER,
-        OWNER,
-        JSON.stringify({ purposes: [], subProcessors: [], dataCategories: [], features }),
-      ],
+      [MANAGER, OWNER, basis(features)],
     );
     return row?.id ?? null;
+  };
+  /** The second tenant's signed DPIA, covering these features; null removes it. */
+  const signOtherDpia = async (features: string[] | null) => {
+    await sql("DELETE FROM dpia", [], OTHER.tenantId);
+    if (!features) return;
+    await sql(
+      `INSERT INTO dpia (dpia_version, status, prefill, prepared_by, version_sha256, prepared_at,
+                         signed_by, signed_at, typed_name, statement, basis)
+       VALUES (1, 'signed', '{}'::jsonb, ARRAY[$1::uuid], repeat('c', 64), now(), $2, now(),
+               'Rae River', 'Signed for the test', $3::jsonb)`,
+      [OTHER.agencyId, OTHER.managerId, basis(features)],
+      OTHER.tenantId,
+    );
   };
   const lastSettingAudit = async () =>
     (
@@ -586,6 +620,7 @@ describe("hazard H-1555 clock evidence only under the signed DPIA", () => {
   afterAll(async () => {
     await setFlag(null);
     await signDpia(null);
+    await signOtherDpia(null);
   });
 
   it.each<[string, boolean | null, string[] | null, Record<string, unknown>]>([
@@ -651,18 +686,25 @@ describe("hazard H-1555 clock evidence only under the signed DPIA", () => {
     // The deprecated tick is not needed, and false is ignored as well.
     const response = await putSetting({ evidence: "at_location", dpiaApproved: false });
     expect(response.status).toBe(200);
-    expect(((await response.json()) as { evidence: string }).evidence).toBe("at_location");
+    expect(await response.json()).toMatchObject({ evidence: "at_location", inUse: true });
     const audited = await lastSettingAudit();
     expect(audited).toMatchObject({ outcome: "success" });
     expect(audited?.scope).toMatchObject({ evidence: "at_location", dpiaId });
     expect(audited?.scope).not.toHaveProperty("dpiaApproved");
   });
 
-  it.each<[string, boolean | null, string[] | null, string]>([
+  it.each<
+    [string, boolean | null, string[] | null | { superseded: string[]; signed: string[] }, string]
+  >([
     ["covered", true, ["module.residential", FLAG], "at_location"],
     ["the flag switched off since", false, ["module.residential", FLAG], "none"],
     ["no signed DPIA", true, null, "none"],
-    ["a DPIA superseded by one without the flag", true, ["module.residential"], "none"],
+    [
+      "a DPIA superseded by one without the flag",
+      true,
+      { superseded: ["module.residential", FLAG], signed: ["module.residential"] },
+      "none",
+    ],
   ])("records clock-in evidence only when covered: %s", async (_label, flag, features, kept) => {
     // The setting asks for evidence at the location, as one saved before this check might.
     await setFlag(true);
@@ -688,6 +730,45 @@ describe("hazard H-1555 clock evidence only under the signed DPIA", () => {
     expect(item.evidence).toBe(kept);
     if (kept === "none") expect(item.flags).toContain("evidence_not_matched");
     else expect(item.flags).not.toContain("evidence_not_matched");
+    // The setting still asks for it; the answer says whether it is in effect.
+    const setting = (await (await as("manager", `/v1/locations/${LOC}/clock-setting`)).json()) as {
+      evidence: string;
+      inUse: boolean;
+    };
+    expect(setting).toMatchObject({ evidence: "at_location", inUse: kept !== "none" });
+  });
+
+  it("never relies on another organisation's signed DPIA: refused, and no evidence kept at clock-in", async () => {
+    // The setting asks for evidence at the location, saved while this organisation was covered.
+    await setFlag(true);
+    await signDpia(["module.residential", FLAG]);
+    const [current] = await sql<{ evidence: string }>(
+      "SELECT evidence FROM clock_setting WHERE location_id = $1",
+      [LOC],
+    );
+    if (current?.evidence !== "at_location") {
+      expect((await putSetting({ evidence: "at_location" })).status).toBe(200);
+    }
+    // Now only the second organisation's signed DPIA covers the flag; this one's flag stays on.
+    await signDpia(null);
+    await signOtherDpia(["module.residential", FLAG]);
+    try {
+      const refused = await putSetting({ evidence: "nfc", nfcTagRefs: ["TAG-1"] });
+      expect(refused.status).toBe(422);
+      expect(((await refused.json()) as { code: string }).code).toBe("dpia_monitoring_not_covered");
+      const [last] = await sql<{ kind: string }>(
+        "SELECT kind FROM clock_event WHERE worker_id = $1 ORDER BY recorded_at DESC LIMIT 1",
+        [CARER],
+      );
+      const kind = last?.kind === "break_start" ? "break_end" : "break_start";
+      const response = await clock("carer", { kind, evidence: "at_location" });
+      expect(response.status).toBe(201);
+      const item = (await response.json()) as { evidence: string; flags: string[] };
+      expect(item.evidence).toBe("none");
+      expect(item.flags).toContain("evidence_not_matched");
+    } finally {
+      await signOtherDpia(null);
+    }
   });
 
   it("flags the signed DPIA for review when the evidence flag is switched on after signing", async () => {

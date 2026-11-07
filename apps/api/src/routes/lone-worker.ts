@@ -360,7 +360,7 @@ export const loneWorkerRouter = createRouter()
       tags: ["scheduling"],
       summary: "The on-call route for lone-worker alarms (H-539)",
       description:
-        "Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached (the flag scheduling.lone_worker.location on and the organisation's signed DPIA covering it; H-1555). Holders of scheduling.lone_worker.check_in, .monitor or .manage.",
+        "Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached for the organisation as a whole (the organisation-wide value of the flag scheduling.lone_worker.location, on and covered by the organisation's signed DPIA; H-1555). A location's own flag row may switch it on or off at that location alone, which this value does not show. Holders of scheduling.lone_worker.check_in, .monitor or .manage.",
       security,
       responses: { 200: jsonBody(LoneWorkerRoute, "The route"), ...errorResponses },
     }),
@@ -689,7 +689,7 @@ export const loneWorkerRouter = createRouter()
       tags: ["scheduling"],
       summary: "Check in, ask for help, raise duress or finish",
       description:
-        "scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the flag scheduling.lone_worker.location is on at the session's location and the organisation's signed DPIA covers it (H-1555). Audited (duress as an event like any other).",
+        "scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the flag scheduling.lone_worker.location is on at the session's location and the organisation's signed DPIA covers it (H-1555). Audited (duress as an event like any other), with whether a location sent was kept and never the location itself.",
       security,
       request: {
         params: IdParam,
@@ -803,11 +803,14 @@ export const loneWorkerRouter = createRouter()
               .returning();
             if (finished) current = finished;
           }
-          if (
+          // A point sent is kept only under the flag and the signed DPIA (H-1555); the audit
+          // says whether it was, never where.
+          const locationKept = Boolean(
             figures &&
-            body.location &&
-            (await locationFlagOn(c, tx, access.tenantId, session.locationId))
-          ) {
+              body.location &&
+              (await locationFlagOn(c, tx, access.tenantId, session.locationId)),
+          );
+          if (figures && body.location && locationKept) {
             await tx.insert(loneWorkerLocation).values({
               eventId: event.id,
               sessionId,
@@ -826,6 +829,7 @@ export const loneWorkerRouter = createRouter()
               eventId: event.id,
               kind: kindShownToWorker(body.kind),
               late,
+              ...(body.location ? { locationKept } : {}),
             },
             ...(refusal ? { outcome: "denied" as const, reason: refusal } : {}),
           });

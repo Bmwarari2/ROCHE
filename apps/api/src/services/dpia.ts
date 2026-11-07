@@ -20,7 +20,6 @@ import {
   dpiaBasis,
   dpiaState,
   type FlagKey,
-  monitoringCovered,
   PLATFORM_RATE_KEYS,
 } from "@harbour/domain";
 import { and, count, desc, eq, inArray, isNotNull, isNull, max, sql } from "drizzle-orm";
@@ -65,20 +64,19 @@ async function flagRows(tx: Transaction) {
  * Whether the organisation's signed DPIA covers an employee-monitoring flag (H-1555), read in the
  * request's transaction. The DPIA's row-level security shows it only to holders of a DPIA
  * permission, and this is asked for whoever clocks in or checks in, so it is answered by
- * `app.signed_dpia_features()` (migration 0153): the signed version's id and the features its
- * basis lists, nothing else. `dpiaId` is the signed version relied on, or null when it does not
- * cover the flag.
+ * `app.signed_dpia_covers(flag)` (migration 0153): the signed version's id when its basis lists
+ * the flag, else null, and nothing else (never the basis or its other features). `dpiaId` is the
+ * signed version relied on, or null when it does not cover the flag.
  */
 export async function signedDpiaCovers(
   tx: Transaction,
   flag: DpiaMonitoringFlag,
 ): Promise<{ readonly covered: boolean; readonly dpiaId: string | null }> {
-  const found = await tx.execute<{ dpia_id: string; features: string[] | null }>(
-    sql`SELECT dpia_id, features FROM app.signed_dpia_features()`,
+  const found = await tx.execute<{ dpia_id: string | null }>(
+    sql`SELECT app.signed_dpia_covers(${flag}) AS dpia_id`,
   );
-  const row = found.rows[0];
-  const covered = row ? monitoringCovered(flag, { features: row.features ?? [] }) : false;
-  return { covered, dpiaId: covered && row ? row.dpia_id : null };
+  const dpiaId = found.rows[0]?.dpia_id ?? null;
+  return { covered: dpiaId !== null, dpiaId };
 }
 
 /**

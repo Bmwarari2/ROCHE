@@ -95,7 +95,7 @@ export const problems = {
       422,
       "dpia_monitoring_not_covered",
       "Location or NFC evidence is employee monitoring: your organisation's signed DPIA must cover it first.",
-      "Switch on location evidence for the organisation, prepare the DPIA again so it lists it, and have the data protection lead sign it.",
+      "Ask your Thapsus Care contact to switch on location evidence for your organisation or this location, then prepare the DPIA again and have your data protection lead sign it.",
     ),
   /**
    * A hand-over of held entries the server will not take as sent (care.md section 6, Device

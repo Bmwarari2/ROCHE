@@ -25,7 +25,7 @@ import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runEscalations, sweepLoneWorkersJob, type TaskDeps } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness, LODGE } from "./support/harness";
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Lone-worker safety through the API (SCHED-012, Phase 2 slice 46; scheduling.md section 19;
@@ -67,13 +67,16 @@ const as = (
   init: { method?: string; body?: unknown } = {},
 ) => h.request(path, { token: h.tokens[user], tenant: DEMO.tenantId, ...init });
 
-async function asDemoTenant<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+async function asDemoTenant<T>(
+  fn: (c: pg.PoolClient) => Promise<T>,
+  tenantId: string = DEMO.tenantId,
+): Promise<T> {
   const client = await h.db.pool("harbour_owner").connect();
   try {
     await client.query("BEGIN");
     await client.query(
       "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
-      [DEMO.tenantId],
+      [tenantId],
     );
     const result = await fn(client);
     await client.query("COMMIT");
@@ -567,9 +570,74 @@ describe("location evidence (H-527, H-1555)", () => {
       );
     });
 
+  /** The second organisation's signed DPIA covering these features; null removes it. */
+  const signOtherDpia = (features: string[] | null) =>
+    asDemoTenant(async (c) => {
+      await c.query("DELETE FROM dpia");
+      if (!features) return;
+      await c.query(
+        `INSERT INTO dpia (dpia_version, status, prefill, prepared_by, version_sha256, prepared_at,
+                           signed_by, signed_at, typed_name, statement, basis)
+         VALUES (1, 'signed', '{}'::jsonb, ARRAY[$1::uuid], repeat('c', 64), now(), $2, now(),
+                 'Rae River', 'Signed for the test', $3::jsonb)`,
+        [
+          OTHER.agencyId,
+          OTHER.managerId,
+          JSON.stringify({ purposes: [], subProcessors: [], dataCategories: [], features }),
+        ],
+      );
+    }, OTHER.tenantId);
+  /** The event_recorded audit scope for a session's latest event. */
+  const eventAudit = (sessionId: string) =>
+    asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ scope: Record<string, unknown> }>(
+        `SELECT scope FROM audit_event
+          WHERE action = 'scheduling.lone_worker.event_recorded' AND resource_id = $1
+          ORDER BY seq DESC LIMIT 1`,
+        [sessionId],
+      );
+      return rows[0]?.scope;
+    });
+
   afterAll(async () => {
     await setFlag(null);
     await signDpia(null);
+    await signOtherDpia(null);
+  });
+
+  it.each<[string, boolean, boolean]>([
+    ["dropped while not covered", false, false],
+    ["kept while covered", true, true],
+  ])("audits whether a point sent was kept, never where: %s", async (_label, covered, kept) => {
+    await setFlag(true);
+    await signDpia(covered ? ["module.residential", FLAG] : ["module.residential"]);
+    const sessionId = crypto.randomUUID();
+    expect((await start("carer", { id: sessionId, startedAt: iso(-5) })).status).toBe(201);
+    expect((await send("carer", sessionId, { location: point })).status).toBe(201);
+    expect(await stored(sessionId)).toBe(kept ? 1 : 0);
+    const scope = await eventAudit(sessionId);
+    expect(scope).toMatchObject({ locationKept: kept });
+    expect(JSON.stringify(scope)).not.toMatch(/51\.5|-0\.12|latitude|longitude/);
+    await send("carer", sessionId, { kind: "finish" });
+  });
+
+  it("never relies on another organisation's signed DPIA: no point stored", async () => {
+    // This organisation's flag is on with no signed DPIA; only the second organisation's covers it.
+    await setFlag(true, true);
+    await signDpia(null);
+    await signOtherDpia(["module.residential", FLAG]);
+    try {
+      const sessionId = crypto.randomUUID();
+      expect((await start("carer", { id: sessionId, startedAt: iso(-5) })).status).toBe(201);
+      expect((await send("carer", sessionId, { location: point })).status).toBe(201);
+      expect(await stored(sessionId)).toBe(0);
+      expect(await eventAudit(sessionId)).toMatchObject({ locationKept: false });
+      const route = await json<LoneWorkerRoute>(await as("carer", "/v1/lone-worker/route"));
+      expect(route.locationEvidence).toBe(false);
+      await send("carer", sessionId, { kind: "finish" });
+    } finally {
+      await signOtherDpia(null);
+    }
   });
 
   it.each<[string, boolean | null, boolean | null, string[] | null, boolean]>([
