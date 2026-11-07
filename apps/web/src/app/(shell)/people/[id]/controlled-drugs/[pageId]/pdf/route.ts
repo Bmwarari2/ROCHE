@@ -22,6 +22,8 @@ export async function GET(
   });
   const type = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
   if (!response.ok || type !== "application/pdf" || !response.body) {
+    // Free the connection to the API before leaving (security review of slice 50).
+    await response.body?.cancel();
     redirect(`/people/${id}/controlled-drugs/${pageId}?print=failed`);
   }
   return new Response(response.body, {

@@ -7166,7 +7166,7 @@
   "cd.page.policy": "{policy, select, required {Every entry needs a witness.} other {Every entry needs a witness where one is available. If you work alone, say why there is none: it is flagged for review. A destruction always needs a witness.}}",
   "cd.page.entries": "Entries",
   "cd.page.checks": "Stock counts",
-  "cd.print.open": "Print this page",
+  "cd.print.open": "Print this page from the browser",
   "cd.print.title": "Controlled drugs register page",
   "cd.print.heading": "Controlled drugs register: {product}",
   "cd.print.person": "For {name}, born {born}, NHS number {nhs}",

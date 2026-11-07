@@ -9,7 +9,8 @@ import { ukDate, ukDateTime } from "./transfer-pack-pdf";
  * - the page heading: the person, the drug as dm+d names it, and its unit;
  * - every entry in order, with its movement, quantity and running balance, when it happened, who
  *   recorded and witnessed it (or why there was no witness), and the counterparty and reference;
- * - each correction under the entry it corrects, and every stock check with its result in words.
+ * - each correction saying which entry it corrects, and each entry which entries correct it;
+ * - every stock check with its result in words.
  *
  * Every page says when it was printed and that it is not the live record (HZ-122). Never an edit:
  * a correction is a later entry, shown as such.
@@ -91,20 +92,27 @@ export function cdRegisterLines(input: CdPrintInput): PdfLine[] {
     { text: "Entries", bold: true, gapBefore: 8 },
   ];
   if (input.entries.length === 0) lines.push({ text: "No entry on this page." });
-  const originals = input.entries.filter((e) => e.correctsId === null);
-  const correctionsOf = (id: string) => input.entries.filter((e) => e.correctsId === id);
-  const entryLine = (e: CdPrintEntry, indent: string): PdfLine => ({
-    text: `${indent}${e.seq}. ${MOVEMENT_WORDS[e.movement] ?? e.movement} ${signed(e.quantity)} ${unit}, balance ${e.balanceAfter} ${unit}. ${ukDateTime(e.occurredAt)}.${
-      e.counterparty ? ` ${e.counterparty}.` : ""
-    }${e.reference ? ` Reference ${e.reference}.` : ""}${
-      e.corrects
-        ? ` Corrects the ${e.corrects} of entry ${input.entries.find((x) => x.id === e.correctsId)?.seq ?? "?"}.`
-        : ""
-    }${e.reason ? ` Reason: ${e.reason}.` : ""} Recorded by ${name(e.recorded.id)} at ${ukDateTime(e.recorded.at)}, ${witness(e.witnessId, e.noWitnessReason)}.`,
-  });
-  for (const e of originals) {
-    lines.push(entryLine(e, ""));
-    for (const c of correctionsOf(e.id)) lines.push(entryLine(c, "    Correction: "));
+  const seqOf = (id: string | null) => input.entries.find((x) => x.id === id)?.seq;
+  // Every entry in register order, so the running balance reads in order; a correction says which
+  // entry it corrects (a correction of a correction too), never moved (clinical review B3).
+  for (const e of [...input.entries].sort((x, y) => x.seq - y.seq)) {
+    const corrected = seqOf(e.correctsId);
+    lines.push({
+      text: `${e.seq}. ${MOVEMENT_WORDS[e.movement] ?? e.movement} ${signed(e.quantity)} ${unit}, balance ${e.balanceAfter} ${unit}. ${ukDateTime(e.occurredAt)}.${
+        e.counterparty ? ` ${e.counterparty}.` : ""
+      }${e.reference ? ` Reference ${e.reference}.` : ""}${
+        e.correctsId
+          ? ` Corrects the ${e.corrects ?? "record"} of ${corrected ? `entry ${corrected}` : "an earlier entry"}.`
+          : ""
+      }${e.reason ? ` Reason: ${e.reason}.` : ""}${
+        input.entries.some((x) => x.correctsId === e.id)
+          ? ` Corrected by entry ${input.entries
+              .filter((x) => x.correctsId === e.id)
+              .map((x) => x.seq)
+              .join(", ")}.`
+          : ""
+      } Recorded by ${name(e.recorded.id)} at ${ukDateTime(e.recorded.at)}, ${witness(e.witnessId, e.noWitnessReason)}.`,
+    });
   }
   lines.push({ text: "Stock checks", bold: true, gapBefore: 8 });
   if (input.stockChecks.length === 0) lines.push({ text: "No stock check on this page." });
@@ -121,7 +129,7 @@ export function cdRegisterLines(input: CdPrintInput): PdfLine[] {
 export function renderCdRegisterPdf(input: CdPrintInput): Uint8Array {
   const heading = `${input.person.name}, controlled drugs register: ${input.page.productName}`;
   return renderPdf({
-    title: heading,
+    title: "Controlled drugs register page",
     header: [heading, marPrintedNotice(input.printedAt)],
     lines: cdRegisterLines(input),
     footer: (page, pages) => `${heading}. Page ${page} of ${pages}`,

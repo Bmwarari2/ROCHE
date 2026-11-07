@@ -1816,10 +1816,11 @@ Not sent to devices yet (the round stream is a contract until slice 68).
 
 ## 17. Printable MAR chart and controlled drugs register page (slice 50; MEDS-014)
 
-Both PDFs are drawn from the record when asked and never stored. The web streams them as downloads
-that the browser is told not to keep. No migration. HZ-122, with HZ-007.
+Both PDFs are drawn from the record when asked and never stored. The web streams them as downloads that are not cached;
+a downloaded file stays on the device, under the home's policy. No migration. HZ-122, with HZ-007.
 
-**Routes** (`apps/api/src/routes/medicines-print.ts`):
+**Routes** (`apps/api/src/routes/medicines-print.ts`; at most `MEDICINES_PRINT_REQUESTS_PER_MINUTE`
+per member, default 20; a month from 2000 to next year):
 - `GET /v1/people/{id}/mar/print?month=yyyy-mm`: the MAR chart for one calendar month in UK time.
   It needs a permission that reads the MAR (`medicines.record.manage`, `medicines.emar.administer`
   or `care.plan.read`). Audited as `medicines.mar.printed`, with the month.
@@ -1828,32 +1829,45 @@ that the browser is told not to keep. No migration. HZ-122, with HZ-007.
   printable format (H-1331); the plain view stays for printing straight from the browser.
 
 **The MAR chart** (`apps/api/src/services/mar-pdf.ts`):
-1. Every page names the person and the month. Every page says "Printed from the eMAR at … This is
-   not the live record: check the eMAR before giving or holding any medicine." The page footer says
-   "Page n of m".
+1. Every page names the person (with a preferred name, date of birth and NHS number) and the month.
+   Every page says "Printed from the eMAR at … This is not the live record: check the eMAR before
+   giving or holding any medicine." The page footer says "Page n of m". The PDF's title names no one.
 2. **Allergies** come first. Every allergy is listed, most severe first, with its reaction. "No known
    allergies" shows when it was recorded. A status not recorded says "Allergy status not recorded.
    Find out before giving any medicine." and is never shown as none.
-3. **A key to the codes**: G given, R refused, N not given, W withheld, U not available, S taken by
-   the person themselves, F given by family. It also explains "covert", "corrected" and the giver's
-   initials.
+3. **Communication needs** follow the allergies, or say that none are identified or that they are
+   not recorded (AIS).
+   **A key to the codes**, one per line: G given, R refused, N not given (with the reason), W
+   withheld (with the reason), U not available, S taken by the person themselves, F given by family.
+   It also explains "at" and a time, "covert", "corrected" and the giver's initials.
 4. **Each medicine** in force during the month, or with records in it, shows:
    - the product and route, with "Time-critical:" first where tagged;
    - the directions in the domain's words, the prescriber, and the start and end;
    - its status on the eMAR when printed.
-5. **Scheduled doses** are listed by day ("Mon 02/11/2026: 08:00 G AE; 20:00 R AE"). A dose with no
-   record says "no outcome recorded" when its time has passed, or "not yet due". A time before the
-   entry was recorded says "not due". A covert dose is marked "covert"; a correction is marked
-   "corrected" and shows the record that stands.
+5. **Scheduled doses** are listed by day ("Mon 02/11/2026: 08:00 G at 08:40 2 tablet AE; 20:00 R
+   (The person declined it) AE"). Each block is labelled with its version.
+   - **Which records:** those that stand over all the person's records, so a correction made in
+     another month still supersedes. A dose is matched by its due time in the month, so one given
+     after midnight stays on its day. A record of a scheduled dose that matches no dose time is
+     printed as "Recorded with no dose time on this chart", never dropped.
+   - **What a cell shows:** the time given when it differs, the amount, the reason, "covert" and
+     "corrected", and the giver's initials, or "giver not named". A time on a clock-change day
+     carries its zone.
+   - **With no record:** "no outcome recorded" when its time has passed, or "not yet due". A time
+     before the entry was recorded says "not due".
 6. **When-required doses** are listed as recorded, with the time, code, amount, marks and initials,
    or "No dose recorded this month".
-7. **Staff initials on this chart** lists the initials and names of everyone who gave a dose.
+7. **Staff initials on this chart** lists the initials and names of everyone who gave a dose. Two
+   people with the same initials get a number each ("AE1", "AE2").
+8. **Not printed** (H-1408): the superseded record struck through. The eMAR history shows both.
 
 **The register page** (`apps/api/src/services/cd-register-pdf.ts`):
 - the heading: the person, the drug as dm+d names it, the unit, and the balance when printed;
-- every entry in order: movement, signed quantity, running balance, when, counterparty and
-  reference, who recorded it, and who witnessed it or why there was no witness;
-- each correction under the entry it corrects, saying what it corrects and why;
+- every entry in register order, so the running balance reads in order: movement, signed
+  quantity, running balance, when, counterparty and reference, who recorded it, and who witnessed it
+  or why there was no witness;
+- each correction saying which entry it corrects (a correction of a correction too) and why, and
+  each corrected entry saying which entries correct it;
 - every stock check: counted, expected, the result in words, and who counted and witnessed it;
 - on every page, the same printed-time notice.
 

@@ -120,6 +120,7 @@ export interface Services {
   readonly pharmacy: PharmacyOrderPort | null;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
+  readonly medicinesPrintLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */
   readonly handoverCompileLimiter: RateLimiter;
   readonly accountDeletionLimiter: RateLimiter;

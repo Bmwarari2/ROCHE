@@ -254,6 +254,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
       60_000,
     ),
+    medicinesPrintLimiter: new RateLimiter(
+      "medicines_print",
+      config.MEDICINES_PRINT_REQUESTS_PER_MINUTE,
+      60_000,
+    ),
     accountDeletionLimiter: new RateLimiter(
       "account_deletion",
       config.ACCOUNT_DELETION_REQUESTS_PER_DAY,

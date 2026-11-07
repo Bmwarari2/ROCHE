@@ -3539,7 +3539,7 @@ person receiving care.
 | --- | --- | --- |
 | Design | The MAR chart is drawn from the eMAR when asked, never stored: one person, one calendar month in UK time; every page names the person and says when it was printed and that it is not the live record; the allergy section lists every allergy, most severe first, and says when the status is not recorded; a key to the codes; every dose by day with its outcome code, the giver's initials, and "covert" and "corrected" marks, and in words when it is past with no outcome, not yet due, or before the entry was recorded; when-required doses as recorded with their amounts; the staff initials named | Phase 2 slice 50 |
 | Design | The controlled drugs register page as a PDF: the heading, every entry in order with its running balance, who recorded and witnessed it (or why no witness), each correction under the entry it corrects, and every stock check with its result in words; the printed time and "not the live record" on every page (replaces the plain print view, H-1331) | Phase 2 slice 50 |
-| Design | Both are audited by id only (`medicines.mar.printed`, `medicines.cd.printed`); the web streams them as downloads the browser is told not to keep | Phase 2 slice 50 |
+| Design | Both are audited by id only (`medicines.mar.printed`, `medicines.cd.printed`); the web streams them as downloads that are not cached (a downloaded file stays on the device, under the home's policy on printed MARs) | Phase 2 slice 50 |
 | Process | Deployer control: the home's policy on printed MARs (destroyed when replaced; never used to give a dose while the eMAR is available) | Before each real tenant |
 | Test | See Verification | Phase 2 slice 50 |
 

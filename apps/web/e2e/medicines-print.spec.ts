@@ -24,9 +24,20 @@ test("hazard HZ-122 hazard HZ-007 the nurse downloads a month's MAR chart as a P
   const card = main(page).getByRole("region", { name: "Print the MAR chart" });
   await expect(card).toContainText("not the live record");
   await bothThemes(page, "the medicines tab with the print card");
+  // By keyboard: the month, then the button.
+  await card.getByLabel("Month").focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowUp");
+  await card.getByRole("button", { name: "Download the MAR chart (PDF)" }).focus();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    card.getByRole("button", { name: "Download the MAR chart (PDF)" }).click(),
+    page.keyboard.press("Enter"),
   ]);
   expect(download.suggestedFilename()).toMatch(/^mar-\d{4}-\d{2}\.pdf$/);
+
+  // When no PDF comes back, the tab says so, in words with an icon, and takes focus.
+  await page.goto(`/people/${demoPerson(1)}/medicines?print=failed`);
+  const status = main(page).getByRole("status").filter({ hasText: "could not be made" });
+  await expect(status).toBeFocused();
+  await bothThemes(page, "the medicines tab when the MAR chart could not be made");
 });

@@ -26,6 +26,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   });
   const type = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
   if (!response.ok || type !== "application/pdf" || !response.body) {
+    // Free the connection to the API before leaving (security review of slice 50).
+    await response.body?.cancel();
     redirect(`${medicinesHref(id)}?print=failed`);
   }
   return new Response(response.body, {

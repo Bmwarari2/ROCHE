@@ -131,6 +131,8 @@ const Env = z.object({
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
   TRANSFER_PACK_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(30),
+  /** Printed MAR charts and register pages a member may ask for each minute (slice 50). */
+  MEDICINES_PRINT_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(20),
   /**
    * Handover compilations asked for through the API per user a minute, per API instance: each
    * reads a shift's records at a location (the worker compiles every handover anyway).

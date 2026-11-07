@@ -2,40 +2,31 @@ import {
   allergy,
   controlledDrugPage,
   controlledDrugStockCheck,
-  medicationAdministration,
   type Transaction,
 } from "@harbour/db";
-import {
-  formatDoseQuantity,
-  isTimeCritical,
-  type MarEntry,
-  marEntryDoses,
-  marEntryEnd,
-  marEntryStatus,
-  marEntryTimesBeforeRecorded,
-  ukStartOfDay,
-} from "@harbour/domain";
+import { ukStartOfDay } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, gte, isNull, lt } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import { type AppEnv, requireAnyPermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
+import { requireWithinLimit } from "../http/rate-limit";
 import { renderCdRegisterPdf } from "../services/cd-register-pdf";
 import { pageEntries, stockCheckOut } from "../services/controlled-drugs";
-import {
-  initialsOf,
-  type MarOutcome,
-  type MarPrintEntry,
-  type MarRecord,
-  renderMarPdf,
-} from "../services/mar-pdf";
-import { effective } from "../services/medicine-administrations";
-import { directionsInWords, personEntries, UNCHECKED_POLICY } from "../services/medicines";
+import { marPrintEntries, renderMarPdf, uniqueInitials } from "../services/mar-pdf";
+import { effective, personAdministrations } from "../services/medicine-administrations";
+import { personEntries } from "../services/medicines";
 import { loadPerson } from "../services/people";
 import { staffNames } from "../services/staff";
-import { allergyStatementOf } from "../services/transfer-pack";
-import { createRouter, errorResponses, notFoundResponse, security } from "./openapi";
+import { allergyStatementOf, communicationStatementOf } from "../services/transfer-pack";
+import {
+  createRouter,
+  errorResponses,
+  limitedResponse,
+  notFoundResponse,
+  security,
+} from "./openapi";
 
 /**
  * The printable MAR chart and controlled drugs register page (Phase 2 slice 50; MEDS-014;
@@ -52,10 +43,15 @@ const MAR_READERS = [
   "care.plan.read",
 ] as const;
 const CD_READERS = ["medicines.cd.administer", "medicines.cd.witness", ...MAR_READERS] as const;
+/** A month from January 2000 to next year: a print never reaches outside the UK clock's range. */
 const Month = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
-  .meta({ description: "The calendar month, yyyy-mm (UK time)." });
+  .refine((m) => {
+    const year = Number(m.slice(0, 4));
+    return year >= 2000 && year <= new Date().getUTCFullYear() + 1;
+  }, "A month from 2000 to next year")
+  .meta({ description: "The calendar month, yyyy-mm (UK time), from 2000 to next year." });
 const PdfBody = {
   content: { "application/pdf": { schema: z.string().meta({ format: "binary" }) } },
 };
@@ -92,23 +88,6 @@ export function marMonth(month: string): { from: Date; to: Date; label: string }
   return { from, to: ukStartOfDay(`${next}-01`), label };
 }
 
-const OUTCOMES: ReadonlySet<string> = new Set([
-  "given",
-  "refused",
-  "omitted",
-  "withheld",
-  "not_available",
-  "self_administered",
-  "given_by_family",
-]);
-
-/** The unit's name for an amount recorded in the entry's own unit; the code otherwise. */
-function unitName(entry: MarEntry, unitCode: string | null): string {
-  const d = entry.directions;
-  const dose = d.kind === "when_required" ? d.dose : d.schedule.times[0]?.dose;
-  return dose && dose.unit.code === unitCode ? dose.unit.name : (unitCode ?? "");
-}
-
 export const medicinesPrintRouter = createRouter()
   .openapi(
     createRoute({
@@ -124,10 +103,13 @@ export const medicinesPrintRouter = createRouter()
         200: { ...PdfBody, description: "The MAR chart" },
         ...errorResponses,
         ...notFoundResponse,
+        ...limitedResponse,
       },
     }),
     async (c) => {
       const access = await requireAnyPermission(c, [...MAR_READERS]);
+      const { db, medicinesPrintLimiter } = c.get("services");
+      await requireWithinLimit(db, access, medicinesPrintLimiter);
       const { id } = c.req.valid("param");
       const { month } = c.req.valid("query");
       const window = marMonth(month);
@@ -139,103 +121,54 @@ export const medicinesPrintRouter = createRouter()
           .from(allergy)
           .where(and(eq(allergy.personId, id), isNull(allergy.deletedAt)));
         const stored = await personEntries(tx, id);
-        const rows = effective(
-          await tx
-            .select()
-            .from(medicationAdministration)
-            .where(
-              and(
-                eq(medicationAdministration.personId, id),
-                gte(medicationAdministration.givenAt, window.from),
-                lt(medicationAdministration.givenAt, window.to),
-              ),
-            )
-            .orderBy(asc(medicationAdministration.givenAt)),
-        ).filter((r) => OUTCOMES.has(r.outcome));
-        const names = await staffNames(
-          tx,
-          rows.map((r) => r.administeredBy),
+        // The records that stand, over all the person's records, so a correction made in another
+        // month still supersedes (clinical review B1); the month is chosen afterwards.
+        const standing = effective(await personAdministrations(tx, id));
+        const entries = marPrintEntries(
+          stored.map((s) => s.entry),
+          standing,
+          window,
+          printedAt,
         );
+        const givers = [
+          ...new Set(
+            entries.flatMap((e) =>
+              [...e.doses.map((d) => d.record), ...e.prnRecords, ...e.unmatched].flatMap((r) =>
+                r?.by ? [r.by] : [],
+              ),
+            ),
+          ),
+        ];
+        const names = await staffNames(tx, givers);
         await audit(c, tx, access, {
           action: "medicines.mar.printed",
           resourceType: "person",
           resourceId: id,
           scope: { month },
         });
-        return { p, allergies, stored, rows, names };
+        return { p, allergies, entries, givers, names };
       });
-      const record = (r: (typeof read.rows)[number], entry: MarEntry): MarRecord => ({
-        outcome: r.outcome as MarOutcome,
-        givenAt: r.givenAt,
-        by: r.administeredBy,
-        covert: r.covert,
-        corrected: r.supersedesId !== null,
-        amount:
-          r.quantity !== null
-            ? `${formatDoseQuantity(Number(r.quantity))} ${unitName(entry, r.unitCode)}`
-            : null,
+      const people = read.givers.flatMap((g) => {
+        const s = read.names(g);
+        return s ? [{ id: g, name: s.displayName }] : [];
       });
-      const entries: MarPrintEntry[] = read.stored.flatMap(({ entry }) => {
-        const mine = read.rows.filter((r) => r.medicationId === entry.id);
-        const regular = entry.directions.kind === "regular";
-        const doses = regular
-          ? [
-              ...marEntryDoses(entry, window).map((d) => ({ d, notDue: false })),
-              ...marEntryTimesBeforeRecorded(entry, window).map((d) => ({ d, notDue: true })),
-            ].map(({ d, notDue }) => {
-              const r = mine.find((x) => x.dueAt?.getTime() === d.dueAt.getTime());
-              return {
-                dueAt: d.dueAt,
-                date: d.date,
-                time: d.time,
-                dayName:
-                  d.dayName ??
-                  new Intl.DateTimeFormat("en-GB", {
-                    weekday: "short",
-                    timeZone: "Europe/London",
-                  }).format(d.dueAt),
-                notDue,
-                record: r ? record(r, entry) : null,
-              };
-            })
-          : [];
-        const prnRecords = regular ? [] : mine.map((r) => record(r, entry));
-        const end = marEntryEnd(entry);
-        const inMonth =
-          entry.startsAt.getTime() < window.to.getTime() &&
-          (end === null || end.getTime() > window.from.getTime());
-        if (doses.length === 0 && prnRecords.length === 0 && (!inMonth || entry.withdrawn))
-          return [];
-        return [
-          {
-            productName: entry.product.name,
-            route: entry.route.name,
-            directions: directionsInWords(entry),
-            kind: regular ? ("regular" as const) : ("when_required" as const),
-            startsAt: entry.startsAt,
-            endsAt: end,
-            prescriber: entry.prescriber,
-            status: marEntryStatus(entry, printedAt, UNCHECKED_POLICY).words,
-            timeCritical: isTimeCritical(entry),
-            doses,
-            prnRecords,
-          },
-        ];
-      });
+      const initials = uniqueInitials(people);
       const bytes = renderMarPdf({
         person: {
           name: [read.p.givenName, read.p.familyName].filter(Boolean).join(" "),
+          preferredName: read.p.preferredName,
           dateOfBirth: read.p.dateOfBirth,
           nhsNumber: read.p.nhsNumber,
-          room: null,
           locationName: read.p.locationName,
         },
         month: window,
         allergies: allergyStatementOf(read.p, read.allergies),
-        entries,
+        communication: communicationStatementOf(read.p),
+        entries: read.entries,
         staff: (who) => {
-          const s = read.names(who);
-          return s ? { name: s.displayName, initials: initialsOf(s.displayName) } : null;
+          const person = people.find((x) => x.id === who);
+          const code = who ? initials.get(who) : undefined;
+          return person && code ? { name: person.name, initials: code } : null;
         },
         printedAt,
       });
@@ -256,10 +189,16 @@ export const medicinesPrintRouter = createRouter()
         200: { ...PdfBody, description: "The register page" },
         ...errorResponses,
         ...notFoundResponse,
+        ...limitedResponse,
       },
     }),
     async (c) => {
       const access = await requireAnyPermission(c, [...CD_READERS]);
+      await requireWithinLimit(
+        c.get("services").db,
+        access,
+        c.get("services").medicinesPrintLimiter,
+      );
       const { pageId } = c.req.valid("param");
       const printedAt = new Date();
       const read = await withTenant(c, async (tx) => {
