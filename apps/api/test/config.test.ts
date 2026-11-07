@@ -279,6 +279,7 @@ describe("the TRUD settings (slice 75)", () => {
     ["a plain-http address", { TRUD_BASE_URL: "http://isd.digital.nhs.uk/trud/api/v1" }],
     ["an address off the allowed hosts", { TRUD_BASE_URL: "https://example.invalid/trud/api/v1" }],
     ["a key with a path in it", { TRUD_API_KEY: "abc/def/0123456789abcdef" }],
+
     ["a key too short to be one", { TRUD_API_KEY: "short" }],
   ])("refuses %s", (_case, env) => {
     expect(() => loadConfig({ NODE_ENV: "test", ...env })).toThrow();
@@ -337,6 +338,82 @@ describe("the dm+d job's own settings (H-1505)", () => {
       },
     ],
     ["a key with a path in it", { TRUD_API_KEY: "abc/def/0123456789abcdef" }],
+    [
+      "a user in the query",
+      {
+        DATABASE_DMD_URL:
+          "postgres://harbour_dmd_job:x@10.0.0.5:5432/harbour?sslmode=verify-ca&user=harbour_owner",
+      },
+    ],
+    [
+      "a loopback host in the query",
+      {
+        DATABASE_DMD_URL:
+          "postgres://harbour_dmd_job:x@10.0.0.5:5432/harbour?sslmode=verify-ca&host=127.0.0.1",
+      },
+    ],
+    [
+      "a socket host in the query",
+      {
+        DATABASE_DMD_URL:
+          "postgres://harbour_dmd_job:x@10.0.0.5:5432/harbour?sslmode=verify-ca&host=/var/run/postgresql",
+      },
+    ],
+    [
+      "a repeated sslmode",
+      {
+        DATABASE_DMD_URL:
+          "postgres://harbour_dmd_job:x@10.0.0.5:5432/harbour?sslmode=verify-ca&sslmode=disable",
+      },
+    ],
+    [
+      "any other query key",
+      {
+        DATABASE_DMD_URL:
+          "postgres://harbour_dmd_job:x@10.0.0.5:5432/harbour?sslmode=verify-ca&options=-c%20role%3Dharbour_owner",
+      },
+    ],
+    [
+      "an IPv4-mapped loopback host",
+      {
+        DATABASE_DMD_URL:
+          "postgres://harbour_dmd_job:x@[::ffff:127.0.0.1]:5432/harbour?sslmode=verify-ca",
+      },
+    ],
+    [
+      "the IPv6 any address",
+      { DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@[::]:5432/harbour?sslmode=verify-ca" },
+    ],
+    [
+      "a short loopback form",
+      { DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@127.1:5432/harbour?sslmode=verify-ca" },
+    ],
+    [
+      "a decimal loopback form",
+      {
+        DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@2130706433:5432/harbour?sslmode=verify-ca",
+      },
+    ],
+    [
+      "a hexadecimal loopback form",
+      {
+        DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@0x7f000001:5432/harbour?sslmode=verify-ca",
+      },
+    ],
+    [
+      "the address 0",
+      { DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@0:5432/harbour?sslmode=verify-ca" },
+    ],
+    [
+      "a public address",
+      { DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@8.8.8.8:5432/harbour?sslmode=verify-ca" },
+    ],
+    [
+      "a host name",
+      {
+        DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@db.internal:5432/harbour?sslmode=verify-ca",
+      },
+    ],
     ["a limit out of range", { DMD_LOAD_TIMEOUT_MINUTES: "241" }],
   ])("refuses %s in production", (_case, env) => {
     // An undefined value removes the variable, so the schema's local default applies.
@@ -346,8 +423,17 @@ describe("the dm+d job's own settings (H-1505)", () => {
     expect(() => loadDmdJobConfig(merged)).toThrow();
   });
 
-  it("accepts verify-full and a postgresql URL", () => {
-    const url = "postgresql://harbour_dmd_job:x@db.internal:5432/harbour?sslmode=verify-full";
+  it.each([
+    ["the form seed-secrets.sh writes", DMD_URL],
+    [
+      "verify-full and a postgresql URL",
+      "postgresql://harbour_dmd_job:x@172.16.0.3:5432/harbour?sslmode=verify-full",
+    ],
+    [
+      "a 192.168 address",
+      "postgres://harbour_dmd_job:x@192.168.1.4:5432/harbour?sslmode=verify-ca",
+    ],
+  ])("accepts %s", (_case, url) => {
     expect(loadDmdJobConfig(prod({ DATABASE_DMD_URL: url })).DATABASE_DMD_URL).toBe(url);
   });
 

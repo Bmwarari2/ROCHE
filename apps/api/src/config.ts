@@ -1,3 +1,4 @@
+import { isIPv4 } from "node:net";
 import { trudUrlAllowed } from "@harbour/domain";
 import { z } from "zod";
 
@@ -418,11 +419,21 @@ export function loadDmdJobConfig(env: NodeJS.ProcessEnv = process.env): DmdJobCo
   return parsed;
 }
 
-const LOOPBACK = /^(localhost|127(\.\d{1,3}){3}|\[?::1\]?|0\.0\.0\.0)$/i;
+/** The only query settings the job's database URL may carry, each once (pg reads every one). */
+const DMD_URL_PARAMS = new Set(["sslmode", "sslrootcert"]);
+
+/** 10/8, 172.16/12 and 192.168/16: the Cloud SQL private IP seed-secrets.sh writes. */
+function privateIpv4(host: string): boolean {
+  if (!isIPv4(host)) return false;
+  const [a = -1, b = -1] = host.split(".").map(Number);
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
 
 /**
- * In production the job connects as its own role (harbour_dmd_job), to a real database host, over
- * TLS that verifies the server (security check of PR #179).
+ * In production the job connects as its own role (harbour_dmd_job), to the database's private
+ * address, over TLS that verifies the server (security check of PR #179). pg copies every query
+ * parameter into its settings (user, host, a repeated sslmode), so only sslmode and sslrootcert
+ * are accepted, each once, and the host must be a private IPv4 literal.
  */
 function checkDmdDatabaseUrl(value: string): void {
   if (value.trim() === "") throw new Error("DATABASE_DMD_URL must be set in production");
@@ -435,11 +446,17 @@ function checkDmdDatabaseUrl(value: string): void {
   if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
     throw new Error("DATABASE_DMD_URL must be a postgres URL in production");
   }
+  const keys = [...url.searchParams.keys()];
+  if (keys.some((k) => !DMD_URL_PARAMS.has(k)) || new Set(keys).size !== keys.length) {
+    throw new Error(
+      "DATABASE_DMD_URL may carry only sslmode and sslrootcert, each once, in production",
+    );
+  }
   if (decodeURIComponent(url.username) !== "harbour_dmd_job") {
     throw new Error("DATABASE_DMD_URL must connect as harbour_dmd_job in production");
   }
-  if (url.hostname === "" || LOOPBACK.test(url.hostname)) {
-    throw new Error("DATABASE_DMD_URL must name the database host in production");
+  if (!privateIpv4(url.hostname)) {
+    throw new Error("DATABASE_DMD_URL must name the database's private IPv4 address in production");
   }
   const sslmode = url.searchParams.get("sslmode");
   if (sslmode !== "verify-ca" && sslmode !== "verify-full") {

@@ -683,8 +683,9 @@ the real service (H-1240 to H-1243).**
    The deployed job always runs with `NODE_ENV=production` (H-1505), so in every Google Cloud
    environment it downloads from TRUD or fails; dev has no TRUD key, so the job is not scheduled
    there and has no dm+d alerts. In production mode its settings are checked on their own
-   (`loadDmdJobConfig`): `DATABASE_DMD_URL` connects as `harbour_dmd_job` to a host that is not
-   loopback with `sslmode` `verify-ca` or `verify-full`, and `TRUD_ALLOWED_HOSTS` lists only
+   (`loadDmdJobConfig`): `DATABASE_DMD_URL` connects as `harbour_dmd_job` to the database's private
+   IPv4 address (10/8, 172.16/12 or 192.168/16) with `sslmode` `verify-ca` or `verify-full`, and
+   carries no query settings but `sslmode` and `sslrootcert`, each once (pg reads every one), and `TRUD_ALLOWED_HOSTS` lists only
    TRUD's own host.
 
 **Schema** (migration 0131):

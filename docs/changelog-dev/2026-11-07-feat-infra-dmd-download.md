@@ -41,5 +41,6 @@ Branch `feat/infra-dmd-download`, no PR yet.
 - Dev has no TRUD key, so the dm+d job is no longer scheduled there and has no dm+d alerts; a plan
   test proves it. Staging's job reads exactly its database URL, the server CA and the TRUD key.
 - In production the job's settings are checked on their own: `DATABASE_DMD_URL` must connect as
-  `harbour_dmd_job` to a host that is not loopback, over `verify-ca` or `verify-full`, and
+  `harbour_dmd_job` to a private IPv4 address, over `verify-ca` or `verify-full`, with no query
+  settings but `sslmode` and `sslrootcert` (each once), and
   `TRUD_ALLOWED_HOSTS` may list only TRUD's own host.

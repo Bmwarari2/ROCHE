@@ -17,7 +17,7 @@ leaves the release in use unchanged until a whole new one has loaded.
   archive and the unpacked release sit in `/tmp`, which on Cloud Run is memory, so the job has 6Gi
   and 2 CPUs until a real release is measured (H-1243). No bucket is used.
 - **Environments:** the job runs with `NODE_ENV=production` and reads only its own settings
-  (`loadDmdJobConfig`: its database URL as `harbour_dmd_job` over verified TLS, TRUD's own host
+  (`loadDmdJobConfig`: its database URL as `harbour_dmd_job` on the private address over verified TLS, TRUD's own host
   and the loader's limits). Production mode counts as a place where real people work, so the job
   only ever downloads from TRUD. Staging and prod have the TRUD key, the monthly schedule and the
   alerts. Dev has no key, no schedule and no dm+d alerts: the job is defined there but a run by
