@@ -1,0 +1,623 @@
+import { createHash } from "node:crypto";
+import {
+  HR_LINK_PORT,
+  hrDelivery,
+  hrPayPeriod,
+  hrPayRate,
+  hrPayUnit,
+  hrSyncState,
+  integrationConnection,
+  payRun,
+  type Transaction,
+} from "@harbour/db";
+import {
+  type HrPayPeriod,
+  type HrRate,
+  hrPayUnits,
+  inboundPayPeriod,
+  inboundRate,
+  type MemberUnits,
+  matchesHrPayPeriod,
+  type PayRoute,
+  type PayUnitTotal,
+  payrollExportAllowed,
+  payUnitsToHrAllowed,
+  type ThapsusHrPort,
+} from "@harbour/domain";
+import { and, desc, eq, gt, isNull, notInArray, sql } from "drizzle-orm";
+import {
+  type HrConnection,
+  type HrLinkSettings,
+  hrConnection,
+  hrLinkEnabled,
+  raiseHrAlert,
+  recordSync,
+} from "./hr-link";
+import { audit, deliver, members } from "./hr-rota";
+
+/**
+ * Pay through Thapsus-HR (integrations.md section 11.5 rules 11 and 12; slice 89; ADR-0131;
+ * HZ-133, HZ-140). Thapsus-HR's pay periods and hourly rates are read daily; a pay run whose
+ * period goes to Thapsus-HR uses its pay period exactly and its rate for the minimum wage check;
+ * when it is locked, its units by kind are kept and sent by pay code, replacing that period's
+ * items in Thapsus-HR; Harbour's payroll export is never offered that period. Everything else
+ * pays through Harbour's export as before.
+ */
+
+/** Pay periods and rates are read once a day (section 11.2). */
+const PAY_PULL_HOURS = 24;
+
+export type PayPath =
+  /**
+   * Not linked, the flag off or the link disconnected: Harbour's export, as before. `intended` is
+   * the route the link's settings give the period, so a run drafted while the link is down is
+   * never sent to the export without a person saying so.
+   */
+  | { readonly route: "harbour_export"; readonly link: null; readonly intended: PayRoute | null }
+  | { readonly route: PayRoute; readonly link: HrConnection }
+  /** A route date that is not a real day: nothing is paid out until a person puts it right. */
+  | { readonly route: null; readonly link: HrConnection };
+
+/** The route to payroll for a pay period starting on `periodStart` (rule 12). */
+export async function payPathFor(tx: Transaction, periodStart: string): Promise<PayPath> {
+  const link = await hrConnection(tx);
+  const input = link && {
+    currentRoute: link.settings.pay.route,
+    pendingRoute: link.settings.pay.pendingRoute,
+    pendingFrom: link.settings.pay.pendingFrom,
+    periodStart,
+  };
+  if (!link || !input || link.status !== "connected" || !(await hrLinkEnabled(tx))) {
+    const intended = input
+      ? payUnitsToHrAllowed(input)
+        ? "thapsus_hr"
+        : payrollExportAllowed(input)
+          ? "harbour_export"
+          : null
+      : "harbour_export";
+    return { route: "harbour_export", link: null, intended };
+  }
+  if (payUnitsToHrAllowed(input)) return { route: "thapsus_hr", link };
+  if (payrollExportAllowed(input)) return { route: "harbour_export", link };
+  return { route: null, link };
+}
+
+/** Thapsus-HR's pay periods as stored (the sync's copies). */
+export async function storedHrPayPeriods(tx: Transaction) {
+  return tx
+    .select({
+      rowId: hrPayPeriod.id,
+      id: hrPayPeriod.hrId,
+      frequency: hrPayPeriod.frequency,
+      startsOn: hrPayPeriod.startsOn,
+      endsOn: hrPayPeriod.endsOn,
+    })
+    .from(hrPayPeriod)
+    .where(isNull(hrPayPeriod.deletedAt));
+}
+
+/** The stored Thapsus-HR pay period a run's period is, exactly; null when none is. */
+export async function hrPayPeriodOf(
+  tx: Transaction,
+  run: { readonly frequency: string; readonly periodStart: string; readonly periodEnd: string },
+): Promise<{ readonly rowId: string; readonly hrId: string } | null> {
+  const periods = await storedHrPayPeriods(tx);
+  const hit = matchesHrPayPeriod(run, periods as unknown as HrPayPeriod[]);
+  const row = hit ? periods.find((p) => p.id === hit.id) : undefined;
+  return row ? { rowId: row.rowId, hrId: row.id } : null;
+}
+
+/** Each member's Thapsus-HR rates (by tenant user), for the minimum wage check (rule 11). */
+export async function hrRatesByMember(tx: Transaction): Promise<Map<string, HrRate[]>> {
+  const { linked } = await members(tx);
+  const byProfile = new Map([...linked.values()].map((m) => [m.staffProfileId, m.memberId]));
+  const rows = await tx
+    .select({
+      staffProfileId: hrPayRate.staffProfileId,
+      hourlyPence: hrPayRate.hourlyPence,
+      effectiveFrom: hrPayRate.effectiveFrom,
+    })
+    .from(hrPayRate)
+    .where(isNull(hrPayRate.deletedAt));
+  const out = new Map<string, HrRate[]>();
+  for (const r of rows) {
+    const member = byProfile.get(r.staffProfileId);
+    if (!member) continue;
+    const list = out.get(member) ?? [];
+    list.push({ employeeId: member, hourlyPence: r.hourlyPence, effectiveFrom: r.effectiveFrom });
+    out.set(member, list);
+  }
+  return out;
+}
+
+/** Pay rates read too long ago to check the minimum wage against (rule 11; HZ-140). */
+const RATES_FRESH_HOURS = 48;
+
+/** Whether Thapsus-HR's rates were read successfully within the last two days. */
+export async function hrRatesFresh(tx: Transaction, now: Date): Promise<boolean> {
+  const [state] = await tx
+    .select({ at: hrSyncState.lastGoodSyncAt })
+    .from(hrSyncState)
+    .where(eq(hrSyncState.kind, "rates"));
+  return !!state?.at && now.getTime() - state.at.getTime() <= RATES_FRESH_HOURS * 3_600_000;
+}
+
+/** At most this many pay periods and rates are taken from one read; more is raised, not stored. */
+const MAX_PAY_RECORDS = 5_000;
+
+export interface PayPullOutcome {
+  readonly periods: number;
+  readonly rates: number;
+  readonly failed: number;
+  readonly error: string | null;
+}
+
+/**
+ * Pay periods and hourly rates in (rule 11; K5), once a day or when asked: each record checked
+ * at the boundary and written by the sync alone; a record that cannot be read is raised and the
+ * run is not a good sync. Nothing while Thapsus-HR's pay read is planned.
+ */
+export async function pullPay(
+  tx: Transaction,
+  tenantId: string,
+  port: ThapsusHrPort,
+  now: Date,
+  force = false,
+): Promise<PayPullOutcome | null> {
+  if (port.capabilities().pay_rates_read !== "available") return null;
+  if (!force) {
+    const [state] = await tx
+      .select({ at: hrSyncState.lastAttemptAt })
+      .from(hrSyncState)
+      .where(eq(hrSyncState.kind, "rates"));
+    if (state?.at && now.getTime() - state.at.getTime() < PAY_PULL_HOURS * 3_600_000) return null;
+  }
+  const out = { periods: 0, rates: 0, failed: 0 };
+  const failedIds: string[] = [];
+  const periods = await port.payPeriods();
+  if (!periods.ok) {
+    await recordSync(tx, "rates", now, periods.error);
+    return { ...out, error: periods.error };
+  }
+  if (periods.value.length > MAX_PAY_RECORDS) {
+    await recordSync(tx, "rates", now, "too_many");
+    return { ...out, error: "too_many" };
+  }
+  const seenPeriods = new Set<string>();
+  for (const raw of periods.value) {
+    if (typeof raw.id === "string") seenPeriods.add(raw.id);
+    const p = inboundPayPeriod(raw);
+    if (!p) {
+      out.failed += 1;
+      failedIds.push(typeof raw.id === "string" ? raw.id.slice(0, 64) : "invalid");
+      continue;
+    }
+    try {
+      await tx.transaction(async (sp) => {
+        const [known] = await sp
+          .select({
+            id: hrPayPeriod.id,
+            frequency: hrPayPeriod.frequency,
+            startsOn: hrPayPeriod.startsOn,
+            endsOn: hrPayPeriod.endsOn,
+          })
+          .from(hrPayPeriod)
+          .where(and(eq(hrPayPeriod.hrId, p.id), isNull(hrPayPeriod.deletedAt)));
+        if (!known) {
+          await sp.insert(hrPayPeriod).values({
+            hrId: p.id,
+            frequency: p.frequency,
+            startsOn: p.startsOn,
+            endsOn: p.endsOn,
+            lastSeenAt: now,
+            createdBy: null,
+            updatedBy: null,
+          });
+          out.periods += 1;
+          return;
+        }
+        // A period's dates never move once a run may rely on them: a change is raised.
+        if (
+          known.frequency !== p.frequency ||
+          known.startsOn !== p.startsOn ||
+          known.endsOn !== p.endsOn
+        ) {
+          throw new Error("pay period changed");
+        }
+        await sp
+          .update(hrPayPeriod)
+          .set({ lastSeenAt: now, updatedBy: null })
+          .where(eq(hrPayPeriod.id, known.id));
+      });
+    } catch {
+      out.failed += 1;
+      failedIds.push(p.id);
+    }
+  }
+  const { linked } = await members(tx);
+  const employees = [...linked.keys()];
+  if (employees.length > 0) {
+    // Rates are retired only when the whole read, periods included, was clean.
+    const read = await applyRates(tx, port, employees, linked, now, out.failed === 0);
+    if (read.error) {
+      await recordSync(tx, "rates", now, read.error);
+      return { ...out, error: read.error };
+    }
+    out.rates += read.rates;
+    out.failed += read.failedIds.length;
+    failedIds.push(...read.failedIds);
+  }
+  // Periods Thapsus-HR no longer lists stop being matched, unless a pay run already uses them.
+  if (out.failed === 0) await retireUnlistedPeriods(tx, seenPeriods, now);
+  if (out.failed > 0) {
+    const [connection] = await tx
+      .select({ id: integrationConnection.id })
+      .from(integrationConnection)
+      .where(eq(integrationConnection.port, HR_LINK_PORT));
+    if (connection) {
+      await raiseHrAlert(
+        tx,
+        "pay_record_failed",
+        "integration_connection",
+        connection.id,
+        now,
+        failedIds,
+      );
+    }
+    await recordSync(tx, "rates", now, "record_failed");
+    return { ...out, error: "record_failed" };
+  }
+  await audit(
+    tx,
+    tenantId,
+    "integrations.hr_link.pay_read",
+    "integration_connection",
+    HR_LINK_PORT,
+    {
+      periods: out.periods,
+      rates: out.rates,
+    },
+  );
+  await recordSync(tx, "rates", now, null);
+  return { ...out, error: null };
+}
+
+/**
+ * Rates for the given Thapsus-HR employees, checked at the boundary and written by the sync alone.
+ * Thapsus-HR owns each employee's rate history: a rate it no longer lists for an employee it did
+ * answer for is retired (soft-deleted, its history kept), but only when nothing in the answer was
+ * unreadable, and only when it takes effect after every period a pay run covers (a correction of a
+ * past period keeps the rates that were in force then).
+ */
+async function applyRates(
+  tx: Transaction,
+  port: ThapsusHrPort,
+  employees: readonly string[],
+  linked: ReadonlyMap<string, { readonly staffProfileId: string }>,
+  now: Date,
+  /** Whether everything read alongside (the pay periods) was clean. */
+  othersClean = true,
+): Promise<{
+  readonly rates: number;
+  readonly failedIds: string[];
+  readonly error: string | null;
+}> {
+  const failedIds: string[] = [];
+  const rates = await port.rates(employees);
+  if (!rates.ok) return { rates: 0, failedIds, error: rates.error };
+  if (rates.value.length > MAX_PAY_RECORDS) return { rates: 0, failedIds, error: "too_many" };
+  const listed = new Map<string, Set<string>>();
+  let n = 0;
+  for (const raw of rates.value) {
+    const r = inboundRate(raw);
+    if (!r) {
+      failedIds.push(typeof raw.employeeId === "string" ? raw.employeeId.slice(0, 64) : "invalid");
+      continue;
+    }
+    const member = linked.get(r.employeeId);
+    if (!member) continue;
+    const dates = listed.get(member.staffProfileId) ?? new Set<string>();
+    dates.add(r.effectiveFrom);
+    listed.set(member.staffProfileId, dates);
+    await tx
+      .insert(hrPayRate)
+      .values({
+        staffProfileId: member.staffProfileId,
+        hourlyPence: r.hourlyPence,
+        effectiveFrom: r.effectiveFrom,
+        lastSeenAt: now,
+        createdBy: null,
+        updatedBy: null,
+      })
+      .onConflictDoUpdate({
+        target: [hrPayRate.tenantId, hrPayRate.staffProfileId, hrPayRate.effectiveFrom],
+        targetWhere: sql`deleted_at IS NULL`,
+        set: { hourlyPence: r.hourlyPence, lastSeenAt: now, updatedBy: null },
+      });
+    n += 1;
+  }
+  if (failedIds.length === 0 && othersClean) {
+    // A rate a pay run may still need (a correction of a past period) is never retired: only
+    // rates taking effect after the end of every pay period with a run (HZ-140).
+    const [last] = await tx
+      .select({ end: sql<string | null>`max(${payRun.periodEnd})::text` })
+      .from(payRun);
+    const after = last?.end ?? "1970-01-01";
+    for (const [profile, dates] of listed) {
+      await tx
+        .update(hrPayRate)
+        .set({ deletedAt: now, updatedBy: null })
+        .where(
+          and(
+            eq(hrPayRate.staffProfileId, profile),
+            isNull(hrPayRate.deletedAt),
+            notInArray(hrPayRate.effectiveFrom, [...dates]),
+            gt(hrPayRate.effectiveFrom, after),
+          ),
+        );
+    }
+  }
+  return { rates: n, failedIds, error: null };
+}
+
+/** Soft-deletes stored pay periods Thapsus-HR no longer lists that no pay run uses. */
+async function retireUnlistedPeriods(tx: Transaction, listed: ReadonlySet<string>, now: Date) {
+  const stored = await storedHrPayPeriods(tx);
+  for (const p of stored) {
+    if (listed.has(p.id)) continue;
+    const [used] = await tx
+      .select({ id: payRun.id })
+      .from(payRun)
+      .where(
+        and(
+          eq(payRun.frequency, p.frequency),
+          eq(payRun.periodStart, p.startsOn),
+          eq(payRun.periodEnd, p.endsOn),
+        ),
+      )
+      .limit(1);
+    if (used) continue;
+    await tx
+      .update(hrPayPeriod)
+      .set({ deletedAt: now, updatedBy: null })
+      .where(eq(hrPayPeriod.id, p.rowId));
+  }
+}
+
+/**
+ * One employee's rates, read when Thapsus-HR says the employee changed (section 11.2), so a new
+ * rate is in Harbour before the next daily read. Nothing while the pay read is planned; a failure
+ * is left to the daily read.
+ */
+export async function pullRatesFor(
+  tx: Transaction,
+  port: ThapsusHrPort,
+  hrEmployeeId: string,
+  settings: HrLinkSettings,
+  now: Date,
+): Promise<void> {
+  if (port.capabilities().pay_rates_read !== "available") return;
+  // Only while Thapsus-HR owns pay rates (rule 2).
+  if (settings.owners.pay_rates_and_periods !== "thapsus_hr") return;
+  const { linked } = await members(tx);
+  if (!linked.has(hrEmployeeId)) return;
+  await applyRates(tx, port, [hrEmployeeId], linked, now);
+}
+
+/**
+ * Units for a pay run about to be locked whose period goes to Thapsus-HR (rule 11): checked
+ * before the lock, so nothing is locked that cannot reach payroll whole. Returns the problem, or
+ * what to keep once locked.
+ */
+export async function planLockUnits(
+  tx: Transaction,
+  link: HrConnection,
+  run: { readonly frequency: string; readonly periodStart: string; readonly periodEnd: string },
+  units: ReadonlyMap<string, readonly PayUnitTotal[]>,
+): Promise<
+  | { readonly problem: "no_hr_pay_period" }
+  | { readonly problem: "member_not_linked"; readonly count: number }
+  | { readonly problem: "pay_codes_unmapped"; readonly kinds: readonly string[] }
+  | {
+      readonly problem: null;
+      readonly periodRowId: string;
+      /** The pay code for each kind, as mapped now: kept with the units, sent unchanged. */
+      readonly codes: Readonly<Record<string, string>>;
+    }
+> {
+  const period = await hrPayPeriodOf(tx, run);
+  if (!period) return { problem: "no_hr_pay_period" };
+  const { linked } = await members(tx);
+  const employeeOf = new Map([...linked.entries()].map(([hrId, m]) => [m.memberId, hrId]));
+  const withUnits = [...units.entries()].filter(([, u]) => u.length > 0);
+  const unlinked = withUnits.filter(([member]) => !employeeOf.has(member)).length;
+  if (unlinked > 0) return { problem: "member_not_linked", count: unlinked };
+  const plan = hrPayUnits(
+    period.hrId,
+    withUnits.map(([member, u]) => ({ employeeId: employeeOf.get(member) as string, units: u })),
+    link.settings.pay.codes,
+  );
+  if (plan.unmapped.length > 0) return { problem: "pay_codes_unmapped", kinds: plan.unmapped };
+  const kinds = new Set(withUnits.flatMap(([, u]) => u.map((x) => x.kind)));
+  const codes = Object.fromEntries(
+    [...kinds].map((k) => [k, link.settings.pay.codes[k] as string]),
+  );
+  return { problem: null, periodRowId: period.rowId, codes };
+}
+
+/** Keeps a locked run's units (the system writes them; the database checks the run is locked). */
+export async function keepLockUnits(
+  tx: Transaction,
+  runId: string,
+  periodRowId: string,
+  units: ReadonlyMap<string, readonly PayUnitTotal[]>,
+  codes: Readonly<Record<string, string>>,
+): Promise<number> {
+  let n = 0;
+  for (const [memberId, list] of units) {
+    for (const u of list) {
+      await tx.insert(hrPayUnit).values({
+        runId,
+        hrPayPeriodId: periodRowId,
+        memberId,
+        unitKind: u.kind,
+        quantity: u.quantity.toFixed(2),
+        payCode: codes[u.kind] as string,
+        createdBy: null,
+      });
+      n += 1;
+    }
+  }
+  return n;
+}
+
+export interface PayDeliveryOutcome {
+  readonly sent: number;
+  readonly refused: number;
+  readonly failed: number;
+  readonly error: string | null;
+}
+
+const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/**
+ * Units out (rule 11; K4): for each pay period whose runs pay through Thapsus-HR (fixed on each
+ * run), the latest locked run's units (a correction carries the whole period, so one with no
+ * units empties it) with the pay codes kept when it was locked, replacing that period's items.
+ * Sent again only when they change; a refusal, and a member no longer matched, go to pay approvers.
+ * Nothing while Thapsus-HR's pay items are planned.
+ */
+export async function deliverPayUnits(
+  tx: Transaction,
+  tenantId: string,
+  port: ThapsusHrPort,
+  _settings: HrLinkSettings,
+  now: Date,
+): Promise<PayDeliveryOutcome | null> {
+  if (port.capabilities().partner_pay_items !== "available") return null;
+  const out = { sent: 0, refused: 0, failed: 0 };
+  const latest = await latestHrRuns(tx);
+  if (latest.length === 0) return { ...out, error: null };
+  const { linked } = await members(tx);
+  const employeeOf = new Map([...linked.entries()].map(([hrId, m]) => [m.memberId, hrId]));
+  for (const run of latest) {
+    const planned = await periodPlan(tx, run, employeeOf);
+    if (!planned) continue;
+    if (planned.unlinked) {
+      // Never sent short: the whole period waits for the match to be put right.
+      await raiseHrAlert(tx, "pay_member_unlinked", "pay_run", run.id, now);
+      out.failed += 1;
+      continue;
+    }
+    const { period, plan, digest } = planned;
+    let r: Awaited<ReturnType<typeof deliver>>;
+    try {
+      r = await tx.transaction((sp) =>
+        deliver(
+          sp,
+          tenantId,
+          "pay_units",
+          period.rowId,
+          digest,
+          now,
+          async (key) => {
+            const put = await port.putPayUnits(period.hrId, plan.units, key);
+            return put.ok ? { ok: true, value: { id: period.hrId } } : put;
+          },
+          "pay_units_refused",
+        ),
+      );
+    } catch {
+      r = "failed";
+    }
+    if (r === "sent") out.sent += 1;
+    else if (r === "refused") out.refused += 1;
+    else if (r === "failed") out.failed += 1;
+    else if (r === "rate_limited") return { ...out, error: "rate_limited" };
+  }
+  return { ...out, error: null };
+}
+
+/** The latest locked run of each period paid through Thapsus-HR (fixed on each run). */
+function latestHrRuns(tx: Transaction) {
+  return tx
+    .selectDistinctOn([payRun.frequency, payRun.periodStart], {
+      id: payRun.id,
+      frequency: payRun.frequency,
+      periodStart: payRun.periodStart,
+      periodEnd: payRun.periodEnd,
+    })
+    .from(payRun)
+    .where(and(eq(payRun.status, "locked"), eq(payRun.payRoute, "thapsus_hr")))
+    .orderBy(payRun.frequency, payRun.periodStart, desc(payRun.lockedAt));
+}
+
+/**
+ * What a locked run sends for its Thapsus-HR pay period: its units with the pay codes kept at
+ * lock, and the digest the delivery log compares; `unlinked` when a member is no longer matched.
+ */
+async function periodPlan(
+  tx: Transaction,
+  run: {
+    readonly id: string;
+    readonly frequency: string;
+    readonly periodStart: string;
+    readonly periodEnd: string;
+  },
+  employeeOf: ReadonlyMap<string, string>,
+) {
+  const period = await hrPayPeriodOf(tx, run);
+  if (!period) return null;
+  const rows = await tx
+    .select({
+      memberId: hrPayUnit.memberId,
+      kind: hrPayUnit.unitKind,
+      quantity: hrPayUnit.quantity,
+      payCode: hrPayUnit.payCode,
+    })
+    .from(hrPayUnit)
+    .where(eq(hrPayUnit.runId, run.id));
+  const unlinked = rows.some((r) => !employeeOf.has(r.memberId));
+  const codes = Object.fromEntries(rows.map((r) => [r.kind, r.payCode]));
+  const byMember = new Map<string, { kind: string; quantity: number }[]>();
+  for (const r of rows) {
+    if (!employeeOf.has(r.memberId)) continue;
+    const list = byMember.get(r.memberId) ?? [];
+    list.push({ kind: r.kind, quantity: Number(r.quantity) });
+    byMember.set(r.memberId, list);
+  }
+  const plan = hrPayUnits(
+    period.hrId,
+    [...byMember.entries()].map(
+      ([m, units]): MemberUnits => ({ employeeId: employeeOf.get(m) as string, units }),
+    ),
+    codes,
+  );
+  return { period, plan, digest: sha256(JSON.stringify(plan.units)), unlinked };
+}
+
+/**
+ * Locked periods paid through Thapsus-HR whose latest units have not reached it: not sent, or
+ * sent before a later correction (another digest). For the alert on disconnecting, so nobody is
+ * left unpaid without a person knowing (HZ-140).
+ */
+export async function unsentPayPeriods(tx: Transaction): Promise<number> {
+  const { linked } = await members(tx);
+  const employeeOf = new Map([...linked.entries()].map(([hrId, m]) => [m.memberId, hrId]));
+  let n = 0;
+  for (const run of await latestHrRuns(tx)) {
+    const planned = await periodPlan(tx, run, employeeOf);
+    if (!planned) {
+      n += 1;
+      continue;
+    }
+    const [sent] = await tx
+      .select({ state: hrDelivery.state, digest: hrDelivery.payloadSha256 })
+      .from(hrDelivery)
+      .where(
+        and(eq(hrDelivery.kind, "pay_units"), eq(hrDelivery.harbourRef, planned.period.rowId)),
+      );
+    if (planned.unlinked || sent?.state !== "sent" || sent.digest !== planned.digest) n += 1;
+  }
+  return n;
+}

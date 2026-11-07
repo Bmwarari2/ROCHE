@@ -1,6 +1,6 @@
 import { builtinRole, type RoleAssignmentInput, resolveAccess } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
-import { familyReach, SYNCED_READS } from "../src/routes/sync";
+import { assignedCovered, familyReach, SYNCED_READS } from "../src/routes/sync";
 
 /**
  * Hazard HZ-011 (ADR-0071 review round 1, C-M1 and S-M1): which locations, and whether the people
@@ -132,6 +132,8 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
       // reads them.
       handover: ["care.handover.manage"],
       entries_write: ["care.note.write"],
+      // Medicines sync to those who give them (slice 68; ADR-0130).
+      meds: ["medicines.emar.administer", "people.person.read", "care.plan.read"],
     });
   });
 
@@ -147,6 +149,9 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
     expect(familyReach(effective, "entries", all)).toEqual(entries);
     expect(familyReach(effective, "handover", all)).toEqual(handover);
     expect(familyReach(effective, "entries_write", all)).toEqual(write);
+    // Giving medicines is a point-of-care permission, granted with recording notes: the medicines
+    // streams reach exactly the people the member records for.
+    expect(familyReach(effective, "meds", all)).toEqual(write);
   });
 
   it("syncs no person where people.person.read reaches but care.plan.read does not (review round 2)", () => {
@@ -174,5 +179,38 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
       NOW,
     );
     expect(familyReach(owner, "people", [NORTH, SOUTH]).locationIds).toEqual([NORTH, SOUTH]);
+  });
+});
+
+describe("buckets per connection: assigned streams left off where a whole home covers them (ADR-0134)", () => {
+  it.each([
+    ["no assignments", [NORTH], [], true],
+    [
+      "every assigned person lives at a home the member sees whole",
+      [NORTH],
+      [
+        { locationId: NORTH, status: "active" },
+        { locationId: NORTH, status: "in_hospital" },
+      ],
+      true,
+    ],
+    [
+      "one lives at another home",
+      [NORTH],
+      [
+        { locationId: NORTH, status: "active" },
+        { locationId: SOUTH, status: "active" },
+      ],
+      false,
+    ],
+    [
+      "one has left care (the whole-home streams no longer carry them)",
+      [NORTH],
+      [{ locationId: NORTH, status: "discharged" }],
+      false,
+    ],
+    ["the member sees no home whole", [], [{ locationId: NORTH, status: "active" }], false],
+  ] as const)("%s", (_case, homes, assigned, covered) => {
+    expect(assignedCovered(homes, assigned)).toBe(covered);
   });
 });

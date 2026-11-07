@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
+import { smsGatewayConfigured } from "../integrations/ports";
 import type { EscalationStep } from "../platform/notifications";
 import {
   ALARM_REASON_WORDS,
@@ -15,6 +16,7 @@ import {
   type LoneWorkerEventKind,
   type LoneWorkerSessionTimes,
   nextCheckInDue,
+  ROUTE_PROBLEM_MESSAGES,
   realertDue,
   resolveOnCheckIn,
   sessionStatus,
@@ -468,7 +470,75 @@ describe("checkRoute (H-539)", () => {
     ["in-app only", [{ ...onCall, channels: ["in_app"] as const }, manager], ["in_app_only"]],
     ["steps out of order", [{ ...onCall, afterMinutes: 20 }, manager], ["chain"]],
   ] as const)("%s", (_label, steps, expected) => {
-    expect(checkRoute(steps as readonly EscalationStep[]).problems).toEqual(expected);
+    expect(
+      checkRoute(steps as readonly EscalationStep[], { smsAvailable: true, pushAvailable: true })
+        .problems,
+    ).toEqual(expected);
+  });
+});
+
+describe("hazard HZ-125 no on-call step relies on a channel that cannot reach staff (ADR-0132)", () => {
+  const onCall: EscalationStep = {
+    afterMinutes: 1,
+    targetTenantUserId: "00000000-0000-4000-8000-000000000001",
+    channels: ["email"],
+  };
+  const manager: EscalationStep = {
+    afterMinutes: 10,
+    targetRoleKey: "registered_manager",
+    channels: ["push", "email"],
+  };
+  const launch = { smsAvailable: false, pushAvailable: false } as const;
+  it.each([
+    ["email at every step", [onCall, manager], launch, []],
+    [
+      "a phone notification only, while staff phones cannot receive them",
+      [{ ...onCall, channels: ["push"] as const }, manager],
+      launch,
+      ["in_app_only"],
+    ],
+    [
+      "a text message beside email",
+      [{ ...onCall, channels: ["email", "sms"] as const }, manager],
+      launch,
+      ["sms_unavailable"],
+    ],
+    [
+      "a text message as a step's only way away from the app",
+      [{ ...onCall, channels: ["in_app", "sms"] as const }, manager],
+      launch,
+      ["in_app_only", "sms_unavailable"],
+    ],
+    [
+      "a phone notification once staff phones receive them",
+      [{ ...onCall, channels: ["push"] as const }, manager],
+      { smsAvailable: false, pushAvailable: true },
+      [],
+    ],
+    [
+      "a text message once a gateway is connected",
+      [{ ...onCall, channels: ["sms"] as const }, manager],
+      { smsAvailable: true, pushAvailable: false },
+      [],
+    ],
+  ] as const)("%s", (_label, steps, options, expected) => {
+    expect(checkRoute(steps as readonly EscalationStep[], options).problems).toEqual(expected);
+  });
+
+  it("says in words what to choose instead", () => {
+    expect(ROUTE_PROBLEM_MESSAGES.sms_unavailable).toMatch(/Include email at each step/);
+    expect(ROUTE_PROBLEM_MESSAGES.in_app_only).toMatch(/Include email/);
+  });
+});
+
+describe("hazard HZ-125 smsGatewayConfigured: the mock never counts as a gateway", () => {
+  it.each([
+    [null, false],
+    [{ provider: "mock", status: "connected" }, false],
+    [{ provider: "uk_gateway", status: "configured" }, false],
+    [{ provider: "uk_gateway", status: "connected" }, true],
+  ] as const)("%j is %s", (connection, expected) => {
+    expect(smsGatewayConfigured(connection)).toBe(expected);
   });
 });
 

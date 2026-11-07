@@ -27,10 +27,14 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
+  lowestRateIn,
   PAY_EXCEPTION_MESSAGES,
   type PayExceptionKind,
+  type PayLineInput,
+  type PayUnitTotal,
   type Permission,
   payLineInputFromJson,
+  payUnits,
   type RateRow,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -41,10 +45,20 @@ import {
   type AppEnv,
   requireAnyPermission,
   requirePermission,
+  stepUpRefusal,
   type TenantAccess,
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import {
+  hrPayPeriodOf,
+  hrRatesByMember,
+  hrRatesFresh,
+  keepLockUnits,
+  type PayPath,
+  payPathFor,
+  planLockUnits,
+} from "../integrations/hr-pay";
 import { publish } from "../outbox";
 import {
   bankHolidaysIn,
@@ -331,6 +345,7 @@ async function runItem(tx: Transaction, r: RunRow): Promise<z.infer<typeof PayRu
     lockedAt: iso(r.lockedAt),
     createdBy: r.createdBy,
     openExceptions: await openExceptions(tx, r),
+    payRoute: r.payRoute === "thapsus_hr" || r.payRoute === "harbour_export" ? r.payRoute : null,
   };
 }
 
@@ -376,6 +391,41 @@ function checkPeriod(b: z.infer<typeof CreatePayRun>) {
         : "A monthly pay period is a month long (28 to 31 days).",
     );
   }
+}
+
+/** The route to payroll for a period (rule 12; slice 89), read with the system's rights. */
+async function payPath(tx: Transaction, periodStart: string): Promise<PayPath> {
+  return withSystemRights(tx, () => payPathFor(tx, periodStart));
+}
+
+const routeUnknown = () =>
+  new HttpProblem(
+    409,
+    "pay_route_unknown",
+    "The route to payroll for this period cannot be worked out. Check the HR platform link's pay settings.",
+  );
+
+/**
+ * For a period paid through Thapsus-HR, each member's basic rate is the lowest of Thapsus-HR's in
+ * force during the period (rule 11), for the minimum wage check; a member with none gets no role
+ * rate, which stops the run until the rate is put right in Thapsus-HR (never overridden; HZ-140).
+ */
+async function withHrRates(
+  tx: Transaction,
+  periodStart: string,
+  periodEnd: string,
+  inputs: readonly PayLineInput[],
+): Promise<PayLineInput[]> {
+  const rates = await withSystemRights(tx, () => hrRatesByMember(tx));
+  return inputs.map((input) => {
+    const role = input.profile?.roleKey;
+    if (!role) return input;
+    const rate = lowestRateIn(rates.get(input.memberId) ?? [], periodStart, periodEnd);
+    const roleRates = { ...input.ruleSet.roleRates };
+    if (rate) roleRates[role] = rate.hourlyPence;
+    else delete roleRates[role];
+    return { ...input, ruleSet: { ...input.ruleSet, roleRates } };
+  });
 }
 
 export const payRouter = createRouter()
@@ -750,6 +800,35 @@ export const payRouter = createRouter()
               "There is no approved pay rule set in force on the period's first day.",
             );
           }
+          // A period paid through Thapsus-HR is its pay period exactly (rule 11; HZ-140).
+          const path = await payPath(tx, body.periodStart);
+          if (path.route === null) throw routeUnknown();
+          // The link is down for a period its settings send to Thapsus-HR: only on a person's
+          // say-so does it go to Harbour's export instead (HZ-140).
+          const overriding = path.link === null && path.intended !== "harbour_export";
+          if (overriding && body.confirmExport) {
+            // Fixing a period for the HR platform to the export is a pay route decision: a pay
+            // approver, with a fresh step-up (slice 90 security review).
+            if (!access.stepUpFresh) throw stepUpRefusal(access);
+            await requirePay(c, [APPROVE]);
+          }
+          if (overriding && !body.confirmExport) {
+            throw new HttpProblem(
+              409,
+              "hr_link_down_for_pay",
+              "This period is set to be paid through the HR platform, but the link is off or disconnected. Wait for the link, or confirm this period goes to the payroll export instead.",
+            );
+          }
+          if (
+            path.route === "thapsus_hr" &&
+            !(await withSystemRights(tx, () => hrPayPeriodOf(tx, body)))
+          ) {
+            throw new HttpProblem(
+              422,
+              "not_hr_pay_period",
+              "This period is paid through the HR platform: use one of its pay periods exactly.",
+            );
+          }
           const [made] = await tx
             .insert(payRun)
             .values({
@@ -758,6 +837,8 @@ export const payRouter = createRouter()
               periodEnd: body.periodEnd,
               ruleSetId: set.id,
               nation: await nationOfTenant(tx),
+              // Fixed for the period from now on (rule 12; HZ-140).
+              payRoute: path.route,
             })
             .returning();
           if (!made) throw new Error("pay run not stored");
@@ -765,6 +846,9 @@ export const payRouter = createRouter()
             action: A.runCreated,
             resourceType: "pay_run",
             resourceId: made.id,
+            ...(overriding && body.confirmExport
+              ? { scope: { exportConfirmedWhileHrLinkDown: true, intended: path.intended } }
+              : {}),
           });
           return runItem(tx, made);
         },
@@ -847,7 +931,17 @@ export const payRouter = createRouter()
           .slice(0, 10);
         const holidays = await bankHolidaysIn(tx, nation, r.periodStart, lastDay);
         const set = ruleSetFull(setRow, holidays);
-        const inputs = await lineInputs(tx, r, set, rows, nation, access.tenantId, rates);
+        const base = await lineInputs(tx, r, set, rows, nation, access.tenantId, rates);
+        // The run's own route, fixed when it was drafted (rule 12).
+        const viaHr = r.payRoute === "thapsus_hr";
+        if (viaHr && !(await withSystemRights(tx, () => hrRatesFresh(tx, new Date())))) {
+          throw new HttpProblem(
+            409,
+            "hr_rates_out_of_date",
+            "Pay rates from the HR platform have not been read in the last two days. Sync the link, then calculate.",
+          );
+        }
+        const inputs = viaHr ? await withHrRates(tx, r.periodStart, r.periodEnd, base) : base;
         const [next] = await tx
           .update(payRun)
           .set({
@@ -967,6 +1061,15 @@ export const payRouter = createRouter()
             "Only an open exception of a draft run's latest calculation can be overridden.",
           );
         }
+        // A period paid through Thapsus-HR has no rate to fall back on: a missing one is put right
+        // in Thapsus-HR, never overridden (rule 11; HZ-140).
+        if (r.payRoute === "thapsus_hr" && e.kind === "no_role_rate") {
+          throw new HttpProblem(
+            409,
+            "hr_rate_not_overridden",
+            "This person has no rate in the HR platform for this period. Add it there and read it again, then recalculate.",
+          );
+        }
         const [saved] = await tx
           .update(payRunException)
           .set({
@@ -1010,7 +1113,7 @@ export const payRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const what = { action: A.runLocked, resourceType: "pay_run", id };
-      const { item, lineIds, run } = await payChange(c, access, what, async (tx) => {
+      const { item, lineIds, run, exportAllowed } = await payChange(c, access, what, async (tx) => {
         const r = await loadRun(tx, id);
         if (!r) throw problems.notFound();
         if (r.createdBy === access.tenantUserId || r.calculatedBy === access.tenantUserId) {
@@ -1039,6 +1142,59 @@ export const payRouter = createRouter()
             "Put right or override every open exception before locking the run.",
           );
         }
+        // A period paid through Thapsus-HR: its units must be able to reach payroll whole before
+        // the run is locked (rules 11 and 12; HZ-140).
+        // The run's own route, fixed when it was drafted (rule 12); runs drafted before slice 89
+        // pay through Harbour's export.
+        const route = r.payRoute ?? "harbour_export";
+        let toKeep: {
+          periodRowId: string;
+          units: Map<string, PayUnitTotal[]>;
+          codes: Readonly<Record<string, string>>;
+        } | null = null;
+        if (route === "thapsus_hr") {
+          const path = await payPath(tx, r.periodStart);
+          const link = path.link;
+          const port = link ? c.get("services").hrLink.port(access.tenantId, link.settings) : null;
+          if (!link || port?.capabilities().partner_pay_items !== "available") {
+            throw new HttpProblem(
+              409,
+              "hr_link_unavailable_for_pay",
+              "This period is paid through the HR platform, which cannot take pay just now. Nothing is locked; try again when the link is back.",
+            );
+          }
+          // The units of the calculation the checker sees, never rebuilt from live timesheets.
+          const lines = await tx
+            .select({ memberId: payRunLine.memberId, inputs: payRunLine.inputs })
+            .from(payRunLine)
+            .where(and(eq(payRunLine.runId, r.id), eq(payRunLine.calculation, r.calculation)));
+          const units = new Map(
+            lines.map((l) => [l.memberId, payUnits(payLineInputFromJson(l.inputs))]),
+          );
+          const plan = await withSystemRights(tx, () => planLockUnits(tx, link, r, units));
+          if (plan.problem === "no_hr_pay_period") {
+            throw new HttpProblem(
+              409,
+              "not_hr_pay_period",
+              "This period is paid through the HR platform but is not one of its pay periods.",
+            );
+          }
+          if (plan.problem === "member_not_linked") {
+            throw new HttpProblem(
+              409,
+              "hr_pay_member_not_linked",
+              `${plan.count} people in this run are not matched to the HR platform, so their pay cannot reach payroll. Confirm their matches first.`,
+            );
+          }
+          if (plan.problem === "pay_codes_unmapped") {
+            throw new HttpProblem(
+              409,
+              "hr_pay_codes_unmapped",
+              `Map a pay code for ${plan.kinds.join(", ")} in the HR platform link before locking.`,
+            );
+          }
+          toKeep = { periodRowId: plan.periodRowId, units, codes: plan.codes };
+        }
         const [saved] = await tx
           .update(payRun)
           .set({ status: "locked", lockedBy: access.tenantUserId, lockedAt: new Date() })
@@ -1062,9 +1218,26 @@ export const payRouter = createRouter()
             kind: saved.kind,
           },
         });
-        await audit(c, tx, access, { ...what, resourceId: id });
-        return { item: await runItem(tx, saved), lineIds: lines.map((l) => l.id), run: saved };
+        const kept = toKeep;
+        if (kept) {
+          await withSystemRights(tx, () =>
+            keepLockUnits(tx, id, kept.periodRowId, kept.units, kept.codes),
+          );
+        }
+        await audit(c, tx, access, {
+          ...what,
+          resourceId: id,
+          scope: { payRoute: route },
+        });
+        return {
+          item: await runItem(tx, saved),
+          lineIds: lines.map((l) => l.id),
+          run: saved,
+          exportAllowed: route === "harbour_export",
+        };
       });
+      // Never offered to Harbour's export when the period goes to Thapsus-HR (rule 12).
+      if (!exportAllowed) return c.json(item, 200);
       await payrollExportNotConfigured.offer({
         id: run.id,
         frequency: run.frequency,
@@ -1121,6 +1294,8 @@ export const payRouter = createRouter()
               correctsRunId: r.id,
               ruleSetId: set?.id ?? r.ruleSetId,
               nation: r.nation,
+              // A correction pays the way its original did (rule 12; HZ-140).
+              payRoute: r.payRoute,
             })
             .returning();
           if (!made) throw new Error("pay run not stored");

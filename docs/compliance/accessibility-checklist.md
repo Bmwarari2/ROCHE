@@ -108,4 +108,4 @@ Tenants that are public sector bodies may need to publish an accessibility state
 
 | Release | Date | Tester | Assistive technology and platforms | Journeys | Issues found (links) | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| v0.0 Phase 0 | `[date]` | `[name]` | | Sign in, tenant and location switcher, person list and header (web and mobile), sync banner states | | `[pending]` |
+| v0.0 Phase 0 | `[date]` | `[name]` | | Sign in, tenant and location switcher, person list and header (web and mobile), sync banner states (including "This phone cannot sync" for too wide access, ADR-0134: announced once, reason and stale warning both read, legible at the largest text size) | | `[pending]` |

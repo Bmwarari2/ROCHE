@@ -205,13 +205,66 @@ the ratchet test checks. The rota managers holding `read` are care coordinators;
     employee. Harbour treats such a refusal as a delivery error for the rota manager to review. It
     is never a reason to change Thapsus-HR's behaviour for its other customers (section 11.9).
 
+How slice 89 applies rules 11 and 12 ([ADR-0131](../decisions/0131-pay-through-thapsus-hr.md);
+migration 0148; HZ-133, HZ-140). Built against the mock with Thapsus-HR's Phase 19 pay items (K4)
+and pay read (K5) switched on; at the pinned commit both answer `planned`, so nothing goes live:
+- **One route per pay period.** Each pay run's route is fixed when it is drafted; a correction
+  takes its original's. The link's settings hold the route for periods with no run yet (Harbour's
+  export by default) and at most one change waiting, from the first day of a later pay period
+  than any run, with a fresh step-up. A move to Thapsus-HR also needs both pay capabilities
+  available, pay rates and periods owned by Thapsus-HR and timesheets by Harbour, and a start on
+  one of its pay periods. A run drafted with the link disconnected or off pays through Harbour's
+  export; a run whose route is Thapsus-HR is not locked while the link cannot take pay.
+- **Pay periods and rates in.** Read once a day and on a manual sync, checked at the boundary and
+  written by the sync alone (`hr_pay_period`, `hr_pay_rate`). A pay period whose dates change is
+  raised, never moved. Only the employee, the hourly rate in whole pence and its effective date
+  are kept; rates are read by pay holders only.
+- **Pay runs.** A run for a period paid through Thapsus-HR must be one of its pay periods
+  exactly. The minimum wage check uses the lowest of each member's Thapsus-HR rates in force
+  during the period, and calculation is refused when rates are more than two days old; a member
+  with none gets the "no role rate" exception, which cannot be overridden for such a run.
+- **Units by pay code out.** Hours split as the pay line splits them (by night, weekend, bank
+  holiday and overtime), sleep-ins, on-call periods away and miles; per employee and pay code,
+  summed, to 2 places, from the calculation the second person checked. Before a run is locked
+  every member with units must be matched and every unit kind mapped to a pay code (by a pay
+  approver), or the lock is refused naming what is missing. On lock the units and their pay codes
+  are kept unchanged (`hr_pay_unit`) and Harbour's export is not offered. The latest locked run of
+  each period (a correction carries the whole period) replaces that period's items in Thapsus-HR,
+  through the delivery log; a refusal, a member no longer matched and pay left unsent on
+  disconnecting go to pay approvers.
+
+How slice 90 finishes the link (screens and guide; HZ-133, HZ-140):
+- **One settings page** (`/settings/hr-link`, menu "HR platform link", shown with the flag on to
+  holders of the link's permissions): status and sync health with the staleness note, check and
+  sync now; connect (step-up); owners and the out-of-date limit; disconnect after a confirmation;
+  location mapping; the match review queue (confirm or reject, for `.review`); what was sent; pay
+  (route to payroll, a change from a later period, pay codes for pay approvers); and absence copies
+  to release.
+- **Held copies are listed before release**: `GET /v1/integrations/hr-link/absences/held` (manage)
+  reads Thapsus-HR's list again while linked and returns the current copies it no longer lists, or
+  every copy in force once disconnected; it changes nothing. The release then sends exactly those
+  ids.
+- **"Managed in the HR platform"** (icon and words) on absences copied from Thapsus-HR and pay runs
+  paid through it (`AbsenceItem.source`, `PayRunItem.payRoute`); the API's refusal of a change says
+  the same. The staff file has no web screen yet; the label and the leaving-date withdrawal come with
+  it.
+- **Follow-ups from slices 88 and 89**: a shift cancellation Thapsus-HR answers not found is done,
+  not retried; a pay run for a period set for Thapsus-HR is not drafted while the link is down
+  unless a person confirms the export (`confirmExport`, audited); pay approvers are told when the
+  flag is off with locked pay unsent; a changed employee's rate is read on `employee.changed`; a rate
+  Thapsus-HR stops listing for an employee is retired (only when the whole read was clean), as is a
+  pay period no pay run uses.
+- User guides: [registered-manager](../user-guides/registered-manager/link-to-the-hr-platform.md)
+  (link, pay, releasing absence copies).
+
 ### 11.6 API and events
 
 Harbour routes (OpenAPI):
 - `POST /v1/integrations/hr-link`: connect, with step-up.
 - `GET /v1/integrations/hr-link`: status, owners and staleness.
-- `PATCH /v1/integrations/hr-link`: owners, staleness limit and pay code mapping, with
-  `expected_version` and step-up.
+- `PATCH /v1/integrations/hr-link`: owners, staleness limit, pay code mapping (`payCodes`) and
+  the route to payroll from a later pay period (`payRoute`), with `expected_version`; the pay
+  changes need step-up (slice 89).
 - `POST /v1/integrations/hr-link/test`
 - `DELETE /v1/integrations/hr-link`: stops sync and keeps the links for audit.
 - `GET /v1/integrations/hr-link/matches`, `POST .../matches/{id}/confirm` and
@@ -680,6 +733,13 @@ the real service (H-1240 to H-1243).**
    environment where real people work. There the TRUD adapter is used when `TRUD_API_KEY` is set, and
    otherwise there is no source and the job fails (`trud_unconfigured`). A new environment's name
    therefore fails safe. The invented fixture stays refused outside dev and test databases (rule 1).
+   The deployed job always runs with `NODE_ENV=production` (H-1505), so in every Google Cloud
+   environment it downloads from TRUD or fails; dev has no TRUD key, so the job is not scheduled
+   there and has no dm+d alerts. In production mode its settings are checked on their own
+   (`loadDmdJobConfig`): `DATABASE_DMD_URL` connects as `harbour_dmd_job` to the database's private
+   IPv4 address (10/8, 172.16/12 or 192.168/16) with `sslmode` `verify-ca` or `verify-full`, and
+   carries no query settings but `sslmode` and `sslrootcert`, each once (pg reads every one), and `TRUD_ALLOWED_HOSTS` lists only
+   TRUD's own host.
 
 **Schema** (migration 0131):
 - the login role `harbour_dmd_job` (created by `db:bootstrap`) receives EXECUTE on the four loader

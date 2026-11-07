@@ -136,7 +136,7 @@ const claims = (overrides: Partial<SyncTokenClaims>): Partial<SyncTokenClaims> =
  * round's open tasks follow care.plan.read, as the round view does, and the handovers
  * care.handover.manage.
  */
-const FAMILY: Record<string, "people" | "care" | "entries" | "handover"> = {
+const FAMILY: Record<string, "people" | "care" | "entries" | "handover" | "meds"> = {
   assigned_people: "people",
   assigned_allergies: "people",
   location_people: "people",
@@ -151,6 +151,10 @@ const FAMILY: Record<string, "people" | "care" | "entries" | "handover"> = {
   location_open_tasks: "care",
   assigned_handovers: "handover",
   location_handovers: "handover",
+  assigned_medicines: "meds",
+  location_medicines: "meds",
+  assigned_medicine_administrations: "meds",
+  location_medicine_administrations: "meds",
 };
 
 let hydrated: ReturnType<typeof compile>["hydrated"];
@@ -189,6 +193,12 @@ describe("sync streams definition", () => {
       if (stream === "my_locations") continue;
       // The member's own shifts and clock events: by their own id only, in the token's shift days
       // (scheduling.md section 18); tested in shift-streams.test.ts.
+      // The member's own medicines competence, by their own id (medicines-streams.test.ts).
+      if (stream === "my_medicines_competence") {
+        expect(query, stream).toContain("auth.user_id()");
+        expect(query, stream).not.toContain("connection.parameter");
+        continue;
+      }
       if (stream === "my_shifts" || stream === "my_clock_events") {
         expect(query, stream).toContain("auth.user_id()");
         expect(query, stream).toContain("IN auth.parameter('shift_days')");
@@ -200,11 +210,25 @@ describe("sync streams definition", () => {
       const family = FAMILY[stream];
       expect(family, stream).toBeDefined();
       if (stream.startsWith("assigned_")) {
-        expect(query, stream).toContain("auth.user_id()");
-        expect(query, stream).toContain(`AND auth.parameter('${family}_assigned') = true`);
+        // The handovers a limited reader may open, and their own notes, go by the homes where the
+        // member's assigned people live, which the API names in the token (ADR-0134).
+        expect(
+          query.includes("auth.user_id()") ||
+            query.includes("IN auth.parameter('handover_assigned_location_ids')"),
+          stream,
+        ).toBe(true);
+        // Tasks about nobody given to the member have their own claim, which the whole-home cover
+        // never turns off (ADR-0134).
+        expect(query, stream).toContain(
+          query.includes("task.person_id IS NULL")
+            ? "AND auth.parameter('care_own_tasks') = true"
+            : `AND auth.parameter('${family}_assigned') = true`,
+        );
       } else {
         expect(query, stream).toContain(`IN auth.parameter('${family}_location_ids')`);
-        for (const other of ["people", "care", "entries", "handover"].filter((f) => f !== family)) {
+        for (const other of ["people", "care", "entries", "handover", "meds"].filter(
+          (f) => f !== family,
+        )) {
           expect(query, stream).not.toContain(`auth.parameter('${other}_location_ids')`);
         }
       }
@@ -213,13 +237,17 @@ describe("sync streams definition", () => {
     }
   });
 
-  it("limits every point-of-care entry to the offline window", () => {
+  it("limits every point-of-care entry to the offline window, by day at a home and by ten-day block for assigned people (ADR-0134)", () => {
     const entryQueries = streamQueries().filter(({ query }) =>
-      OFFLINE_WINDOW_TABLES.some((t) => query.includes(`FROM ${t},`)),
+      OFFLINE_WINDOW_TABLES.some((t) => new RegExp(`FROM ${t}(,|\\s)`).test(query)),
     );
     expect(entryQueries).toHaveLength(OFFLINE_WINDOW_TABLES.length * 2);
     for (const { stream, query } of entryQueries) {
-      expect(query, stream).toContain("IN auth.parameter('offline_days')");
+      expect(query, stream).toContain(
+        stream.startsWith("assigned_")
+          ? ", 1, 9) IN auth.parameter('offline_blocks')"
+          : ", 1, 10) IN auth.parameter('offline_days')",
+      );
     }
   });
 
@@ -227,10 +255,25 @@ describe("sync streams definition", () => {
     const shiftQueries = streamQueries().filter(
       ({ stream }) => stream.endsWith("_open_tasks") || stream.endsWith("_handovers"),
     );
-    expect(shiftQueries).toHaveLength(18);
+    // Since ADR-0134: the location tasks are one query (every task at the home, by its sync home);
+    // whole readers' handovers nine (items and notes about nobody or someone who lives at the
+    // handover's home, and about someone who moved between two of their homes), limited readers'
+    // seven (with the mixed scope's two).
+    expect(shiftQueries).toHaveLength(19);
     for (const { stream, query } of shiftQueries) {
-      expect(query, stream).toMatch(
-        /substring\((task\.due_at|handover\.shift_end), 1, 10\) IN auth\.parameter\('offline_days'\)/,
+      // By day where the bucket is a whole home's; by ten-day block where it is a person's, the
+      // member's or a home a limited reader may open (ADR-0134).
+      const column =
+        /substring\((task\.due_at|"?handover(_item|_note|_acknowledgement|_staff_acknowledgement)?"?\.shift_end), 1, (10|9)\) IN auth\.parameter\('(offline_days|offline_blocks)'\)/;
+      const match = query.match(column);
+      expect(match, stream).not.toBeNull();
+      expect([match?.[3], match?.[4]], stream).toEqual(
+        /(entries|care|handover)_location_ids'\)/.test(query) &&
+          !query.includes("person_assignment") &&
+          !query.includes("auth.user_id()") &&
+          !query.includes("at_home = false")
+          ? ["10", "offline_days"]
+          : ["9", "offline_blocks"],
       );
     }
   });
@@ -245,12 +288,18 @@ describe("sync streams definition", () => {
         FAMILY[stream] !== "handover" &&
         !query.includes("person_id IS NULL"),
     );
-    // People, allergies, the five reference, two plan and five entry queries, and tasks.
-    expect(location.length).toBe(15);
+    // People, allergies, the five reference, two plan and five entry queries, tasks, the four
+    // medicines queries and the administrations, by their routing home (slice 68; ADR-0134).
+    expect(location.length).toBe(20);
     const live = (column: string) =>
       `(${column} = 'active' OR ${column} = 'on_leave' OR ${column} = 'in_hospital')`;
     for (const { stream, query } of location) {
-      const filtered = query.includes(live("status")) || query.includes(live("person.status"));
+      // The entries and tasks go by the row's sync home, which the database empties once the
+      // person has left care (migration 0146; ADR-0134), so one bucket serves a home and day.
+      const filtered =
+        query.includes(live("status")) ||
+        query.includes(live("person.status")) ||
+        /\.sync_location_id IN auth\.parameter\('(entries|care|meds)_location_ids'\)/.test(query);
       expect(filtered, stream).toBe(true);
     }
   });

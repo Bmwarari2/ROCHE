@@ -37,7 +37,13 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
  * dashboard's records at one location; migration 0108), `harbour_dmd_loader` (the dm+d release loader's functions, the only
  * writer of the dm+d reference tables; migration 0110, ADR-0080), `harbour_member_owner` (suspending,
  * reinstating and ending a membership, unlinking its sign-in, and counting the sign-in's memberships
- * elsewhere; migration 0129, H-566).
+ * elsewhere; migration 0129, H-566). The bounded-context definer owners (migration 0151, ADR-0133),
+ * each owning the definer functions of its context that harbour_owner, which can log in, used to
+ * own: `harbour_platform_definer` (provisioning an organisation, the audit chain),
+ * `harbour_care_definer` (handed-over entries, the earlier-plan round data, discard reasons),
+ * `harbour_workforce_definer` (casework, leavers, induction, supervision, absence, equality
+ * monitoring), `harbour_scheduling_definer` (agency workers, cover needs, reading worker time) and
+ * `harbour_finance_definer` (pay run state).
  */
 export const NOLOGIN_ROLES = [
   "harbour_membership_reader",
@@ -52,6 +58,20 @@ export const NOLOGIN_ROLES = [
   "harbour_quality_reader",
   "harbour_dmd_loader",
   "harbour_member_owner",
+  "harbour_platform_definer",
+  "harbour_care_definer",
+  "harbour_workforce_definer",
+  "harbour_scheduling_definer",
+  "harbour_finance_definer",
+] as const;
+
+/** The definer owners harbour_owner hands functions to (SET only, never INHERIT; ADR-0133). */
+const CONTEXT_DEFINERS = [
+  "harbour_platform_definer",
+  "harbour_care_definer",
+  "harbour_workforce_definer",
+  "harbour_scheduling_definer",
+  "harbour_finance_definer",
 ] as const;
 
 export type RolePasswords = Record<LoginRole, string>;
@@ -106,6 +126,9 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   await client.query("GRANT harbour_quality_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_dmd_loader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_member_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  for (const role of CONTEXT_DEFINERS) {
+    await client.query(`GRANT ${role} TO harbour_owner WITH INHERIT FALSE, SET TRUE`);
+  }
   // PowerSync needs logical replication. Cloud SQL (with cloudsql.logical_decoding on) and plain
   // Postgres take the REPLICATION attribute; the rds_replication fallback is for Amazon RDS.
   try {

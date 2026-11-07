@@ -489,3 +489,42 @@ describe("hazard HZ-011 the round and the handover across tenants and from the d
     expect(everything(noTenant)).toEqual([]);
   });
 });
+
+describe("buckets per home (ADR-0134): what the whole-home cover leaves off is still carried", () => {
+  it("hazard HZ-018 gives a reader whole at both homes the item about someone who moved between them, with their assigned streams off", async () => {
+    // Whole at North and South; assigned to Cara, who lives South now, so the API leaves the
+    // handover family's assigned streams off: the whole-home streams carry what is about her.
+    const device = await syncFor(
+      hydrated,
+      source,
+      manager({ sub: "agency", handover_location_ids: [NORTH, SOUTH], handover_assigned: false }),
+    );
+    expect(ids(device, "handover_item")).toContain("i-cara-at-north");
+    expect(ids(device, "handover_note")).toContain("n-cara-at-north");
+  });
+
+  it("never gives a reader who sees only the new home the old home's items about the person (security review, N1)", async () => {
+    const device = await syncFor(
+      hydrated,
+      source,
+      manager({ sub: "agency", handover_location_ids: [SOUTH], handover_assigned: false }),
+    );
+    expect(ids(device, "handover_item")).not.toContain("i-cara-at-north");
+    expect(ids(device, "handover_note")).not.toContain("n-cara-at-north");
+  });
+
+  it("gives a covered nurse the task about nobody given to her at another home (security review, M2)", async () => {
+    const device = await syncFor(
+      hydrated,
+      source,
+      manager({ sub: "carer-a", care_assigned: false, care_own_tasks: true }),
+    );
+    expect(ids(device, "task")).toContain("t-south-carer");
+    const without = await syncFor(
+      hydrated,
+      source,
+      manager({ sub: "carer-a", care_assigned: false, care_own_tasks: false }),
+    );
+    expect(ids(without, "task")).not.toContain("t-south-carer");
+  });
+});

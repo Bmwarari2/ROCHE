@@ -127,7 +127,7 @@ export const meRouter = createRouter()
       tags: ["platform"],
       summary: "Ask for your own account to be deleted (MOB-011; App Store and Google Play)",
       description:
-        "Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them and audits the request. Nothing is deleted, and care records never are by this route. A second request while the first is open returns the first (`already_requested`).",
+        "Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them, audits the request and records it on the member row (H-566): once that membership has ended and none is held elsewhere, the nightly sweep erases the sign-in identity. Care records are never deleted by this route. A second request while the first is open returns the first (`already_requested`).",
       security,
       responses: {
         200: jsonBody(AccountDeletionRequest, "Already requested"),

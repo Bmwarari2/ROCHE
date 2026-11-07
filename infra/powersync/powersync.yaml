@@ -57,6 +57,15 @@ client_auth:
 api:
   tokens:
     - !env PS_API_TOKEN
+  # Buckets per connection (ADR-0134; HZ-002). A phone over either limit is refused (PSYNC_S2305)
+  # and gets no fresh data at all, so these are set explicitly rather than left to the default,
+  # which they equal. The streams key a home's rows by home and day and an assigned person's by
+  # person and ten-day block; packages/sync/test/bucket-budget.test.ts fails when the worst case
+  # we design for (a 120-bed home, the 31-day window) passes 500, half of these, or when any
+  # profile it measures passes them. Raise them only with that test and an ADR.
+  parameters:
+    max_buckets_per_connection: 1000
+    max_parameter_query_results: 1000
 
 healthcheck:
   probes:

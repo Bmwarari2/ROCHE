@@ -62,6 +62,12 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 - [How to send the response to a data rights request](../data-protection-lead/send-the-response-to-a-data-rights-request.md)
 - [How to track DSPT assertions and their evidence](../data-protection-lead/track-dspt-assertions-and-evidence.md)
 
+## HR platform link
+
+- [How to link Harbour to your HR platform](../registered-manager/link-to-the-hr-platform.md)
+- [How to pay staff through the HR platform](../registered-manager/set-the-route-to-payroll.md)
+- [How to release absence copies from the HR platform](../registered-manager/release-absence-copies.md)
+
 Back to [all user guides](../README.md).
 
 ## From the care worker guides

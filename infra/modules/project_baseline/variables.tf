@@ -23,6 +23,8 @@ variable "services" {
     "certificatemanager.googleapis.com",
     "cloudkms.googleapis.com",
     "cloudresourcemanager.googleapis.com",
+    # Starts the monthly dm+d release job (H-1241).
+    "cloudscheduler.googleapis.com",
     "compute.googleapis.com",
     # Artifact Registry scans every image it receives for known vulnerabilities (H-1170).
     "containerscanning.googleapis.com",

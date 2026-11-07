@@ -220,12 +220,13 @@ resource "google_cloud_run_v2_job" "this" {
   labels              = var.labels
 
   template {
-    task_count = 1
+    task_count  = var.task_count
+    parallelism = var.parallelism
 
     template {
       service_account = google_service_account.this.email
       timeout         = "${var.timeout_seconds}s"
-      max_retries     = 0
+      max_retries     = var.max_retries
 
       vpc_access {
         egress = var.vpc_egress
@@ -308,4 +309,16 @@ resource "google_cloud_run_v2_job" "this" {
   }
 
   depends_on = [google_secret_manager_regional_secret_iam_member.access]
+}
+
+# Who may start an execution of the job (for example Cloud Scheduler's invoker account): on this
+# job only, never on the project. Keys are fixed names, so the plan can count the grants.
+resource "google_cloud_run_v2_job_iam_member" "invoker" {
+  for_each = var.kind == "job" ? var.job_invokers : {}
+
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.this[0].name
+  role     = "roles/run.invoker"
+  member   = each.value
 }

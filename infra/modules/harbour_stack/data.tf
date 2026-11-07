@@ -9,7 +9,11 @@
 
 locals {
   # Login roles on the main database, created by `pnpm db:bootstrap` (packages/db, ADR-0002).
-  db_login_roles = ["harbour_owner", "harbour_app", "harbour_auth", "harbour_sync", "harbour_operator", "harbour_worker"]
+  # Each gets a password secret (the migrate job's bootstrap sets it) and a URL secret; a service
+  # reads only the URLs named for it (harbour_dmd_job: the dm+d job only).
+  dmd_uses_trud = var.environment != "dev"
+
+  db_login_roles = ["harbour_owner", "harbour_app", "harbour_auth", "harbour_sync", "harbour_operator", "harbour_worker", "harbour_dmd_job"]
 
   secret_definitions = merge(
     merge([
@@ -32,6 +36,10 @@ locals {
       "smtp-user"                    = "User name for the SMTP relay"
       "smtp-password"                = "Password for the SMTP relay"
     },
+    # Staging and prod download real dm+d releases from TRUD; dev uses the invented fixture.
+    local.dmd_uses_trud ? {
+      "trud-api-key" = "TRUD API key for dm+d releases (the dm+d job only; H-1240, H-1501)"
+    } : {},
     var.enable_flagsmith ? {
       "flagsmith-django-secret-key" = "Flagsmith Django secret key"
       "flagsmith-database-password" = "Flagsmith database password"

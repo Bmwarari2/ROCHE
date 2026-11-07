@@ -6,7 +6,7 @@ import { deliveryKey } from "../src/integrations/hr-rota";
 import { MockThapsusHr } from "../src/integrations/thapsus-hr";
 import { outboxHandlers } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness } from "./support/harness";
+import { ageSession, createHarness, type Harness } from "./support/harness";
 
 /**
  * The Thapsus-HR link's rota, clocking and absence (INTG-014, SCHED-002, SCHED-004, SCHED-010;
@@ -155,6 +155,72 @@ describe("hazard HZ-133 shifts go out with their listed fields only, once, and a
     await sql("UPDATE shift_assignment SET deleted_at = NULL, remove_reason = NULL WHERE id = $1", [
       assignmentId,
     ]);
+  });
+
+  it("hazard HZ-133 raises a not-found cancellation for review when Thapsus-HR never acknowledged the shift", async () => {
+    const cancel = mock.cancelShift.bind(mock);
+    mock.cancelShift = async () => ({ ok: false, error: "not_found" }) as never;
+    try {
+      // As if the create's answer was lost: no Thapsus-HR id, the attempt failed.
+      await sql(
+        "UPDATE hr_delivery SET state = 'failed', hr_id = NULL, sent_at = NULL WHERE harbour_ref = $1",
+        [assignmentId],
+      );
+      await sql(
+        "UPDATE shift_assignment SET deleted_at = now(), remove_reason = 'Swapped' WHERE id = $1",
+        [assignmentId],
+      );
+      expect((await sync()).deliveries).toMatchObject({ cancelled: 0, refused: 1 });
+      const [row] = await sql<{ state: string }>(
+        "SELECT state FROM hr_delivery WHERE harbour_ref = $1",
+        [assignmentId],
+      );
+      expect(row?.state).toBe("refused");
+      const alert = await sql(
+        "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.delivery_refused' AND source_id = $1",
+        [assignmentId],
+      );
+      expect(alert).toHaveLength(1);
+    } finally {
+      mock.cancelShift = cancel;
+      await sql(
+        "UPDATE shift_assignment SET deleted_at = NULL, remove_reason = NULL WHERE id = $1",
+        [assignmentId],
+      );
+      // Sent again from scratch for the tests that follow.
+      await sql("UPDATE hr_delivery SET payload_sha256 = repeat('d', 64) WHERE harbour_ref = $1", [
+        assignmentId,
+      ]);
+      await sync();
+    }
+  });
+
+  it("hazard HZ-133 takes a cancellation Thapsus-HR answers not found as done, never retried every run", async () => {
+    const cancel = mock.cancelShift.bind(mock);
+    let calls = 0;
+    mock.cancelShift = async () => {
+      calls += 1;
+      return { ok: false, error: "not_found" } as never;
+    };
+    try {
+      await sql(
+        "UPDATE shift_assignment SET deleted_at = now(), remove_reason = 'Swapped' WHERE id = $1",
+        [assignmentId],
+      );
+      // Sent again first, so the cancellation is a new attempt.
+      await sql("UPDATE hr_delivery SET payload_sha256 = repeat('c', 64) WHERE harbour_ref = $1", [
+        assignmentId,
+      ]);
+      expect((await sync()).deliveries).toMatchObject({ cancelled: 1 });
+      await sync();
+      expect(calls).toBe(1);
+    } finally {
+      mock.cancelShift = cancel;
+      await sql(
+        "UPDATE shift_assignment SET deleted_at = NULL, remove_reason = NULL WHERE id = $1",
+        [assignmentId],
+      );
+    }
   });
 
   it("sends a shift that goes back to an earlier version with a new key, never a replay", async () => {
@@ -372,6 +438,56 @@ describe("hazard HZ-133 many copies dropping out at once are held until a person
     expect(((await sync()).absences as unknown as { held: number }).held).toBe(7);
   });
 
+  it("lists the held copies a release would cancel, read again now, changing nothing (slice 90)", async () => {
+    const r = await send("GET", "/v1/integrations/hr-link/absences/held", "manager");
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as {
+      mode: string;
+      items: { hrId: string; kind: string; startsOn: string; endsOn: string | null }[];
+      error: string | null;
+    };
+    expect(body.mode).toBe("drift");
+    expect(body.error).toBeNull();
+    expect(body.items.map((i) => i.hrId)).toEqual(ids(7));
+    expect(body.items[0]).toEqual({
+      hrId: "held_1",
+      memberId: CARER,
+      kind: "annual_leave",
+      startsOn: inDays(23),
+      endsOn: inDays(24),
+    });
+    expect(await states()).toEqual(Array(7).fill("recorded"));
+    // A copy shows where it is kept, so the absence screen says it is managed in the HR platform.
+    const listed = (await (
+      await send("GET", `/v1/absences?locationId=${LOC}&from=${inDays(0)}`, "manager")
+    ).json()) as { items: { source: string }[] };
+    expect(listed.items.length).toBeGreaterThan(0);
+    expect(listed.items.every((i) => i.source === "thapsus_hr")).toBe(true);
+    expect((await send("GET", "/v1/integrations/hr-link/absences/held", "carer")).status).toBe(403);
+  });
+
+  it("hazard HZ-133 lists the held copies only after a fresh step-up, a few times a minute, audited", async () => {
+    const session = h.tokens.manager?.split(".")[0] ?? "";
+    await ageSession(h.db.pool("harbour_auth"), session, 3_600);
+    try {
+      expect((await send("GET", "/v1/integrations/hr-link/absences/held", "manager")).status).toBe(
+        403,
+      );
+    } finally {
+      await ageSession(h.db.pool("harbour_auth"), session, 0);
+    }
+    const viewed = await sql(
+      "SELECT 1 FROM audit_event WHERE action = 'integrations.hr_link.held_viewed'",
+    );
+    expect(viewed.length).toBeGreaterThan(0);
+    const statuses: number[] = [];
+    for (let i = 0; i < 7; i++) {
+      // Another person's allowance, so the manager's later reads here are not limited.
+      statuses.push((await send("GET", "/v1/integrations/hr-link/absences/held", "owner")).status);
+    }
+    expect(statuses).toContain(429);
+  });
+
   it("refuses ending every copy while the link is connected but turned off", async () => {
     await sql("UPDATE feature_flag SET enabled = false WHERE flag_key = 'integrations.thapsus_hr'");
     try {
@@ -410,6 +526,10 @@ describe("hazard HZ-133 many copies dropping out at once are held until a person
       status: "approved",
     } as never);
     expect((await release(ids(7))).status).toBe(409);
+    const held = (await (
+      await send("GET", "/v1/integrations/hr-link/absences/held", "manager")
+    ).json()) as { items: { hrId: string }[] };
+    expect(held.items.map((i) => i.hrId)).toEqual(ids(6));
     expect((await release(ids(6), "manager", "link_ended")).status).toBe(422);
     const r = await release(ids(6));
     expect(r.status).toBe(200);
@@ -587,6 +707,11 @@ describe("hazard HZ-133 the rota still says so when the link stops but its absen
         "SELECT hr_id FROM absence WHERE source = 'thapsus_hr' AND state <> 'cancelled'",
       )
     ).map((r) => r.hr_id);
+    const held = (await (
+      await send("GET", "/v1/integrations/hr-link/absences/held", "manager")
+    ).json()) as { mode: string; items: { hrId: string }[] };
+    expect(held.mode).toBe("disconnected");
+    expect(held.items.map((i) => i.hrId).sort()).toEqual([...live].sort());
     const r = await send("POST", "/v1/integrations/hr-link/absences/release", "manager", {
       expectedHrIds: live,
       reason: "link_ended",

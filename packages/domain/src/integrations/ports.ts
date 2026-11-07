@@ -216,3 +216,14 @@ export function documentStorageKey(tenantId: string, documentId: string): string
   if (!uuid.test(tenantId) || !uuid.test(documentId)) throw new Error("Storage keys take ids only");
   return `tenants/${tenantId.toLowerCase()}/documents/${documentId.toLowerCase()}`;
 }
+
+/**
+ * Whether text messages can really be sent: an SMS gateway connected for the organisation. The mock
+ * adapter sends nothing, so it never counts. No gateway is contracted at launch (ADR-0132), so
+ * nothing may rely on SMS until one is (lone-worker routes, family notifications).
+ */
+export function smsGatewayConfigured(
+  connection: { readonly provider: string; readonly status: string } | null,
+): boolean {
+  return connection !== null && connection.provider !== "mock" && connection.status === "connected";
+}

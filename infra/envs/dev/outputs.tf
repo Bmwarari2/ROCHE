@@ -26,6 +26,10 @@ output "migrate_job" {
   value = module.stack.migrate_job
 }
 
+output "dmd_job" {
+  value = module.stack.dmd_job
+}
+
 output "sql_instances" {
   value = module.stack.sql_instances
 }

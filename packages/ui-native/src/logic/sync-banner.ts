@@ -34,6 +34,11 @@ export interface SyncBannerInput {
    * when they could not be counted, which needs attention too (clinical review round 4, M4).
    */
   readonly refusedEntries?: number | null;
+  /**
+   * Why sync is refused, when the API said: `scope_too_large`, the member's access reaches more
+   * homes and people than a phone can hold offline (ADR-0134).
+   */
+  readonly failureReason?: "scope_too_large" | null;
 }
 
 export interface SyncBannerContent {
@@ -43,6 +48,10 @@ export interface SyncBannerContent {
   readonly detail: string;
   /** Present when the data may be out of date. */
   readonly warning: string | null;
+  /** Why sync is refused and what to do, when the API said (shown beside any warning). */
+  readonly reason: string | null;
+  /** The Retry button's hint for screen readers. */
+  readonly retryHint: string;
   readonly stale: boolean;
   readonly showRetry: boolean;
   /** Announce changes assertively (failure or stale data) rather than politely. */
@@ -56,6 +65,16 @@ const titles: Record<SyncConnectionState, string> = {
   synced: "Up to date",
   failed: "Sync failed",
 };
+
+/**
+ * Shown when the API refuses this phone because the member's access is too wide (ADR-0134; HZ-138),
+ * beside the stale-data warning, never instead of it (accessibility review, blocker 1).
+ */
+export const SCOPE_TOO_LARGE_TITLE = "This phone cannot sync";
+export const SCOPE_TOO_LARGE_REASON =
+  "Before giving medicines, check the paper MAR or ask the nurse in charge. You can see more homes and people than a phone can keep: use the web app, or ask your manager to reduce the homes and people you can see. Your changes are safe on this phone.";
+const RETRY_HINT = "Tries to connect and sync again";
+const SCOPE_RETRY_HINT = "Checks again whether this phone can sync";
 
 export const STALE_WARNING = "Data may be out of date. Check important details before you act.";
 export const NEVER_SYNCED_WARNING =
@@ -124,9 +143,19 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     tone = "danger";
     icon = "cloud-alert";
   }
-  const title = refused && state === "synced" ? REFUSED_TITLE : titles[state];
-  const urgent = state === "failed" || warning !== null || refused !== null;
-  const accessibilityLabel = [`${title}.`, detail, warning].filter(Boolean).join(" ");
+  const scopeTooLarge = input.failureReason === "scope_too_large";
+  const reason = scopeTooLarge ? SCOPE_TOO_LARGE_REASON : null;
+  if (scopeTooLarge) {
+    tone = "danger";
+    icon = "cloud-alert";
+  }
+  const title = scopeTooLarge
+    ? SCOPE_TOO_LARGE_TITLE
+    : refused && state === "synced"
+      ? REFUSED_TITLE
+      : titles[state];
+  const urgent = state === "failed" || warning !== null || refused !== null || scopeTooLarge;
+  const accessibilityLabel = [`${title}.`, reason, detail, warning].filter(Boolean).join(" ");
 
   return {
     tone,
@@ -134,8 +163,10 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     title,
     detail,
     warning,
+    reason,
+    retryHint: scopeTooLarge ? SCOPE_RETRY_HINT : RETRY_HINT,
     stale,
-    showRetry: state === "failed",
+    showRetry: state === "failed" || scopeTooLarge,
     urgent,
     accessibilityLabel,
   };

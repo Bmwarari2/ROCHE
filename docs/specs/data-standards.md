@@ -94,6 +94,7 @@ names below are the concepts this contract carries and must be kept in step with
 | `invitation.expires_at`, `accepted_at`, `revoked_at`, `revocation_reason` | ISO 8601 UTC; Harbour code list | `expires_at` after `created_at` by `invitation.expiry_hours`, at most `invitation.expiry_hours_max`; reason `superseded`, `revoked`, `member_removed`, `member_changed`, `expired` | Migration 0054. Single use: accepted or revoked is final. Retention class `invitation`. |
 | `invitation.claimed_auth_user_id`, `claimed_at` | Better Auth user id; ISO 8601 UTC | Text; set once (again only if that sign-in no longer exists), in its own transaction before the sign-in is linked; only a sign-in at the invitation's address created after the invitation | Migration 0054 (#48 review H1, M1). The sign-in an acceptance created, recorded so the nightly sweep can delete one left unlinked, and never a sign-in any membership or operator record names. Audited as `platform.invitation.claimed` (opaque ids). Internal: never exported. |
 | `task.kind` `platform.account_deletion_request` | Harbour code list | `source_type` `tenant_user`, `source_id` the member who asked; `required_permission` `platform.user.manage`; `due_at` the request plus `account_deletion.confirmation_days` | MOB-011 ([app-store-privacy.md](../compliance/app-store-privacy.md) section 5). No new column. At most one open per member; the notification `platform.account_deletion.requested` carries no name or address; audited as `platform.account_deletion.requested` with opaque ids. Nothing is deleted by the request. |
+| `tenant_user.status_changed_at`, `tenant_user.sign_in_erasure_requested_at`, `tenant_user.sign_in_erased_at`; `MEMBER_REINSTATE_REASONS`; `MEMBER_DEVICE_CHECKS` | Harbour (timestamps); Harbour code lists | ISO 8601 UTC timestamps, null until set; reinstate: `suspended_in_error`, `investigation_cleared`, `returned_from_absence`, `other`; device check: `device_returned_checked`, `device_lost_incident_raised` | Migration 0149 (H-566). When the status last changed (set by `app.change_membership`); when the member asked for deletion (`app.request_sign_in_erasure`, own row); when the sign-in was erased (the link removed). The application role cannot write them. Returned only in `MemberLifecycle` to holders of `platform.user.manage`. Codes in `platform.member.reinstated` and `platform.member.ended` (`scope.deviceCheck`). |
 | `tenant_user.status` changes by a manager; the reason codes of `platform.member.suspended` and `platform.member.ended` | Harbour code list (`MEMBERSHIP_CHANGE_REASONS`; H-566) | `active` or `invited` to `suspended`, `suspended` back to `active` (or `invited` with no sign-in), then `suspended` to `left`; only through `app.change_membership` (migration 0129), and the sign-in link is set once and only ever removed after the membership ends; reasons `staff_left`, `account_deletion_request`, `investigation`, `safeguarding_concern`, `long_absence`, `other` | No new column. Erasing the sign-in deletes the auth user (email, password hash, passkeys, TOTP secret, sessions) and sets `tenant_user.auth_user_id` to null; `display_name`, `job_title` and the organisation's own `email` stay with the member row under `staff_file` retention, so care records stay attributable. Audited with opaque ids and codes only. |
 
 ## Person
@@ -1386,6 +1387,7 @@ is exported. Dates are UK dates; times are instants in UTC, shown in UK time, 24
 | `homely_remedy_protocol.dose_quantity`, `max_daily_quantity`, `min_interval_hours`, `max_days` | Harbour | Numeric in `unit_name`; hours; days | The home's figures, agreed with a GP or pharmacist; `max_days` within `medicines.homely_remedy.max_days_ceiling`. |
 | `homely_remedy_administration.outcome` | Harbour | `given`, `entered_in_error` | A record entered in error stays, struck through, and no longer counts. |
 | `homely_remedy_administration.allergies_checked`, `already_given_reason`, `flags` | Harbour | Boolean; text; array of `HomelyDoseProblem` codes | Flags only on a dose already given outside the protocol, with its reason. |
+| `homely_remedy_administration.medicines_compared` | Harbour | Boolean | The giver confirmed they compared the remedy with the person's current medicines (HZ-120); required on every dose given from migration 0150 (`NOT VALID` check, so earlier doses keep false); in the audit event's scope and the export. |
 
 ## Integrations: Thapsus-HR link (Phase 2, slice 87)
 
@@ -1403,6 +1405,9 @@ stored. Exported in the full tenant export with these names.
 | `hr_delivery.kind`, `state` | Harbour | `starter`, `shift`, `clock_event`, `pay_units`; `pending`, `sent`, `failed`, `refused` | The idempotency key is a UUID; sent only with Thapsus-HR's identifier |
 | `hr_delivery.payload_sha256` | Harbour | 64 lower-case hex characters | Digest of what was last sent (slice 88, migration 0142) |
 | `absence.source`, `absence.hr_id` | Harbour; Thapsus-HR | `harbour` or `thapsus_hr`; `^[A-Za-z0-9_-]{1,64}$` | A Thapsus-HR copy is annual leave, sickness or other, recorded or cancelled, with no decider (slice 88, migration 0142) |
+| `hr_pay_period.hr_id`, `frequency`, `starts_on`, `ends_on` | Thapsus-HR (pay periods, K5) | `^[A-Za-z0-9_-]{1,64}$`; `weekly` or `monthly`; `YYYY-MM-DD`, at most 31 days | The pay reference period for a period paid through Thapsus-HR; dates never move once stored (slice 89, migration 0148) |
+| `hr_pay_rate.hourly_pence`, `effective_from` | Thapsus-HR (pay rates, K5) | Whole pence, 1 to 100,000; `YYYY-MM-DD` | For the minimum wage check only; the latest rate in force on the period's first day (slice 89) |
+| `hr_pay_unit.unit_kind`, `quantity` | Harbour (pay units, K4) | `hours` or `hours_` with any of `bank_holiday`, `night`, `overtime`, `weekend`; `sleep_in`, `on_call`, `mileage`; decimal, 2 places, above 0 | Units, never money; mapped to the tenant's pay codes (`^[A-Za-z0-9_.-]{1,32}$`) when sent (slice 89) |
 
 ## PRN protocols and outcomes (Phase 2, slice 28)
 
@@ -1482,6 +1487,17 @@ detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 
 ## Device copies (offline sync, not part of the export)
 
+Routing columns (migration 0146; ADR-0134), set and moved by the database, never by a client, and
+not synced: `sync_location_id` (UUID) on `care_note`, `observation`, `body_map_mark`, `assessment`,
+`activity_record`, `visit_log`, `medication_administration` and `task`: the person's home while
+they receive care, else null; on a task, its own home while its person receives care (a task
+about nobody: its own home); on `handover_item`, `handover_note` and `handover_acknowledgement`: the
+handover's home, with `shift_end` (timestamp with time zone, the handover's) and, on items and
+notes, `person_location_id` (UUID, the person's home now, null about nobody) and `at_home`
+(boolean: about nobody, or about someone who lives at the handover's home). Sync token claims
+`offline_blocks` (the offline window's ten-day blocks, `yyyy-mm-d`),
+`handover_assigned_location_ids` (opaque location ids) and `care_own_tasks` (boolean).
+
 The mobile app keeps a subset of the care tables on the device (Phase 1 slice 10, [care.md](care.md)
 section 6). Device columns use the database column names, so this mapping applies unchanged, with
 these differences, defined in `packages/sync/src/client/schema.ts`:
@@ -1512,6 +1528,20 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   id>`. `elearning_outbox` (insert-only) holds what is waiting to send: `action` `start` (the
   course id and package hash), `commit` (SCORM elements and `finished`) or `statements` (xAPI
   statements, each with an id), `attempt_id`, `body` as the API's contract JSON and `queued_at`.
+- Medicines (Phase 2 slice 68; medicines.md section 13.8; ADR-0130): `medication`,
+  `medication_schedule`, `medication_dosing_record`, `covert_medication_record` and
+  `medication_administration` hold, with the database column names, the rows the medicines streams
+  send (a version's `state` may be `stopped` or `replaced`; the phone judges `stop_at`,
+  `stop_effective_at` and `replaced_from` (ISO 8601 UTC), `replaced_by_id` names the version that
+  follows, `prn_max_per_24h` is a decimal as text; `medication_administration.covert` is 0 or 1), and `competence_sign_off` with
+  `competence_withdrawal` the member's own medicines competence. `dmd_device_product` (local-only)
+  holds the dm+d subset's products, keyed `<kind>:<dm+d id>`, `kind` one of `vmp`, `amp`, `vmpp`,
+  `ampp` or `unresolved` (a code a MAR names that the reference data lacks), with `vmp_id`,
+  `amp_id`, `vmpp_id`, `invalid` (0 or 1) and `detail` (JSON: the id and `supersededBy`);
+  `dmd_device_gtin` (local-only) each barcode with its pack and its start and end dates
+  (yyyy-mm-dd). `sync_meta` keeps when the subset was fetched under `meta:dmd-subset-at`, the products
+  it was fetched for under `meta:dmd-subset-needs` (dm+d ids only) and when the last request failed
+  under `meta:dmd-subset-failed-at` (cleared by the next success).
 - `upload_issue` exists only on the device: an entry the API refused, with its content, until
   someone removes it with a recorded reason (the content never ages out). The device also sends
   the content to the server, which keeps a copy (`refused_entry`; contract `SyncRefusedEntry`,

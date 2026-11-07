@@ -15,6 +15,7 @@ import {
   CalendarPlus,
   Check,
   Coffee,
+  FileOutput,
   Lock,
   LogIn,
   LogOut,
@@ -69,18 +70,21 @@ function Feedback({
   success,
   fieldIds,
   path,
+  stepUp,
 }: {
   readonly result: ActionResult<unknown> | null;
   readonly success: string;
   readonly fieldIds?: Readonly<Record<string, string>>;
   readonly path: string;
+  /** The step-up notice's words, when this form's differ. */
+  readonly stepUp?: string;
 }) {
   if (
     result &&
     !result.ok &&
     (result.code === "step_up_required" || result.code === "mfa_verification_required")
   ) {
-    return <StepUpNotice next={path} refusal={result} body={t("payTime.stepUp")} />;
+    return <StepUpNotice next={path} refusal={result} body={stepUp ?? t("payTime.stepUp")} />;
   }
   if (result && !result.ok && result.code === "mfa_enrolment_required") {
     return (
@@ -379,19 +383,54 @@ export function DecisionForm({ id, version }: { readonly id: string; readonly ve
 
 // ---- Pay ----------------------------------------------------------------------------------
 
+/**
+ * Starts a pay run. When the period is set for the HR platform but its link is off or
+ * disconnected (HZ-140), the API refuses and the form says so, offering to send this period to
+ * the payroll export instead: the same details again with `confirmExport`, which the API allows
+ * only to a pay approver with a fresh step-up.
+ */
 export function NewPayRunForm() {
   const router = useRouter();
   const ids = useFieldIds(["frequency", "periodStart", "periodEnd"]);
+  const confirming = useRef(false);
+  const [confirmed, setConfirmed] = useState(false);
   const { submit, result, pending } = useSubmit(
     (form) => readPayRun(form, t),
-    createPayRun,
+    (body: Parameters<typeof createPayRun>[0]) => {
+      const confirmExport = confirming.current;
+      confirming.current = false;
+      setConfirmed(confirmExport);
+      return createPayRun(confirmExport ? { ...body, confirmExport } : body);
+    },
     (data) => {
       if (isUuid(data?.id)) router.push(`/pay/${data.id}`);
     },
   );
+  const linkDown = result && !result.ok && result.code === "hr_link_down_for_pay";
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
-      <Feedback result={result} success={t("payTime.run.form.done")} fieldIds={ids} path="/pay" />
+      <Feedback
+        result={result}
+        success={t("payTime.run.form.done")}
+        fieldIds={ids}
+        path="/pay"
+        {...(confirmed ? { stepUp: t("payTime.run.confirmExportStepUp") } : {})}
+      />
+      {linkDown ? (
+        <div>
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={pending}
+            icon={<FileOutput {...icon} />}
+            onClick={() => {
+              confirming.current = true;
+            }}
+          >
+            {t("payTime.run.confirmExport")}
+          </Button>
+        </div>
+      ) : null}
       <SelectField
         id={ids.frequency}
         name="frequency"

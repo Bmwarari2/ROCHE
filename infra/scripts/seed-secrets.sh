@@ -61,7 +61,7 @@ trap 'rm -rf "${WORKDIR}"' EXIT
 umask 077
 
 readonly CA_FILE="/secrets/cloudsql/server-ca.pem"
-readonly ROLES=(harbour_owner harbour_app harbour_auth harbour_sync harbour_operator harbour_worker powersync_storage)
+readonly ROLES=(harbour_owner harbour_app harbour_auth harbour_sync harbour_operator harbour_worker harbour_dmd_job powersync_storage)
 
 secret_id() { echo "${PREFIX}-$1"; }
 
@@ -180,6 +180,13 @@ seed() {
     smtp-user | smtp-password)
       echo "${name} comes from the SMTP provider, once one is chosen: add it with" >&2
       echo "  gcloud secrets versions add $(secret_id "${name}") --location=${REGION} --project=${PROJECT} --data-file=<file>" >&2
+      return 2
+      ;;
+    trud-api-key)
+      # Staging and prod only. From the TRUD account (H-510), never generated here (H-1501).
+      echo "${name} comes from the TRUD account: add it with" >&2
+      echo "  gcloud secrets versions add $(secret_id "${name}") --location=${REGION} --project=${PROJECT} --data-file=<file>" >&2
+      return 2
       ;;
     *)
       echo "No generator for secret ${name}" >&2
@@ -210,8 +217,12 @@ fi
 
 if [[ -n "${ROTATE}" ]]; then
   exists "${ROTATE}" || { echo "No secret $(secret_id "${ROTATE}")" >&2; exit 1; }
-  seed "${ROTATE}"
-  echo "Rotated $(secret_id "${ROTATE}")"
+  # A value that comes from outside (SMTP, TRUD) is never written here: say it was skipped.
+  rc=0
+  seed "${ROTATE}" || rc=$?
+  if [[ ${rc} -eq 2 ]]; then echo "Skipped $(secret_id "${ROTATE}") (add its value by hand)"
+  elif [[ ${rc} -ne 0 ]]; then exit "${rc}"
+  else echo "Rotated $(secret_id "${ROTATE}")"; fi
   exit 0
 fi
 
@@ -220,7 +231,10 @@ for name in db-server-ca "${NAMES[@]}"; do
   if has_value "${name}"; then
     echo "Kept $(secret_id "${name}") (already has a value)"
   else
-    seed "${name}"
-    echo "Filled $(secret_id "${name}")"
+    rc=0
+    seed "${name}" || rc=$?
+    if [[ ${rc} -eq 2 ]]; then echo "Skipped $(secret_id "${name}") (add its value by hand)"
+    elif [[ ${rc} -ne 0 ]]; then exit "${rc}"
+    else echo "Filled $(secret_id "${name}")"; fi
   fi
 done

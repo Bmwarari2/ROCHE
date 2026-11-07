@@ -38,6 +38,15 @@ describe("schema bridge", () => {
       upload_issue: true,
       held_entry: true,
       elearning_outbox: false,
+      medication: false,
+      medication_schedule: false,
+      medication_dosing_record: false,
+      covert_medication_record: false,
+      medication_administration: false,
+      competence_sign_off: false,
+      competence_withdrawal: false,
+      dmd_device_product: true,
+      dmd_device_gtin: true,
     });
   });
 

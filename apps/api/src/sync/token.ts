@@ -67,7 +67,14 @@ export class SyncTokenSigner {
         ? { entries_write_person_ids: [...claims.entries_write_person_ids] }
         : {}),
       offline_days: [...claims.offline_days],
+      offline_blocks: [...(claims.offline_blocks ?? [])],
+      handover_assigned_location_ids: [...(claims.handover_assigned_location_ids ?? [])],
+      care_own_tasks: claims.care_own_tasks === true,
       shift_days: [...(claims.shift_days ?? [])],
+      meds_location_ids: [...(claims.meds_location_ids ?? [])],
+      meds_assigned: claims.meds_assigned === true,
+      meds_recent_days: [...(claims.meds_recent_days ?? [])],
+      meds_recent_blocks: [...(claims.meds_recent_blocks ?? [])],
       ...(claims.handover_shifts ? { handover_shifts: { ...claims.handover_shifts } } : {}),
     })
       .setProtectedHeader({ alg: "ES256", kid: this.keyId })

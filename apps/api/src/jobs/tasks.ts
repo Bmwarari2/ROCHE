@@ -33,8 +33,11 @@ import {
   hrConnection,
   hrLinkEnabled,
   pullSafely,
+  raiseHrAlert,
 } from "../integrations/hr-link";
+import { unsentPayPeriods } from "../integrations/hr-pay";
 import { syncRotaSafely } from "../integrations/hr-rota";
+import { smsAvailable } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { raiseCoverTask } from "../services/absence";
 import { tellAboutBreachNotice } from "../services/breach-notices";
@@ -660,7 +663,14 @@ export async function syncHrLinks(deps: TaskDeps, now = new Date()): Promise<num
   const services = deps.hrLink;
   if (!services) return 0;
   const linked = await eachTenant(deps, "hr-link-sync", async (tx, tenantId) => {
-    if (!(await hrLinkEnabled(tx))) return 0;
+    if (!(await hrLinkEnabled(tx))) {
+      // With the flag off, locked pay not yet in Thapsus-HR waits: pay approvers are told (HZ-140).
+      const off = await hrConnection(tx);
+      if (off && (await unsentPayPeriods(tx)) > 0) {
+        await raiseHrAlert(tx, "pay_units_unsent", "integration_connection", off.id, now);
+      }
+      return 0;
+    }
     const link = await hrConnection(tx);
     if (link?.status !== "connected") return 0;
     const port = services.port(tenantId, link.settings);
@@ -1176,7 +1186,9 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   // A rota published at a home linked to Thapsus-HR: its shifts go out now rather than at the next
   // sync (integrations.md section 11.2). A failure is recorded in the delivery log; the sync
   // carries on with it.
-  handlers.set("scheduling.rota_published", async (event) => {
+  // A published rota or a locked pay run goes out without waiting for the sync (slices 88, 89);
+  // absences come in on the scheduled sync.
+  const sendToHr: OutboxHandler = async (event) => {
     const services = deps.hrLink;
     if (!services) return;
     await inTenant(event.tenantId, async (tx) => {
@@ -1184,14 +1196,15 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       const link = await hrConnection(tx);
       if (link?.status !== "connected") return;
       const port = services.port(event.tenantId, link.settings);
-      // Only the rota goes out here; absences come in on the scheduled sync.
       if (port) {
         await syncRotaSafely(tx, event.tenantId, port, link.settings, new Date(), {
           absences: false,
         });
       }
     });
-  });
+  };
+  handlers.set("scheduling.rota_published", sendToHr);
+  handlers.set("scheduling.pay_run_locked", sendToHr);
   handlers.set("scheduling.cover_needed", async (event) => {
     const coverNeedId = (event.payload as { coverNeedId?: unknown } | null)?.coverNeedId;
     // A malformed event is dropped, never retried for ever (security review, finding 5).
@@ -1273,6 +1286,19 @@ export async function processDeliveries(deps: DeliveryDeps, now = new Date()): P
         // (Phase 1-2); until then those channels have no destination.
         const destination = channel === "email" ? (recipient?.email ?? null) : null;
         const attempts = delivery.attempts + 1;
+        // No text message is handed to a port that sends nothing (ADR-0132: no SMS at launch).
+        if (channel === "sms" && !(await smsAvailable(tx))) {
+          await tx
+            .update(notificationDelivery)
+            .set({
+              status: "skipped",
+              attempts,
+              provider: adapter.provider,
+              lastError: "No SMS gateway",
+            })
+            .where(eq(notificationDelivery.id, delivery.id));
+          return;
+        }
         if (destination === null) {
           await tx
             .update(notificationDelivery)
