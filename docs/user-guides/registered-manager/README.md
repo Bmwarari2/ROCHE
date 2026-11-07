@@ -110,3 +110,5 @@ For Registered Managers and deputy managers. A deputy can do these tasks except 
 - [How to set food and drink levels and the fluid target](../nurse/set-food-and-drink-levels.md)
 - [How to stop a medicine](../nurse/stop-a-medicine.md)
 - [How to write and publish a care plan](../nurse/write-and-publish-a-care-plan.md)
+
+Back to [all user guides](../README.md).
