@@ -49,6 +49,6 @@ what they are asking for under **What they are asking for**.
   you record the response: see
   [How to send the response](send-the-response-to-a-data-rights-request.md).
 - The rules are in the
-  [platform specification](../../specs/platform.md#phase-2-the-dsar-workbench-plat-022-work-011)
-  (rules 6 to 8) and [retention](../../specs/retention.md). Your procedure is the
+  [platform specification](../../specs/platform.md#phase-2-the-dsar-workbench-plat-022-work-011) and
+  [retention](../../specs/retention.md). Your procedure is the
   [subject access request procedure](../../compliance/dsar-procedure.md).

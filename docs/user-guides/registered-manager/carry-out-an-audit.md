@@ -37,7 +37,8 @@ team leaders or senior carers, and nurses cannot.
    - **Owner**: choose from the list;
    - **Due date** (optional). Left empty, your organisation's default is used.
 3. Under **Your self-rating**, choose **Inadequate (1)**, **Requires improvement (2)**, **Good
-   (3)** or **Outstanding (4)**. This is your own judgement on the CQC rating scale.
+   (3)** or **Outstanding (4)**. This is your own judgement on the rating scale of the Care Quality
+   Commission (CQC).
 4. Choose **Complete audit**. The page says "Audit completed. Its actions are with their owners."
 
 ## Important
@@ -55,4 +56,4 @@ team leaders or senior carers, and nurses cannot.
   **Mock inspections**. **What fell short, by quality statement** lists the findings.
 - To use a completed audit as evidence, choose **Tag as evidence** (see
   [How to tag a record as evidence](tag-a-record-as-evidence.md)).
-- The rules: [quality spec section 17, rules 9 to 15](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).
+- The rules are in the [quality specification](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).

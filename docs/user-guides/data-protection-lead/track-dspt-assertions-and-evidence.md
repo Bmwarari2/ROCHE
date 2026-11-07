@@ -4,9 +4,6 @@ Track where your Data Security and Protection Toolkit (DSPT) assertions stand fo
 link your organisation's documents to each as evidence. The **Data security** page shows the
 toolkit, your certificates and your registers together.
 
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
-
 **Who can do this**: the owner and the quality and compliance lead, or anyone given data
 protection for the whole organisation. A Registered Manager or deputy manager, who works for one
 location, cannot: the page says data security is for people who handle data protection for the
@@ -21,8 +18,8 @@ whole organisation.
    **Due by**, **Due soon: by** or **Overdue: was due**, with the deadline.
 3. Read how many assertions are tracked and how many are **Not started**, **In progress**, **Met**,
    **Not met** and **Not applicable**.
-4. **Certificates and registration** shows Cyber Essentials, Cyber Essentials Plus and the ICO
-   registration. **Registers** shows open breaches, breaches past the 72-hour ICO clock and open
+4. **Certificates and registration** shows Cyber Essentials, Cyber Essentials Plus and the
+   registration with the Information Commissioner's Office (ICO). **Registers** shows open breaches, breaches past the 72-hour ICO clock and open
    data protection complaints.
 
 ## Add an assertion
@@ -56,7 +53,6 @@ The page says "Evidence no longer used. The history keeps it."
 - Evidence must be one of your organisation's own documents, never a document about a person. If
   there are none left to link, the page says to add one to your documents first.
 - This is your own record of the toolkit. Thapsus Care does not submit anything to the toolkit for you.
-- The rules: [quality spec section 17, rules 29 to 31](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
-  [section 18, data security evidence](../../specs/quality.md#18-data-security-evidence-slice-32-qual-012)
-  and section 21 of the quality spec on the `feat/quality-dashboard-pir` branch.
+- The rules are in the [quality specification](../../specs/quality.md#22-data-security-evidence-slice-32-qual-012) and its
+  [data security screens](../../specs/quality.md#21-web-screens-policies-and-data-security-slice-65-qual-008-qual-012).
 - For the breach register, see [How to record and handle a data breach](record-a-data-breach.md).

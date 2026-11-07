@@ -31,4 +31,4 @@ executive cannot.
   do not count towards coverage.
 - If a statement has no records, the page says "No records are tagged against this statement".
   Tag records from the record itself (see [How to tag a record as evidence](tag-a-record-as-evidence.md)).
-- The rule: [quality spec section 17, rule 7](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).
+- The rules are in the [quality specification](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).

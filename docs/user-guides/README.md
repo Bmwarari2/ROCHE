@@ -41,8 +41,7 @@ links the care worker's incident guide.
 
 ## Register rows and their guides
 
-Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 safety, quality and platform rows (slice 83) and medicines rows (slice 81), that have a guide. Rows marked "screens with the next merge" describe screens on the `feat/quality-dashboard-pir` branch. The register's user
-Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 safety, quality and platform rows (slice 83) and workforce and scheduling rows (slice 82), that have a guide. Rows marked "screens with the next merge" describe screens on the `feat/quality-dashboard-pir` branch. The register's user
+Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 medicines (slice 81), workforce and scheduling (slice 82) and safety, quality and platform (slice 83) rows, that have a guide. The register's user
 docs column links the same guides.
 
 | Row | Guides |
@@ -90,10 +89,10 @@ docs column links the same guides.
 | QUAL-001 | [Read the compliance framework and map its statements](registered-manager/map-the-compliance-framework.md) |
 | QUAL-002 | [Read the compliance framework and map its statements](registered-manager/map-the-compliance-framework.md), [Tag a record as evidence](registered-manager/tag-a-record-as-evidence.md), [Check evidence coverage and its gaps](registered-manager/check-evidence-coverage.md) |
 | QUAL-004 | [Add, schedule and retire an audit template](registered-manager/set-up-an-audit-template.md), [Carry out an audit or mock inspection](registered-manager/carry-out-an-audit.md) |
-| QUAL-005 | [Read the quality dashboard](registered-manager/read-the-quality-dashboard.md), [Set indicator targets](registered-manager/set-indicator-targets.md) (screens with the next merge) |
-| QUAL-006 | [Copy the PIR figures](registered-manager/copy-the-pir-figures.md) (screens with the next merge) |
-| QUAL-008 | [Read and sign a policy](all-staff/read-and-sign-a-policy.md), [Write and publish a policy](registered-manager/write-and-publish-a-policy.md), [Check who has read and signed a policy](registered-manager/check-who-has-signed-a-policy.md), [Retire a policy](registered-manager/retire-a-policy.md) (screens with the next merge) |
-| QUAL-012 | [Track DSPT assertions and their evidence](data-protection-lead/track-dspt-assertions-and-evidence.md), [Record a DSPT submission](data-protection-lead/record-a-dspt-submission.md), [Record a Cyber Essentials certificate or ICO registration](data-protection-lead/record-a-certificate-or-registration.md) (screens with the next merge) |
+| QUAL-005 | [Read the quality dashboard](registered-manager/read-the-quality-dashboard.md), [Set indicator targets](registered-manager/set-indicator-targets.md) |
+| QUAL-006 | [Copy the PIR figures](registered-manager/copy-the-pir-figures.md) |
+| QUAL-008 | [Read and sign a policy](all-staff/read-and-sign-a-policy.md), [Write and publish a policy](registered-manager/write-and-publish-a-policy.md), [Check who has read and signed a policy](registered-manager/check-who-has-signed-a-policy.md), [Retire a policy](registered-manager/retire-a-policy.md) |
+| QUAL-012 | [Track DSPT assertions and their evidence](data-protection-lead/track-dspt-assertions-and-evidence.md), [Record a DSPT submission](data-protection-lead/record-a-dspt-submission.md), [Record a Cyber Essentials certificate or ICO registration](data-protection-lead/record-a-certificate-or-registration.md) |
 | WORK-011 | [Handle a data rights request](data-protection-lead/handle-a-data-rights-request.md), [Find and review the records for a data rights request](data-protection-lead/find-and-review-the-records-for-a-request.md), [Export an employee relations case](hr-lead/export-an-employee-relations-case.md), [Read the staff privacy notice and choose how your photo is used](care-worker/check-your-privacy-choices.md), [Record a sponsored worker](hr-lead/record-a-sponsored-worker.md), [Set the staff privacy notice](owner/set-the-staff-privacy-notice.md) |
 | OPS-028 | [Print the downtime pack](senior-carer/print-the-downtime-pack.md), [Declare and close an outage](senior-carer/declare-and-close-an-outage.md), [Enter paper records](care-worker/enter-paper-records-after-an-outage.md), [Reconcile an outage](registered-manager/reconcile-an-outage.md) |
 | COMMS-001 | [Publish a family update](senior-carer/publish-a-family-update.md), [Read updates from the home](family-member/read-updates.md) |

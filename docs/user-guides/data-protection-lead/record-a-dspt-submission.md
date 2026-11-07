@@ -3,9 +3,6 @@
 Once you have submitted your Data Security and Protection Toolkit (DSPT) for the year, record the
 submission in Thapsus Care with its outcome. You can correct it later.
 
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
-
 **Who can do this**: the owner and the quality and compliance lead, or anyone given data
 protection for the whole organisation. A Registered Manager or deputy manager, who works for one
 location, cannot.
@@ -37,4 +34,4 @@ location, cannot.
 - Recording here does not submit anything. Thapsus Care never sends the toolkit for you.
 - Until the year's submission is recorded, Thapsus Care gives the owner a task when the deadline is
   near or past.
-- The rules: [quality spec section 18, data security evidence](../../specs/quality.md#18-data-security-evidence-slice-32-qual-012).
+- The rules are in the [quality specification](../../specs/quality.md#22-data-security-evidence-slice-32-qual-012).

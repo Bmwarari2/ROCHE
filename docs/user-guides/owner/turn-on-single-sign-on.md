@@ -1,8 +1,8 @@
 # How to turn on single sign-on
 
-Single sign-on lets your staff sign in to Thapsus Care with your organisation's own work account (an
-OpenID Connect identity provider). It is off for every organisation, and there is no screen for it
-yet.
+Single sign-on (SSO) lets your staff sign in to Thapsus Care with your organisation's own work
+account, from an identity provider that uses OpenID Connect. It is off for every organisation,
+and there is no screen for it yet.
 
 **Who can do this**: only the owner can see or change your organisation's single sign-on settings,
 and every change needs you to confirm it is you with your passkey or authenticator app. Turning the
@@ -12,8 +12,8 @@ feature on for your organisation is done by Thapsus, not by you.
 
 ## Steps
 
-There are no steps in Thapsus Care yet: single sign-on has an API but no web screen on `main`, and no
-sign-in button for it.
+There are no steps in Thapsus Care yet: there is no settings screen for single sign-on, and no
+sign-in button for it. Thapsus Care support sets it up with you.
 
 1. Ask Thapsus Care support whether single sign-on can be turned on for your organisation. It stays off
    until Thapsus has finished its security review.

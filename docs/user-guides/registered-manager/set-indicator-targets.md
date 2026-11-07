@@ -3,9 +3,6 @@
 Set your organisation's own targets for the quality dashboard: an organisation default for each
 indicator, and a location's own target where it needs one.
 
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
-
 **Who can do this**: a location's own target: the Registered Manager and the deputy manager for
 their locations, and the owner, the group executive and the quality and compliance lead. The
 organisation default, and a location target looser than it: only the owner, the group executive
@@ -45,5 +42,4 @@ and the quality and compliance lead, who manage quality for the whole organisati
 - A location's target cannot be less strict than the organisation's, unless someone who manages
   quality for the whole organisation sets it.
 - With no target, a figure is shown but not rated.
-- The rules: [quality spec section 17, rules 18 and 19](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
-  and section 22 (rule 41) of the quality spec on the `feat/quality-dashboard-pir` branch.
+- The rules are in the [quality specification](../../specs/quality.md#22-quality-dashboard-and-pir-prefill-slice-47-qual-005-qual-006-migration-0108).

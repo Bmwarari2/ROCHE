@@ -4,9 +4,6 @@ The quality dashboard shows care indicators for one location over whole months, 
 is recorded in Thapsus Care. Each figure shows how it is worked out and where it stands against your
 organisation's own target.
 
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
-
 **Who can do this**: the Registered Manager and the deputy manager for their own locations; the
 owner, the group executive and the quality and compliance lead for every location. Care and support
 workers, team leaders or senior carers, and nurses cannot.
@@ -48,6 +45,6 @@ it and shows last month instead.
   (see [How to set indicator targets](set-indicator-targets.md)).
 - Records added later, for example from a device that was offline, appear in a later view.
 - The figures are counts only. They do not diagnose or predict anything about a person.
-- The rules: [quality spec section 17, rules 16 to 22](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
-  and sections 22 and 23 of the quality spec and hazard HZ-129 (a quality indicator or audit score
-  falsely reassures), both on the `feat/quality-dashboard-pir` branch.
+- The rules are in the [quality specification](../../specs/quality.md#22-quality-dashboard-and-pir-prefill-slice-47-qual-005-qual-006-migration-0108) and its
+  [dashboard screens](../../specs/quality.md#23-web-screens-quality-dashboard-and-pir-figures-slice-65-part-2-qual-005-qual-006); the hazard is
+  [HZ-129: a quality indicator falsely reassures](../../clinical-safety/hazard-log.md#hz-129-a-quality-indicator-falsely-reassures).

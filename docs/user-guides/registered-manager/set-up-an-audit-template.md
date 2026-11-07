@@ -48,5 +48,5 @@ The schedule then shows on **Quality audits** under **Schedule**, marked **Due**
   own policies before you rely on them.
 - If the template is already scheduled at every location you can see, the page says "This template
   is scheduled at every location you can see."
-- The rules: [quality spec section 17, rules 8 and 13](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012)
-  and [section 19](../../specs/quality.md#19-audit-programme-and-mock-inspections-slice-19-qual-004-migration-0081).
+- The rules are in the [quality specification](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012) and its
+  [audit programme section](../../specs/quality.md#20-audit-programme-and-mock-inspections-slice-19-qual-004-migration-0081).

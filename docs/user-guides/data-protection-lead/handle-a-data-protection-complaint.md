@@ -36,7 +36,7 @@ organisation's own target for acknowledging it is shown alongside.
    **When did you tell them how it is going?**, then choose **Record update**.
 4. Under **Outcome**, enter the **Day closed** and write the **Outcome**, as you told the
    complainant.
-5. Tick "The outcome told the complainant they can complain to the ICO". The outcome must always
+5. Tick "The outcome told the complainant they can complain to the ICO" (the Information Commissioner's Office). The outcome must always
    tell them this.
 6. Tick "Close this complaint. It cannot be changed afterwards.", then choose **Close complaint**.
 
@@ -50,5 +50,4 @@ organisation's own target for acknowledging it is shown alongside.
 - Linking a complaint to a person you support, or to a breach, is not on this screen yet.
 - Your procedure is in [data protection complaints](../../compliance/data-protection-complaints.md).
   The rules are in the
-  [platform specification](../../specs/platform.md#breach-register-and-data-protection-complaints-slice-20-plat-022)
-  (rule 25).
+  [platform specification](../../specs/platform.md#breach-register-and-data-protection-complaints-slice-20-plat-022).

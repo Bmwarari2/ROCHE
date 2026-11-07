@@ -77,7 +77,8 @@ holidays and your organisation's settings. Pauses and the extension are listed u
 - A request from a person's contact (such as a relative) about their own information is not on
   this screen yet. Ask Thapsus Care support.
 - Police, solicitor, coroner and other disclosure requests about a person are not data rights
-  requests. They have no screen yet; ask Thapsus Care support.
+  requests. They are recorded under **Disclosure requests** in the side bar, by the Registered
+  Manager or someone else who manages incidents.
 - The person's communication needs show on the request, so you can reply in a way they can use.
 - Your procedure is in the [subject access request procedure](../../compliance/dsar-procedure.md).
   The rules Thapsus Care follows are in the

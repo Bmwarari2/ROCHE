@@ -1,10 +1,7 @@
 # How to record a Cyber Essentials certificate or ICO registration
 
-Keep a record of your Cyber Essentials and Cyber Essentials Plus certificates and your ICO
-registration, so Thapsus Care can tell you when each is due for renewal.
-
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
+Keep a record of your Cyber Essentials and Cyber Essentials Plus certificates and your
+registration with the Information Commissioner's Office (ICO), so Thapsus Care can tell you when each is due for renewal.
 
 **Who can do this**: the owner and the quality and compliance lead, or anyone given data
 protection for the whole organisation. A Registered Manager or deputy manager, who works for one
@@ -34,5 +31,4 @@ location, cannot.
 - **Where each stands** shows each kind as **Current**, **Renewal due soon**, **Expired** or
   **Missing: no record**. A kind with no record is never shown as current.
 - When a certificate or registration is due soon or expired, Thapsus Care gives the owner a task.
-- The rules: [quality spec section 17, rule 31](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012)
-  and [section 18, data security evidence](../../specs/quality.md#18-data-security-evidence-slice-32-qual-012).
+- The rules are in the [quality specification](../../specs/quality.md#22-data-security-evidence-slice-32-qual-012).

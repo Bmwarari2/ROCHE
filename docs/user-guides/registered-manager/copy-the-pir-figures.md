@@ -1,10 +1,7 @@
 # How to copy the PIR figures
 
-Thapsus Care gathers figures for your Provider Information Return (PIR) to CQC for one location over the
-last 12 whole months. You check them and copy them into the return yourself.
-
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
+Thapsus Care gathers figures for your Provider Information Return (PIR) to the Care Quality
+Commission (CQC) for one location over the last 12 whole months. You check them and copy them into the return yourself.
 
 **Who can do this**: the Registered Manager and the deputy manager for their own locations; the
 owner, the group executive and the quality and compliance lead for every location. Care and support
@@ -38,6 +35,5 @@ workers, team leaders or senior carers, and nurses cannot.
 - A small number is withheld so that no one can be identified, and marked to complete.
 - The data points are Thapsus Care's mapping to CQC's questions. Until they are confirmed against the
   current return, the page says so.
-- The rules: [quality spec section 17, rules 23 and 24](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
-  and section 22 (rule 43) of the quality spec and hazard HZ-129, both on the
-  `feat/quality-dashboard-pir` branch.
+- The rules are in the [quality specification](../../specs/quality.md#22-quality-dashboard-and-pir-prefill-slice-47-qual-005-qual-006-migration-0108); the hazard is
+  [HZ-129: a quality indicator falsely reassures](../../clinical-safety/hazard-log.md#hz-129-a-quality-indicator-falsely-reassures).
