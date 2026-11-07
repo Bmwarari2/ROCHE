@@ -68,7 +68,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.memberships_for_auth_user(text)": ["harbour_app"],
   "app.provision_tenant(jsonb, jsonb, jsonb)": ["harbour_operator"],
   "app.record_invitation_sign_in(text, text)": ["harbour_app"],
-  "app.seed_discard_reasons(uuid)": [],
+  "app.seed_discard_reasons(uuid)": ["harbour_owner"],
   // Supervision notes (slice 57, migration 0114): read rule of supervision_note.
   "app.supervises_member(uuid)": ["harbour_app", "harbour_owner"],
   "app.supervision_in_force(uuid)": ["harbour_app", "harbour_owner"],
@@ -292,6 +292,7 @@ const DEFINER_TABLE_GRANTS: Readonly<Record<(typeof DEFINER_ROLES)[number], read
     "public.handover: SELECT",
     "public.location: SELECT",
     "public.person: SELECT",
+    "public.person_assignment: SELECT",
     "public.record_version: INSERT",
     "public.role: SELECT",
     "public.role_assignment: SELECT",

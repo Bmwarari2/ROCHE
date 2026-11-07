@@ -61,8 +61,8 @@ gain; one for all would put payroll, casework and care rounds in one blast radiu
   `app.end_leaver_access` and `app.end_relinked_leaver_access` now pass through (to `left` is
   allowed). Every moved function filters by the organisation in context.
 - `harbour_owner` keeps EXECUTE only on the moved functions that row-level policies call, so the
-  policies on its own queries still evaluate, granted by each new owner; the actions stay with their
-  API callers alone.
+  policies on its own queries still evaluate, and on `app.seed_discard_reasons`, which backfills
+  run as the migrator; granted by each new owner. The actions stay with their API callers alone.
 - Guards that named `harbour_owner` as the owner of a moved function (the leaver record's guard for
   `app.end_leaver_access`) now name the new owner too. That guard now trusts every
   `harbour_workforce_definer` function, not only `app.end_leaver_access`; today only that function
