@@ -946,15 +946,6 @@ now, until the testing-phase review.
 | H-1365 | Decide where training sits in the app: for now Settings, then Training courses (not a tab), so it does not clash with slice 71's Shifts tab. Recommended: the integrator moves it beside Shifts when slices 71 and 72 are both merged | Brian | `apps/mobile/src/app/(care)/training/` | None | Open, recommended answer in force |
 | H-1366 | Decide whether to add a platform-level block on the course WebView's network (an iOS content rule list and Android `setBlockNetworkLoads` through an Expo config plugin) and to serve each course from its own scheme rooted at its folder with file access off, beyond the content security policy and interceptions built (security review of slice 72, M1 and L7). Recommended: yes, before courses are offered offline beyond the pilot; until then training leads assign offline only courses they have tried on a phone (H-1362) | Brian with the security lead | workforce.md section 14.5 rule 2 | Offering courses offline beyond the pilot | Open, recommended answer in force |
 
-<<<<<<< HEAD
-## Definer function owners (ADR-0133)
-
-| # | Action | Owner | What the build produced | Unblocks | Status |
-| --- | --- | --- | --- | --- | --- |
-| H-1491 | Run `pnpm db:bootstrap` in every environment (Cloud SQL as its `postgres` user) before migration 0154, so the five context definer roles exist and `harbour_owner` may act as them; the migration fails without them | Brian | `packages/db/src/admin/roles.ts`; migration 0154 | Deploying migration 0154 | open |
-| H-1492 | Confirm the split of definer functions into five context owners, and that owners reading tables only for their row-level policies is acceptable. Recommended answer: as built (ADR-0133) | Brian | ADR-0133 | Security sign-off | open (recommended answer in force) |
-| H-1493 | Add the definer-owner rule to the security review checklist: a new SECURITY DEFINER function names a NOLOGIN owner, its grants and a `search_path` ending in `pg_temp`. Recommended answer: as enforced by `definer-acls.test.ts` | Brian | `packages/db/test/definer-acls.test.ts` | None | open (recommended answer in force) |
-=======
 ## Phase 2: PRN protocols and the psychotropic report (slice 28)
 
 Logged by slice 28 ([medicines.md](../specs/medicines.md) section 16, HZ-117) on 6 November 2026,
@@ -983,7 +974,18 @@ until the testing-phase review.
 | H-1478 | Renumber `medicines.md`'s duplicate sections 14, 15 and 16 in one docs pass, with every reference (some in migration comments) | Lead engineer | `docs/changelog-dev/2026-11-06-integration-phase-2-batch-3c.md`; `docs/specs/medicines.md` | Nothing | open |
 | H-1479 | Fold the overlapping `medication…` rows in `retention.md` into one row per table | Lead engineer with the DPO | `docs/changelog-dev/2026-11-06-integration-phase-2-batch-3c.md`; `docs/specs/retention.md` | Nothing | open |
 | H-1480 | Deploy migrations 0143 and 0144 together: 0143's sample removal list is short (72 tables) until 0144 restates the union | Lead engineer (release) | `docs/changelog-dev/2026-11-06-integration-phase-2-batch-3c.md`; `packages/db/drizzle/0143_prn_protocols.sql`, `0144_handover_medicine_refusals.sql`; HZ-072 | The release carrying batch 3c | open |
->>>>>>> origin/main
+
+## Definer function owners (ADR-0133)
+
+| # | Action | Owner | What the build produced | Unblocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1491 | Run `pnpm db:bootstrap` in every environment (Cloud SQL as its `postgres` user) before migration 0154, so the five context definer roles exist and `harbour_owner` may act as them; the migration fails without them | Brian | `packages/db/src/admin/roles.ts`; migration 0154 | Deploying migration 0154 | open |
+| H-1492 | Confirm the split of definer functions into five context owners, and that owners reading tables only for their row-level policies is acceptable. Recommended answer: as built (ADR-0133) | Brian | ADR-0133 | Security sign-off | open (recommended answer in force) |
+| H-1493 | Add the definer-owner rule to the security review checklist: a new SECURITY DEFINER function names a NOLOGIN owner, its grants and a `search_path` ending in `pg_temp`. Recommended answer: as enforced by `definer-acls.test.ts` | Brian | `packages/db/test/definer-acls.test.ts` | None | open (recommended answer in force) |
+| H-1494 | Add a CI database job on the pgAudit image (`infra/docker/postgres`) that runs `pnpm db:migrate` and `packages/db` tests, so extension-owned definer functions (pgAudit's, owned by the `postgres` user on Cloud SQL) are proved left alone in CI; today a local stand-in extension proves it | Lead engineer | ADR-0133; migration 0154 | Production deploy of 0154 | open |
+| H-1495 | Update the add-migration skill: restrictive scope policies name `harbour_app, harbour_owner` and the five context definers, and a definer's `search_path` ends in `pg_temp`; changing a moved function runs as its owner (ADR-0133) | Lead engineer | `.claude/skills/add-migration/SKILL.md`; ADR-0133 | None (the new policy test catches a policy without the definers) | open |
+| H-1496 | Decide whether invoker helper functions called from definers (for example `app.holds_permission_at`) also pin `pg_temp` last. Recommended answer: yes, in one later migration; low risk today as they qualify every table | Lead engineer | ADR-0133 (security review L4) | None | open (recommended answer in force) |
+| H-1497 | Decide whether the audit chain trigger (`app.audit_event_chain`) gets its own NOLOGIN owner, apart from `harbour_platform_definer`, which also provisions organisations from operator input. Recommended answer: yes, in a later migration | Lead engineer | ADR-0133 (security review L5) | None | open (recommended answer in force) |
 
 ## Per tenant at onboarding
 

@@ -17,18 +17,8 @@ GRANT INSERT ON public.record_version TO harbour_platform_definer;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON public.role, public.role_assignment, public.tenant, public.tenant_user TO harbour_platform_definer;
 --> statement-breakpoint
--- What the row-level policies and triggers of those tables read, evaluated as this role.
-GRANT SELECT ON public.access_grant, public.agency, public.audit_event, public.break_glass_event, public.document, public.dpia, public.location, public.person, public.person_assignment, public.speak_up_case_member, public.speak_up_concern, public.speak_up_reporter TO harbour_platform_definer;
---> statement-breakpoint
+-- What the row-level policies of those tables call, evaluated as this role.
 GRANT EXECUTE ON FUNCTION app.agency_access_open(uuid,uuid) TO harbour_platform_definer;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.holds_permission_at(text,uuid) TO harbour_platform_definer;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.holds_role_permission_at(text,uuid) TO harbour_platform_definer;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.holds_role_permission_somewhere(text) TO harbour_platform_definer;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.member_holds_role_permission(uuid,text) TO harbour_platform_definer;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.member_is_agency(uuid) TO harbour_platform_definer;
 --> statement-breakpoint
@@ -45,7 +35,7 @@ GRANT INSERT ON public.record_version TO harbour_care_definer;
 GRANT SELECT, UPDATE ON public.task TO harbour_care_definer;
 --> statement-breakpoint
 -- What the row-level policies and triggers of those tables read, evaluated as this role.
-GRANT SELECT ON public.access_grant, public.audit_event, public.break_glass_event, public.location, public.person, public.person_assignment, public.role, public.role_assignment, public.speak_up_case_member, public.speak_up_concern, public.speak_up_reporter TO harbour_care_definer;
+GRANT SELECT ON public.access_grant, public.location, public.person, public.role, public.role_assignment TO harbour_care_definer;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.agency_access_open(uuid,uuid) TO harbour_care_definer;
 --> statement-breakpoint
@@ -70,7 +60,7 @@ GRANT SELECT, INSERT ON public.employee_case, public.employee_case_event, public
 GRANT INSERT ON public.record_version TO harbour_workforce_definer;
 --> statement-breakpoint
 -- What the row-level policies and triggers of those tables read, evaluated as this role.
-GRANT SELECT ON public.agency, public.audit_event, public.break_glass_event, public.incident, public.interview, public.investigation, public.person, public.person_assignment, public.speak_up_case_member, public.speak_up_concern, public.speak_up_reporter, public.tenant TO harbour_workforce_definer;
+GRANT SELECT ON public.agency, public.incident, public.interview, public.investigation TO harbour_workforce_definer;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.agency_access_open(uuid,uuid) TO harbour_workforce_definer;
 --> statement-breakpoint
@@ -97,7 +87,7 @@ GRANT INSERT ON public.record_version TO harbour_scheduling_definer;
 GRANT SELECT, INSERT ON public.shift_cover_need TO harbour_scheduling_definer;
 --> statement-breakpoint
 -- What the row-level policies and triggers of those tables read, evaluated as this role.
-GRANT SELECT ON public.audit_event, public.location, public.rate_table, public.rota, public.shift_template, public.speak_up_case_member, public.speak_up_concern, public.speak_up_reporter, public.tenant TO harbour_scheduling_definer;
+GRANT SELECT ON public.location, public.rate_table, public.rota, public.shift_template TO harbour_scheduling_definer;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.holds_permission_at(text,uuid) TO harbour_scheduling_definer;
 --> statement-breakpoint
@@ -145,31 +135,47 @@ END
 $$;
 --> statement-breakpoint
 
--- Every definer function's search_path pinned with pg_temp last, as its owner (only an owner may
--- alter a function; harbour_owner may act as each NOLOGIN owner, ADR-0002).
+-- Every Harbour definer function's search_path pinned with pg_temp last, keeping the schemas it
+-- already names, as its owner (only an owner may alter a function; harbour_owner may act as each
+-- NOLOGIN owner, ADR-0002). Extension members (pgAudit's event-trigger functions, a hosting
+-- platform's own) and other schemas are not Harbour's to change, and their owners are not roles
+-- harbour_owner may act as.
 DO $$
 DECLARE
   f record;
+  v_path text;
   v_usage boolean;
+  v_switch boolean;
 BEGIN
   FOR f IN
-    SELECT p.oid::regprocedure AS sig, r.rolname AS owner, n.nspname AS nsp
+    SELECT p.oid::regprocedure AS sig, r.rolname AS owner, n.nspname AS nsp,
+           (SELECT substr(c, length('search_path=') + 1) FROM unnest(p.proconfig) c
+             WHERE c LIKE 'search_path=%') AS path
       FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
       JOIN pg_roles r ON r.oid = p.proowner
-     WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-       AND NOT coalesce(array_to_string(p.proconfig, ','), '') ~ 'search_path=pg_catalog, public, pg_temp(,|$)'
+     WHERE p.prosecdef AND n.nspname IN ('app', 'public', 'auth')
+       AND NOT EXISTS (SELECT 1 FROM pg_depend d
+                        WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
   LOOP
+    -- The schemas it names, in order, without pg_temp; then pg_temp last.
+    SELECT string_agg(s, ', ' ORDER BY i) INTO v_path
+      FROM unnest(string_to_array(coalesce(f.path, 'pg_catalog, public'), ',')) WITH ORDINALITY AS x(s0, i),
+           LATERAL (SELECT btrim(x.s0) AS s) t
+     WHERE t.s <> 'pg_temp' AND t.s <> '';
+    v_path := coalesce(v_path, 'pg_catalog') || ', pg_temp';
+    CONTINUE WHEN f.path = v_path;
     -- An owner without USAGE on the function's schema gets it only for the change.
     v_usage := has_schema_privilege(f.owner, f.nsp, 'USAGE');
     IF NOT v_usage THEN
       EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', f.nsp, f.owner);
     END IF;
-    IF f.owner <> current_user THEN
+    v_switch := f.owner <> current_user;
+    IF v_switch THEN
       EXECUTE format('SET ROLE %I', f.owner);
     END IF;
-    EXECUTE format('ALTER FUNCTION %s SET search_path = pg_catalog, public, pg_temp', f.sig);
-    IF f.owner <> 'harbour_owner' THEN
+    EXECUTE format('ALTER FUNCTION %s SET search_path = %s', f.sig, v_path);
+    IF v_switch THEN
       RESET ROLE;
     END IF;
     IF NOT v_usage THEN
@@ -308,43 +314,14 @@ ALTER FUNCTION app.pay_run_status(uuid) OWNER TO harbour_finance_definer;
 REVOKE CREATE ON SCHEMA app FROM harbour_platform_definer, harbour_care_definer, harbour_workforce_definer,
   harbour_scheduling_definer, harbour_finance_definer;
 
--- harbour_owner keeps calling what it could call as their owner (seeds, maintenance, and the
--- policies evaluated for its own queries), granted by each new owner.
-SET ROLE harbour_platform_definer;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.provision_tenant(jsonb,jsonb,jsonb) TO harbour_owner;
---> statement-breakpoint
-RESET ROLE;
---> statement-breakpoint
-SET ROLE harbour_care_definer;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.refresh_earlier_plan(uuid,uuid[]) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.task_from_earlier_plan(uuid,uuid) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.seed_discard_reasons(uuid) TO harbour_owner;
---> statement-breakpoint
-RESET ROLE;
---> statement-breakpoint
+-- harbour_owner keeps calling the functions row-level policies call, so the policies on its own
+-- queries (migrations, seeds) still evaluate; granted by each new owner. The actions it never
+-- called stay with their API callers alone.
 SET ROLE harbour_workforce_definer;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.absence_member(uuid) TO harbour_owner;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.casework_for_subject_access(uuid) TO harbour_owner;
---> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.casework_member(uuid,text[]) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.end_leaver_access(uuid) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.end_relinked_leaver_access(uuid) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.equality_monitoring_counts(uuid) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.induction_policy_signing(uuid) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.open_employee_case(text,uuid,text,date) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.operator_appoint_case_manager(uuid,uuid) TO harbour_owner;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.staff_profile_worker(uuid) TO harbour_owner;
 --> statement-breakpoint
@@ -359,10 +336,6 @@ SET ROLE harbour_scheduling_definer;
 GRANT EXECUTE ON FUNCTION app.agency_access_open(uuid,uuid) TO harbour_owner;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.member_is_agency(uuid) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.raise_cover_need(uuid,uuid) TO harbour_owner;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.raise_hr_cover_need(uuid,uuid) TO harbour_owner;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.reads_worker_time(uuid) TO harbour_owner;
 --> statement-breakpoint
