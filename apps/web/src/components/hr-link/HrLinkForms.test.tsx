@@ -261,7 +261,7 @@ describe("hazard HZ-133 the linked states are accessible in both themes", () => 
     expect(times).toEqual(["2026-11-20", "2026-11-24", "2026-11-02"]);
     expect(host.textContent).toContain("Ada Example");
     expect(host.textContent).toContain("A member of staff");
-    expect(host.textContent).not.toContain("Thapsus");
+    expect(host.textContent).not.toMatch(/Thapsus[- ]?HR/i);
   });
 });
 

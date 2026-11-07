@@ -26,7 +26,7 @@ describe("AppBar", () => {
     const { container } = render(
       <AppBar brandLogoSrc="/branding/logo?v=1" tenant={{ ...tenant, onValueChange: vi.fn() }} />,
     );
-    const home = screen.getByRole("link", { name: "Harbour" });
+    const home = screen.getByRole("link", { name: "Thapsus Care" });
     const logo = container.querySelector("img.hb-appbar__logo");
     expect(home).toContainElement(logo as HTMLElement);
     expect(logo).toHaveAttribute("alt", "");

@@ -124,9 +124,9 @@ const A = {
 } as const;
 
 const BRADFORD_NOTICE =
-  "The Bradford factor is shown with its working only. Harbour never compares it with a trigger, raises a task or changes anything because of it; leave out absences that must not count against someone (pregnancy-related, disability-related) before reading it.";
+  "The Bradford factor is shown with its working only. Thapsus Care never compares it with a trigger, raises a task or changes anything because of it; leave out absences that must not count against someone (pregnancy-related, disability-related) before reading it.";
 const SSP_NOTICE =
-  "Advice for payroll from the statutory rules and your figures: Harbour pays nothing and keeps no pay figure. Check it against your payroll before paying.";
+  "Advice for payroll from the statutory rules and your figures: Thapsus Care pays nothing and keeps no pay figure. Check it against your payroll before paying.";
 
 const stale = () =>
   new HttpProblem(

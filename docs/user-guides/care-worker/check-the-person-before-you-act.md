@@ -27,7 +27,7 @@ anything.
 | 2 allergies | Read the list under **Allergies**. |
 | Allergies not recorded | Nobody has recorded it. **Do not assume there are none.** Ask the nurse in charge. |
 | Attempt CPR / Do not attempt CPR | The decision in force, and who made it. |
-| CPR decision not recorded | No ReSPECT plan or DNACPR decision is in Harbour. Check the paper record and tell the nurse in charge. |
+| CPR decision not recorded | No ReSPECT plan or DNACPR decision is in Thapsus Care. Check the paper record and tell the nurse in charge. |
 | CPR records disagree | Check the signed documents and tell the nurse in charge **now**. |
 | Review overdue | The decision still stands until it is reviewed. |
 | No level prescribed | No special food or drink level is needed. |
@@ -37,7 +37,7 @@ anything.
 
 ## Good to know
 
-- If Harbour says "This record could not be read safely", use the paper record and tell the person
+- If Thapsus Care says "This record could not be read safely", use the paper record and tell the person
   in charge.
 - If you see "You can read this record but cannot record in it", tell the person in charge of the
   shift what needs recording.

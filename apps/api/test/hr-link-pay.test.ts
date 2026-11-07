@@ -188,7 +188,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-describe("hazard HZ-140 a period before the route changes pays through Harbour's export (rule 12)", () => {
+describe("hazard HZ-140 a period before the route changes pays through Thapsus Care's export (rule 12)", () => {
   it("offers a locked run to the export and sends nothing to Thapsus-HR", async () => {
     await worked("2026-10-05");
     const detail = await draftAndCalculate(P0);

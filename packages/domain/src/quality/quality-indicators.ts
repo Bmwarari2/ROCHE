@@ -177,12 +177,12 @@ export type NoDataReason =
   | "small_number";
 
 export const NO_DATA_REASONS: Readonly<Record<NoDataReason, string>> = {
-  unknown_indicator: "Harbour does not know this indicator.",
+  unknown_indicator: "Thapsus Care does not know this indicator.",
   no_value: "No data has been recorded for this period.",
   no_denominator: "There is nothing to measure against for this period.",
   incomplete_data: "Data incomplete for this period.",
   no_target: "No target has been set, so it is not rated.",
-  source_not_built: "Harbour does not record this yet.",
+  source_not_built: "Thapsus Care does not record this yet.",
   small_number:
     "A small number: not shown, so no one can be identified. Its status against your target is still shown.",
 };

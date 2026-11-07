@@ -166,9 +166,9 @@ export const onboardingRouter = createRouter()
       method: "post",
       path: "/v1/onboarding/setting-decisions",
       tags: ["platform"],
-      summary: "Record a decision on a setting Harbour chose",
+      summary: "Record a decision on a setting Thapsus Care chose",
       description:
-        "platform.onboarding.manage. Accepts Harbour's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). A clinical setting names the clinical lead or CSO who reviewed it (`reviewedBy`, an active member), kept in the audit event. Append-only; a later change by Harbour reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.",
+        "platform.onboarding.manage. Accepts Thapsus Care's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). A clinical setting names the clinical lead or CSO who reviewed it (`reviewedBy`, an active member), kept in the audit event. Append-only; a later change by Thapsus Care reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.",
       security,
       request: { body: { content: { "application/json": { schema: SettingDecision } } } },
       responses: decisionResponses,
@@ -328,7 +328,7 @@ export const onboardingRouter = createRouter()
       tags: ["platform"],
       summary: "Record the organisation's DCB0160 assessment",
       description:
-        "platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Harbour's safety case for this release; the version sent must be the current one, and `assessedBy` names the CSO or clinical lead who made it (an active member, kept in the audit event; 422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.",
+        "platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Thapsus Care's safety case for this release; the version sent must be the current one, and `assessedBy` names the CSO or clinical lead who made it (an active member, kept in the audit event; 422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.",
       security,
       request: { body: { content: { "application/json": { schema: Dcb0160Recording } } } },
       responses: decisionResponses,

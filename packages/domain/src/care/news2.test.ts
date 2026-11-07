@@ -349,7 +349,7 @@ describe("hazard HZ-012 NEWS2 clinical risk follows RCP chart 2 at every thresho
     expect(result.clinicalRisk).toBe(clinicalRisk);
   });
 
-  it("returns the RCP chart 2 and chart 4 wording, not Harbour advice", () => {
+  it("returns the RCP chart 2 and chart 4 wording, not Thapsus Care advice", () => {
     const high = scored({ respirationRate: 25, pulse: 111, supplementalOxygen: true });
     expect(high.response).toBe("Urgent or emergency response");
     expect(high.monitoring).toEqual({

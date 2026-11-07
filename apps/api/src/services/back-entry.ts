@@ -453,7 +453,7 @@ export function paperLabel(
 ): string {
   const recordedAt = row.deviceTime ?? row.recordedAt;
   if (!found) {
-    return `Written on paper ${formatUkDateTime(row.occurredAt)} during an outage. Entered in Harbour ${formatUkDateTime(recordedAt)} on the device, received ${formatUkDateTime(row.recordedAt)}.`;
+    return `Written on paper ${formatUkDateTime(row.occurredAt)} during an outage. Entered in Thapsus Care ${formatUkDateTime(recordedAt)} on the device, received ${formatUkDateTime(row.recordedAt)}.`;
   }
   return backEntryLabel({
     eventAt: row.occurredAt,

@@ -163,7 +163,7 @@ export const ReportBreach = z
 export const SubjectNoticeDraft = z.object({ notice: z.string() }).meta({
   id: "SubjectNoticeDraft",
   description:
-    "Harbour's plain-English template filled from the register entry; the parts in square brackets are for a person to write before it is sent.",
+    "Thapsus Care's plain-English template filled from the register entry; the parts in square brackets are for a person to write before it is sent.",
 });
 
 export const TellIndividuals = z

@@ -27,12 +27,12 @@ nurse or clinical lead, and the owner. Senior carers and care workers cannot.
 - **Before it can close** lists what is left: a notification still a draft or ready, or questions
   still to answer. Each item links to it.
 - **The duty of candour record is still open.** The candour record has no web screen yet. Ask
-  the person who manages Harbour for your organisation to complete it through the system, then
+  the person who manages Thapsus Care for your organisation to complete it through the system, then
   close the incident.
 
 ## Good to know
 
 - A closed incident cannot be changed.
-- Someone may have changed it since you opened the page. If Harbour says so, reload the page and
+- Someone may have changed it since you opened the page. If Thapsus Care says so, reload the page and
   try again if it is still needed.
 - Investigations, root cause and lessons learned have no web screen yet (register row SAFE-010).

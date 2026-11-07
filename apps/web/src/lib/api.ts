@@ -43,7 +43,7 @@ export class ApiProblemError extends Error {
     readonly status: number,
     readonly code: string,
   ) {
-    super(`Harbour API returned ${status} (${code})`);
+    super(`Thapsus Care API returned ${status} (${code})`);
     this.name = "ApiProblemError";
   }
 }

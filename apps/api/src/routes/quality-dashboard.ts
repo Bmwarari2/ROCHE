@@ -102,7 +102,7 @@ export const qualityDashboardRouter = createRouter()
       tags: ["quality"],
       summary: "The quality indicators for one location and period, each with its working",
       description:
-        "`quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. `from` and `to` are whole calendar months that have ended, at most 12 (422 `period_not_months`, `period_not_ended`, `period_too_long`). A source Harbour does not record yet, a period before the location started recording in Harbour or with a downtime still to reconcile gives `no_data` with its reason and no working. A small count (`quality.indicator.min_group_size`) is withheld with its value, but keeps its status against the target. Audited (`quality.dashboard.viewed`).",
+        "`quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. `from` and `to` are whole calendar months that have ended, at most 12 (422 `period_not_months`, `period_not_ended`, `period_too_long`). A source Thapsus Care does not record yet, a period before the location started recording in Thapsus Care or with a downtime still to reconcile gives `no_data` with its reason and no working. A small count (`quality.indicator.min_group_size`) is withheld with its value, but keeps its status against the target. Audited (`quality.dashboard.viewed`).",
       security,
       request: { query: QualityDashboardQuery },
       responses: { 200: jsonBody(QualityDashboard, "The dashboard"), ...errorResponses },
@@ -384,7 +384,7 @@ export const qualityDashboardRouter = createRouter()
       tags: ["quality"],
       summary: "The Provider Information Return prefill for one location",
       description:
-        "`quality.audit.manage` at the location. The last 12 whole calendar months. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Harbour, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).",
+        "`quality.audit.manage` at the location. The last 12 whole calendar months. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Thapsus Care, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).",
       security,
       request: { query: z.object({ locationId: z.uuid() }) },
       responses: { 200: jsonBody(PirPrefill, "The prefill"), ...errorResponses },

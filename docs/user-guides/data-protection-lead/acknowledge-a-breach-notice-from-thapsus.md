@@ -1,7 +1,7 @@
 # How to acknowledge a breach notice from Thapsus
 
-Thapsus runs Harbour for you as your processor. If Thapsus finds a breach that affects your data,
-it sends you a notice. Harbour opens a breach in your register from it, so you can decide what to
+Thapsus runs Thapsus Care for you as your processor. If Thapsus finds a breach that affects your data,
+it sends you a notice. Thapsus Care opens a breach in your register from it, so you can decide what to
 do.
 
 **Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
@@ -12,7 +12,7 @@ when a notice arrives.
 
 ## Steps
 
-1. You get an urgent notification, "Thapsus has told you about a personal data breach", in Harbour
+1. You get an urgent notification, "Thapsus has told you about a personal data breach", in Thapsus Care
    and by email. Its link opens the breach in the register. A breach opened from a notice says
    "Opened from a breach notice from Thapsus".
 2. Open it. Under **Notices from Thapsus**, read **What happened**, **Kinds of data**, **How
@@ -25,10 +25,10 @@ when a notice arrives.
 ## Good to know
 
 - **The ICO clock starts from when your organisation became aware**, which may be when the notice
-  arrived. Harbour starts it from the notice.
+  arrived. Thapsus Care starts it from the notice.
 - A follow-up notice about the same breach appears under the first one. Acknowledge each one.
 - Acknowledging a notice does not report anything to the ICO. Whether to report is your decision.
-- Correcting when your organisation became aware is not on this screen yet. Ask Harbour support.
+- Correcting when your organisation became aware is not on this screen yet. Ask Thapsus Care support.
 - Your procedure is the [breach response procedure](../../compliance/breach-response.md). The
   rules are in the
   [platform specification](../../specs/platform.md#breach-register-and-data-protection-complaints-slice-20-plat-022)

@@ -2,12 +2,12 @@
 
 | Item | Value |
 | --- | --- |
-| Product | Harbour |
+| Product | Thapsus Care |
 | Manufacturer | Thapsus Cargo Ltd |
 | Release | Phase 1 residential MVP, platform version `v0.1.x` `[release tag and commit - filled at tagging]`. Drafted against `main` at `aae5ab5` |
 | Previous report | [v0.0 Phase 0 foundations](safety-case-v0.0-phase0.md) (draft, not signed) |
 | Report status | **Draft**. Not signed. Clinical Safety Officer approval pending. Not for use with a live tenant |
-| Prepared by | Harbour engineering (Claude Code under the lead engineer), 31 October 2026 |
+| Prepared by | Thapsus Care engineering (Claude Code under the lead engineer), 31 October 2026 |
 | Clinical Safety Officer | `[CSO name - human action]` (not yet appointed, H-20) |
 | Standard | [DCB0129](https://adultsocialcare.standards.nhs.uk/published-standards/clinical-risk-management-its-application-in-the-manufacture-of-health-it-systems) |
 | Clinical risk management file | [Clinical risk management plan](../clinical-risk-management-plan.md), [hazard log](../hazard-log.md), [medical-device boundary](../../compliance/medical-device-boundary.md), [DCB0160 deployment template](../dcb0160-deployment-template.md) |
@@ -32,13 +32,13 @@ the tag, commit and CI evidence) and whenever a change before the tag alters a h
 
 ## 1. Purpose
 
-This report summarises the clinical safety case for the Phase 1 residential MVP: the first Harbour
+This report summarises the clinical safety case for the Phase 1 residential MVP: the first Thapsus Care
 release with clinical functions that care workers, nurses and managers use to record and act on care.
 It sets out what the release does, the safety claim made for it, the argument and the evidence for
 that claim, the hazards and their ratings, what has not yet been verified, what is still to be
 decided, and what a deploying provider must put in place.
 
-It builds on [v0.0](safety-case-v0.0-phase0.md). Neither report is signed. Harbour cannot sign its
+It builds on [v0.0](safety-case-v0.0-phase0.md). Neither report is signed. Thapsus Care cannot sign its
 own safety case: the ratings and residual risks below are engineering proposals until a Clinical
 Safety Officer reviews and accepts them (sections 13 and 17).
 
@@ -49,7 +49,7 @@ Safety Officer reviews and accepts them (sections 13 and 17).
 The intended purpose statement from the [medical-device boundary](../../compliance/medical-device-boundary.md),
 section 2, used unchanged:
 
-> Harbour is a digital social care record and operational platform for regulated adult social care
+> Thapsus Care is a digital social care record and operational platform for regulated adult social care
 > providers. It stores, displays and transmits care information, applies rules that the provider
 > configures, and calculates published validated assessment tools exactly as published, showing the
 > calculation. It does not diagnose, predict, score risk with its own algorithms, or recommend
@@ -93,7 +93,7 @@ section 6); the table says what is built.
 | Notifications | Email through Amazon SES; SMS through a UK gateway not yet chosen; push through Expo ([sub-processors](../../compliance/sub-processors.md)). SMS and push run against mocks (INTG-011) | HZ-008, HZ-013, HZ-060. Delivery outside the app is not yet proven end to end |
 | PDF generation | A small in-house PDF writer, `apps/api/src/services/pdf.ts` ([ADR-0040](../../decisions/0040-transfer-pack-pdf-writer.md), proposed; H-81, H-84), for the transfer pack, downtime pack, evidence pack and letters | HZ-021, HZ-023, HZ-050, HZ-051 |
 | Document storage | S3 with SSE-KMS in AWS, local files in development ([ADR-0031](../../decisions/0031-document-storage-scanning-and-destruction.md)) | Signed forms and attachments |
-| Rate table | Statutory figures and Harbour defaults, seeded from [rates.md](../../specs/rates.md) (section 7) | Every interval and threshold the rules apply |
+| Rate table | Statutory figures and Thapsus Care defaults, seeded from [rates.md](../../specs/rates.md) (section 7) | Every interval and threshold the rules apply |
 | Feature flags | OpenFeature, the organisation's own rows, then Flagsmith, then the defaults in `packages/domain/src/platform/feature-flags.ts` | Waterlow and Braden off (HZ-012); AI off; no flag for Care mode (2.4) |
 
 ### 2.4 Out of scope for this report
@@ -151,7 +151,7 @@ not yet approved). In summary:
 | Post-deployment monitoring | Planned (plan, section 8); nothing to monitor until a live tenant |
 
 **What "clinical review" means in the log and in this report.** No clinician has reviewed any part of
-Harbour. Where the hazard log or a pull request says "clinical review", "clinical reviews C7" or
+Thapsus Care. Where the hazard log or a pull request says "clinical review", "clinical reviews C7" or
 "re-rated after the clinical review", it means a review by the `clinical-safety-reviewer` agent
 (`.claude/agents/clinical-safety-reviewer.md`), an AI reviewer that supports the CSO and never
 replaces one. Its findings are engineering input, not clinical acceptance.
@@ -165,7 +165,7 @@ The claim in section 5 holds only while these are true. Each is for the CSO to c
 2. The provider is a CQC-registered residential or nursing home in England, with its own policies
    for escalation, notifications, post-fall care, the Mental Capacity Act, safeguarding and
    communication with families, and the staff trained in them.
-3. The **paper MAR** is the medicines record, kept current beside Harbour (HZ-021).
+3. The **paper MAR** is the medicines record, kept current beside Thapsus Care (HZ-021).
 4. Staff have a working connection while using the web app; during an outage they use the printed
    downtime pack and back-enter afterwards (HZ-021, HZ-092).
 5. The provider completes its DCB0160 assessment and puts the deployer controls in section 14 in
@@ -240,7 +240,7 @@ checked to exist on `main` at `aae5ab5`. "Weakness" marks what the evidence does
   gate evidence (#101) and two documentation merges came after it. The run for the tagged commit is
   `[CI run link - filled at tagging]`.
 
-### C4. Harbour stays inside the medical-device boundary; validated tools are calculated exactly as published
+### C4. Thapsus Care stays inside the medical-device boundary; validated tools are calculated exactly as published
 
 - **A4.1** The boundary is written down and every clinical PR answers the boundary question. **E**:
   [medical-device-boundary.md](../../compliance/medical-device-boundary.md), sections 2 to 7.
@@ -257,7 +257,7 @@ checked to exist on `main` at `aae5ab5`. "Weakness" marks what the evidence does
   `packages/domain/src/care/falls.test.ts` ("returns no numeric risk score, band or risk level"; this
   test names no hazard, section 3).
 - **A4.4** Each result links the tenant's own escalation policy, or says plainly that none is
-  configured; Harbour writes none of the policy. **E**:
+  configured; Thapsus Care writes none of the policy. **E**:
   `packages/domain/src/care/escalation-policy.test.ts`;
   `apps/web/src/components/care/ObservationList.test.ts`.
 - **A4.5** Waterlow and Braden are off for every tenant until their licence terms are confirmed.
@@ -272,7 +272,7 @@ checked to exist on `main` at `aae5ab5`. "Weakness" marks what the evidence does
   planned). Open decisions:
   - H-73: the web's "No escalation policy is configured for this result. Follow your organisation's
     procedures and tell the nurse in charge." shows on every band, NEWS2 0 included, where the RCP's
-    own response is routine monitoring, so it may read as Harbour adding to the published response;
+    own response is routine monitoring, so it may read as Thapsus Care adding to the published response;
   - H-127: the RCP response and monitoring wording, written for a ward, shown with a NEWS2 score in
     homes without nurses (raised for the phone; the web shows the RCP response and monitoring
     wording too, `apps/web/src/lib/charts.ts`);
@@ -592,16 +592,16 @@ the CSO decides.
 | Hazard | Applies to this release (web only) | Web-only target residual (proposal) | Why it cannot be reduced further |
 | --- | --- | --- | --- |
 | HZ-002 Stale offline data | Partly: the web holds no offline copy, but a page left open or a printed pack can be out of date | Major / Very low / 2 | The log's level 3 rests on phones that cannot receive changes. On the web the header is read again on every tab move, every two minutes and on return, with "Checked at" and "Check again" (`care-record.spec.ts`) |
-| HZ-003 Missed medication | Partly: no eMAR; the paper MAR is the record. Medicines support written outside the medicines domain still makes rounds (H-151) | Major / Low / 3 (re-rated with the eMAR) | Giving a medicine is a human act; with the paper MAR the remaining risk is staff reading Harbour's round as the medicines list, which H-151 decides |
+| HZ-003 Missed medication | Partly: no eMAR; the paper MAR is the record. Medicines support written outside the medicines domain still makes rounds (H-151) | Major / Low / 3 (re-rated with the eMAR) | Giving a medicine is a human act; with the paper MAR the remaining risk is staff reading Thapsus Care's round as the medicines list, which H-151 decides |
 | HZ-005 Transcription error | Partly: the pre-admission medicines list prints on the transfer pack, headed "check against the MAR" (H-82) | Major / Low / 3 | A person reads and types a source document until pharmacy data is imported; dose-range checking would cross the medical-device boundary |
 | HZ-008 Alert fatigue | Yes | Major / Low / 3 | A human-factors hazard: design reduces volume but cannot remove it, and fewer alerts would raise HZ-013 and HZ-014 |
-| HZ-013 Notification missed or late | Yes | Major / Low / 3 | Harbour cannot make anyone record an incident, and submission is a regulated human decision by a named role |
+| HZ-013 Notification missed or late | Yes | Major / Low / 3 | Thapsus Care cannot make anyone record an incident, and submission is a regulated human decision by a named role |
 | HZ-014 Deterioration trigger not acted on | Yes | Major / Low / 3 | Acting on a score is a clinical decision; automating it would cross the medical-device boundary |
 | HZ-023 Transfer pack incomplete | Yes | Major / Low / 3 | Blocking a transfer until the record is complete would cause greater harm; completeness depends on what the provider recorded |
 | HZ-027 Head injury after a fall | Yes | Major / Low / 3 | Recognising deterioration and seeking advice are clinical actions by staff; the observation figures are unconfirmed (H-66) |
 | HZ-040 Held entries deleted | No: held entries exist only on phones | Not rated for this release | Not applicable while mobile is excluded |
 | HZ-061 Family reassured by a misleading update | Yes | Considerable / Medium / 3 | No word list can recognise every reassuring phrase, and a manager may confirm wording the record does not support; held at the initial rating until the CSO reviews the lists (H-110) |
-| HZ-071 Export misread | Yes | Catastrophic / Very low / 3 (4 until H-119) | Severity stays Catastrophic because one bad import reaches every person; the receiving system's import is outside Harbour's control |
+| HZ-071 Export misread | Yes | Catastrophic / Very low / 3 (4 until H-119) | Severity stays Catastrophic because one bad import reaches every person; the receiving system's import is outside Thapsus Care's control |
 | HZ-073 Safety work hidden by scope | Yes | Major / Low / 3 | The provider designs its role bundles; software cannot fix a bundle that leaves no one at a home able to act |
 | HZ-112 Second factor | Yes, on the web | Major / Very low / 2, once the deploy plan in H-358 is followed | The log keeps level 3 only until the mobile app understands the refusal code; on the web a refused person is sent straight to sign in with their factor (`problems.test.ts`) |
 
@@ -704,8 +704,8 @@ taken from the hazard log:
 
 - Use the **web app only** for care in this release; the mobile app is not covered and must not be
   installed on staff devices (section 2.4).
-- Keep the **paper MAR** and the fire file current until the eMAR and PEEPs are in Harbour (HZ-021).
-  Do not take Harbour's round as the medicines list (H-151).
+- Keep the **paper MAR** and the fire file current until the eMAR and PEEPs are in Thapsus Care (HZ-021).
+  Do not take Thapsus Care's round as the medicines list (H-151).
 - **Photos** taken at admission and refreshed under the provider's policy; every current person has a
   photo before go-live (HZ-001).
 - **Allergy status** recorded at admission and at medicines reconciliation (HZ-007).
@@ -777,7 +777,7 @@ taken from the hazard log:
 
 ## 17. Sign-off
 
-**Clinical Safety Officer approval: pending.** Harbour engineering cannot sign this report. The CSO's
+**Clinical Safety Officer approval: pending.** Thapsus Care engineering cannot sign this report. The CSO's
 review and signature, and top management's acknowledgement, are logged as H-381 in
 [docs/plans/human-actions.md](../../plans/human-actions.md). The CSO records the decisions in section
 13 and the acceptance of each level-3 residual risk (section 11) here.

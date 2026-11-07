@@ -57,8 +57,8 @@ const COMMENT = /^\s*(?:\/\/|\*|\/\*|\{\/\*)/;
 
 /** Lines rewritten by hand (the plan, section 1): left for a person, never half-renamed. */
 const BY_HAND = [
-  /is a working codename/,
-  /\| Harbour \(working name\) \|/,
+  // The master prompt names the codename on purpose where it records the decision (ADR-0127).
+  /"Harbour"[^|]*stays (?:only )?in technical identifiers/,
   // The iOS project name follows Expo's `name` at prebuild: check the real names, then edit.
   /xcodebuild|\.xcworkspace/,
 ];
@@ -71,7 +71,15 @@ function rename(text, scope) {
       // A full stop or colon after it in prose ("… in Harbour.", "Harbour: …") is renamed.
       const before = whole[offset - 1] ?? "";
       const after = whole.slice(offset + match.length, offset + match.length + 3);
-      if (/[./@]/.test(before) || /^[.@][A-Za-z0-9]/.test(after) || after.startsWith("://")) {
+      // A "/" counts only inside a path ("example/Harbour", "//Harbour//"), not opening a regular
+      // expression ("(/Harbour sets this/)").
+      const inPath = before === "/" && /[A-Za-z0-9/._~-]/.test(whole[offset - 2] ?? "");
+      if (
+        /[.@]/.test(before) ||
+        inPath ||
+        /^[.@][A-Za-z0-9]/.test(after) ||
+        after.startsWith("://")
+      ) {
         return match;
       }
       // Skip the demo names: check whether this occurrence starts one.

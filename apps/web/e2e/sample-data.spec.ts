@@ -62,7 +62,7 @@ test("the owner loads sample data, which is marked on every screen and blocks go
   await expectAccessible(page, "sample data, none loaded");
 
   await card(page).getByRole("button", { name: "Load sample data" }).click();
-  await expect(dialog(page).getByText(/Harbour adds 4 invented people/)).toBeVisible();
+  await expect(dialog(page).getByText(/Thapsus Care adds 4 invented people/)).toBeVisible();
   await expectAccessible(page, "load sample data, confirmation");
   await dialog(page).getByRole("button", { name: "Load sample data" }).click();
 

@@ -49,7 +49,7 @@ describe("PLAT-022 data protection complaints: the acknowledgement clock in word
       clock({ acknowledgement: "paused" as unknown as Clock["acknowledgement"] }),
       null,
       "overdue",
-      "Check the clock with Harbour support",
+      "Check the clock with Thapsus Care support",
     ],
   ] as const)("%s", (_name, c, acknowledgedOn, status, label) => {
     const got = acknowledgementWords({ clock: c, acknowledgedOn }, t);

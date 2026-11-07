@@ -122,6 +122,6 @@ describe("version states as an icon and a word", () => {
     ["draft", "Draft"],
     ["superseded", "Replaced"],
     ["discarded", "Discarded"],
-    ["odd", "Unknown: check with Harbour support"],
+    ["odd", "Unknown: check with Thapsus Care support"],
   ])("%s", (state, label) => expect(versionChip(state, t).label).toBe(label));
 });

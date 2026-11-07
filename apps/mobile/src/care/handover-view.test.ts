@@ -360,7 +360,7 @@ describe("hazard HZ-028 what the handover on this phone holds (gate item (d))", 
         "This phone holds the handovers for shifts ending from 30/10/2026 at 00:00 to 01/11/2026 at 23:59.",
       synced: "Last successful sync 31/10/2026 at 09:00",
       incomplete:
-        "Items added since the last sync are not shown here. The whole handover is in Harbour on the web.",
+        "Items added since the last sync are not shown here. The whole handover is in Thapsus Care on the web.",
     });
   });
 

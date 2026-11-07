@@ -80,7 +80,7 @@ export async function requestAccountDeletion(
       .insert(task)
       .values({
         kind: ACCOUNT_DELETION_TASK_KIND,
-        title: "A member asked for their Harbour account to be deleted",
+        title: "A member asked for their Thapsus Care account to be deleted",
         requiredPermission: MANAGE_MEMBERS,
         sourceType: "tenant_user",
         sourceId: access.tenantUserId,

@@ -1,7 +1,7 @@
 # How to handle a data protection complaint
 
 A data protection complaint is someone unhappy with how your organisation uses personal data.
-Harbour keeps the acknowledgement clock and reminds you when the next update is due.
+Thapsus Care keeps the acknowledgement clock and reminds you when the next update is due.
 
 **Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
 data protection for the whole organisation. A Registered Manager or deputy whose role covers one
@@ -42,7 +42,7 @@ organisation's own target for acknowledging it is shown alongside.
 
 ## Good to know
 
-- **Harbour does not contact the complainant.** You write to them; Harbour records the dates.
+- **Thapsus Care does not contact the complainant.** You write to them; Thapsus Care records the dates.
 - The days come from your organisation's settings and the bank holidays. Complaints received
   before 19/06/2026 have no statutory acknowledgement clock.
 - Dates cannot be in the future, or before the complaint was received.

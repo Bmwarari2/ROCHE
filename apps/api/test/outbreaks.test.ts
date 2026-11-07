@@ -199,7 +199,7 @@ describe("the line list and the report fields", () => {
     expect(response.status).toBe(status);
   });
 
-  it("hazard HZ-013 adds agency workers not in Harbour as unnamed staff cases, each counted once (H-782)", async () => {
+  it("hazard HZ-013 adds agency workers not in Thapsus Care as unnamed staff cases, each counted once (H-782)", async () => {
     const unnamed = (over: Record<string, unknown> = {}) =>
       as("manager", `/v1/safety/outbreaks/${outbreak.id}/cases`, {
         method: "POST",

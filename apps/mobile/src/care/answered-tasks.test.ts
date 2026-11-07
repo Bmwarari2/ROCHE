@@ -75,7 +75,7 @@ describe("hazard HZ-029 a round task is answered by one entry from this device (
     const item = round();
     expect(item.action).toBe("none");
     expect(item.chip.label).toBe("Sent, not marked done");
-    expect(item.notices[0]).toMatch(/^An entry for this task was sent to Harbour/);
+    expect(item.notices[0]).toMatch(/^An entry for this task was sent to Thapsus Care/);
   });
 
   it("is kept in the database, so a restart does not forget it, and is the member's own", () => {
@@ -84,14 +84,14 @@ describe("hazard HZ-029 a round task is answered by one entry from this device (
     expect(state("someone-else")).toBe("none");
   });
 
-  it("may be answered again once Harbour refuses that entry, and is answered again by the next", () => {
+  it("may be answered again once Thapsus Care refuses that entry, and is answered again by the next", () => {
     db.prepare(
       "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, payload) VALUES ('e-1', ?, ?, 'observation', ?)",
     ).run(DEMO_TENANT_ID, ADA, JSON.stringify({ task_id: TASK }));
     expect(state()).toBe("refused");
     const refused = round();
     expect(refused.action).toBe("evidence");
-    expect(refused.notices[0]).toMatch(/^An entry for this task was not accepted by Harbour/);
+    expect(refused.notices[0]).toMatch(/^An entry for this task was not accepted by Thapsus Care/);
     save("e-2");
     expect(state()).toBe("answered");
   });

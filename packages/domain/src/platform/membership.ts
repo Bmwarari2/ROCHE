@@ -127,7 +127,7 @@ export const MEMBERSHIP_MESSAGES: Readonly<Record<MembershipProblem, string>> = 
     "Suspend the membership first: that ends their access and their devices' sessions.",
   membership_not_ended: "End the membership before erasing the sign-in.",
   sign_in_in_use:
-    "This person still has a membership with another organisation in Harbour, or uses their sign-in for Harbour itself, so it has been kept. Their membership here has ended.",
+    "This person still has a membership with another organisation in Thapsus Care, or uses their sign-in for Thapsus Care itself, so it has been kept. Their membership here has ended.",
   beyond_inviter:
     "Their roles include permissions you do not hold where they apply, so you cannot give them back. Ask someone who holds them.",
   devices_unchecked:

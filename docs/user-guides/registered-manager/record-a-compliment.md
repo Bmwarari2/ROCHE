@@ -19,7 +19,7 @@ and the owner. Other staff: pass compliments to a manager to record.
 
 ## Good to know
 
-- Compliments never run a clock and need no response in Harbour.
+- Compliments never run a clock and need no response in Thapsus Care.
 - A compliment cannot be changed or removed on the web once recorded.
 - Linking a compliment to the members of staff it praises has no web screen yet.
 - The rules: [safety specification, Phase 2 rule 2](../../specs/safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012).

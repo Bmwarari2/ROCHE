@@ -206,7 +206,7 @@ describe("WORK-006 attempts", () => {
       [DEMO.users.carer.id],
     );
     expect(Number(records[0]?.n)).toBe(1);
-    expect(records[0]?.provider).toBe("Harbour e-learning: Fire safety");
+    expect(records[0]?.provider).toBe("Thapsus Care e-learning: Fire safety");
     const [attempt] = await sql<{ status: string }>(
       "SELECT status FROM elearning_attempt WHERE id = $1",
       [launch.attemptId],

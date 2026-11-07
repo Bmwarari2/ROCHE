@@ -55,7 +55,7 @@ import { allergyStatementOf, communicationStatementOf, currentAllergiesOf } from
 export type PackSource = "server_nightly" | "server_rebuild" | "server_on_demand";
 type Nation = Exclude<RateNation, "uk" | "all">;
 
-const PLACE_NOT_SET = "where it is kept is not set in Harbour: ask the nurse in charge";
+const PLACE_NOT_SET = "where it is kept is not set in Thapsus Care: ask the nurse in charge";
 
 export async function operationsRates(
   tx: Transaction,

@@ -342,7 +342,7 @@ test("hazard HZ-013 hazard HZ-091 not notifiable takes a reason, and a stale pag
   await page.emulateMedia({ colorScheme: "light" });
 });
 
-test("hazard HZ-013 hazard HZ-091 a decision that differs from Harbour's finding takes a reason and a tick", async ({
+test("hazard HZ-013 hazard HZ-091 a decision that differs from Thapsus Care's finding takes a reason and a tick", async ({
   page,
   browser,
 }, testInfo) => {
@@ -364,7 +364,7 @@ test("hazard HZ-013 hazard HZ-091 a decision that differs from Harbour's finding
   // Harbour's finding beside the question, and the regulation's words with the rate table's period.
   await expect(
     threshold.getByText(
-      "Harbour found, on the answers recorded, that this may be a notifiable safety incident.",
+      "Thapsus Care found, on the answers recorded, that this may be a notifiable safety incident.",
     ),
   ).toBeVisible();
   await expect(
@@ -383,7 +383,9 @@ test("hazard HZ-013 hazard HZ-091 a decision that differs from Harbour's finding
   await threshold
     .getByLabel("Whose opinion does the decision record?")
     .fill(`Dr Example, GP (${RUN})`);
-  await expect(threshold.getByText(/Your answer differs from what Harbour found/)).toBeVisible();
+  await expect(
+    threshold.getByText(/Your answer differs from what Thapsus Care found/),
+  ).toBeVisible();
   await threshold.getByRole("button", { name: "Save the decision" }).click();
   const summary = page.getByRole("main").getByRole("alert");
   await expect(summary).toBeFocused();

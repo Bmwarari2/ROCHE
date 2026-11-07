@@ -431,7 +431,7 @@ export function packageProblemMessage(code: string): string {
   if (code === "no_launch" || code === "bad_launch") {
     return "The package's manifest does not name a launch page inside the package.";
   }
-  return "The file is not a package Harbour can use. Export it again as a SCORM 1.2, SCORM 2004 or xAPI zip file.";
+  return "The file is not a package Thapsus Care can use. Export it again as a SCORM 1.2, SCORM 2004 or xAPI zip file.";
 }
 
 /** The index entry for a path, or null when the package holds no such file. */

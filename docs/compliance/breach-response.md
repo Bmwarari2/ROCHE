@@ -17,7 +17,7 @@ A **personal data breach** is a breach of security leading to the accidental or 
 | Tenant to ICO | When the tenant becomes aware (a reasonable degree of certainty that a breach has occurred), including through Thapsus's notification | 72 hours, unless the breach is unlikely to result in a risk to individuals; if information is incomplete, report within 72 hours and provide the rest in phases | Tenant DPO |
 | Tenant to individuals | When a high risk to individuals is established | Without undue delay | Tenant DPO |
 
-The breach register in Harbour shows these clocks for each breach (master prompt 5.1).
+The breach register in Thapsus Care shows these clocks for each breach (master prompt 5.1).
 
 ## 2. Thapsus (processor) steps
 
@@ -36,10 +36,10 @@ The breach register in Harbour shows these clocks for each breach (master prompt
 
 | Step | Action |
 | --- | --- |
-| 1. Log | Every breach goes in the Harbour breach register, whether or not it is reportable (Art 33(5)) |
+| 1. Log | Every breach goes in the Thapsus Care breach register, whether or not it is reportable (Art 33(5)) |
 | 2. Assess severity | Use the register's assessment: data sensitivity (special category, safeguarding information, location of a person at risk), volume, ease of identification, consequences (distress, discrimination, physical harm, financial loss, loss of confidentiality), vulnerability of the people affected, containment |
 | 3. Decide on reporting to the ICO | Report unless the breach is unlikely to result in a risk to individuals. Record the reasoning either way. Organisations using the [Data Security and Protection Toolkit](https://adultsocialcare.standards.nhs.uk/published-standards/data-security-and-protection-toolkit) can use its incident reporting tool; check its current arrangements for passing reports to the ICO |
-| 4. Decide on telling individuals | Required where there is a high risk to their rights and freedoms. Use the data-subject notice template in Harbour: plain English, what happened, what it means for them, what has been done, what they can do, who to contact |
+| 4. Decide on telling individuals | Required where there is a high risk to their rights and freedoms. Use the data-subject notice template in Thapsus Care: plain English, what happened, what it means for them, what has been done, what they can do, who to contact |
 | 5. Consider other notifications | CQC (if the breach affects safe running of the service), police, the local authority safeguarding team, commissioners under contract, insurers |
 | 6. Review | Actions, lessons, policy and training changes; close the register entry |
 
@@ -52,7 +52,7 @@ The breach register in Harbour shows these clocks for each breach (master prompt
 | High | Records of several people disclosed outside the organisation; device lost without encryption confirmation; cross-tenant exposure | Report to the ICO; consider telling individuals |
 | Critical | Large-scale disclosure, safeguarding information or the location of a person at risk disclosed; ransomware with loss of availability of care records | Report to the ICO; tell individuals; consider police and CQC |
 
-## 5. Templates in Harbour
+## 5. Templates in Thapsus Care
 
 - Processor-to-controller breach notice (automatic, in-app and email).
 - Tenant ICO report worksheet (mirrors the ICO's online form fields).

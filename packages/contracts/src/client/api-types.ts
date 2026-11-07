@@ -952,7 +952,7 @@ export interface paths {
     put?: never;
     /**
      * Stop using an email domain for single sign-on
-     * @description platform.tenant.manage with step-up. Members at that domain sign in with Harbour's own methods. Audited.
+     * @description platform.tenant.manage with step-up. Members at that domain sign in with Thapsus Care's own methods. Audited.
      */
     post: {
       parameters: {
@@ -1258,7 +1258,7 @@ export interface paths {
     put?: never;
     /**
      * Sign a member of staff out of every device
-     * @description Ends every session of the member's sign-in, on every device (platform.user.manage, step-up), with a coded reason, audited before the sessions end. A location role reaches only members whose roles and grants in force are all at its locations; anyone else reads as not found (audited by opaque id). A member who also works for another organisation in Harbour is not signed out (409 member_of_other_organisation). When the member's devices last reported entries waiting, the sign-out needs confirmEntriesWaiting (409 entries_waiting otherwise): signing out removes the care record from their phone until they sign in again, and the entries not yet sent stay on it until then. For staff_left or suspended, the holds on those devices fall due at once, as after a device revocation.
+     * @description Ends every session of the member's sign-in, on every device (platform.user.manage, step-up), with a coded reason, audited before the sessions end. A location role reaches only members whose roles and grants in force are all at its locations; anyone else reads as not found (audited by opaque id). A member who also works for another organisation in Thapsus Care is not signed out (409 member_of_other_organisation). When the member's devices last reported entries waiting, the sign-out needs confirmEntriesWaiting (409 entries_waiting otherwise): signing out removes the care record from their phone until they sign in again, and the entries not yet sent stay on it until then. For staff_left or suspended, the holds on those devices fall due at once, as after a device revocation.
      */
     post: {
       parameters: {
@@ -1348,7 +1348,7 @@ export interface paths {
     put?: never;
     /**
      * Suspend a member of staff
-     * @description platform.user.manage with step-up and a coded reason (H-566). The membership becomes suspended: the member can no longer use this organisation, and their open invitations end. When their Care mode devices last reported entries waiting, it needs confirmEntriesWaiting (409 entries_waiting otherwise); the holds on those devices then fall due at once so the entries are handed over. Every session of the member's sign-in ends unless they have a membership with another organisation in Harbour that has not ended, or the sign-in is a Harbour operator's (sessionsEnded 0: this organisation refuses them anyway). The organisation's last active member who manages users through a role is never suspended (409 last_user_manager). The database makes the change (app.change_membership, migration 0129). A suspended member suspended again changes nothing (replay). A location role reaches only members wholly at its homes; anyone else reads as not found. Never the manager's own membership (409 own_membership), nor one that has ended (409 membership_ended). Audited (platform.member.suspended, with the reason code), refusals too.
+     * @description platform.user.manage with step-up and a coded reason (H-566). The membership becomes suspended: the member can no longer use this organisation, and their open invitations end. When their Care mode devices last reported entries waiting, it needs confirmEntriesWaiting (409 entries_waiting otherwise); the holds on those devices then fall due at once so the entries are handed over. Every session of the member's sign-in ends unless they have a membership with another organisation in Thapsus Care that has not ended, or the sign-in is a Thapsus Care operator's (sessionsEnded 0: this organisation refuses them anyway). The organisation's last active member who manages users through a role is never suspended (409 last_user_manager). The database makes the change (app.change_membership, migration 0129). A suspended member suspended again changes nothing (replay). A location role reaches only members wholly at its homes; anyone else reads as not found. Never the manager's own membership (409 own_membership), nor one that has ended (409 membership_ended). Audited (platform.member.suspended, with the reason code), refusals too.
      */
     post: {
       parameters: {
@@ -1695,7 +1695,7 @@ export interface paths {
     put?: never;
     /**
      * Erase an ended member's sign-in
-     * @description platform.user.manage with step-up (H-566). Only for an ended membership (409 membership_not_ended otherwise), and only when the sign-in has no membership in any other organisation that has not ended (suspended included) and is not a Harbour operator's (409 sign_in_in_use: kept, since it is theirs to use elsewhere). Deletes the sign-in identity: its email address, password hash, passkeys, TOTP secret, every session and every verification token naming it. The organisation's own copy of the address stays on the member row with the staff file. The member row stays, unlinked, with its display name and job title, so care records stay attributable. An open account deletion request for the member closes as done. Audited before the identity goes (platform.member.sign_in_erased; the request's closure platform.account_deletion.completed), by opaque id only. A sign-in already erased changes nothing (erased false). Same reach and refusals as suspending.
+     * @description platform.user.manage with step-up (H-566). Only for an ended membership (409 membership_not_ended otherwise), and only when the sign-in has no membership in any other organisation that has not ended (suspended included) and is not a Thapsus Care operator's (409 sign_in_in_use: kept, since it is theirs to use elsewhere). Deletes the sign-in identity: its email address, password hash, passkeys, TOTP secret, every session and every verification token naming it. The organisation's own copy of the address stays on the member row with the staff file. The member row stays, unlinked, with its display name and job title, so care records stay attributable. An open account deletion request for the member closes as done. Audited before the identity goes (platform.member.sign_in_erased; the request's closure platform.account_deletion.completed), by opaque id only. A sign-in already erased changes nothing (erased false). Same reach and refusals as suspending.
      */
     post: {
       parameters: {
@@ -3475,7 +3475,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The organisation's welcome checklist (Harbour's default until it is changed) */
+    /** The organisation's welcome checklist (Thapsus Care's default until it is changed) */
     get: {
       parameters: {
         query?: never;
@@ -3525,7 +3525,7 @@ export interface paths {
     };
     /**
      * Change the organisation's welcome checklist
-     * @description checkWelcomeChecklistDefinition: a tenant may add items but never remove or weaken Harbour's safety-critical ones (photo, allergies, medicines, diet and IDDSI levels, evacuation plan). New admissions use it; earlier checklists keep their items.
+     * @description checkWelcomeChecklistDefinition: a tenant may add items but never remove or weaken Thapsus Care's safety-critical ones (photo, allergies, medicines, diet and IDDSI levels, evacuation plan). New admissions use it; earlier checklists keep their items.
      */
     put: {
       parameters: {
@@ -10722,7 +10722,7 @@ export interface paths {
     };
     /**
      * Check a destruction certificate's signature
-     * @description Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Harbour's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.
+     * @description Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Thapsus Care's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.
      */
     get: {
       parameters: {
@@ -10862,7 +10862,7 @@ export interface paths {
     put?: never;
     /**
      * Ask a member to sign an organisation document
-     * @description platform.document.manage. The current version only (its SHA-256 must match). In Harbour unless the organisation chose DocuSign and it is on, when an envelope is sent with the document and the signer's work email.
+     * @description platform.document.manage. The current version only (its SHA-256 must match). In Thapsus Care unless the organisation chose DocuSign and it is on, when an envelope is sent with the document and the signer's work email.
      */
     post: {
       parameters: {
@@ -11008,8 +11008,8 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Sign in Harbour, as the member asked
-     * @description Only the member named, only an open in-Harbour request, only the exact version asked for (its SHA-256 as read), and only with a second factor used within the step-up window. Writes the typed-name signature and the evidence together.
+     * Sign in Thapsus Care, as the member asked
+     * @description Only the member named, only an open in-Thapsus Care request, only the exact version asked for (its SHA-256 as read), and only with a second factor used within the step-up window. Writes the typed-name signature and the evidence together.
      */
     post: {
       parameters: {
@@ -14412,7 +14412,7 @@ export interface paths {
     };
     /**
      * The escalation policy each validated tool's result links
-     * @description The organisation's live links, for one band or every band of a tool, for one location or the whole organisation, with the bands each tool's results carry. Results show the most specific link for their tool, band and location, or that none is configured; Harbour adds no recommendation (medical-device boundary section 5 rule 4).
+     * @description The organisation's live links, for one band or every band of a tool, for one location or the whole organisation, with the bands each tool's results carry. Results show the most specific link for their tool, band and location, or that none is configured; Thapsus Care adds no recommendation (medical-device boundary section 5 rule 4).
      */
     get: {
       parameters: {
@@ -17064,7 +17064,7 @@ export interface paths {
     };
     /**
      * Record the candour threshold decision, notifications, enquiries and correspondence
-     * @description Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision). The relevant person must be one of the people affected and cannot change once the record is finished. A decision that differs from Harbour's finding, or changes a recorded one, needs thresholdConfirmed and a thresholdReason of at least 20 characters (audited). Times cannot be later than now; telling, sending and attempts cannot be earlier than the incident.
+     * @description Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision). The relevant person must be one of the people affected and cannot change once the record is finished. A decision that differs from Thapsus Care's finding, or changes a recorded one, needs thresholdConfirmed and a thresholdReason of at least 20 characters (audited). Times cannot be later than now; telling, sending and attempts cannot be earlier than the incident.
      */
     put: {
       parameters: {
@@ -17155,7 +17155,7 @@ export interface paths {
     put?: never;
     /**
      * Take the next candour step (candourStepProblems says what each step needs)
-     * @description Refused while the record names nobody affected. Not notifiable after Harbour drafted a candour notification needs confirmed and a reason of at least 20 characters.
+     * @description Refused while the record names nobody affected. Not notifiable after Thapsus Care drafted a candour notification needs confirmed and a reason of at least 20 characters.
      */
     post: {
       parameters: {
@@ -18532,7 +18532,7 @@ export interface paths {
     };
     /**
      * Record the clinician's judgement: expected or not, and whether the cause may be unnatural
-     * @description Harbour never decides either: the record says whose judgement it is. Until both are recorded the steps assume an unexpected death whose cause may be unnatural, so the police steps are never missed.
+     * @description Thapsus Care never decides either: the record says whose judgement it is. Until both are recorded the steps assume an unexpected death whose cause may be unnatural, so the police steps are never missed.
      */
     put: {
       parameters: {
@@ -19599,7 +19599,7 @@ export interface paths {
     get?: never;
     /**
      * Set, and confirm, where the location keeps the paper MAR and the PEEPs
-     * @description Until the eMAR and PEEPs are in Harbour, the downtime pack says where these are kept. A place changed without `confirm` is unconfirmed again and prints as not set; confirming completes the task asking for it (H-201).
+     * @description Until the eMAR and PEEPs are in Thapsus Care, the downtime pack says where these are kept. A place changed without `confirm` is unconfirmed again and prints as not set; confirming completes the task asking for it (H-201).
      */
     put: {
       parameters: {
@@ -23052,7 +23052,7 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Harbour's starter audit templates
+     * Thapsus Care's starter audit templates
      * @description quality.audit.manage. Global reference data: the starter templates (medication, care plans, IPC, environment, dignity, night visit, mock inspection) mapped to the framework, for the organisation to copy and make its own.
      */
     get: {
@@ -23171,7 +23171,7 @@ export interface paths {
     put?: never;
     /**
      * Add an audit template, from a starter or your own
-     * @description quality.audit.manage. From a Harbour starter (`starterKey`; the other fields default to the starter's) or your own (kind, title, framework version and questions). The questions are checked against the framework version, which must be published (rule 8); the key is unique in the organisation. Audited.
+     * @description quality.audit.manage. From a Thapsus Care starter (`starterKey`; the other fields default to the starter's) or your own (kind, title, framework version and questions). The questions are checked against the framework version, which must be published (rule 8); the key is unique in the organisation. Audited.
      */
     post: {
       parameters: {
@@ -23976,7 +23976,7 @@ export interface paths {
     };
     /**
      * The IPC Code of Practice criteria
-     * @description safety.outbreak.manage or quality.audit.manage. Global reference data: the 10 criteria of the Code of Practice on the prevention and control of infections, in Harbour's summary, that IPC audit questions are mapped to.
+     * @description safety.outbreak.manage or quality.audit.manage. Global reference data: the 10 criteria of the Code of Practice on the prevention and control of infections, in Thapsus Care's summary, that IPC audit questions are mapped to.
      */
     get: {
       parameters: {
@@ -24422,7 +24422,7 @@ export interface paths {
     put?: never;
     /**
      * Add a case to the line list, or update one
-     * @description safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see), an active member of staff working there (a current role at the location or across the organisation), once per outbreak, or an unnamed staff case for an agency or bank worker not in Harbour (no person or member, nothing identifying; H-782): a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.
+     * @description safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see), an active member of staff working there (a current role at the location or across the organisation), once per outbreak, or an unnamed staff case for an agency or bank worker not in Thapsus Care (no person or member, nothing identifying; H-782): a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.
      */
     post: {
       parameters: {
@@ -28571,7 +28571,7 @@ export interface paths {
     get?: never;
     /**
      * Record a DBS or regulator referral decision
-     * @description A case manager, with expectedVersion: referred on a date, or not required with a reason (rule 17). The decision is the people's; Harbour refers nobody. Audited with codes only.
+     * @description A case manager, with expectedVersion: referred on a date, or not required with a reason (rule 17). The decision is the people's; Thapsus Care refers nobody. Audited with codes only.
      */
     put: {
       parameters: {
@@ -32209,7 +32209,7 @@ export interface paths {
     put?: never;
     /**
      * Record that you confirmed a nurse's revalidation
-     * @description The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Harbour only tracks it: the nurse revalidates with the NMC. Audited.
+     * @description The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.
      */
     post: {
       parameters: {
@@ -33527,7 +33527,7 @@ export interface paths {
     put?: never;
     /**
      * Import the ready rows
-     * @description workforce.training.manage, naming the latest dry run (409 dry_run_stale if it is not, or if what it would import has changed). Each ready row becomes a new training record marked with its source; nothing made in Harbour is changed; other rows stay pending. For an API source, certificates are then fetched and stored with the malware scan. Audited.
+     * @description workforce.training.manage, naming the latest dry run (409 dry_run_stale if it is not, or if what it would import has changed). Each ready row becomes a new training record marked with its source; nothing made in Thapsus Care is changed; other rows stay pending. For an API source, certificates are then fetched and stored with the malware scan. Audited.
      */
     post: {
       parameters: {
@@ -34960,7 +34960,7 @@ export interface paths {
             "application/json": string[];
           };
         };
-        /** @description Not statements Harbour can keep */
+        /** @description Not statements Thapsus Care can keep */
         400: {
           headers: {
             [name: string]: unknown;
@@ -40481,7 +40481,7 @@ export interface paths {
     get?: never;
     /**
      * Save the DPIA being prepared (starting a new version if none is)
-     * @description platform.dpia.prepare. Refreshes Harbour's prefill and stores the organisation's answers, residual risk ratings and any ICO reference; the saver joins the version's preparers, who may not sign it. Saving a prepared version returns it to draft. Send the open version's `version` (409 when stale). Audited.
+     * @description platform.dpia.prepare. Refreshes Thapsus Care's prefill and stores the organisation's answers, residual risk ratings and any ICO reference; the saver joins the version's preparers, who may not sign it. Saving a prepared version returns it to draft. Send the open version's `version` (409 when stale). Audited.
      */
     put: {
       parameters: {
@@ -41372,7 +41372,7 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Draft the notice to the people affected from Harbour's template
+     * Draft the notice to the people affected from Thapsus Care's template
      * @description quality.dsar.manage. The plain-English template (what happened, what it means for them, what has been done, what they can do, who to contact) filled from the entry and the organisation's data protection contact; the parts in square brackets are for a person to write. Nothing is stored.
      */
     get: {
@@ -45560,7 +45560,7 @@ export interface paths {
     };
     /**
      * The quality indicators for one location and period, each with its working
-     * @description `quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. `from` and `to` are whole calendar months that have ended, at most 12 (422 `period_not_months`, `period_not_ended`, `period_too_long`). A source Harbour does not record yet, a period before the location started recording in Harbour or with a downtime still to reconcile gives `no_data` with its reason and no working. A small count (`quality.indicator.min_group_size`) is withheld with its value, but keeps its status against the target. Audited (`quality.dashboard.viewed`).
+     * @description `quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. `from` and `to` are whole calendar months that have ended, at most 12 (422 `period_not_months`, `period_not_ended`, `period_too_long`). A source Thapsus Care does not record yet, a period before the location started recording in Thapsus Care or with a downtime still to reconcile gives `no_data` with its reason and no working. A small count (`quality.indicator.min_group_size`) is withheld with its value, but keeps its status against the target. Audited (`quality.dashboard.viewed`).
      */
     get: {
       parameters: {
@@ -45854,7 +45854,7 @@ export interface paths {
     };
     /**
      * The Provider Information Return prefill for one location
-     * @description `quality.audit.manage` at the location. The last 12 whole calendar months. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Harbour, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).
+     * @description `quality.audit.manage` at the location. The last 12 whole calendar months. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Thapsus Care, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).
      */
     get: {
       parameters: {
@@ -48870,7 +48870,7 @@ export interface paths {
     };
     /**
      * An incident's medication error details
-     * @description safety.incident.read, with MFA and the incident's own scope; refused for a restricted incident. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Harbour sends nothing. Audited.
+     * @description safety.incident.read, with MFA and the incident's own scope; refused for a restricted incident. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Thapsus Care sends nothing. Audited.
      */
     get: {
       parameters: {
@@ -49239,7 +49239,7 @@ export interface paths {
     put?: never;
     /**
      * Record a medication review as done, or correct it
-     * @description medicines.record.manage. The date (not in the future), the clinician's name and role, and the outcome in the clinician's words; Harbour suggests nothing. Changing a review already done needs a correction reason. The version read must be sent back. Audited with ids only.
+     * @description medicines.record.manage. The date (not in the future), the clinician's name and role, and the outcome in the clinician's words; Thapsus Care suggests nothing. Changing a review already done needs a correction reason. The version read must be sent back. Audited with ids only.
      */
     post: {
       parameters: {
@@ -53523,8 +53523,8 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Record a decision on a setting Harbour chose
-     * @description platform.onboarding.manage. Accepts Harbour's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). A clinical setting names the clinical lead or CSO who reviewed it (`reviewedBy`, an active member), kept in the audit event. Append-only; a later change by Harbour reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.
+     * Record a decision on a setting Thapsus Care chose
+     * @description platform.onboarding.manage. Accepts Thapsus Care's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). A clinical setting names the clinical lead or CSO who reviewed it (`reviewedBy`, an active member), kept in the audit event. Append-only; a later change by Thapsus Care reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.
      */
     post: {
       parameters: {
@@ -53743,7 +53743,7 @@ export interface paths {
     put?: never;
     /**
      * Record the organisation's DCB0160 assessment
-     * @description platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Harbour's safety case for this release; the version sent must be the current one, and `assessedBy` names the CSO or clinical lead who made it (an active member, kept in the audit event; 422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.
+     * @description platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Thapsus Care's safety case for this release; the version sent must be the current one, and `assessedBy` names the CSO or clinical lead who made it (an active member, kept in the audit event; 422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.
      */
     post: {
       parameters: {
@@ -53979,7 +53979,7 @@ export interface paths {
     put?: never;
     /**
      * Upload a file to import
-     * @description platform.import.run, people.person.create and people.person.read, all across the whole organisation (403 organisation_wide_required otherwise, whatever the file holds). Takes a record type (people), a location of the organisation and either CSV text or JSON rows, matches each column to a Harbour field by the mapping or by its field key or label, and stages the matched cells in quarantine, never in anyone's record, until a dry run and a commit. A column that matches nothing, a mapping to no field or two columns for one field refuse the upload (422 columns_not_mapped); every problem names a row or column by number, never a heading or value. The batch expires import.staging_expiry_days after upload. Audited (platform.import.uploaded: batch id, rows and columns).
+     * @description platform.import.run, people.person.create and people.person.read, all across the whole organisation (403 organisation_wide_required otherwise, whatever the file holds). Takes a record type (people), a location of the organisation and either CSV text or JSON rows, matches each column to a Thapsus Care field by the mapping or by its field key or label, and stages the matched cells in quarantine, never in anyone's record, until a dry run and a commit. A column that matches nothing, a mapping to no field or two columns for one field refuse the upload (422 columns_not_mapped); every problem names a row or column by number, never a heading or value. The batch expires import.staging_expiry_days after upload. Audited (platform.import.uploaded: batch id, rows and columns).
      */
     post: {
       parameters: {
@@ -67528,7 +67528,7 @@ export interface components {
       };
       escalationPolicy: components["schemas"]["EscalationPolicyRef"];
     };
-    /** @description The organisation's own escalation policy for a validated tool's result, or that none is configured; never a Harbour recommendation */
+    /** @description The organisation's own escalation policy for a validated tool's result, or that none is configured; never a Thapsus Care recommendation */
     EscalationPolicyRef:
       | {
           /** @enum {string} */
@@ -75385,7 +75385,7 @@ export interface components {
       icoReference: string;
       delayReason?: string | null;
     };
-    /** @description Harbour's plain-English template filled from the register entry; the parts in square brackets are for a person to write before it is sent. */
+    /** @description Thapsus Care's plain-English template filled from the register entry; the parts in square brackets are for a person to write before it is sent. */
     SubjectNoticeDraft: {
       notice: string;
     };
@@ -78564,7 +78564,7 @@ export interface components {
       rows?: {
         [key: string]: unknown;
       }[];
-      /** @description Column heading to Harbour field key, or null to leave it out */
+      /** @description Column heading to Thapsus Care field key, or null to leave it out */
       mapping?: {
         [key: string]: unknown;
       };

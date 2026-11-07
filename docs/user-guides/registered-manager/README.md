@@ -30,7 +30,7 @@ For Registered Managers and deputy managers. A deputy can do these tasks except 
 - [How to tag a record as evidence](tag-a-record-as-evidence.md)
 - [How to write and approve a letter template](write-a-letter-template.md)
 - [How to write and publish a policy](write-and-publish-a-policy.md)
-- [How to link Harbour to your HR platform](link-to-the-hr-platform.md)
+- [How to link Thapsus Care to your HR platform](link-to-the-hr-platform.md)
 - [How to pay staff through the HR platform](set-the-route-to-payroll.md)
 - [How to release absence copies from the HR platform](release-absence-copies.md)
 

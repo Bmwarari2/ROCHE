@@ -372,7 +372,7 @@ await boss.schedule(QUEUES.dmdFreshness, "23 6 * * *");
 // Hourly: a survey closes, and its answers are released, within the hour after its last day.
 await boss.schedule(QUEUES.pulseSurveyClose, "17 * * * *");
 
-logger.info("Harbour worker started");
+logger.info("Thapsus Care worker started");
 
 const shutdown = async () => {
   await boss.stop({ graceful: true });

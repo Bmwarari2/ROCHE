@@ -264,7 +264,7 @@ by the caller.
     ordinary sentences and refusing it would teach staff to ignore the check. It is a backstop
     behind the staff member's decision to share, not a complete list; no confirmation overrides it.
 11. **Reading age about 9, as a lint** (`feedReadabilityLint`). Sentences over 15 words and words
-    over 12 letters are named for the writer (`FEED_READABILITY_LINT`, Harbour writing defaults,
+    over 12 letters are named for the writer (`FEED_READABILITY_LINT`, Thapsus Care writing defaults,
     not statutory). It never blocks an update and there is no readability score. The approved
     phrases pass it (care plan section names are fixed labels and are not linted).
 12. **Stale or misleading updates** (HZ-061). Every entry shows when the thing happened, and when it
@@ -389,7 +389,7 @@ by the caller.
       (`representative_basis_not_met`), and so is the service user when one applies
       (`representative_required`). A candour letter renders only for the relevant person on the
       candour record: the service user, or that representative as one of the person's contacts
-      (`candour_recipient_required`, `candour_wrong_recipient`). Harbour's reading, to confirm with
+      (`candour_recipient_required`, `candour_wrong_recipient`). Thapsus Care's reading, to confirm with
       the CSO and a solicitor (H-103).
 22. **Approval and separation of duties** (`checkTemplateApproval`, `TEMPLATE_WORKFLOW`). Only a
     draft with no problems, that differs from the approved version, approved by a holder of
@@ -408,7 +408,7 @@ by the caller.
     - values are formatted in British style (dd/mm/yyyy, 24-hour UK time, pounds and pence);
     - for an HTML email every value and every piece of the template's own text is escaped
       (`escapeHtml`), paragraphs become `<p>` and line breaks `<br>`; nothing in a template or value
-      can inject markup (as built, Harbour sends email as plain text through the email port, the rendered
+      can inject markup (as built, Thapsus Care sends email as plain text through the email port, the rendered
       `text` as the body, checked by the port's guard, `outboundBodyProblem`);
     - the rendered email subject is checked again for header-breaking characters (a value could
       carry one) and must pass the outbound title check (`outboundTitleProblem`);
@@ -601,10 +601,10 @@ Field mapping: [data-standards.md](data-standards.md#packs-and-governance-phase-
 
 - The DPO accepts ADR-0051 (no special category data or identifiers in email bodies) and the data
   classes of the merge fields (H-99).
-- The CSO and a solicitor confirm the "results to follow" wording and Harbour's reading of the
+- The CSO and a solicitor confirm the "results to follow" wording and Thapsus Care's reading of the
   relevant person under regulation 20(7) (H-103).
 - Starter templates (admission, fee review, incident follow-up, duty of candour) need wording
-  reviewed by the provider's adviser; Harbour ships the fields, not legal wording.
+  reviewed by the provider's adviser; Thapsus Care ships the fields, not legal wording.
 - Welsh-language versions of a template (Phase 7) will be a second body per version.
 - The DPO reviews at the testing phase the photo consent wording (approved as built, including
   that copies a family member has saved cannot be recalled), the basis for sharing under a

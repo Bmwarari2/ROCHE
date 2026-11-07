@@ -269,9 +269,9 @@ the second step (TOTP or a passkey) within the step-up window.
     | Shared devices enrolled | Every active shared or kiosk device is enrolled in device management ([kiosk.md](../compliance/kiosk.md)) | Yes |
     | Escalation chains set | Working chains exist for deterioration (HZ-014), overdue tasks (HZ-008), statutory notifications (HZ-013) and post-fall observations (HZ-027) (`REQUIRED_ESCALATION_CHAINS`, each passing `validateChain`) | Yes |
     | Escalation policies linked | Every validated tool switched on links the tenant's escalation policy (HZ-014) | Yes |
-    | Clinical settings reviewed | The clinical lead has decided every clinical tenant default (`CLINICAL_SETTING_PREFIXES`: device auto-lock, post-fall observations, handover shifts, repositioning, bowel and weight prompts, DoLS reminders) since Harbour last changed it (HZ-027, HZ-018) | Yes |
+    | Clinical settings reviewed | The clinical lead has decided every clinical tenant default (`CLINICAL_SETTING_PREFIXES`: device auto-lock, post-fall observations, handover shifts, repositioning, bowel and weight prompts, DoLS reminders) since Thapsus Care last changed it (HZ-027, HZ-018) | Yes |
     | People ready | Every current person (not sample) has a photo (HZ-001), an allergy status other than unknown (HZ-007), a resuscitation status, either a decision in force or a recorded "no decision in place" (HZ-015), a communication-needs status (HZ-023) and IDDSI food and drink levels (HZ-016) (`personReadinessGaps`); the screen lists each person and what they lack | Yes |
-    | Other settings reviewed | Every other tenant-default setting has a decision since Harbour last changed it | No |
+    | Other settings reviewed | Every other tenant-default setting has a decision since Thapsus Care last changed it | No |
     | Retention reviewed | The staff file option is chosen; every other class is accepted or lengthened, or, for classes set by tenant policy, has a period set or is marked not used; each decision made since the class last changed | Yes |
     | DCB0160 recorded | The tenant's CSO or clinical lead has recorded the DCB0160 assessment for the safety case of the release the tenant runs ([clinical risk management plan](../clinical-safety/clinical-risk-management-plan.md) section 7) | Yes |
     | DPIA signed | The DPIA is signed and not due for review | Yes |
@@ -281,7 +281,7 @@ the second step (TOTP or a passkey) within the step-up window.
 
 27. **State, not ticks.** No item can be ticked by hand where state can tell. Where a person must
     decide (a setting, a retention class, a sub-processor, the DCB0160 assessment), the decision is
-    a record with who and when, and a later change by Harbour reopens it. Each item gives its reason
+    a record with who and when, and a later change by Thapsus Care reopens it. Each item gives its reason
     in plain English from the same state and links an in-app guide by its key (`guide`).
 28. **Help.** In-app guides are keyed by the checklist items and screens; the status page link in
     the help menu comes from configuration once the hosted page exists (H-12, H-116).
@@ -390,7 +390,7 @@ are versioned per tenant; the migration adds a new version). No API route used
 Database tests to add with it: RLS and HZ-011 isolation for every new table; `app.search_terms`
 gives the terms in `search.test.ts`; a search as each scope returns nothing from another tenant or
 outside scope; `EXPLAIN` as `harbour_app` inside `withRequestContext` shows each search uses its
-composite index with `tenant_id` as the index condition; no search function or operator Harbour
+composite index with `tenant_id` as the index condition; no search function or operator Thapsus Care
 defines is `LEAKPROOF` or `SECURITY DEFINER`; the export worker
 running as `harbour_app` inside `withRequestContext` reads no other tenant's row
 (`hazard HZ-070 the export reads only the exporting tenant`); `checkExportCatalogue` against the
@@ -560,7 +560,7 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   `platform.dpia.sign` be named lead (`app.member_holds_role_permission`).
 - Routes (`apps/api/src/routes/dpia.ts`): `GET /v1/dpia` (state, review triggers, settings,
   missing configuration, the open and signed versions); `PUT /v1/dpia/draft` (saves answers,
-  residual ratings and ICO reference with Harbour's prefill refreshed, `expectedVersion`);
+  residual ratings and ICO reference with Thapsus Care's prefill refreshed, `expectedVersion`);
   `POST /v1/dpia/draft/prepare` (freezes it with its SHA-256); `POST /v1/dpia/{id}/sign`
   (step-up; `checkDpiaSignOff`, every problem at once as 422 `dpia_not_signable`; the row locked,
   and the version in force superseded only when this one is signed); `PUT
@@ -605,7 +605,7 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   current person's readiness, and the latest DCB0160 record. Not yet stored, so read plainly
   rather than guessed done: sub-processor acknowledgements (rules 24 and 25; never done until
   then, not a go-live item), device modes and the sample flag (rules 29 to 32; both unknown, so
-  `shared_devices_enrolled` and `sample_data_removed` stay open and block go-live, "Harbour does
+  `shared_devices_enrolled` and `sample_data_removed` stay open and block go-live, "Thapsus Care does
   not record this yet"; #86 security review H1), the opt-out check date (every current person counts as not
   checked) and a recorded "no decision in place" resuscitation statement (only an active ReSPECT
   or DNACPR record counts, so such a person stays outstanding). Members count by their own
@@ -656,7 +656,7 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
 ## 10f. As built (slice 13 web, the DPIA page)
 
 - `/settings/data-protection` (any DPIA permission; "Data protection" in the module menu): where
-  the DPIA stands as an icon and a word, why a review is due and what Harbour still needs; the
+  the DPIA stands as an icon and a word, why a review is due and what Thapsus Care still needs; the
   governance form for `platform.tenant.manage` (the lead from the active members, the DPO, sector,
   privacy notice, DPA date in day, month and year boxes, use beyond direct care, the optional
   processing; the AI provider is kept as it is); the open version's answers and residual risk
@@ -672,8 +672,8 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   `.manage`): progress, whether anything blocks go-live, and each item done or not as an icon and
   words ("Not done: blocks go-live" for a go-live item), with the API's reason and, for people
   readiness, each person (a link to their record) with what they lack. A holder of
-  `platform.onboarding.manage` records the decisions on the page: accept a setting Harbour chose;
-  keep Harbour's period for a kind of record or say the organisation does not keep it (the API
+  `platform.onboarding.manage` records the decisions on the page: accept a setting Thapsus Care chose;
+  keep Thapsus Care's period for a kind of record or say the organisation does not keep it (the API
   says which a class takes); choose the staff file option; record the DCB0160 assessment for the
   release's safety case. A refused decision shows the API's words. Each setting shows the figure
   being accepted (`settings` in the checklist response). Accepting a clinical setting names the
@@ -745,7 +745,7 @@ Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-proc
   recommended answer applied 31/10/2026).
 - Whether a one-person organisation whose owner is the only possible signer needs an exception to
   rule 21 (H-115).
-- The staff file option is not reopened when Harbour changes the staff file rows of the schedule:
+- The staff file option is not reopened when Thapsus Care changes the staff file rows of the schedule:
   the tenant row does not keep when the option was chosen. Record the choice as a
   `retention_decision` (or keep its time) when the retention screens are built.
 - Which onboarding items block go-live, and the person-readiness items (H-122).

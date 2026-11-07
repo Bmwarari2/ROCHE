@@ -18,12 +18,12 @@ managers.
      too: three days without one raises a prompt.
    - **Weight**: the **Weight (kg)** and how they were weighed.
 4. Leave **When did it happen?** on **Now**, or choose **Earlier**.
-5. Choose **Save entry**. Harbour says "Chart entry saved".
+5. Choose **Save entry**. Thapsus Care says "Chart entry saved".
 
 ## Food and drink levels
 
 - The form shows the prescribed level. Give that level.
-- If you choose a different level, Harbour asks for the **Reason for giving a different level**.
+- If you choose a different level, Thapsus Care asks for the **Reason for giving a different level**.
   If it is less safe than prescribed, the nurse in charge is alerted.
 
 ## Fluid balance

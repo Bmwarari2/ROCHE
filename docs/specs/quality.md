@@ -42,7 +42,7 @@ From `packages/domain/src/platform/permissions.ts` (matrix: [permissions.md](per
 | --- | --- | --- |
 | `quality.evidence_pack.compose` | Compose a pack (evidence, people in scope, redactions by hand), discard a draft, revoke a released pack's link | Owner, Registered Manager, deputy, quality lead |
 | `quality.evidence_pack.release` (step-up) | Release a pack by its link, or issue a new link to the same recipient; never by anyone who composed, redacted or edited the pack | As above |
-| `quality.evidence.read` (care record, so MFA) | Open a pack released to you, when the inspector has a Harbour account | Inspector only |
+| `quality.evidence.read` (care record, so MFA) | Open a pack released to you, when the inspector has a Thapsus Care account | Inspector only |
 | `quality.statement_of_purpose.write` | Draft a revision | Owner, Registered Manager, deputy, quality lead |
 | `quality.statement_of_purpose.approve` | Approve a revision, not one you wrote or edited | Owner (Nominated Individual), Registered Manager |
 | `safety.notification.submit` (step-up) | Record that the revision was sent to CQC | Owner, Registered Manager |
@@ -90,7 +90,7 @@ is statutory (`resolveStatementOfPurposeRates`, England only until the nation pa
    - free text may name anyone, so it is withheld until a person has redacted it by hand; the
      redacted copy is shown with who did it.
    Roles come from two closed lists (`EVIDENCE_PARTY_ROLES`, `EVIDENCE_STAFF_ROLES`); a role not on
-   them prints as "[another person]" or "[member of staff]". Titles are generic labels Harbour
+   them prints as "[another person]" or "[member of staff]". Titles are generic labels Thapsus Care
    builds, never free text.
 
    | Record type | Organisational | Care content | Staff name | Third party | Free text |
@@ -107,7 +107,7 @@ is statutory (`resolveStatementOfPurposeRates`, England only until the nation pa
    | `advance_care_record` | `kind`, `completed_on`, `review_due_on`, `status` | `cpr_decision` | none | `clinician_name` | `details`, `withdrawn_reason` |
 
    Care notes and observations also have `recorded_at`, `late_entry`, `clock_drift`,
-   `correction_of` and `back_entry` (organisational, Harbour's own words) and `correction_reason`
+   `correction_of` and `back_entry` (organisational, Thapsus Care's own words) and `correction_reason`
    and `paper_reference` (free text); incidents have `recorded_at`, `late_entry` and `clock_drift`.
    Every type also has `person_name` and `room` (care content, so kept only for a person in scope)
    and `nhs_number`, `date_of_birth`, `address` and `phone` (direct identifiers, always withheld).
@@ -175,12 +175,12 @@ is statutory (`resolveStatementOfPurposeRates`, England only until the nation pa
    a change starts a new draft (`startStatementOfPurposeRevision`). The summary works section by
    section in plain English: "Location added: Harbour Lodge", "Registered manager removed: ...",
    "Provider business telephone number changed", "Aims and objectives reworded". The first version
-   loaded into Harbour is the `baseline`: the statement CQC already holds.
-13. **Registration prompts** (`statementOfPurposeRegistrationPrompts`, Harbour's reading, to
+   loaded into Thapsus Care is the `baseline`: the statement CQC already holds.
+13. **Registration prompts** (`statementOfPurposeRegistrationPrompts`, Thapsus Care's reading, to
     confirm with CQC, H-97). Adding or removing a location usually needs an application to vary the
     conditions of registration (Health and Social Care Act 2008 s.19); a new registered manager
     applies to be registered as a manager (s.14); a new legal entity must itself be registered
-    (s.10). Harbour prompts; it does not decide.
+    (s.10). Thapsus Care prompts; it does not decide.
 14. **Approval** (`checkStatementOfPurposeApproval`). Only a draft, complete against Schedule 3, that
     differs from the current version; by a holder of `quality.statement_of_purpose.approve` (the
     registered provider or a registered manager, not a deputy); never by its author or anyone who
@@ -314,7 +314,7 @@ definer, owned by the NOLOGIN role `harbour_evidence_link_reader`, which reads o
 tenant, id, pack and token hash), then work in that organisation as the system on that link alone.
 Tests: `packages/db/test/evidence-pack.test.ts`; the RLS coverage test lists `evidence_pack_item`
 as append-only; the export catalogue classifies every new column (token and code hashes secret).
-Opening a released pack with a Harbour inspector account (`quality.evidence.read`) needs a policy
+Opening a released pack with a Thapsus Care inspector account (`quality.evidence.read`) needs a policy
 of its own in the API step.
 
 ## 13. As built (slice 11, API part 2a: evidence pack routes and the bundle sweep)
@@ -336,7 +336,7 @@ After #60 review round 1: release re-reads every included record in the releaser
 refused (409 `record_changed`, naming each) when one was corrected or changed since it was added or
 the releaser cannot open it. Each entry says how it came to be: "Correction of an earlier entry
 recorded [time]" (reason free text), "Written on paper at [paper time] during a [kind] outage from
-[time], and entered in Harbour later" (paper reference free text), "Recorded in Harbour [time]" and
+[time], and entered in Thapsus Care later" (paper reference free text), "Recorded in Thapsus Care [time]" and
 a wrong device clock. Readings use a label and unit per chart field (`observationReading`), and
 only the chart schema's own enum values count as codes. Every time is UK time with GMT or BST
 (`formatUkDateTimeWithZone`). The token responses say `no-store`; the API logs no request bodies.
@@ -378,7 +378,7 @@ by 13/11/2026. ..."; H-219), hazard HZ-080 (DCB0129 scope for the CSO, H-224). T
 
 `apps/api/src/routes/evidence-link.ts`, `apps/api/src/services/evidence-link.ts`,
 `apps/api/src/services/evidence-pack-pdf.ts`, migration 0058 (`feat/quality-evidence-pack-public`).
-A deviation from section 5's paths, on #56's security review: the token is never in a URL Harbour
+A deviation from section 5's paths, on #56's security review: the token is never in a URL Thapsus Care
 serves; it goes only in a request body (as invitation links do), and opening the pack needs only
 the session cookie.
 
@@ -577,7 +577,7 @@ Each rule has a table-driven test named after it.
    code. `checkFrameworkVersion` refuses a version with no key questions, a key question with no
    statements, no evidence categories, a duplicate statement or key question id, or an id outside
    the opaque id pattern the evidence pack already accepts (`^[A-Za-z0-9._-]{1,64}$`). The number
-   of statements is whatever the published framework has; Harbour never checks for 34.
+   of statements is whatever the published framework has; Thapsus Care never checks for 34.
 2. Versions move `draft` to `published` to `retired` (`FRAMEWORK_WORKFLOW`); a published version's
    content never changes (a change is a new version).
 3. `frameworkInForce(versions, regulator, on)`: the published version for that regulator whose
@@ -631,7 +631,7 @@ Each rule has a table-driven test named after it.
 17. `computeIndicator`: value is numerator ÷ denominator × multiplier, rounded to one decimal for
     display, exact underneath; a zero or missing denominator gives null.
 18. `checkIndicatorTarget`: green and amber thresholds in the direction of the indicator (for
-    `lower_is_better`, green ≤ amber); targets are the tenant's, never Harbour's.
+    `lower_is_better`, green ≤ amber); targets are the tenant's, never Thapsus Care's.
 19. `ragStatus`: `green` within the green threshold, `amber` within amber, `red` beyond, in the
     indicator's direction; boundaries count as the better band.
 20. Coverage: a result counts only when its data covers the whole period and every location in the
@@ -649,7 +649,7 @@ Each rule has a table-driven test named after it.
     incidents, medication errors, complaints and digital records; each names the source slice that
     publishes it. The list is confirmed against CQC's current PIR questions (H-602).
 24. `assemblePirDraft`: each data point with its value and as-of date and the number of records
-    behind it; a data point with no value says "Not available in Harbour" with the reason, never
+    behind it; a data point with no value says "Not available in Thapsus Care" with the reason, never
     0; nothing is submitted to CQC (the Registered Manager reviews and copies across).
 
 **Policies (QUAL-008)**
@@ -879,7 +879,7 @@ before the code; the screens are slice 64. Builds on the framework library (sect
 
 Seven starter templates are seeded (medication, care plans, IPC, environment, dignity, night visit,
 mock inspection; 36 questions in all), mapped to statements of framework version 1; the IPC one is
-the template slice 31 uses. They are Harbour's drafting, to be reviewed (H-760).
+the template slice 31 uses. They are Thapsus Care's drafting, to be reviewed (H-760).
 
 ### 20.2 Permissions
 
@@ -1100,7 +1100,7 @@ list came before the code.
 | Medication errors | Incidents of type `medication` that occurred in the period | Occupied bed-days | `incident`; `bed_occupancy` |
 | Overdue reviews | For the people living at the location now (wherever their plan was written): active care plans and active risk assessments past their review date, today, and each person with no active care plan holding a review date | The same plans and assessments, and those people | `care_plan`, `risk_assessment` by the person's current location; `person` |
 | Incidents reviewed in time | Incidents that occurred in the period, moved on from `open` by someone other than their raiser within `quality.incident_review.target_days` UK days of the day they occurred, and not back to open since | Incidents that occurred in the period, less those whose time has not run out and that are not yet reviewed | `incident`; the `safety.incident` workflow transitions |
-| Missed visits, training compliance, agency hours, complaints, staff turnover | - | - | Not built: shown as "No data" with "Harbour does not record this yet" |
+| Missed visits, training compliance, agency hours, complaints, staff turnover | - | - | Not built: shown as "No data" with "Thapsus Care does not record this yet" |
 
 Occupied bed-days are the days a bed was held for someone at the location in the period, less the
 days between leaving for hospital and coming back, and the days after a death (a room not yet
@@ -1113,8 +1113,8 @@ for employment records (a member's access is not their employment).
 ### 22.2 Rules
 
 38. **Never rated without its data** (rule 22, HZ-129). An indicator whose source is not built
-    is `no_data` with "Harbour does not record this yet". The period must be over, wholly after
-    the location started recording in Harbour (the later of its record's creation and its first
+    is `no_data` with "Thapsus Care does not record this yet". The period must be over, wholly after
+    the location started recording in Thapsus Care (the later of its record's creation and its first
     care note) and free of any downtime not yet reconciled for its coverage to be complete;
     otherwise "Data incomplete for this period", with no numerator or denominator (they would be
     a running tally). A location with no bed occupancy in the period has no bed-days and its rates
@@ -1145,7 +1145,7 @@ for employment records (a member's access is not their employment).
 43. **PIR prefill** (rules 23 and 24): for one location, the last 12 whole calendar months.
     Each data point in the question set (`PIR_QUESTION_SET`, unconfirmed until H-602) is
     `prefilled` with its value, as-of date and record count, or `to_complete` with the reason (not
-    built in Harbour, a small number, no data). Built today: incidents and medication errors in
+    built in Thapsus Care, a small number, no data). Built today: incidents and medication errors in
     the last 12 months, and whether care records are kept digitally (care notes recorded at the
     location in that time). Nothing is submitted; the Registered Manager copies it across.
 44. **Audit**: viewing the dashboard (`quality.dashboard.viewed`) and the PIR prefill
@@ -1195,7 +1195,7 @@ the organisation's records); it holds no personal data.
 
 HZ-129 (a quality indicator or audit score falsely reassures) is added to the hazard log with
 rules 38 to 43 as its controls, each with a `hazard HZ-129 ...` test. Inside the medical-device
-boundary: the figures are counts and the tenant's own targets, never a Harbour score. No new
+boundary: the figures are counts and the tenant's own targets, never a Thapsus Care score. No new
 personal data: the function returns counts, and rule 40 keeps a small count from pointing at one
 person.
 

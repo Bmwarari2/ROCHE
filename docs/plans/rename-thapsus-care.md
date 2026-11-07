@@ -1,8 +1,8 @@
 # Plan: the product rename to Thapsus Care (ADR-0127)
 
-Prepared on 07/11/2026 on `docs/rename-plan-thapsus-care`, from `main` at e02aead7. **Nothing is
-renamed yet**: batch 4's branches still change user-facing words, so the rename lands in one pass
-after batch 4 merges. Inventory figures are from that commit; run the script's dry run again first.
+Prepared on 07/11/2026 on `docs/rename-plan-thapsus-care`, from `main` at e02aead7, and **applied on
+the same branch on 07/11/2026 after merge batch 4 (#180, `main` at 17a5dbbe)**: 2,885 changes in 363
+files (section 8). The inventory below is from e02aead7.
 
 ## 1. What changes and what stays
 
@@ -171,3 +171,29 @@ rather than shortening the wording. Nothing else in the code depends on the name
 
 Not run in the trial: the database suites against a private Postgres for every package, the Maestro
 flows (needs a device) and Lighthouse; run them in the rename PR.
+
+## 8. Applied (07/11/2026)
+
+After merging `main` at 17a5dbbe (batch 4, migrations to 0151):
+
+- `node scripts/rename-product.mjs --apply`: 2,885 in 363 files. The growth since the inventory
+  (2,817 in 356) is batch 4's new words: the Thapsus-HR guides and screens, the medicines spec and
+  hazard log rows, and 11 more catalogue keys.
+- Hand edits: the master prompt's assumption line and its Appendix row now record the decision (the
+  script's `--check` allows those two lines, which name the codename on purpose); `phase-1-gate.md`'s
+  `xcodebuild` line names `ios/ThapsusCare.xcworkspace` and the scheme `ThapsusCare`, which is what
+  Expo's prebuild makes of `name: "Thapsus Care"` (it drops the space). Nothing committed refers to
+  the old iOS project name.
+- OpenAPI and the client regenerated (descriptions and the title only, no breaking change); Biome
+  re-wrapped 22 files whose lines grew.
+- Migration 0152 renames the stored rows: the seven `audit_starter_template.source` rows and the
+  global `rate_table` and `retention_class` sources and notes (a re-seed gives the same result).
+  The query in section 6 on a database migrated and seeded from this branch finds only the demo
+  names (`tenant`, `location`, `service`), which stay.
+- `smtp.test.ts` reads the decoded body (quoted-printable folds the longer line) and checks the full
+  wording with the link.
+- CI runs `node scripts/rename-product.mjs --check` in the checks job.
+- The full suites found two expectations written as regular expressions (`/Harbour sets this/`),
+  which the script had taken for paths; it now treats a `/` as a path only after a path character,
+  and renamed them. The iCalendar `PRODID` (`-//Thapsus Cargo Ltd//Harbour//EN`) is an identifier
+  and stays.

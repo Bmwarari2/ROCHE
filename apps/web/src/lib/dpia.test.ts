@@ -26,7 +26,7 @@ describe("the DPIA page", () => {
     ["signed", "done", "Signed"],
     ["review_due", "overdue", "Review due"],
     ["prepared", "due", "Ready to sign"],
-    ["something_new", "overdue", "Unknown: check with Harbour support"],
+    ["something_new", "overdue", "Unknown: check with Thapsus Care support"],
   ])(
     "says %s as an icon and a word, warning for a state it does not know",
     (state, status, label) => {

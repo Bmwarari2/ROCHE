@@ -436,7 +436,7 @@ export const ssoRouter = createRouter()
       path: "/v1/sso/domains/{id}/remove",
       tags,
       summary: "Stop using an email domain for single sign-on",
-      description: `${PERMISSION} with step-up. Members at that domain sign in with Harbour's own methods. Audited.`,
+      description: `${PERMISSION} with step-up. Members at that domain sign in with Thapsus Care's own methods. Audited.`,
       security,
       request: {
         params: IdParam,

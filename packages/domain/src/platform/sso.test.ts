@@ -118,11 +118,16 @@ describe("PLAT-005 SSO sign-in policy", () => {
   });
 });
 
-describe("PLAT-005 an SSO session still needs Harbour's own second factor", () => {
+describe("PLAT-005 an SSO session still needs Thapsus Care's own second factor", () => {
   it.each([
     ["nothing sensitive", { careRecords: false, stepUp: false }, false, true],
-    ["care records without Harbour's factor", { careRecords: true, stepUp: false }, false, false],
-    ["care records with Harbour's factor", { careRecords: true, stepUp: false }, true, true],
+    [
+      "care records without Thapsus Care's factor",
+      { careRecords: true, stepUp: false },
+      false,
+      false,
+    ],
+    ["care records with Thapsus Care's factor", { careRecords: true, stepUp: false }, true, true],
     ["a step-up action without it", { careRecords: false, stepUp: true }, false, false],
     ["a step-up action with it", { careRecords: false, stepUp: true }, true, true],
   ])("for %s", (_name, needs, harbourFactorUsed, allowed) => {

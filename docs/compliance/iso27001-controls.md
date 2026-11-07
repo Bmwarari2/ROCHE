@@ -13,7 +13,7 @@ built but not switched on), **Gap** (not in place), **Inherited** (provided by G
 responsibility model; the evidence is Google Cloud's own ISO 27001 certificate and SOC 2 reports
 (check current scope), which Thapsus keeps on file once the organisation is set up). Every gap names its owner: "Brian" is the Thapsus
 director (owner of the human actions), "Engineering" is the build. The proposed ISMS scope is the
-Harbour service (code, infrastructure, operations) and the Thapsus people and devices that build
+Thapsus Care service (code, infrastructure, operations) and the Thapsus people and devices that build
 and run it; H-537 decides it.
 
 Production runs on Google Cloud europe-west2 (London) since [ADR-0098](../decisions/0098-production-on-google-cloud.md). The AWS Terraform that was
@@ -76,7 +76,7 @@ built images are not scanned (H-1170).
 | 5.20 Addressing information security within supplier agreements | Partly met | Data processing agreement template ([dpa-article-28-template.md](dpa-article-28-template.md)); each supplier's terms to be on file ([H-32](../plans/human-actions.md), [H-33](../plans/human-actions.md)); the Google Cloud Data Processing Addendum is not yet signed ([H-1000](../plans/human-actions.md)) | Brian (H-32, H-33, H-1000) |
 | 5.21 Managing information security in the ICT supply chain | Met | SBOM (Syft), licence allowlist, dependency scanning (Trivy, `pnpm audit`), Renovate; every GitHub Action pinned by commit SHA (`.github/workflows/*.yml` [infra]); Terraform providers pinned in `.terraform.lock.hcl` per root [infra] | - |
 | 5.22 Monitoring, review and change management of supplier services | Partly met | Sub-processor change notice process ([sub-processors.md](sub-processors.md), objection process [H-117](../plans/human-actions.md)); no scheduled supplier review | Brian (H-117, H-660) |
-| 5.23 Information security for use of cloud services | Met | [ADR-0098](../decisions/0098-production-on-google-cloud.md): Google Cloud europe-west2, one project per environment in a Harbour folder. Organisation policy `gcp.resourceLocations` allows europe-west2 only and Data Access audit logs are on for every service (`infra/bootstrap/main.tf`; bootstrap test "dev_trusts_its_own_environments_only"); every database, backup, key, image, network, log, bucket and service is in europe-west2 (plan tests "everything_in_london" and "another_region_is_refused"); misconfiguration scanning on every change (Trivy in `.github/workflows/terraform.yml` [infra]). The contract side is under 5.20 (H-1000) | - |
+| 5.23 Information security for use of cloud services | Met | [ADR-0098](../decisions/0098-production-on-google-cloud.md): Google Cloud europe-west2, one project per environment in a Thapsus Care folder. Organisation policy `gcp.resourceLocations` allows europe-west2 only and Data Access audit logs are on for every service (`infra/bootstrap/main.tf`; bootstrap test "dev_trusts_its_own_environments_only"); every database, backup, key, image, network, log, bucket and service is in europe-west2 (plan tests "everything_in_london" and "another_region_is_refused"); misconfiguration scanning on every change (Trivy in `.github/workflows/terraform.yml` [infra]). The contract side is under 5.20 (H-1000) | - |
 | 5.24 Information security incident management planning and preparation | Met | [incident-response.md](../runbooks/incident-response.md), [breach-response.md](breach-response.md), [on-call.md](../runbooks/on-call.md) | - |
 | 5.25 Assessment and decision on information security events | Met | Severity guide ([incident-response.md](../runbooks/incident-response.md)); breach severity and the reporting decision with recorded reasoning ([breach-response.md](breach-response.md) section 4) | - |
 | 5.26 Response to information security incidents | Partly met | Response steps written; the 24/7 rota and paging are not in place ([H-44](../plans/human-actions.md)) | Brian (H-44) |
@@ -107,7 +107,7 @@ built images are not scanned (H-1170).
 
 ## 7 Physical controls
 
-Harbour runs only in Google Cloud data centres (europe-west2, [ADR-0098](../decisions/0098-production-on-google-cloud.md)) and Thapsus has no office or
+Thapsus Care runs only in Google Cloud data centres (europe-west2, [ADR-0098](../decisions/0098-production-on-google-cloud.md)) and Thapsus has no office or
 server room in scope; the data-centre controls are inherited from Google Cloud. The controls that remain are about Thapsus devices
 and home working.
 
@@ -132,7 +132,7 @@ and home working.
 
 | Control | Status | Evidence | Gap owner |
 | --- | --- | --- | --- |
-| 8.1 User endpoint devices | Partly met | Harbour mobile: device unlock and auto-lock, SQLCipher store, remote wipe ([kiosk.md](kiosk.md), [security-checklist.md](security-checklist.md) MASVS rows); the root and jailbreak check is a stub (`apps/mobile/src/security/device-integrity.ts`). Thapsus devices not documented | Brian (H-662); Engineering (Phase 2 eMAR, lane G) |
+| 8.1 User endpoint devices | Partly met | Thapsus Care mobile: device unlock and auto-lock, SQLCipher store, remote wipe ([kiosk.md](kiosk.md), [security-checklist.md](security-checklist.md) MASVS rows); the root and jailbreak check is a stub (`apps/mobile/src/security/device-integrity.ts`). Thapsus devices not documented | Brian (H-662); Engineering (Phase 2 eMAR, lane G) |
 | 8.2 Privileged access rights | Partly met | CI reaches Google Cloud only through Workload Identity Federation, with no service account keys (organisation policy). Separate plan, apply and release accounts per environment, each trusting one GitHub environment of this repository by numeric ids (`infra/bootstrap/main.tf`, `infra/modules/github_wif/main.tf` [infra]; bootstrap tests "dev_trusts_its_own_environments_only" and "prod_subjects_differ_from_dev"); Owner, Workload Identity Pool Admin and Project IAM Admin refused to CI (`roles.tftest.hcl`: "owner_is_refused", "workload_identity_admin_is_refused", "project_iam_admin_is_refused"); a deny policy keeps CI away from secrets, objects, logs, keys and its own federation. Still to do: protect the GitHub environments (H-1094 on [infra]); operator impersonation needs a tenant approval ticket by design but is not built (`packages/domain/src/platform/roles.ts`) | Brian (H-1094); Engineering (operator console) |
 | 8.3 Information access restriction | Met | Per-permission scope and row-level security failing closed (`packages/db/test/isolation.test.ts`: "sees nothing at all without a request context (fails closed)"; `packages/db/test/rls-coverage.test.ts`); restricted silos planned ([phase-2.md](../plans/phase-2.md), ADR-0089) | - |
 | 8.4 Access to source code | Partly met | Private repository ([ADR-0019](../decisions/0019-open-source-stance.md)); single code owner; branch protection not yet on ([H-02](../plans/human-actions.md)) | Brian (H-01, H-02) |

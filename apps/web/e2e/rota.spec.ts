@@ -179,7 +179,7 @@ test("hazard HZ-124 the manager makes a template, starts a rota and applies the 
     page.getByRole("heading", { level: 1, name: "Check before publishing" }),
   ).toBeVisible();
   await expect(main(page)).toContainText("your organisation's own dependency scale");
-  await expect(main(page)).toContainText("They are not a Harbour score");
+  await expect(main(page)).toContainText("They are not a Thapsus Care score");
   await expect(main(page)).not.toContainText(/\bscore:/i);
   await accessibleInBothThemes(page, "rota check");
 

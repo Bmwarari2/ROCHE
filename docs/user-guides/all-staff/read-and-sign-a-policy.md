@@ -31,7 +31,7 @@ workers. Managers sign their own policies in the same way.
   review status, as an icon and a word.
 - If a policy has a major change, you are asked to sign again. A minor change keeps your earlier
   signature.
-- Until you sign, Harbour gives you a task called "Read and sign a policy" and reminds you again
+- Until you sign, Thapsus Care gives you a task called "Read and sign a policy" and reminds you again
   after a while. Signing completes it.
 - A signature cannot be changed or taken back.
 - The rules: [quality spec section 18, policy library](../../specs/quality.md#18-policy-library-and-read-and-sign-slice-25-qual-008-migration-0087),

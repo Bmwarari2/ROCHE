@@ -244,9 +244,9 @@ describe("hazard HZ-133 managed in the HR platform (rule 2)", () => {
   it("says the API's refusal in plain words, never naming the other product", () => {
     const p = hrLinkProblem({ code: "managed_in_thapsus_hr" }, "settings", t);
     expect(p.message).toBe(
-      "Managed in the HR platform. Change it there; Harbour follows at the next sync.",
+      "Managed in the HR platform. Change it there; Thapsus Care follows at the next sync.",
     );
-    expect(p.message).not.toContain("Thapsus");
+    expect(p.message).not.toMatch(/Thapsus[- ]?HR/i);
   });
 });
 
@@ -301,7 +301,7 @@ describe("hazard HZ-133 locations, matches and releases", () => {
   ] as const)("says %s in the catalogue's words at its field", (code, where, field) => {
     const p = hrLinkProblem({ code, detail: "Thapsus-HR said no." }, where, t);
     expect(p.code).toBe(code);
-    expect(p.message).not.toContain("Thapsus");
+    expect(p.message).not.toMatch(/Thapsus[- ]?HR/i);
     expect(p.fields ? Object.keys(p.fields) : []).toEqual(field ? [field] : []);
   });
 });

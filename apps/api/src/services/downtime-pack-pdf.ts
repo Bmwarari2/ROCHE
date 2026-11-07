@@ -42,7 +42,7 @@ interface StoredContent {
  * HZ-021). Each person's page still says "where it is kept is not set in Harbour".
  */
 export const PLACES_NOT_CONFIRMED =
-  "Where the paper MAR and the PEEPs are kept is not confirmed in Harbour: ask the nurse in charge before you need them.";
+  "Where the paper MAR and the PEEPs are kept is not confirmed in Thapsus Care: ask the nurse in charge before you need them.";
 type Json<T> = T extends Date
   ? string
   : T extends readonly (infer U)[]
@@ -148,7 +148,9 @@ function sectionContent(key: string, page: Json<DowntimePersonPage>): string[] {
   switch (key) {
     case "identity":
       return c.photo
-        ? [`Photo held in Harbour (taken ${ukDate(c.photo.takenOn)}); not printed in this pack.`]
+        ? [
+            `Photo held in Thapsus Care (taken ${ukDate(c.photo.takenOn)}); not printed in this pack.`,
+          ]
         : [];
     case "allergies":
       return allergyLines(c.allergies);

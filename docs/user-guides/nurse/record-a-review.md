@@ -10,7 +10,7 @@ carers can read the dates but cannot record.
 - For one person: open their record and choose **Reviews**.
 - For everyone: go to **Residents** and choose **Reviews due**. Overdue reviews come first.
 
-Harbour works out the due dates from your organisation's settings. You cannot set them by hand.
+Thapsus Care works out the due dates from your organisation's settings. You cannot set them by hand.
 
 ## Record a change in need
 

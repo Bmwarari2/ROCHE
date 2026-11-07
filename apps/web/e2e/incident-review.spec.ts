@@ -279,7 +279,7 @@ test("hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale
   await expectAccessible(page, "not required, done");
 });
 
-test("hazard HZ-013 not required on a notification Harbour found needed asks for more", async ({
+test("hazard HZ-013 not required on a notification Thapsus Care found needed asks for more", async ({
   page,
 }) => {
   await signInWithDemoPasskey(page);
@@ -296,7 +296,7 @@ test("hazard HZ-013 not required on a notification Harbour found needed asks for
   expect(death, "a death notification draft").toBeDefined();
   await page.goto(`/notifications/statutory/${death?.id}`);
   const form = page.getByRole("form", { name: "Decide it is not required" });
-  await expect(form.getByText("Harbour found this notification is needed")).toBeVisible();
+  await expect(form.getByText("Thapsus Care found this notification is needed")).toBeVisible();
   await form.getByLabel("Why is it not required?").fill("Recorded twice.");
   await form.getByRole("button", { name: "Record as not required" }).click();
   const summary = page.getByRole("main").getByRole("alert");

@@ -26,8 +26,8 @@ whole organisation. Undoing needs you to confirm it is you with your passkey or 
    (the steps above) and import the right file. Undo is the only way to remove people.
 2. If it can no longer be undone and the person is real but some details are wrong, correct them on
    the person's **Personal details** tab. The history keeps what the import said.
-3. If the person should not be in Harbour at all (the wrong person, or someone already on another
-   record), tell your Registered Manager straight away. Harbour has no "created in error" status
+3. If the person should not be in Thapsus Care at all (the wrong person, or someone already on another
+   record), tell your Registered Manager straight away. Thapsus Care has no "created in error" status
    for a person yet (H-680), so the record stays on the list of people receiving care, and staff
    could choose it by mistake. Until your clinical safety officer decides what to do (H-1158):
    - make sure staff at that home know, for example at handover, that the record is a mistake
@@ -36,18 +36,18 @@ whole organisation. Undoing needs you to confirm it is you with your passkey or 
      open: leave it, and tell your Registered Manager it is there;
    - never record a death, and do not record a discharge or transfer unless your Registered
      Manager and clinical safety officer decide to. Those can send notifications to other people;
-   - if the person should never have been in Harbour, tell your data protection lead, who decides
+   - if the person should never have been in Thapsus Care, tell your data protection lead, who decides
      whether it is a personal data breach;
-   - ask Harbour support.
+   - ask Thapsus Care support.
 
 ## Good to know
 
-- **Undo is possible only once, and only while nothing has happened to those people.** Harbour
+- **Undo is possible only once, and only while nothing has happened to those people.** Thapsus Care
   refuses it after the time shown, once a phone may have received the people, once any of them has
   been changed, or once anything has been recorded about them, such as a note, a task someone acted
   on or a document.
 - If phones are in use in your organisation, treat every import as one that cannot be undone.
-  Harbour asks you to accept this before you add the people.
+  Thapsus Care asks you to accept this before you add the people.
 - When undo is not available, the page says "This import can no longer be undone. Correct any
   record imported by mistake on the person's record." See below.
 - Undo also removes the allergy status checks the import raised that are still open.

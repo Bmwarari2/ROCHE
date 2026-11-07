@@ -374,7 +374,7 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
     db.prepare("DELETE FROM care_note WHERE id = 'n-evidence'").run();
   });
 
-  it("hazard HZ-006 counts an entry for a task Harbour refused, and never a refused move or bad JSON", () => {
+  it("hazard HZ-006 counts an entry for a task Thapsus Care refused, and never a refused move or bad JSON", () => {
     db.prepare("DELETE FROM task").run();
     task("t-refused", { evidence_required: 1 });
     const issue = db.prepare(

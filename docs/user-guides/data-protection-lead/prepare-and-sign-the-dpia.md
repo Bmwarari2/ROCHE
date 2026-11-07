@@ -1,6 +1,6 @@
 # How to prepare and sign the DPIA
 
-The data protection impact assessment (DPIA) records the risks of using Harbour for care records
+The data protection impact assessment (DPIA) records the risks of using Thapsus Care for care records
 and how they are reduced. Someone prepares it, and the named data protection lead signs it.
 Whoever prepared a version cannot sign it.
 
@@ -30,7 +30,7 @@ is you (step-up).
 ## Sign it
 
 1. Open **Data protection** and read the whole version.
-2. Under **Sign the DPIA**, type your full name, as it appears on your Harbour account.
+2. Under **Sign the DPIA**, type your full name, as it appears on your Thapsus Care account.
 3. Choose **Sign the DPIA** and confirm it is you.
 4. The page says "DPIA signed" and shows when to review it.
 

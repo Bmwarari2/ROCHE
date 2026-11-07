@@ -99,7 +99,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-describe("signing in Harbour (ADR-0095)", () => {
+describe("signing in Thapsus Care (ADR-0095)", () => {
   let doc: { id: string; sha256: string };
   let request: RequestItem;
 
@@ -329,7 +329,7 @@ describe("signing through DocuSign (the mock; H-540)", () => {
     expect(await docusign().status(envelope)).toEqual({ state: "sent" });
   });
 
-  it("cannot be signed in Harbour", async () => {
+  it("cannot be signed in Thapsus Care", async () => {
     const { item, doc } = await sent("duty of candour");
     const res = await as("nurse", `/v1/signature-requests/${item.id}/sign`, {
       method: "POST",
@@ -424,7 +424,7 @@ describe("hazard HZ-005 OCR of scanned MAR charts", () => {
     expect(again.id).toBe(first.id);
   });
 
-  it("refuses an engine's read with a line or part Harbour does not know, never coercing it", async () => {
+  it("refuses an engine's read with a line or part Thapsus Care does not know, never coercing it", async () => {
     const res = await scan(chart([{ group: -1, label: "frequency", text: "BD", confidence: 0.9 }]));
     expect((await res.json()) as Extraction).toMatchObject({
       state: "failed",

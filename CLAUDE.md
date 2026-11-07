@@ -1,4 +1,4 @@
-# Harbour
+# Thapsus Care
 
 Multi-tenant platform for UK adult social care (Thapsus Cargo Ltd). The master specification is
 `docs/00-MASTER-PROMPT.md` (read the sections you need; do not import it whole). Constraints digest:

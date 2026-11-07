@@ -79,7 +79,11 @@ describe("H-566 the sign-in is erased only when nobody else relies on it", () =>
       { otherMemberships: 1 },
       { ok: false, problem: "sign_in_in_use" },
     ],
-    ["a Harbour operator's sign-in", { operator: true }, { ok: false, problem: "sign_in_in_use" }],
+    [
+      "a Thapsus Care operator's sign-in",
+      { operator: true },
+      { ok: false, problem: "sign_in_in_use" },
+    ],
     ["a sign-in already erased", { signInLinked: false }, { ok: true, outcome: "replay" }],
     [
       "a sign-in already erased, even if the old one were in use elsewhere",

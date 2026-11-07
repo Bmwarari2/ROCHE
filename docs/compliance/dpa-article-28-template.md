@@ -7,11 +7,11 @@
 - **the Controller**: `{{tenant.legalName}}`, `{{tenant.registeredOffice}}`, company or charity number `{{tenant.companyNumber}}`; and
 - **the Processor**: Thapsus Cargo Ltd (trading as Thapsus), `[registered office - human action]`, company number `[number - human action]`.
 
-It forms part of the Harbour subscription agreement (the **Main Agreement**). If they conflict on data protection, this agreement prevails.
+It forms part of the Thapsus Care subscription agreement (the **Main Agreement**). If they conflict on data protection, this agreement prevails.
 
 ## 1. Definitions
 
-"Data Protection Legislation" means the UK GDPR, the Data Protection Act 2018 (both as amended, including by the Data (Use and Access) Act 2025) and the Privacy and Electronic Communications Regulations 2003. "Personal Data", "Processing", "Data Subject", "Personal Data Breach" and "Supervisory Authority" have the meanings in the UK GDPR. "Services" means the Harbour platform and support provided under the Main Agreement. "Sub-processor" means a third party engaged by the Processor to process Personal Data on the Controller's behalf.
+"Data Protection Legislation" means the UK GDPR, the Data Protection Act 2018 (both as amended, including by the Data (Use and Access) Act 2025) and the Privacy and Electronic Communications Regulations 2003. "Personal Data", "Processing", "Data Subject", "Personal Data Breach" and "Supervisory Authority" have the meanings in the UK GDPR. "Services" means the Thapsus Care platform and support provided under the Main Agreement. "Sub-processor" means a third party engaged by the Processor to process Personal Data on the Controller's behalf.
 
 ## 2. Subject matter, duration, nature and purpose (Art 28(3), first paragraph)
 
@@ -35,7 +35,7 @@ The Processor implements the technical and organisational measures in **Schedule
 
 ## 6. Sub-processors (Art 28(2), 28(3)(d), 28(4))
 
-6.1 The Controller gives general written authorisation for the Processor to engage the Sub-processors listed in the sub-processor register shown in Harbour (**Schedule 3**).
+6.1 The Controller gives general written authorisation for the Processor to engage the Sub-processors listed in the sub-processor register shown in Thapsus Care (**Schedule 3**).
 
 6.2 The Processor notifies the Controller in-app and by email at least `[30]` days before adding or replacing a Sub-processor. The Controller may object on reasonable data protection grounds within that period; the parties will discuss the objection in good faith, and if it cannot be resolved the Controller may terminate the affected Services without penalty.
 
@@ -45,7 +45,7 @@ The Processor implements the technical and organisational measures in **Schedule
 
 ## 7. Data subject rights (Art 28(3)(e))
 
-7.1 Taking into account the nature of the processing, the Processor assists the Controller by appropriate technical and organisational measures, insofar as possible, to respond to requests to exercise data subject rights. In Harbour this includes the DSAR workbench, rectification by correction events, erasure where retention law allows, restriction flags, and person-level and full-tenant export.
+7.1 Taking into account the nature of the processing, the Processor assists the Controller by appropriate technical and organisational measures, insofar as possible, to respond to requests to exercise data subject rights. In Thapsus Care this includes the DSAR workbench, rectification by correction events, erasure where retention law allows, restriction flags, and person-level and full-tenant export.
 
 7.2 If the Processor receives a request directly from a Data Subject about the Controller's data, it passes it to the Controller within `[2]` working days and does not respond substantively unless instructed ([dsar-procedure.md](dsar-procedure.md)).
 
@@ -67,7 +67,7 @@ The Processor implements the technical and organisational measures in **Schedule
 
 10.1 The Processor makes available to the Controller all information necessary to demonstrate compliance with Article 28, and allows for and contributes to audits, including inspections, by the Controller or an auditor it mandates.
 
-10.2 The Processor may meet audit requests first by supplying current certifications and reports (for example Cyber Essentials Plus, ISO 27001, the summary of the latest external penetration test, and the control mapping in Harbour's compliance documentation). On-site or remote audits are on `[30]` days' notice, no more than once a year unless following a breach or a Supervisory Authority request, and subject to confidentiality.
+10.2 The Processor may meet audit requests first by supplying current certifications and reports (for example Cyber Essentials Plus, ISO 27001, the summary of the latest external penetration test, and the control mapping in Thapsus Care's compliance documentation). On-site or remote audits are on `[30]` days' notice, no more than once a year unless following a breach or a Supervisory Authority request, and subject to confidentiality.
 
 ## 11. International transfers
 
@@ -91,7 +91,7 @@ This agreement lasts as long as the Processor processes Personal Data for the Co
 
 | Item | Details |
 | --- | --- |
-| Subject matter | Provision of the Harbour care management platform to the Controller |
+| Subject matter | Provision of the Thapsus Care care management platform to the Controller |
 | Duration | The term of the Main Agreement plus the deletion period in clause 9 |
 | Nature | Collection (through the Controller's users), storage, synchronisation to devices, retrieval, display, transmission, export, backup, deletion |
 | Purpose | Enabling the Controller to deliver and record care and run its service, as set out in the Controller's records of processing ([records-of-processing.md](records-of-processing.md), Part B) |
@@ -116,7 +116,7 @@ This agreement lasts as long as the Processor processes Personal Data for the Co
 
 ## Schedule 3: authorised sub-processors
 
-As listed in [sub-processors.md](sub-processors.md) and shown in Harbour at the date of signature: `{{subProcessors.inUse[]}}`.
+As listed in [sub-processors.md](sub-processors.md) and shown in Thapsus Care at the date of signature: `{{subProcessors.inUse[]}}`.
 
 ## Schedule 4: contacts
 

@@ -1,6 +1,6 @@
-# Harbour infrastructure
+# Thapsus Care infrastructure
 
-Terraform (OpenTofu-compatible) for Harbour's Google Cloud environments, and the local Docker
+Terraform (OpenTofu-compatible) for Thapsus Care's Google Cloud environments, and the local Docker
 Compose stack. Everything that stores or processes personal data runs in **Google Cloud
 europe-west2 (London)** (ADR-0098, which replaces the AWS eu-west-2 choice in ADR-0001).
 
@@ -52,7 +52,7 @@ call the same `harbour_stack` module, so staging rehearses exactly what prod wil
 | `api.<domain>` | load balancer (Cloud Armor), then `api` (Hono, port 4000) with a ClamAV sidecar on 127.0.0.1:3310 | Also serves `/v1/sync/jwks` for PowerSync |
 | `learn.<elearning_domain_name>` | load balancer (Cloud Armor), then `web`, on its own backend and its own Certificate Manager certificate | The e-learning content origin (ADR-0093), on its own registrable domain (`elearning_domain_name`, never `<domain>` or under it, so package script is another site from the app; security review H1). Only `/learn/*` is forwarded; Cloud Armor answers any other path on this host with a fixed 404 (M4). Its backend adds no X-Frame-Options (the app frames the runtime page) and sends `Referrer-Policy: no-referrer`. DNS in `elearning_dns_zone_name`, or listed in `manual_elearning_dns_records`; `ELEARNING_ORIGIN` on the web service. Unset, courses do not launch |
 | `sync.<domain>` | load balancer (Cloud Armor), then `powersync` (port 8080) | Self-hosted PowerSync, unified mode, always one instance; `/api/admin` is refused at the edge |
-| `flags.<domain>` | load balancer (Cloud Armor), then `flagsmith` (port 8000) | Optional, `enable_flagsmith = false` by default; only Harbour's NAT addresses and `flags_admin_ranges` reach it |
+| `flags.<domain>` | load balancer (Cloud Armor), then `flagsmith` (port 8000) | Optional, `enable_flagsmith = false` by default; only Thapsus Care's NAT addresses and `flags_admin_ranges` reach it |
 | none | `worker` | pg-boss jobs; same image as `api`; internal ingress; CPU always allocated |
 | none | `migrate` Cloud Run job | `db:bootstrap` and migrations, run by the release job |
 | none | `dmd` Cloud Run job (`harbour-<env>-dmd`), started by Cloud Scheduler (`harbour-<env>-dmd-monthly`) | The monthly dm+d release download from TRUD and load (H-1241, [runbook](../docs/runbooks/dmd-release.md)): `17 3 3 * *` Europe/London (03:17 on the 3rd), one task, at most one retry, a 90-minute task timeout (the 60-minute load limit plus 30 for the download), 2 CPUs and 6Gi because the archive and the unpacked release sit in `/tmp`, which is memory (H-1243). No bucket: it downloads into a private temporary directory and deletes the files. Its own service account and database role (`harbour_dmd_job`); Cloud Scheduler calls the Cloud Run Admin API as its own account, which may start this job only |
@@ -80,7 +80,7 @@ buckets for documents, exports, the write-once audit archive and bucket usage lo
   follows the origin's `Cache-Control`: Next.js marks `/_next/static` public and immutable and
   every page private, so no page is ever held at the edge.
 - Log storage: the bootstrap sets the folder's log location to London with no `_Default` sink,
-  before the projects are created, so `_Required` is in London too; Harbour's sinks route audit,
+  before the projects are created, so `_Required` is in London too; Thapsus Care's sinks route audit,
   pgAudit and application logs to its own London buckets, encrypted with the project's key.
 - No cross-region copy of anything.
 - Email has no Google Cloud service: an SMTP provider (H-08), on the sub-processor register and
@@ -95,7 +95,7 @@ Brian, with an organisation administrator account (H-04, broken down as H-1090 t
 location applies only to projects created after it is set.
 
 ```sh
-# 1. Once (H-1090): a folder for Harbour whose projects store logs in London and get no _Default sink.
+# 1. Once (H-1090): a folder for Thapsus Care whose projects store logs in London and get no _Default sink.
 #    (infra/bootstrap sets this with folder_id; by hand:)
 gcloud logging settings update --folder=<folder-id> --storage-location=europe-west2 --disable-default-sink
 

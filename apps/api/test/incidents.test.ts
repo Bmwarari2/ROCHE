@@ -407,7 +407,7 @@ describe("hazard HZ-013 the classifier runs on the server", () => {
     const wales = "0194d000-0000-7000-8000-000000000177";
     await asDemoTenant((c) =>
       c.query(
-        "INSERT INTO location (id, name, nation, regulator) VALUES ($1, 'Harbour Cymru', 'wales', 'ciw')",
+        "INSERT INTO location (id, name, nation, regulator) VALUES ($1, 'Thapsus Care Cymru', 'wales', 'ciw')",
         [wales],
       ),
     );
@@ -1251,7 +1251,7 @@ describe("duty of candour and investigations", () => {
     );
   });
 
-  it("hazard HZ-091 a decision against Harbour's finding, or a changed one, needs a reason and a tick in the API (round 2 M3)", async () => {
+  it("hazard HZ-091 a decision against Thapsus Care's finding, or a changed one, needs a reason and a tick in the API (round 2 M3)", async () => {
     const incident = await harmed([affected(4)]);
     const decision = (notifiable: boolean) => ({
       notifiable,
@@ -1266,7 +1266,7 @@ describe("duty of candour and investigations", () => {
     });
     expect(bare.status).toBe(422);
     expect((await json<{ detail: string }>(bare)).detail).toBe(
-      "Say why in at least 20 characters: the decision differs from Harbour's finding or changes the one recorded. Confirm the decision.",
+      "Say why in at least 20 characters: the decision differs from Thapsus Care's finding or changes the one recorded. Confirm the decision.",
     );
     // Agreeing with Harbour needs no reason.
     const agreed = await json<CandourView>(
@@ -1670,7 +1670,7 @@ describe("duty of candour and investigations", () => {
   it("hazard HZ-013 hazard HZ-073 an incident held open with no one to tell reaches the daily signal (round 4 M2)", async () => {
     const PIER = "0194d000-0000-7000-8000-0000000001f8";
     const incidentId = await asDemoTenant(async (c) => {
-      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Pier')", [PIER]);
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Thapsus Care Pier')", [PIER]);
       const { rows } = await c.query<{ id: string }>(
         `INSERT INTO incident (location_id, type, occurred_at, description, raised_by, person_ids,
            classifier_result)

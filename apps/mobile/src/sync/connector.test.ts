@@ -858,7 +858,11 @@ describe("classifyUploadError", () => {
 
 describe("hazard HZ-040 a device a manager revoked (care.md section 6, Device integrity part 2)", () => {
   const revokedProblem = () =>
-    problem(403, "device_revoked", "This device has been withdrawn from Harbour by a manager.");
+    problem(
+      403,
+      "device_revoked",
+      "This device has been withdrawn from Thapsus Care by a manager.",
+    );
 
   it("reads device_revoked on the sync token as a revocation, never as an ended session or withdrawn access", async () => {
     const { fetch, calls } = fakeFetch([revokedProblem()]);
@@ -1021,7 +1025,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
         httpStatus: 409,
         code: "version_conflict",
         message: expect.stringMatching(
-          /^This task was already marked done before your change reached Harbour, so your change was not recorded\./,
+          /^This task was already marked done before your change reached Thapsus Care, so your change was not recorded\./,
         ),
         // The task's id stays with the move, so it can be sent again from needs attention.
         payload: { ...move().opData, task_id: TASK },
@@ -1034,7 +1038,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     [
       "done in the carer's name, but not as this move",
       { version: 6 },
-      /^Harbour could not check whether this was saved\. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again\.$/,
+      /^Thapsus Care could not check whether this was saved\. Check the task with the person in charge of this shift, or in Thapsus Care on the web, before recording it again\.$/,
     ],
     [
       "marked not done by someone else",
@@ -1045,7 +1049,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     [
       "no longer in the list",
       { id: "another" },
-      /^Harbour could not find this task\. Check with the person in charge of this shift, or in Harbour on the web, before recording it again\.$/,
+      /^Thapsus Care could not find this task\. Check with the person in charge of this shift, or in Thapsus Care on the web, before recording it again\.$/,
     ],
   ] as const)(
     "hazard HZ-006 says what happened to a task the move did not reach in time: %s",
@@ -1170,7 +1174,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
           id: MOVE,
           code: "task_unchecked",
           message:
-            "Harbour could not check whether this was saved. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again.",
+            "Thapsus Care could not check whether this was saved. Check the task with the person in charge of this shift, or in Thapsus Care on the web, before recording it again.",
         },
       ]);
       const kept = queue.state.sql.find((x) => x.sql.startsWith("INSERT INTO upload_issue"));

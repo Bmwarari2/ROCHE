@@ -26,7 +26,7 @@ const render = (dpia: DpiaStatusView) => {
 const NONE = { signed: null, reviewDueAt: null, triggers: [], missingConfig: [] };
 
 describe("where the DPIA stands", () => {
-  it("says it is not started, and lists the details Harbour still needs", async () => {
+  it("says it is not started, and lists the details Thapsus Care still needs", async () => {
     const text = render({
       ...NONE,
       state: "not_started",

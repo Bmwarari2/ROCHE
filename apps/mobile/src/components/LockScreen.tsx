@@ -41,7 +41,7 @@ export function LockScreen() {
             importantForAccessibility="no"
           />
           <Text variant="title" accessibilityRole="header">
-            Harbour is locked
+            Thapsus Care is locked
           </Text>
           <Text tone="secondary">
             {me ? `Signed in as ${me.user.name}.` : null} Unlock with Face ID, fingerprint or your

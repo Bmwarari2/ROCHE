@@ -1,7 +1,7 @@
 # How to record a DSPT submission
 
 Once you have submitted your Data Security and Protection Toolkit (DSPT) for the year, record the
-submission in Harbour with its outcome. You can correct it later.
+submission in Thapsus Care with its outcome. You can correct it later.
 
 These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
 branch.
@@ -34,7 +34,7 @@ location, cannot.
 
 - There is one submission for each financial year. Once this year's is recorded, the form to record
   it no longer shows.
-- Recording here does not submit anything. Harbour never sends the toolkit for you.
-- Until the year's submission is recorded, Harbour gives the owner a task when the deadline is
+- Recording here does not submit anything. Thapsus Care never sends the toolkit for you.
+- Until the year's submission is recorded, Thapsus Care gives the owner a task when the deadline is
   near or past.
 - The rules: [quality spec section 18, data security evidence](../../specs/quality.md#18-data-security-evidence-slice-32-qual-012).

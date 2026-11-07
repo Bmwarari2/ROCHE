@@ -1032,7 +1032,7 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 4 
        SELECT $1, id, now() - interval '1 day' FROM made`,
       [MAX, DEMO.locationId],
     );
-    await asOwner("INSERT INTO location (id, name) VALUES ($1, 'Harbour Wynd')", [WYND]);
+    await asOwner("INSERT INTO location (id, name) VALUES ($1, 'Thapsus Care Wynd')", [WYND]);
     await asOwner(
       `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
        VALUES ($1, $2, 'active', 'Wil', 'Example', '9990000158')`,
@@ -1072,7 +1072,10 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 4 
         token: h.tokens.manager,
         tenant: DEMO.tenantId,
         method: "POST",
-        body: { personId: WIL, justification: "Covering an emergency at Harbour Wynd tonight" },
+        body: {
+          personId: WIL,
+          justification: "Covering an emergency at Thapsus Care Wynd tonight",
+        },
       });
       expect(opened.status).toBe(201);
       const { id } = (await opened.json()) as { id: string };
@@ -1110,7 +1113,7 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 5 
 
   beforeAll(async () => {
     sol = await member(SOL, "Sol Shore", "sol.shore@example.invalid");
-    await asOwner("INSERT INTO location (id, name) VALUES ($1, 'Harbour Shore')", [SHORE]);
+    await asOwner("INSERT INTO location (id, name) VALUES ($1, 'Thapsus Care Shore')", [SHORE]);
     await asOwner(
       `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from)
        SELECT $1, id, $2, now() - interval '30 days' FROM role WHERE key = 'registered_manager'`,

@@ -823,7 +823,7 @@ describe("hazard HZ-008 hazard HZ-073 an overdue task goes down the order until 
 
   beforeAll(async () => {
     await asDemoTenant(async (c) => {
-      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Barn')", [BARN]);
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Thapsus Care Barn')", [BARN]);
       await c.query(
         `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
          VALUES ($1, $2, 'active', 'Iris', 'Example', '9990000115')`,
@@ -954,7 +954,7 @@ describe("hazard HZ-008 hazard HZ-073 escalation means someone other than the as
 
   beforeAll(async () => {
     await asDemoTenant(async (c) => {
-      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Byre')", [BYRE]);
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Thapsus Care Byre')", [BYRE]);
       await c.query(
         `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
          VALUES ($1, $2, 'active', 'Bryn', 'Example', '9990000131')`,
@@ -1115,7 +1115,7 @@ describe("hazard HZ-008 hazard HZ-018 hazard HZ-073 escalation reaches every org
 
   beforeAll(async () => {
     await asDemoTenant(async (c) => {
-      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Croft')", [CROFT]);
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Thapsus Care Croft')", [CROFT]);
       await c.query(
         `INSERT INTO person (id, location_id, status, given_name, family_name)
          VALUES ($1, $2, 'active', 'Cai', 'Example')`,

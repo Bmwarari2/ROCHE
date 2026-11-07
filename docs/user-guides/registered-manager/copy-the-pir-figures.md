@@ -1,6 +1,6 @@
 # How to copy the PIR figures
 
-Harbour gathers figures for your Provider Information Return (PIR) to CQC for one location over the
+Thapsus Care gathers figures for your Provider Information Return (PIR) to CQC for one location over the
 last 12 whole months. You check them and copy them into the return yourself.
 
 These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
@@ -31,12 +31,12 @@ senior carers and nurses cannot.
 
 ## Important
 
-- **Harbour does not submit your return.** Nothing is sent to CQC. The Registered Manager copies
+- **Thapsus Care does not submit your return.** Nothing is sent to CQC. The Registered Manager copies
   the figures across and stays responsible for the return.
-- A data point Harbour does not record yet says "Not recorded in Harbour yet: complete it from your
+- A data point Thapsus Care does not record yet says "Not recorded in Thapsus Care yet: complete it from your
   own records." It is never filled with 0.
 - A small number is withheld so that no one can be identified, and marked to complete.
-- The data points are Harbour's mapping to CQC's questions. Until they are confirmed against the
+- The data points are Thapsus Care's mapping to CQC's questions. Until they are confirmed against the
   current return, the page says so.
 - The rules: [quality spec section 17, rules 23 and 24](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
   and section 22 (rule 43) of the quality spec and hazard HZ-129, both on the

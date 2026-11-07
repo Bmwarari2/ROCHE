@@ -23,11 +23,11 @@ managers.
 
 ## Important
 
-- Harbour calculates each tool exactly as published and never changes a score or band.
+- Thapsus Care calculates each tool exactly as published and never changes a score or band.
 - **The score supports clinical judgement. It never replaces it.** Follow the published response
   and your escalation policy.
 - The falls questions give **no score**: NICE advises against falls prediction scores (NG249).
-  Harbour shows the NICE recommendation that applies.
+  Thapsus Care shows the NICE recommendation that applies.
 - Waterlow and Braden show only if your organisation has switched them on.
 - NEWS2 is recorded under **Charts** (see
   [How to record vital signs](../care-worker/record-vital-signs.md)).

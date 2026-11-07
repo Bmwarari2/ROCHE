@@ -428,7 +428,7 @@ const PACK_PROBLEM_MESSAGES: Record<DowntimePackProblem, string> = {
 
 /** Printed on the front sheet and every page's header (operations.md rule 2). */
 export const DOWNTIME_BACK_ENTRY_INSTRUCTION =
-  "Write care on the downtime forms with the time you gave it. When Harbour is back, enter each form with that time and the outage it belongs to.";
+  "Write care on the downtime forms with the time you gave it. When Thapsus Care is back, enter each form with that time and the outage it belongs to.";
 
 const NOT_RECORDED_NOTES: Partial<Record<DowntimeSectionKey, string>> = {
   identity: "No photo on record. Confirm who the person is with a colleague who knows them.",
@@ -449,17 +449,17 @@ const NOT_RECORDED_NOTES: Partial<Record<DowntimeSectionKey, string>> = {
 export const ADRT_HELD_NOTE = "ADRT also held: read it before any decision about resuscitation.";
 
 /** With an ADRT and no CPR decision: never "not recorded" (#46 review round 1, clinical M4). */
-export const ADRT_ONLY_NOTE = `No ReSPECT or DNACPR decision is held in Harbour. ${ADRT_HELD_NOTE}`;
+export const ADRT_ONLY_NOTE = `No ReSPECT or DNACPR decision is held in Thapsus Care. ${ADRT_HELD_NOTE}`;
 
 /** Words for a resuscitation conflict, printed inside the section (to confirm with the CSO, H-100). */
 export const RESUSCITATION_CONFLICT_NOTE =
-  "Resuscitation records disagree. Every record in force is listed here. Harbour does not choose between them: check the signed forms and follow the home's policy.";
+  "Resuscitation records disagree. Every record in force is listed here. Thapsus Care does not choose between them: check the signed forms and follow the home's policy.";
 
 const UNREADABLE_NOTE =
   "This could not be read from the record. Check the record before giving food or drink.";
 
 const WITHHELD_NOTE =
-  "Not included: this information did not match the person. Check the record when Harbour is back.";
+  "Not included: this information did not match the person. Check the record when Thapsus Care is back.";
 
 /** Unknown severity sorts with severe: an unknown reaction is never shown as the mildest. */
 const SEVERITY_ORDER: Record<TransferAllergy["severity"], number> = {
@@ -692,7 +692,7 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
       "evacuation",
       "held_elsewhere",
       person.evacuation.asOf,
-      `Not kept in Harbour yet. Use ${evacuation.where}.`,
+      `Not kept in Thapsus Care yet. Use ${evacuation.where}.`,
     );
   else set("evacuation", "included", person.evacuation.asOf);
 
@@ -706,7 +706,7 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
       "medicines_due",
       "held_elsewhere",
       person.medicinesDue.asOf,
-      `Not kept in Harbour yet. Use ${medicinesDue.where}.`,
+      `Not kept in Thapsus Care yet. Use ${medicinesDue.where}.`,
     );
   else if (medicinesDue.status === "unreadable") {
     // Never a silent fallback to the paper MAR for someone whose medicines are on the eMAR.

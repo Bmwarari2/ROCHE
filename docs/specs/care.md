@@ -134,7 +134,7 @@ applies). Figures come from `rate_table` by key.
      has recorded hypercapnic respiratory failure for the person), air or oxygen (+2), systolic
      blood pressure, pulse, consciousness (alert, or new confusion, voice, pain, unresponsive) and
      temperature. Aggregate 0, 1 to 4, a single parameter scoring 3, 5 to 6, and 7 or more map to
-     the published clinical responses; the response text is the RCP wording, not Harbour advice.
+     the published clinical responses; the response text is the RCP wording, not Thapsus Care advice.
    - MUST (BAPEN): BMI score, unplanned weight loss in 3 to 6 months, acute disease effect; 0 low,
      1 medium, 2 or more high. In care homes screening repeats every
      `must.care_home.screening_interval_months` months; medium risk raises a
@@ -166,7 +166,7 @@ applies). Figures come from `rate_table` by key.
      organisation's for the tool (`escalationPolicyFor`), so a location's policy for every band
      wins over the organisation's policy for one band (for the CSO, H-163). They are resolved when
      the result is read, so a changed policy shows on old results too. The policy document must be
-     a current organisation document (available, its latest version). Harbour stores and shows the
+     a current organisation document (available, its latest version). Thapsus Care stores and shows the
      link only; it adds no recommendation of its own. The rule for the onboarding item
      `escalation_policies_linked` reads the links (`validatedToolsWithLinks`: linked when every
      band of the tool, at every location, finds a policy); the onboarding route that calls it is
@@ -1233,7 +1233,7 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
      records it, and again after each sync until the server has it (`upload_issue.server_copy`); an
      entry that cannot become a valid request, and one the server refuses, is marked refused,
      counted in the device's report (`copiesRefused`) and said in words on the needs-attention list,
-     as "Harbour has a copy" is once the server does. Entries a failed deletion left are not sent,
+     as "Thapsus Care has a copy" is once the server does. Entries a failed deletion left are not sent,
      because their deletion is on record. No screen shows a copy yet, so a copy never takes an
      entry off the device (H-134).
   6. **Hand-over of held entries** (permission `care.held_entry.hand_over`, step-up and MFA; the
@@ -1315,13 +1315,13 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
        device recorded deleting, one per entry (unique on table and id, migration 0045):
        `uploaded_after_deletion` (it arrived after its
        owner's device recorded deleting it) or `deleted_after_upload` (it had already reached
-       Harbour when the deletion was recorded as done), with the person, location, owner, the
+       Thapsus Care when the deletion was recorded as done), with the person, location, owner, the
        deletion record and the review task. It is written in the system's view when the flag of
        part 3 is raised, read like the entry (`app.person_visible`), append-only, and returned as
        `deviceDeletion` on every entry item, so a screen can show the flag on the entry itself, not
        only on the Registered Manager's task. The web shows it on the entry with an icon and words,
        and the fluid day counts flagged entries beside its totals (rule 6; H-165). The "already
-       reached Harbour" check reads this table instead of scanning audit events. Retention class
+       reached Thapsus Care" check reads this table instead of scanning audit events. Retention class
        `care_record`.
      - Migration 0044 fills both tables from the audit trail (each stage of each deletion once, the
        staff kept only when they are staff of the organisation; each flagged entry once).
@@ -1462,14 +1462,14 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   - The person's record tags only the first entry saved for a task from the round; once one waits
     to upload it says so and later entries do not answer the task (HZ-029).
   - The header counts the window's days from the last sync, since the last token fixed them.
-  - An entry for a task that Harbour refused is tied back to the task on the round (HZ-006).
+  - An entry for a task that Thapsus Care refused is tied back to the task on the round (HZ-006).
   - Demo mode seeds three round tasks and its member may mark them (a demo write scope).
   - From the clinical review of PR #123: every task, evidence ones included, offers "Not done" with
     a reason (H1); only the entry a task asks for completes it, never a note, and for a chart's
     task only that chart, in the API and on the phone (`isEvidenceFor`; re-check M3, H-423); a task
     is answered by one entry from this device, kept in the encrypted bookkeeping by member and task,
-    shown as "Sent, not marked done" when Harbour kept the entry but the task stays open, and
-    answerable again only once Harbour refuses that entry (M1 and the re-check); a task about someone whose record is not on the phone cannot be marked (M2); the
+    shown as "Sent, not marked done" when Thapsus Care kept the entry but the task stays open, and
+    answerable again only once Thapsus Care refuses that entry (M1 and the re-check); a task about someone whose record is not on the phone cannot be marked (M2); the
     person's name is in each button's spoken label and their communication needs show by name (M3,
     H-395); the header states the window from the token's own `offline_days`, in UK time, recorded
     only once a sync with that token completes (M4; re-check M2); the
@@ -1635,7 +1635,7 @@ drawn), HZ-029 (client ids on the remaining care create routes and the `Idempote
 and HZ-040 (coded reasons per organisation, the replay index and the flag on entries).
 Medical-device boundary: tools are calculated exactly as published and show the published
 responses; no prediction or tenant-authored scoring; the escalation policy is the organisation's
-own document, linked, never a Harbour recommendation (see
+own document, linked, never a Thapsus Care recommendation (see
 [medical-device-boundary.md](../compliance/medical-device-boundary.md)).
 
 ## 8. Data protection

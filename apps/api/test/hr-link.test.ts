@@ -302,7 +302,7 @@ describe("hazard HZ-133 matching never relies on a name (rule 3)", () => {
 });
 
 describe("hazard HZ-133 reconciliation puts back the owner's version (rule 2)", () => {
-  it("puts back Thapsus-HR's job title over Harbour's copy and records the drift", async () => {
+  it("puts back Thapsus-HR's job title over Thapsus Care's copy and records the drift", async () => {
     const [file] = await owner<{ job_title: string }>(
       "SELECT job_title FROM staff_profile WHERE id = $1",
       [FILES.carer],

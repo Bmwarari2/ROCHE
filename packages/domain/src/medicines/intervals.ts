@@ -142,9 +142,10 @@ export const PRN_NOTICES = {
     "No maximum in 24 hours is recorded for this medicine: the prescribed minimum interval applies. Ask the prescriber if you are unsure how much may be given in 24 hours.",
   maximumReached:
     "The most allowed in 24 hours has been given. Do not give more: contact the prescriber.",
-  notSynced: "The last dose shown was recorded on this device and has not reached Harbour yet.",
+  notSynced:
+    "The last dose shown was recorded on this device and has not reached Thapsus Care yet.",
   otherUnitNotCounted:
-    "Not counted: a dose of this medicine was recorded in a different unit. Harbour never converts units, so it is not in the 24-hour total. Check it with the nurse in charge.",
+    "Not counted: a dose of this medicine was recorded in a different unit. Thapsus Care never converts units, so it is not in the 24-hour total. Check it with the nurse in charge.",
 } as const;
 
 /** What the round shows beside a when-required medicine: last given, the 24-hour total and when next. */

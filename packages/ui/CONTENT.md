@@ -1,10 +1,10 @@
-# Harbour voice and tone
+# Thapsus Care voice and tone
 
-How Harbour writes. It applies to every word in the product: buttons, labels, errors, empty
+How Thapsus Care writes. It applies to every word in the product: buttons, labels, errors, empty
 states, notifications, emails, help text and the default copy in `@harbour/ui` components. It
 follows master prompt section 8 (content and tone) and section 5.4 (accessibility and language).
 
-People who read Harbour are care workers at the end of a long shift, registered managers under
+People who read Thapsus Care are care workers at the end of a long shift, registered managers under
 inspection, finance staff, and the families and residents themselves. Write so that each of them
 understands the first time, on a phone, with one hand.
 
@@ -38,7 +38,7 @@ understands the first time, on a phone, with one hand.
 
 ## Voice
 
-Calm, clear, kind and direct. Harbour sounds like an experienced senior carer: it knows the
+Calm, clear, kind and direct. Thapsus Care sounds like an experienced senior carer: it knows the
 job, it does not panic, and it never talks down to anyone.
 
 | We are | We are not |
@@ -83,7 +83,7 @@ Say what to do, in the person's terms. Put the message next to the field it is a
 | Enter the date as dd/mm/yyyy, for example 02/04/1938 | Invalid date format |
 | Enter all 10 digits of the NHS number | NHS number invalid |
 | This could not be sent. Your answers are still here, so you can try again. | Submission failed |
-| Harbour could not reach the server. Your changes are safe on this device. | Network error 503 |
+| Thapsus Care could not reach the server. Your changes are safe on this device. | Network error 503 |
 
 When something is our fault, say so and say what happens next. Never show stack traces, codes
 without words, or internal names.
@@ -121,7 +121,7 @@ Short and factual. Autosave status uses exactly these words: "Saving", "Saved",
 - Offline: "You are offline. You can keep working. Your changes are kept on this device and sent
   when you are back online."
 - Syncing: "Sending your changes."
-- Sync failed: "Your changes have not been sent yet. Harbour could not reach the server. Your
+- Sync failed: "Your changes have not been sent yet. Thapsus Care could not reach the server. Your
   changes are safe on this device." with "Try again".
 - Stale data: "This information may be out of date. Check when it was last updated before you act
   on it." with the time it was last updated.
@@ -154,7 +154,7 @@ needed later; anything important also appears on the page.
   in body text and in descriptions of two or more sentences.
 - Contractions are fine on staff screens if they read naturally; on family and resident surfaces
   prefer the full form ("you are", "do not"), which is easier for many readers and translators.
-- Avoid "please" in instructions; it adds length without meaning. Do say "sorry" when Harbour
+- Avoid "please" in instructions; it adds length without meaning. Do say "sorry" when Thapsus Care
   has let someone down.
 - Use "and", not "&", and avoid "e.g.", "i.e." and "etc." ("for example", "that is", or a list).
 - Abbreviations: spell out on first use on family surfaces ("Care Quality Commission (CQC)").

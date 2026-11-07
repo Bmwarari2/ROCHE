@@ -149,7 +149,7 @@ test("hazard HZ-005 hazard HZ-121 a medicine is transcribed, checked by another 
     .getByRole("button", { name: "Start a reconciliation" })
     .click();
   await manager.waitForURL(/\/medicines\/reconciliations\/[0-9a-f-]{36}/);
-  await expect(main(manager)).toContainText("Harbour decides nothing here.");
+  await expect(main(manager)).toContainText("Thapsus Care decides nothing here.");
   const sources = region(manager, "1. Sources");
   await sources.getByLabel("Kind of source").selectOption({ label: "Clinic letter" });
   await sources.getByLabel("Source reference").fill(`Clinic letter ${RUN}`);

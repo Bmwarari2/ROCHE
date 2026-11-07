@@ -44,7 +44,7 @@ describe("invitation state (PLAT-004)", () => {
     expect(invitationState(invitation, now)).toBe(state);
   });
 
-  it("lapses after the organisation's hours, never past the Harbour maximum", () => {
+  it("lapses after the organisation's hours, never past the Thapsus Care maximum", () => {
     expect(invitationExpiresAt(CREATED, 72, 168)).toEqual(EXPIRES);
     expect(invitationExpiresAt(CREATED, 2000, 72)).toEqual(EXPIRES);
     for (const hours of [0, -1, Number.NaN]) {

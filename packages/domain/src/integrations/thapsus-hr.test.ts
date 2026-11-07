@@ -403,7 +403,7 @@ describe("hazard HZ-133 a leaver's sign-in ends with their leaving day, even if 
 
 describe("hazard HZ-133 nobody is paid twice (rule 12)", () => {
   it.each([
-    ["Harbour's export, no change waiting", "harbour_export", null, null, "2026-11-01", true],
+    ["Thapsus Care's export, no change waiting", "harbour_export", null, null, "2026-11-01", true],
     ["Thapsus-HR's route", "thapsus_hr", null, null, "2026-11-01", false],
     [
       "a move to Thapsus-HR from next period, this period",
@@ -422,7 +422,7 @@ describe("hazard HZ-133 nobody is paid twice (rule 12)", () => {
       false,
     ],
     [
-      "a move back to Harbour, not yet in force",
+      "a move back to Thapsus Care, not yet in force",
       "thapsus_hr",
       "harbour_export",
       "2026-12-01",
@@ -473,7 +473,7 @@ describe("hazard HZ-133 a webhook outside the replay window is refused", () => {
   });
 });
 
-describe("hazard HZ-133 reconciliation finds where Harbour's copy drifted from the owner (rule 2)", () => {
+describe("hazard HZ-133 reconciliation finds where Thapsus Care's copy drifted from the owner (rule 2)", () => {
   const employee = (over: Partial<HrEmployee> = {}): HrEmployee => ({
     id: "emp_1",
     employeeNumber: "E1",

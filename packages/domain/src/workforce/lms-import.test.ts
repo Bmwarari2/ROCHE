@@ -154,7 +154,7 @@ describe("hazard HZ-124 WORK-006 rules 3 to 6 classifying rows", () => {
     ["the importer's own record", { learnerId: "L-900" }, "own_record"],
     ["a record id already imported", { recordId: "rec-old" }, "already_recorded"],
     [
-      "a Harbour record of the same topic and date",
+      "a Thapsus Care record of the same topic and date",
       { learnerId: "L-200", completedOn: "2026-03-01" },
       "already_recorded",
     ],

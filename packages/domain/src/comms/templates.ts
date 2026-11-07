@@ -320,7 +320,7 @@ function issue(problem: TemplateProblem, subjectText: string | null): TemplateIs
     unterminated_field: "A merge field is not closed. Close it with }}.",
     invalid_field_name: `'${name}' is not a merge field name. Use lower case, for example {{person.preferred_name}}.`,
     stray_closing_braces: "There is a }} without a {{ before it.",
-    unknown_field: `{{${name}}} is not a merge field Harbour knows. Choose one from the list.`,
+    unknown_field: `{{${name}}} is not a merge field Thapsus Care knows. Choose one from the list.`,
     subject_personal_data: `Email subjects cannot include personal details. Remove {{${name}}} from the subject.`,
     subject_multiline_field: `{{${name}}} can run over several lines, so it cannot go in a subject.`,
     letter_only_kind:

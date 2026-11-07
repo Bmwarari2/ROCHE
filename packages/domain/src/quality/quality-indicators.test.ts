@@ -107,7 +107,7 @@ describe("quality indicators (quality.md 17.3 rules 16 to 22; QUAL-005)", () => 
         undefined,
         full(0, 1500),
         target,
-        "Harbour does not know this indicator.",
+        "Thapsus Care does not know this indicator.",
       ],
       [
         "no value recorded",
@@ -187,7 +187,7 @@ describe("the quality dashboard (quality.md 22.2 rules 38 to 41; slice 47)", () 
     expect(rates.incidentReviewTargetDays).toBeGreaterThan(0);
   });
 
-  it("names a source for every indicator, and none for those Harbour does not record yet", () => {
+  it("names a source for every indicator, and none for those Thapsus Care does not record yet", () => {
     for (const definition of indicators) {
       expect(Object.hasOwn(INDICATOR_SOURCES, definition.key)).toBe(true);
     }

@@ -10,9 +10,9 @@ carers and care workers can raise a concern but cannot run the log.
 
 ## Open the log
 
-When a concern is raised about someone at your home, you are told straight away in Harbour: an
+When a concern is raised about someone at your home, you are told straight away in Thapsus Care: an
 urgent notification, "A safeguarding concern has been raised", and a task, "Decide on a
-safeguarding referral", due at the referral target. Harbour does not send it to your phone or
+safeguarding referral", due at the referral target. Thapsus Care does not send it to your phone or
 email yet. If no manager opens the concern, the next person in your organisation's escalation
 chain is told (by default the owner). Once a manager other than the one who raised it opens the
 concern, nobody further is told. Referring the concern, or recording why not, completes the task.
@@ -54,7 +54,7 @@ the only one, managers at your organisation's other homes are told.
 
 ## When a concern with protective measures will not end
 
-Before a concern with protective measures can be closed, or not referred, Harbour asks whether the
+Before a concern with protective measures can be closed, or not referred, Thapsus Care asks whether the
 measures were carried into the care plan or risk assessment, or are no longer needed, so they are
 never lost. If the step lists this under **Before you can do this:**, make sure the measures are in
 the care plan or risk assessment if they are still needed, then answer **What will happen to
@@ -65,7 +65,7 @@ the protective measures when the concern ends?** under **Update the record** and
 - The referral clock is your organisation's target, not a legal deadline: the law says without
   delay. An overdue concern alerts the managers of the log urgently, and again each day until it
   is referred or a reason not to refer is recorded.
-- Harbour never refers a concern, decides an enquiry or sends anything to the local authority, the
+- Thapsus Care never refers a concern, decides an enquiry or sends anything to the local authority, the
   Care Quality Commission or the Disclosure and Barring Service. You do that, then record it here.
 - Recording the referral here does not record the s.42 notification as submitted. If the concern
   came from one, a warning says the notification is still open. Record it as submitted (see

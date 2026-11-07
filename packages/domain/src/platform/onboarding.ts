@@ -64,7 +64,7 @@ export const ONBOARDING_ITEMS = [
   },
   {
     key: "rates_reviewed",
-    title: "Other settings Harbour chose for you are reviewed",
+    title: "Other settings Thapsus Care chose for you are reviewed",
     requiredForGoLive: false,
     guide: "review-settings",
   },
@@ -391,7 +391,7 @@ function ratesItem(state: OnboardingState): Outcome {
   return pending.length === 0
     ? {
         done: true,
-        reason: "Every other setting Harbour chose for you has been reviewed.",
+        reason: "Every other setting Thapsus Care chose for you has been reviewed.",
         outstanding: [],
       }
     : {
@@ -417,7 +417,7 @@ function clinicalSettingsItem(state: OnboardingState): Outcome {
 }
 
 /** A fact Harbour does not record yet is not known, so the item cannot be done (fail closed). */
-const NOT_YET_RECORDED = "Harbour does not record this yet, so it cannot be checked.";
+const NOT_YET_RECORDED = "Thapsus Care does not record this yet, so it cannot be checked.";
 
 function devicesItem(state: OnboardingState): Outcome {
   if (state.devices === null) return { done: false, reason: NOT_YET_RECORDED, outstanding: [] };
@@ -570,7 +570,7 @@ function dpiaItem(state: OnboardingState): Outcome {
     case "not_started":
       return {
         done: false,
-        reason: "Start the DPIA: Harbour has filled in what it can.",
+        reason: "Start the DPIA: Thapsus Care has filled in what it can.",
         outstanding: [],
       };
   }
@@ -739,7 +739,7 @@ export function checkSettingDecision(input: {
   if (!input.isTenantDefault) {
     return {
       problem: "not_a_tenant_default",
-      message: "This is not a setting Harbour chose for you.",
+      message: "This is not a setting Thapsus Care chose for you.",
     };
   }
   if (input.kind === "set" && !input.hasOwnSetting) {
@@ -792,7 +792,7 @@ export function checkRetentionDecision(input: {
       problem: "kind_not_for_class",
       message: byPolicy
         ? "Your policy sets this period: set it, or mark this kind of record not used."
-        : "Accept Harbour's period for this kind of record, or lengthen it.",
+        : "Accept Thapsus Care's period for this kind of record, or lengthen it.",
     };
   }
   if ((kind === "lengthened" || kind === "period_set") && own === null) {
@@ -804,7 +804,7 @@ export function checkRetentionDecision(input: {
   if (kind === "lengthened" && own !== null && monthsOf(own) <= monthsOf(schedule)) {
     return {
       problem: "not_longer",
-      message: "Your period must be longer than Harbour's; otherwise accept it.",
+      message: "Your period must be longer than Thapsus Care's; otherwise accept it.",
     };
   }
   return null;

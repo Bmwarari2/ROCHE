@@ -1,7 +1,7 @@
 # How to pay staff through the HR platform
 
-Choose whether pay goes to payroll through Harbour's payroll export or through your HR platform,
-and map the pay codes. When the HR platform pays, Harbour sends hours and other units by pay code,
+Choose whether pay goes to payroll through Thapsus Care's payroll export or through your HR platform,
+and map the pay codes. When the HR platform pays, Thapsus Care sends hours and other units by pay code,
 never money, and the HR platform applies the rates.
 
 **Who can do this**: people who manage the link change the route; pay codes are set by someone who
@@ -29,7 +29,7 @@ both manages the link and approves pay.
   run; it cannot be overridden.
 - A run cannot be locked until every kind of unit has a pay code and everyone in it is matched. The
   pay codes in force when it is locked are the ones sent.
-- If the link is off when you draft a run for a period set to the HR platform, Harbour asks you to
+- If the link is off when you draft a run for a period set to the HR platform, Thapsus Care asks you to
   wait or confirm the payroll export instead. Only someone who approves pay can confirm it, after
   confirming it is them; the run then pays through the export.
 - Pay through the HR platform is not available until the HR platform offers it.

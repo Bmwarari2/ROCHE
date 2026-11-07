@@ -79,7 +79,7 @@ test("hazard HZ-022 nothing is shared until a decision is in force, and suspendi
 
   await page.goto(PATH);
   await expect(page.getByRole("heading", { level: 2, name: "Sharing" })).toBeVisible();
-  await expect(page).toHaveTitle("Sharing | Residents | Harbour");
+  await expect(page).toHaveTitle("Sharing | Residents | Thapsus Care");
   expect(await page.title()).not.toContain("Frank");
 
   // Closed by default: every section, with the reason in words and an icon.

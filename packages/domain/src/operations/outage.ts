@@ -32,7 +32,7 @@ export type OutageKind = (typeof OUTAGE_KINDS)[number];
 export const OUTAGE_KIND_LABELS: Readonly<Record<OutageKind, string>> = {
   power: "Power cut",
   network: "Internet or network failure",
-  harbour_unavailable: "Harbour unavailable",
+  harbour_unavailable: "Thapsus Care unavailable",
   device_failure: "Devices not working",
   planned_maintenance: "Planned maintenance",
   other: "Other outage",
@@ -415,7 +415,7 @@ export function backEntryLabel(entry: {
     : entry.outsideReason
       ? `outside the declared outage (${entry.outsideReason})`
       : "outside the declared outage";
-  return `${written} ${context}. Entered in Harbour ${formatUkDateTime(entry.recordedAt)} on the device, received ${formatUkDateTime(entry.receivedAt)}.`;
+  return `${written} ${context}. Entered in Thapsus Care ${formatUkDateTime(entry.recordedAt)} on the device, received ${formatUkDateTime(entry.receivedAt)}.`;
 }
 
 /** Checks a record entered from a paper downtime form. */

@@ -1,10 +1,10 @@
-# Harbour Care Platform — Claude Code Master Build Prompt
+# Thapsus Care Care Platform — Claude Code Master Build Prompt
 
 Oct 9, 2026 · @bm
 
 ## How to use this document
 
-This is the complete hand-off pack for building Harbour, an end-to-end management platform for UK social care providers. Part A (sections 1–2) is for you: the feature inventory and what was added beyond the original brief. Part B (sections 3–20) is the prompt itself, written to be read by Claude Code. Part C holds the research and sources behind the decisions.
+This is the complete hand-off pack for building Thapsus Care, an end-to-end management platform for UK social care providers. Part A (sections 1–2) is for you: the feature inventory and what was added beyond the original brief. Part B (sections 3–20) is the prompt itself, written to be read by Claude Code. Part C holds the research and sources behind the decisions.
 
 **To hand it to Claude Code**
 
@@ -16,7 +16,7 @@ This is the complete hand-off pack for building Harbour, an end-to-end managemen
 
 - Scope is UK adult social care, England-first (CQC-regulated), with Wales, Scotland and Northern Ireland handled by configuration. Service types covered: residential care homes, nursing homes, supported living, domiciliary (home care) and complex care at home. Children's homes (Ofsted-regulated) are listed as a later module, not built in Phase 1.
 - The product is multi-tenant: each care provider is a tenant with its own locations, staff and data, so one codebase serves every client with per-client feature flags (including the AI module).
-- "Harbour" is a working codename. Search-and-replace it with the final product name before the first external release.
+- The product is called Thapsus Care ([ADR-0127](decisions/0127-product-name-thapsus-care.md)). "Harbour", the working codename, stays only in technical identifiers (packages, environment variables, database roles, cloud resources, bundle ids).
 - Diagrams are written as Mermaid code blocks rather than pictures so they survive the Markdown export and can be read by Claude Code.
 - Thapsus owns the codebase and licenses it per client; nothing here assumes a public SaaS marketplace listing.
 
@@ -40,7 +40,7 @@ The prompt specifies 14 areas, about 190 features, across web, iOS and Android, 
 | Finance (14) | Per-person funding mix (LA, FNC, CHC, s.117, self, top-ups, DP, ISF, PHB) with versioned rates; regulated top-up agreements; commissioner contracts (block, spot, framework); CMA-aligned self-funder terms; DWP 28-day flags and personal expenses allowance; deferred payment records; charge generation and pro-rata; invoices, credit notes, Direct Debit; council portal export and three-way reconciliation; FNC and CHC claims; debtors; accounting sync with VAT exemption handling; residents' personal ledgers with two-signature controls; appointee and deputy reporting; valuables; petty cash; location P&L, occupancy and fee analytics, home-care unit economics, purchasing, payroll costing | 3 |
 | Communication and portals (15.1) | Family portal and app mode (updates, consented care plan, visit booking, messaging, invoices, surveys, documents); person's own portal (About Me, feedback); time-limited professional access; internal messaging and announcements; handover acknowledgement; letter templates; optional public website module with vacancies and fees | 1, 4 |
 | Reporting and integrations (15.2–15.3) | Role dashboards; governed report builder; opt-in benchmarks; statutory outputs; warehouse export; adapters for GP Connect, PDS, CIS2, NHSmail, pharmacy and dm+d, council portals, payroll and accounts, IDSP and DBS, SCORM, nurse call and sensors, lone-worker devices, Bluetooth vitals, communications, directories, e-signature and OCR, public API | 1–6 |
-| AI Management Copilot (16) | Optional, off by default, per-tenant provider choice: Ask Harbour over governed data; draft handovers, reports, letters, policies and notification wording; deterministic compliance monitor with plain-English explanations; inspection preparation; rota suggestions; finance commentary; voice-to-text structuring; guardrails: no clinical reasoning, no automated decisions, pseudonymisation, UK or EU-geo inference, full audit, evaluation and red-team suite, kill switch | 6 |
+| AI Management Copilot (16) | Optional, off by default, per-tenant provider choice: Ask Thapsus Care over governed data; draft handovers, reports, letters, policies and notification wording; deterministic compliance monitor with plain-English explanations; inspection preparation; rota suggestions; finance commentary; voice-to-text structuring; guardrails: no clinical reasoning, no automated decisions, pseudonymisation, UK or EU-geo inference, full audit, evaluation and red-team suite, kill switch | 6 |
 | Mobile apps (17) | One Expo codebase, iOS and Android, Care, Manage, Family and Kiosk modes; full offline for notes, charts, eMAR, incidents, rota, visits and training; SQLCipher store, biometric lock, remote wipe, root detection, screenshot blocking; store compliance (privacy labels, health declarations, account deletion, iOS 26 SDK, API 36); public or private distribution; phased rollouts | 1–4 |
 
 ### 2. What your brief did not mention, and why it is in the prompt
@@ -52,7 +52,7 @@ Your brief asked for an end-to-end system, GDPR compliance, all care types, iOS 
 | Multi-tenant architecture with per-client feature flags | Lets Thapsus sell one product to many providers and switch modules (incl. AI) on per client without forks | 4, 6, 9.1 |
 | Clinical safety (DCB0129) and a named Clinical Safety Officer | Required to join the NHS assured DSCR supplier list and expected by councils buying care tech; also the discipline that stops a medication bug hurting someone | 5.2 |
 | NHS assured DSCR roadmap: MODS, PRSB, dm+d, GP Connect, DSPT, Cyber Essentials Plus, ISO 27001, annual pen test | About 80% of providers already use a DSCR; councils fund only assured products; the IG uplift from 1 Sept 2026 makes ISO 27001 mandatory for assured suppliers | 5.3, 15.3, 19 |
-| Medical-device boundary | If Harbour (or its AI) applied automated reasoning to clinical data it would be regulated by the MHRA as software as a medical device; the prompt keeps every feature on the right side of that line | 5.2, 16.2 |
+| Medical-device boundary | If Thapsus Care (or its AI) applied automated reasoning to clinical data it would be regulated by the MHRA as software as a medical device; the prompt keeps every feature on the right side of that line | 5.2, 16.2 |
 | Offline-first mobile with encrypted local store | Connectivity is a barrier for 40% of providers and poor offline behaviour is the top complaint about existing products | 6, 17 |
 | Full electronic MAR with controlled-drugs register | Medicines are the most inspected area in adult social care; a care system without eMAR forces a second product | 10.2 |
 | Mental capacity, best interests and DoLS register | Reg 11 consent and DoLS notifications are inspected; the law changed on 2 June 2026 so the workflow is configurable | 10.4 |
@@ -82,9 +82,9 @@ Your brief asked for an end-to-end system, GDPR compliance, all care types, iOS 
 
 ### 3. Mission, context and how to read this
 
-You are the founding engineering team for **Harbour**, a multi-tenant platform that runs a UK adult social care provider end to end: from the first enquiry to the last invoice, and from the founder's board report to the carer's 7 a.m. medication round. Harbour is built and owned by Thapsus Cargo Ltd (trading as Thapsus) and licensed to care providers as a subscription. Everything you build must be safe for the people being cared for, defensible to the Care Quality Commission (CQC) and the Information Commission, and usable by a care worker on a cracked Android phone in a basement with no signal.
+You are the founding engineering team for **Thapsus Care**, a multi-tenant platform that runs a UK adult social care provider end to end: from the first enquiry to the last invoice, and from the founder's board report to the carer's 7 a.m. medication round. Thapsus Care is built and owned by Thapsus Cargo Ltd (trading as Thapsus) and licensed to care providers as a subscription. Everything you build must be safe for the people being cared for, defensible to the Care Quality Commission (CQC) and the Information Commission, and usable by a care worker on a cracked Android phone in a basement with no signal.
 
-**Your goal**: build the complete Harbour platform described in sections 4–18 (every feature in Part A, all eight phases, web, iOS and Android) to the definition of complete in section 19, and keep working until it is reached. You do not stop for approvals. Regulatory sign-offs, certifications and assurance submissions are Brian's work after the build; your job is to produce the code, tests, documentation and evidence they need. The only acceptable pause is a hard technical blocker that no default in this document resolves, and even then you log it in `docs/plans/human-actions.md`, build against a mock and continue with the next item.
+**Your goal**: build the complete Thapsus Care platform described in sections 4–18 (every feature in Part A, all eight phases, web, iOS and Android) to the definition of complete in section 19, and keep working until it is reached. You do not stop for approvals. Regulatory sign-offs, certifications and assurance submissions are Brian's work after the build; your job is to produce the code, tests, documentation and evidence they need. The only acceptable pause is a hard technical blocker that no default in this document resolves, and even then you log it in `docs/plans/human-actions.md`, build against a mock and continue with the next item.
 
 **Who uses it**
 
@@ -159,7 +159,7 @@ These are acceptance criteria for every phase, not a later hardening pass. Each 
 - Data-subject rights tooling: a DSAR workbench for residents, families and staff that collects every record about a person across modules, redacts third parties, tracks the one-month clock (extendable to three months), pauses the clock while awaiting ID or clarification, and exports a bundle. Rectification, erasure (where retention law allows) and portability are built in.
 - Breach register with a 72-hour ICO clock, severity assessment, and a template to notify data subjects; processor-to-controller notification is automatic in-app.
 - Complaints route: in-product data-protection complaint form, 30-day acknowledgement, outcome tracking (duty live since 19 June 2026).
-- Automated decisions: Harbour never makes solely automated significant decisions about people. The AI module (section 16) is advisory only and respects Arts 22A–D.
+- Automated decisions: Thapsus Care never makes solely automated significant decisions about people. The AI module (section 16) is advisory only and respects Arts 22A–D.
 - A DPIA template is pre-filled for each tenant from their configuration; the tenant's DPO (or named lead) signs it in-app before go-live. DPO details, Caldicott Guardian and SIRO roles are recorded per tenant.
 - Retention engine: a per-record-type schedule with legal holds. Defaults: care records and MAR charts 8 years after care ends (NHS Records Management Code; CQC sets no period), controlled drugs registers 2 years from last entry (statutory), complaints 10 years, serious incidents 20 years, RIDDOR 3 years, staff files 6 years after leaving or to the 75th birthday, whichever the tenant selects under the Code, training records 10 years, rosters and timesheets 6 years (NMW record-keeping), working-time opt-outs and records 2 years, financial records 6 years, CCTV per the tenant's policy. Deletion is soft, then cryptographically shredded after the schedule, with a destruction certificate.
 - Data portability out: a tenant can export their full dataset (CSV and JSON, with documents) at any time, free, in a documented schema (also satisfies the DSCR data-migration standard). Being charged for your own data is a competitor complaint we will never earn.
@@ -170,7 +170,7 @@ These are acceptance criteria for every phase, not a later hardening pass. Each 
 
 - Maintain a clinical risk management plan, a hazard log (`docs/clinical-safety/hazard-log.md`, exported to the regulator's format), and a clinical safety case report per release. Thapsus names a Clinical Safety Officer (a registered clinician; see Appendix). Tenants are offered a DCB0160 deployment template.
 - Hazards that must be in the log from day one: wrong-person record selection, stale offline data shown as current, missed or duplicated medication administration, unit or dose transcription errors, alert fatigue, silent sync failure, incorrect allergy display, time-zone and daylight-saving errors on time-critical medicines.
-- Medical-device boundary: Harbour stores, displays and transmits care information and applies rules the tenant configures. It must not apply automated reasoning to produce a diagnosis, prognosis, risk score or treatment recommendation. Validated tools (NEWS2, MUST, Waterlow) are calculated exactly as published, show the formula, and link to the tenant's escalation policy. Record this boundary in `docs/compliance/medical-device-boundary.md` and re-check it in every PR that touches clinical features.
+- Medical-device boundary: Thapsus Care stores, displays and transmits care information and applies rules the tenant configures. It must not apply automated reasoning to produce a diagnosis, prognosis, risk score or treatment recommendation. Validated tools (NEWS2, MUST, Waterlow) are calculated exactly as published, show the formula, and link to the tenant's escalation policy. Record this boundary in `docs/compliance/medical-device-boundary.md` and re-check it in every PR that touches clinical features.
 
 **5.3 Security**
 
@@ -594,7 +594,7 @@ The `workforce` context covers the whole employee journey (recruit, vet, train, 
 
 ### 13. Module specifications: operations
 
-The `operations` context runs the building, the kitchen, the visits and the home-care rounds. These modules are what make Harbour an operating system rather than a care-record.
+The `operations` context runs the building, the kitchen, the visits and the home-care rounds. These modules are what make Thapsus Care an operating system rather than a care-record.
 
 **13.1 Occupancy, enquiries and admissions (residential and nursing)**
 
@@ -668,7 +668,7 @@ The `operations` context runs the building, the kitchen, the visits and the home
 
 ### 14. Module specifications: finance
 
-The `finance` context models how care is paid for, bills every funder correctly, protects residents' own money, and gives the founder a true picture of each location. Accounting ledgers and payroll stay in Xero, Sage or QuickBooks; Harbour feeds them.
+The `finance` context models how care is paid for, bills every funder correctly, protects residents' own money, and gives the founder a true picture of each location. Accounting ledgers and payroll stay in Xero, Sage or QuickBooks; Thapsus Care feeds them.
 
 **14.1 Funding and contracts**
 
@@ -763,7 +763,7 @@ The `ai` context is a management assistant, not a clinician. It is enabled per t
 
 | Capability | What it does | Human control |
 | --- | --- | --- |
-| Ask Harbour | Natural-language questions over the tenant's own data ("who is overdue a supervision in Oak Unit?", "show falls at night in the last 90 days") answered by generating governed queries against the semantic layer, never by reading raw tables; every answer shows its data source and count | Results are the same the user could reach by clicking; permissions applied before retrieval |
+| Ask Thapsus Care | Natural-language questions over the tenant's own data ("who is overdue a supervision in Oak Unit?", "show falls at night in the last 90 days") answered by generating governed queries against the semantic layer, never by reading raw tables; every answer shows its data source and count | Results are the same the user could reach by clicking; permissions applied before retrieval |
 | Summaries | Draft shift handover, incident narrative, weekly manager report, family update from structured records; clearly labelled "draft generated from records" | User edits and signs; the original records remain the source of truth |
 | Drafting | Policies from templates, letters (fee review, incident follow-up), job adverts, supervision notes from bullet points, CQC notification wording from an incident record, PIR narrative suggestions mapped to evidence | Approval workflow; drafts are never sent automatically |
 | Compliance monitor | Rule-based engine (not the model) finds overdue, missing or inconsistent items; the model explains the gap in plain English and suggests the next action, linking the regulation | Advisory list; the rule engine is deterministic and tested |
@@ -774,7 +774,7 @@ The `ai` context is a management assistant, not a clinician. It is enabled per t
 
 **16.2 Guardrails (enforced in code, tested, and documented in the DPIA)**
 
-- **Scope lock**: prompts carry a system policy forbidding diagnosis, prognosis, risk scoring, treatment or medication recommendations and clinical interpretation; a classifier blocks clinical questions and routes the user to the right tool or clinician. This keeps Harbour outside the MHRA definition of a medical device and inside the DHSC "Using AI in adult social care" guidance (September 2026): human review of every output, named accountability, no identifiable data in uncontracted tools.
+- **Scope lock**: prompts carry a system policy forbidding diagnosis, prognosis, risk scoring, treatment or medication recommendations and clinical interpretation; a classifier blocks clinical questions and routes the user to the right tool or clinician. This keeps Thapsus Care outside the MHRA definition of a medical device and inside the DHSC "Using AI in adult social care" guidance (September 2026): human review of every output, named accountability, no identifiable data in uncontracted tools.
 - **No automated decisions**: outputs are drafts or suggestions; no workflow state changes on model output alone (UK GDPR Arts 22A–D).
 - **Data minimisation**: pseudonymise names, NHS numbers, dates of birth and addresses before sending to the model, re-identify in the response locally; free-text notes are sent only for tenants who enable it; attachments and photos are never sent.
 - **Residency and retention**: default provider is Amazon Bedrock in London with in-Region models; Claude is available via Bedrock EU-geo cross-region inference or the Anthropic API with zero data retention under a signed agreement, and both appear in the sub-processor register with the geography stated; tenants may bring their own key; no provider may train on tenant data.
@@ -907,7 +907,7 @@ erDiagram
 | `framework_version`, `evidence_link`, `audit` | framework (CQC 2024 SAF, CQC KLOE framework, date to be confirmed, CIW, CI, RQIA), statement or KLOE code, score 1–4, evidence refs | Versioned mappings |
 | `audit_event` | actor, action, resource type and id, scope, before/after hash, ip, device, reason | Append-only, pgAudit mirrored |
 
-**Data-standard alignment**: generate a `docs/specs/data-standards.md` mapping Harbour fields to MODS, PRSB About Me and PCSP, dm+d, SNOMED CT codes used, NHS Data Dictionary codes for ethnicity and sex, and the DSCR migration schema. Treat that document as the contract for import and export.
+**Data-standard alignment**: generate a `docs/specs/data-standards.md` mapping Thapsus Care fields to MODS, PRSB About Me and PCSP, dm+d, SNOMED CT codes used, NHS Data Dictionary codes for ethnicity and sex, and the DSCR migration schema. Treat that document as the contract for import and export.
 
 **Statutory figures**: every rate or threshold that the law changes (NMW and NLW bands, SSP, FNC, personal expenses allowance, capital limits, sponsor salary floor, auto-enrolment trigger, holiday accrual percentage, AWR qualifying weeks, commissioner tolerance windows) lives in a dated `rate_table` with `valid_from` and `valid_to`, seeded from `docs/specs/rates.md`. Application code never contains such a figure; tests assert against the table, not a literal.
 
@@ -917,7 +917,7 @@ Build in vertical slices a real care home can use, in the order below, and keep 
 
 ```mermaid
 gantt
-  title Harbour delivery phases (indicative)
+  title Thapsus Care delivery phases (indicative)
   dateFormat  YYYY-MM-DD
   axisFormat  %b %Y
   section Foundations
@@ -1005,7 +1005,7 @@ Human follow-ups (CSO signature, DPO approval, Cyber Essentials Plus, ISO 27001,
 **Kickoff message to paste into Claude Code** (copy exactly, after saving this document as `docs/00-MASTER-PROMPT.md` in an empty Git repository):
 
 ```markdown
-You are building Harbour, a multi-tenant platform for UK adult social care providers, for Thapsus Cargo Ltd.
+You are building Thapsus Care, a multi-tenant platform for UK adult social care providers, for Thapsus Cargo Ltd.
 
 Read docs/00-MASTER-PROMPT.md in full before doing anything else. It is the master specification: Part B (sections 3 to 20) is addressed to you. Treat sections 5 (non-negotiables), 6 (architecture), 7 (repository and version control), 19 (definition of complete) and 20 (working agreement) as hard constraints.
 
@@ -1033,7 +1033,7 @@ Claude Code applies the default in the third column without waiting for an answe
 
 | Decision | Options | Default if undecided | Takes effect |
 | --- | --- | --- | --- |
-| Product name and domain | Keep "Harbour" or choose another; check UK trade mark register and app store name availability | Harbour (working name) | Phase 0 |
+| Product name and domain | Thapsus Care (owner decision, ADR-0127); check UK trade mark register and app store name availability (H-1511) and choose the domain (H-1512) | Thapsus Care; "Harbour" stays in technical identifiers | Before the first external release |
 | First target segment | Residential and nursing homes first (Phase 1 as written); or home care first (swap Phases 1 and 4) | Residential first: richer regulation, higher spend per site, your reference clients are more likely to be homes | Phase 0 |
 | Design-partner provider | A real care home or agency that uses staging weekly and signs a pilot agreement; without one the product will be built to the regulations, not to a Tuesday night shift | Build demo tenant only | Phase 1 |
 | Clinical Safety Officer | Contract a registered nurse or clinician trained in clinical risk management (part-time is normal); required to sign the safety case for DSCR assurance | Build the hazard log and draft the safety case anyway; CSO signature is a precondition for a real tenant going live and for any assurance submission | Phase 1 gate |
