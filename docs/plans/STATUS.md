@@ -176,7 +176,8 @@ H-1411 provisional. Follow-ups:
 - HZ-120: store the current-medicines confirmation on the homely remedy dose (an API field; H-1410).
 - Accessibility (minor): unit plurals ("56 tablet"), page titles unique per record, corrections
   shown struck through, keyboard-only steps in the three journeys, the period error summary linked
-  to its fields, the flag words for homely remedy doses taken from the API.
+  to its fields, the flag words for homely remedy doses taken from the API, a warning on the PRN
+  report when communication needs cannot be read.
 
 **Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
 recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
