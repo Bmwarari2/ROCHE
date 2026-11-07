@@ -55,7 +55,8 @@ episode, and the DPIA section 7B for Phase 2).
    Postgres. Ask the clinical reviewer to confirm that a device-signed dose at a home where
    recording is off gets the audited 409 and becomes a refused entry with an urgent review.
    `3fe419cd` also records the CD witness schema correction in `openapi-breaking-ignore.txt`. The
-   null alternative the API never accepted is no longer in the document.
+   null alternative the API never accepted is no longer in the document. All of CI passed on `3fe419cd`
+   before #187 merged.
 2. **#197** (H-1555, `fix/scheduling-clock-evidence-dpia`, `5df65b77`, label `data-protection`).
    A security fix: clock evidence and lone-worker location only under a signed DPIA. Renumber its
    migration after #188. Two DPO decisions are noted in the PR.
@@ -83,6 +84,10 @@ episode, and the DPIA section 7B for Phase 2).
   narrower incident permission) is not started.
 - `docs/guides-medicines-phone` at `9c2b6178`: the 7 phone guides for slices 69 and 70. Rebase
   them after #188 merges.
+
+**The Thapsus suite plan** (Finance, CRM and ERP, and how Care joins): `docs/plans/thapsus-suite.md`
+and slices S.1 to S.6 for Care are on branch `claude/thapsus-systems-dev-plan-2rkfaj`, with no
+pull request. Nothing is scheduled until the owner approves the plans.
 
 **Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
 phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
