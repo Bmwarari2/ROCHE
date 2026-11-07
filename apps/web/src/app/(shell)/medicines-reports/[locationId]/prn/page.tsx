@@ -5,6 +5,7 @@ import { PeriodForm } from "@/components/medicines/errors/PeriodForm";
 import { ReportFrame, ReportRefused } from "@/components/medicines/errors/ReportFrame";
 import { ReportTable } from "@/components/medicines/errors/ReportTable";
 import { reportLocation, reportProblem } from "@/components/medicines/errors/report-location";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -47,6 +48,13 @@ export default async function PrnReportPage({
   if (problem?.kind === "forbidden") return <SafetyForbidden title={title} />;
   if (read && !read.data && !problem) failWith(read.error, read.response, href);
   const report = read?.data;
+  // Communication needs under each person named (AIS; accessibility review).
+  const people = report
+    ? await api.GET("/v1/people", { params: { query: { locationId: location.id } } })
+    : null;
+  const needsFor = Object.fromEntries(
+    (people?.data?.items ?? []).map((p) => [p.id, <PersonNeeds key={p.id} person={p} />]),
+  );
 
   return (
     <ReportFrame
@@ -79,6 +87,7 @@ export default async function PrnReportPage({
               t("medicines.errors.prn.column", { column: "psychotropicPrnGiven" }),
             ]}
             rows={usageRows(report, t)}
+            needsFor={needsFor}
             empty={t("medicines.errors.prn.empty")}
           />
         </>

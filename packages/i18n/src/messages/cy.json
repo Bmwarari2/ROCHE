@@ -488,6 +488,7 @@
   "medicines.stock.reading.range": "The range was {low, number} to {high, number} degrees Celsius.",
   "medicines.stock.reading.rangeUpTo": "The range was up to {high, number} degrees Celsius.",
   "medicines.stock.reading.record": "Record a reading",
+  "medicines.stock.reading.recordedState": "The reading just recorded",
   "medicines.stock.reading.submit": "Record reading",
   "medicines.stock.reading.taskRaised": "A task was raised for this reading. See the tasks list for what it asks.",
   "medicines.stock.reading.title": "Temperature readings",

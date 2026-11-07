@@ -57,13 +57,15 @@ export default async function HomelyRemediesPage({
   if (problemCode(read.error) === "missing_permission") return <SafetyForbidden title={title} />;
   if (!read.data) failWith(read.error, read.response, protocolsHref(locationId));
   const manage = mayManageProtocols(me.permissions);
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  const at = firstParam(query.at) ?? "first";
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader eyebrow={location.name} title={title} description={t("medicines.homely.intro")} />
       {done && DONE.has(done) ? (
-        <ArrivalNotice>{t("medicines.homely.done", { done })}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.homely.done", { done })}</ArrivalNotice>
       ) : null}
       {manage ? (
         <p className="m-0">

@@ -301,7 +301,7 @@ export function RecordReadingForm({
   const ids = useFieldIds(["celsius", "minCelsius", "maxCelsius"]);
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const stateRef = useRef<HTMLDivElement>(null);
+  const stateRef = useRef<HTMLElement>(null);
   const [recorded, setRecorded] = useState<{
     readonly reading: TemperatureReading;
     readonly message: string;
@@ -354,29 +354,30 @@ export function RecordReadingForm({
         focusOnSuccess={stateRef}
       />
       {/* The reading's state and figures take focus, so they are read out (HZ-132). */}
-      <div ref={stateRef} tabIndex={-1} className="flex flex-col gap-1">
-        {recorded && chip && result?.ok ? (
-          <>
-            <p className="m-0 flex flex-wrap items-center gap-2">
-              <StatusChip status={chip.status} label={chip.label} icon={chip.icon} />
-              <span>
-                {t("medicines.stock.reading.value", { celsius: recorded.reading.celsius })}
-              </span>
+      {recorded && chip && result?.ok ? (
+        <section
+          ref={stateRef}
+          tabIndex={-1}
+          aria-label={t("medicines.stock.reading.recordedState")}
+          className="flex flex-col gap-1"
+        >
+          <p className="m-0 flex flex-wrap items-center gap-2">
+            <StatusChip status={chip.status} label={chip.label} icon={chip.icon} />
+            <span>{t("medicines.stock.reading.value", { celsius: recorded.reading.celsius })}</span>
+          </p>
+          <p className="m-0">{rangeWords(recorded.reading, t)}</p>
+          {recorded.reading.minCelsius !== null ? (
+            <p className="m-0">
+              {t("medicines.stock.reading.minSince", { celsius: recorded.reading.minCelsius })}
             </p>
-            <p className="m-0">{rangeWords(recorded.reading, t)}</p>
-            {recorded.reading.minCelsius !== null ? (
-              <p className="m-0">
-                {t("medicines.stock.reading.minSince", { celsius: recorded.reading.minCelsius })}
-              </p>
-            ) : null}
-            {recorded.reading.maxCelsius !== null ? (
-              <p className="m-0">
-                {t("medicines.stock.reading.maxSince", { celsius: recorded.reading.maxCelsius })}
-              </p>
-            ) : null}
-          </>
-        ) : null}
-      </div>
+          ) : null}
+          {recorded.reading.maxCelsius !== null ? (
+            <p className="m-0">
+              {t("medicines.stock.reading.maxSince", { celsius: recorded.reading.maxCelsius })}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
     </form>
   );
 }

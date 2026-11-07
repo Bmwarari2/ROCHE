@@ -1307,6 +1307,7 @@
     "medicines.stock.reading.range",
     "medicines.stock.reading.rangeUpTo",
     "medicines.stock.reading.record",
+    "medicines.stock.reading.recordedState",
     "medicines.stock.reading.submit",
     "medicines.stock.reading.taskRaised",
     "medicines.stock.reading.title",

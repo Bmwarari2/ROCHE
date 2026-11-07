@@ -1926,15 +1926,20 @@ stands, the staff ticked, a new reason, the version read) and withdraws one (`..
 with a reason and the version read). A withdrawn protocol offers neither.
 
 **A person's homely remedies** (`/people/{id}/medicines/homely-remedies`, in the record's medicines
-tab) list the doses given, newest first: the product, the amount and unit, when, why, "Given by you"
+tab) list the doses given, newest first: the product, the amount and unit ("quantity not
+recorded" when there is none, never zero), when, why, "Given by you"
 for the reader's own, when and why a dose was recorded afterwards, and any flags in words. A dose
 entered in error stays, struck through, with an "Entered in error" chip and the reason. Someone who
 may give homely remedies at the person's home sees "Give a homely remedy": the person and every
-allergy (`PersonCheck`), the home's protocols in use, the chosen protocol's figures beside it, and
-the amount (the protocol's dose filled in). "Check against the protocol" asks the API
+allergy (`PersonCheck`), the person's current medicines on the MAR (stopped, replaced and withdrawn
+left out; if they cannot be read, a warning to check the MAR), the home's protocols in use, the
+chosen protocol's figures beside it (with a warning when the protocol has no dm+d product, so Harbour
+cannot check it against the MAR), and the amount (the protocol's dose filled in). "Check against the protocol" asks the API
 (`POST .../homely-remedy-doses/check`) and shows its answer in its words; only a dose the check found
 within the protocol, for the same protocol and amount, offers why it is given, the allergy
-confirmation and "Record the dose".
+confirmation, the confirmation that the remedy was compared with the current medicines (HZ-120: the
+API matches only the same product, never an ingredient) and "Record the dose". The second
+confirmation is checked on the web only and not yet stored with the dose (H-1410).
 
 #### Rules
 
@@ -1996,7 +2001,7 @@ confirmation and "Record the dose".
   `hazard HZ-120 reading the protocol form` (every field refusal, table-driven; the rate table's
   limits left to the API), `hazard HZ-120 hazard HZ-007 checking and recording a dose` (amounts never
   rounded; allergies confirmed; never sent as already given; the API's words; a new check after a
-  change), `hazard HZ-120 a dose entered in error stays, struck through, with its reason`,
+  change), `hazard HZ-120 refuses without medicinesChecked`, `currentMedicines (hazard HZ-120)`, `hazard HZ-120 a dose entered in error stays, struck through, with its reason`,
   `hazard HZ-120 the staff a protocol may name`.
 - Playwright `apps/web/e2e/homely-remedies.spec.ts`: `hazard HZ-120 hazard HZ-007 homely remedies
   only within the home's protocol` (add with errors, change with a reason, check a dose outside the

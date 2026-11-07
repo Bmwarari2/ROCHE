@@ -1,6 +1,7 @@
 "use client";
 
 import { DataTable, type DataTableColumn } from "@harbour/ui";
+import type { ReactNode } from "react";
 import type { TableRow } from "@/lib/medication-errors";
 
 /**
@@ -14,6 +15,7 @@ export function ReportTable({
   headers,
   rows,
   empty,
+  needsFor,
 }: {
   readonly caption: string;
   readonly rowHeader: string;
@@ -21,9 +23,24 @@ export function ReportTable({
   readonly headers: readonly string[];
   readonly rows: readonly TableRow[];
   readonly empty: string;
+  /** A person's communication needs (AIS) under their name, by row id. */
+  readonly needsFor?: Readonly<Record<string, ReactNode>>;
 }) {
   const columns: DataTableColumn<TableRow>[] = [
-    { id: "label", header: rowHeader, rowHeader: true, cell: (row) => row.label },
+    {
+      id: "label",
+      header: rowHeader,
+      rowHeader: true,
+      cell: (row) =>
+        needsFor?.[row.id] ? (
+          <span className="flex flex-col gap-1">
+            <span>{row.label}</span>
+            {needsFor[row.id]}
+          </span>
+        ) : (
+          row.label
+        ),
+    },
     ...headers.map((header, i) => ({
       id: `count-${i}`,
       header,
