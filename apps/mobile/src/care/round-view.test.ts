@@ -146,11 +146,11 @@ describe("what each task on the round says", () => {
     expect(roundItem(row({ from_earlier_plan: null }), NOW).notices).toEqual([]);
   });
 
-  it("never offers a medicines task here, before eMAR (#123 clinical review, L10)", () => {
+  it("never offers a medicines task here: doses are recorded on the Medicines tab (#123 clinical review, L10; slice 69)", () => {
     const item = roundItem(row({ kind: "medicines.administration" }), NOW);
     expect(item.action).toBe("none");
     expect(item.notices).toContain(
-      "Medicines are recorded in Harbour on the web until medicines recording is on the phone.",
+      "Medicines are recorded on the Medicines tab, where it is on, or in Harbour on the web.",
     );
   });
 

@@ -54,8 +54,10 @@ describe("Apple privacy manifest and nutrition label (MOB-011)", () => {
 
   it("collects no location, photos or audio yet, so Android blocks those permissions", () => {
     const blocked = config.android?.blockedPermissions ?? [];
+    // The camera reads medicine pack barcodes on the device only (ADR-0081): no photo is kept.
+    expect(config.android?.permissions ?? []).toContain("android.permission.CAMERA");
+    expect(blocked).not.toContain("android.permission.CAMERA");
     for (const permission of [
-      "android.permission.CAMERA",
       "android.permission.RECORD_AUDIO",
       "android.permission.ACCESS_FINE_LOCATION",
       "android.permission.ACCESS_COARSE_LOCATION",

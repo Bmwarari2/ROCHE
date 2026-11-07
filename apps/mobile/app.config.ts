@@ -153,8 +153,12 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.USE_BIOMETRIC",
       "android.permission.USE_FINGERPRINT",
       "android.permission.VIBRATE",
-      // Local notifications when held entries reach their last day and escalate (HZ-040).
+      // Local notifications when held entries reach their last day and escalate (HZ-040), and
+      // reminders for time-critical doses (slice 69).
       "android.permission.POST_NOTIFICATIONS",
+      // Medicine pack barcodes on the round (ADR-0081): frames are read on the device and never
+      // stored or sent, so no photo is collected.
+      "android.permission.CAMERA",
     ],
     blockedPermissions: [
       "android.permission.READ_EXTERNAL_STORAGE",
@@ -162,7 +166,6 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.READ_MEDIA_IMAGES",
       "android.permission.ACCESS_WIFI_STATE",
       "android.permission.SYSTEM_ALERT_WINDOW",
-      "android.permission.CAMERA",
       "android.permission.RECORD_AUDIO",
       "android.permission.ACCESS_FINE_LOCATION",
       "android.permission.ACCESS_COARSE_LOCATION",
@@ -176,6 +179,15 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
     ["expo-local-authentication", { faceIDPermission: FACE_ID_REASON }],
     // Local notifications only (held entries, HZ-040); no push service is configured.
     "expo-notifications",
+    // Pack barcodes only (ADR-0081): no microphone, no photo saved.
+    [
+      "expo-camera",
+      {
+        cameraPermission:
+          "Harbour uses the camera to take photos for care records and to scan medicine barcodes.",
+        recordAudioAndroid: false,
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

@@ -1,0 +1,92 @@
+import { ListItem, StatusChip, Text, useTheme } from "@harbour/ui-native";
+import { useRouter } from "expo-router";
+import { FlatList, View } from "react-native";
+import { Screen } from "../../../components/Screen";
+import { UploadIssues } from "../../../components/UploadIssues";
+import { t } from "../../../i18n/t";
+import { useMedicinesRound } from "../../../medicines/hooks";
+import { doseSlots } from "../../../medicines/round";
+import { DOSE_STATUS, gateWords, personName, ukDateWords } from "../../../medicines/view";
+import { useRecordScreenProtection } from "../../../security/use-record-protection";
+
+/**
+ * The medicines round on the phone (slice 69; HZ-003, HZ-004): the doses on this phone slot by
+ * slot, late first within each, every dose with its state as an icon and a word. Nothing is
+ * offered on an untrusted device, before a complete sync or without the medicines figures; the
+ * reason is said instead. The needs-attention list sits above, so a dose Harbour did not take is
+ * never out of sight (HZ-006).
+ */
+export default function MedicinesRoundScreen() {
+  useRecordScreenProtection("medicines");
+  const theme = useTheme();
+  const router = useRouter();
+  const { gate, rounds, people, loading } = useMedicinesRound();
+  const blocked = gateWords(gate);
+  const slots = doseSlots(rounds);
+  const unreadable = rounds.flatMap((r) => r.unreadable);
+  return (
+    <Screen testID="medicines-round">
+      <UploadIssues />
+      {blocked ? (
+        <View style={{ padding: theme.space[2] }}>
+          <Text testID="medicines-blocked" accessibilityLiveRegion="polite">
+            {blocked}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={slots}
+          keyExtractor={(s) => `${s.date} ${s.time}`}
+          ListHeaderComponent={
+            unreadable.length > 0 ? (
+              <Text tone="danger" testID="medicines-unreadable" style={{ padding: theme.space[2] }}>
+                {t("mobile.meds.unreadable", { list: unreadable.join(", ") })}
+              </Text>
+            ) : null
+          }
+          ListEmptyComponent={
+            <Text tone="secondary" style={{ padding: theme.space[2] }} testID="medicines-empty">
+              {loading ? t("mobile.round.loading") : t("mobile.meds.none")}
+            </Text>
+          }
+          renderItem={({ item: slot }) => (
+            <View style={{ paddingBottom: theme.space[1.5] }}>
+              <Text
+                variant="callout"
+                accessibilityRole="header"
+                style={{ paddingHorizontal: theme.space[2], paddingVertical: theme.space[1] }}
+              >
+                {t("mobile.meds.slot", { date: ukDateWords(slot.date), time: slot.time })}
+              </Text>
+              {slot.doses.map((d) => {
+                const person = people.get(d.personId);
+                const name = person ? personName(person) : t("mobile.round.personUnknown");
+                return (
+                  <ListItem
+                    key={`${d.entryId}:${d.dueAt}`}
+                    title={`${name}: ${d.productName}`}
+                    subtitle={[d.doseInWords, d.timeCritical ? t("mobile.meds.timeCritical") : null]
+                      .filter(Boolean)
+                      .join(". ")}
+                    accessories={
+                      <StatusChip status={DOSE_STATUS[d.state]} label={d.stateInWords} />
+                    }
+                    onPress={() =>
+                      router.push({
+                        pathname: "/medicines/[personId]",
+                        params: { personId: d.personId },
+                      })
+                    }
+                    accessibilityHint={t("mobile.meds.openPersonHint", { person: name })}
+                    showChevron
+                    testID={`dose-${d.entryId}`}
+                  />
+                );
+              })}
+            </View>
+          )}
+        />
+      )}
+    </Screen>
+  );
+}

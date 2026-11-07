@@ -28,6 +28,7 @@
  */
 
 import type {
+  MedicinesWritableTable,
   RoundWritableTable,
   ShiftWritableTable,
   TrainingWritableTable,
@@ -47,6 +48,7 @@ import {
 } from "./backoff";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
 import { type HandoverConfig, handoverConfigFromToken } from "./handover-shifts";
+import { isMedicinesWritableTable, toMedicinesUpload } from "./medicines-upload";
 import { offlineDaysFromToken } from "./offline-days";
 import {
   isRoundWritableTable,
@@ -514,6 +516,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         await this.uploadShiftChange(database, { ...entry, table: entry.table }, clientId);
       } else if (isTrainingWritableTable(entry.table)) {
         await this.uploadTrainingChange(database, { ...entry, table: entry.table }, clientId);
+      } else if (isMedicinesWritableTable(entry.table)) {
+        await this.uploadMedicinesChange(database, { ...entry, table: entry.table }, clientId);
       } else {
         others.push(entry);
       }
@@ -603,6 +607,43 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         code,
         message,
         payload: { ...(entry.opData ?? {}) },
+        rejectedAt: this.now(),
+      });
+    if (request.kind === "refused") {
+      await park(null, request.code, request.message);
+      this.options.onRefused?.();
+      return;
+    }
+    try {
+      await this.postChange(request, clientId);
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
+      await park(error.status, error.code, error.reason ?? t("mobile.issues.unknownReason"));
+      this.options.onRefused?.();
+    }
+  }
+
+  /**
+   * A dose recorded on the round (`medicines-upload.ts`, slice 69); a refusal moves it to "needs
+   * attention" in the API's words, and the next sync takes it off the round (HZ-006).
+   */
+  private async uploadMedicinesChange(
+    database: UploadSource,
+    entry: CrudEntryLike & { readonly table: MedicinesWritableTable },
+    clientId: string,
+  ): Promise<void> {
+    const request = toMedicinesUpload(entry);
+    const park = (status: number | null, code: string, message: string) =>
+      recordUploadIssue(database, {
+        id: request.recordId,
+        tenantId: request.tenantId,
+        personId: request.personId,
+        table: entry.table,
+        httpStatus: status,
+        code,
+        message,
+        // The record without the queued request: what was recorded, never the evidence twice.
+        payload: { ...(entry.opData ?? {}), request: null },
         rejectedAt: this.now(),
       });
     if (request.kind === "refused") {

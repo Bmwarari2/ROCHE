@@ -44,6 +44,7 @@ import { FORGET_ANSWER_FOR_ENTRY_SQL } from "../care/answered-tasks";
 import { DELETE_UPLOAD_ISSUE_SQL } from "../care/queries";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
+import { refreshMedicinesRates } from "../medicines/rates";
 import { clearPhotoCache } from "../people/use-person-photo";
 import { cancelHeldNotifications, scheduleHeldNotifications } from "../platform/notifications";
 import {
@@ -72,8 +73,9 @@ import {
   loadOrCreateDatabaseKey,
   readDatabaseKey,
 } from "../security/db-key";
-import { type DeviceIntegrityResult, stubIntegrityChecker } from "../security/device-integrity";
+import type { DeviceIntegrityResult } from "../security/device-integrity";
 import { IdleTimer } from "../security/idle-timer";
+import { nativeIntegrityChecker } from "../security/native-integrity";
 import { FAIL_SAFE_TOLERANCE_MINUTES, resolveClockTolerance } from "../sync/clock-tolerance";
 import { HarbourConnector } from "../sync/connector";
 import {
@@ -536,6 +538,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       heldMaxDaysRef.current = await resolveHeldMaxDays(database, fetchOptions).catch(
         () => heldMaxDaysRef.current,
       );
+      // The medicines figures for an offline round (slice 69); the round waits until it has them.
+      if (fetchOptions) void refreshMedicinesRates(database, fetchOptions);
       stopStatusListener();
       let lastSynced = database.currentStatus.lastSyncedAt?.getTime() ?? null;
       statusListenerRef.current = database.registerListener({
@@ -729,7 +733,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         });
       }
       setDb(opened);
-      stubIntegrityChecker.check().then(setIntegrity, () => undefined);
+      nativeIntegrityChecker.check().then(setIntegrity, () => undefined);
     },
     [session.refreshMe, session.holdSession, session.clearHeld, connectSync],
   );

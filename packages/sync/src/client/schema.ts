@@ -722,6 +722,11 @@ const medication_administration = new Table(
     supersedes_id: column.text,
     covert: column.integer,
     flags: column.text,
+    /**
+     * Local only (never in a stream): the request a dose recorded on this phone will send
+     * (slice 69). Set until the server's row replaces it, so the round says "not synced yet".
+     */
+    request: column.text,
   },
   { indexes: { by_medication: ["medication_id"], by_person: ["person_id"] } },
 );
@@ -892,6 +897,10 @@ export const ROUND_AND_HANDOVER_TABLES = [
  */
 export const ROUND_WRITABLE_TABLES = ["task", "handover_acknowledgement"] as const;
 export type RoundWritableTable = (typeof ROUND_WRITABLE_TABLES)[number];
+
+/** What the phone sends for a dose recorded on the round (slice 69): to the administrations route. */
+export const MEDICINES_WRITABLE_TABLES = ["medication_administration"] as const;
+export type MedicinesWritableTable = (typeof MEDICINES_WRITABLE_TABLES)[number];
 
 /** What the phone sends for a course taken offline (slice 72): to the e-learning routes. */
 export const TRAINING_WRITABLE_TABLES = ["elearning_outbox"] as const;
