@@ -58,7 +58,7 @@ import {
   starterFor,
   ukRefusal,
 } from "../integrations/hr-link";
-import { storedHrPayPeriods, unsentPayPeriods } from "../integrations/hr-pay";
+import { pullRatesFor, storedHrPayPeriods, unsentPayPeriods } from "../integrations/hr-pay";
 import { activeHrAbsenceCopies, lockRota, syncRotaSafely } from "../integrations/hr-rota";
 import { receiveInbound } from "../integrations/inbound";
 import { SECRET_REF_SHAPE, secretRefProblem } from "../integrations/secret-ref";
@@ -1372,6 +1372,10 @@ export const hrLinkInboundRouter = createRouter().openapi(
       }
       await applyEmployee(tx, tenantId, link.settings.owners, employee.value, now);
       await endLeaversAccess(tx, tenantId, now);
+      // A changed employee's rate is read now, not at the next daily read (slice 90).
+      if (received.data.type === "employee.changed") {
+        await pullRatesFor(tx, port, received.data.employeeId, now);
+      }
       return "accepted" as const;
     });
     if (outcome === null || outcome === "refused") throw refuse();

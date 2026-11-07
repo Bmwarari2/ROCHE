@@ -613,6 +613,27 @@ describe("hazard HZ-133 the signed webhook (section 11.6)", () => {
     entry.leavingDate = null;
   });
 
+  it("hazard HZ-140 reads a changed employee's rate at once, once Thapsus-HR offers the pay read", async () => {
+    mock.phase19 = true;
+    mock.ratesList.push({
+      employeeId: "emp_carer",
+      hourlyPence: 1_290,
+      effectiveFrom: "2026-04-01",
+    });
+    try {
+      const body = event({ type: "employee.changed", employeeId: "emp_carer" });
+      expect((await webhook(body, sign(body))).status).toBe(202);
+      const rates = await owner<{ hourly_pence: number }>(
+        "SELECT hourly_pence FROM hr_pay_rate WHERE staff_profile_id = $1 AND deleted_at IS NULL",
+        [FILES.carer],
+      );
+      expect(rates.map((r) => r.hourly_pence)).toEqual([1_290]);
+    } finally {
+      mock.phase19 = false;
+      mock.ratesList.length = 0;
+    }
+  });
+
   it("quarantines a signed body that is not an identifiers-only event, keeping none of it", async () => {
     const body = JSON.stringify({
       id: "evt_bad1",

@@ -417,6 +417,50 @@ describe("hazard HZ-140 a refusal of locked pay goes to pay approvers (rule 11)"
   });
 });
 
+describe("hazard HZ-140 what Thapsus-HR stops listing stops being used (slice 90)", () => {
+  it("retires a rate Thapsus-HR no longer lists for that employee, keeping the one it does", async () => {
+    mock.ratesList.push({
+      employeeId: "emp_carer",
+      hourlyPence: 1_310,
+      effectiveFrom: "2026-10-01",
+    });
+    await sync();
+    const old = mock.ratesList.shift();
+    try {
+      await sync();
+      const live = await sql<{ hourly_pence: number }>(
+        "SELECT hourly_pence FROM hr_pay_rate WHERE deleted_at IS NULL",
+      );
+      expect(live.map((r) => r.hourly_pence)).toEqual([1_310]);
+    } finally {
+      if (old) mock.ratesList.unshift(old);
+      await sync();
+    }
+  });
+
+  it("retires a pay period Thapsus-HR no longer lists, unless a pay run uses it", async () => {
+    mock.payPeriodsList.push({
+      id: "pp_w9",
+      frequency: "weekly",
+      startsOn: "2026-12-07",
+      endsOn: "2026-12-13",
+    });
+    await sync();
+    mock.payPeriodsList.pop();
+    const used = mock.payPeriodsList.splice(0, 1);
+    try {
+      await sync();
+      const live = await sql<{ hr_id: string }>(
+        "SELECT hr_id FROM hr_pay_period WHERE deleted_at IS NULL ORDER BY hr_id",
+      );
+      // pp_w1 has pay runs, so it stays; pp_w9 has none, so it goes.
+      expect(live.map((p) => p.hr_id)).toEqual(["pp_w1", "pp_w2"]);
+    } finally {
+      mock.payPeriodsList.unshift(...used);
+    }
+  });
+});
+
 describe("hazard HZ-140 the link down never sends a period to the export without a person (slice 90)", () => {
   const P3 = { frequency: "weekly", periodStart: "2026-10-26", periodEnd: "2026-11-01" };
 
