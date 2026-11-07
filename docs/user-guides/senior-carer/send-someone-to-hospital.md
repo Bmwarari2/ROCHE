@@ -2,8 +2,8 @@
 
 Thapsus Care makes the hospital transfer pack (the "red bag" summary) from the record in one step.
 
-**Who can do this**: senior carers and team leaders, nurses, managers and the owner. Care workers
-cannot: tell the person in charge.
+**Who can do this**: team leaders or senior carers, nurses, managers and the owner. Care and support
+workers cannot: tell the person in charge.
 
 **Register row**: PEOP-009. On the web only; the mobile app has no transfer pack.
 

@@ -3,9 +3,9 @@
 The downtime pack is a paper copy of what staff need to give safe care when Thapsus Care cannot be
 reached: a front sheet of warnings and one page per person.
 
-**Who can do this**: senior carers and team leaders, nurses, managers and the owner. Care workers
-cannot. You must confirm it is you with your passkey or authenticator app (step-up). A password
-alone is not enough.
+**Who can do this**: team leaders or senior carers, nurses, managers and the owner. Care and support
+workers cannot. You must confirm it is you with your passkey or authenticator app. A password alone
+is not enough.
 
 **Register row**: OPS-028.
 

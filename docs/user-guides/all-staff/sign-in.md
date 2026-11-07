@@ -29,11 +29,11 @@ switch later from **Organisation** in the bar at the top of the page.
 
 - **Care records need a second step.** If you signed in with a password only, Thapsus Care says "Use
   your second way to sign in". Sign in again with your passkey, or your password and a code.
-- **Some actions need you to confirm it is you** (step-up), for example opening a record outside
-  your access, printing the downtime pack, or recording a statutory notification. Thapsus Care shows
-  **Confirm it is you** and a **Sign in again** button. You must have used your passkey or a code
-  in the last 10 minutes. A password alone never counts. Afterwards, do the action again: what
-  you typed is not kept.
+- **Some actions need you to confirm it is you**, for example opening a record outside your access,
+  printing the downtime pack, or recording a statutory notification. Thapsus Care shows **Confirm it
+  is you** and a **Sign in again** button. You must have used your passkey or a code in the last 10
+  minutes. A password alone never counts. Afterwards, do the action again: what you typed is not
+  kept.
 
 ## Sign out
 

@@ -1,25 +1,22 @@
 # How to read the quality dashboard
 
-The quality dashboard shows care indicators for one location over whole months, counted from what
+The quality dashboard shows care indicators for one home over whole months, counted from what
 is recorded in Thapsus Care. Each figure shows how it is worked out and where it stands against your
 organisation's own target.
 
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
-
-**Who can do this**: the Registered Manager and the deputy manager for their own locations; the
-owner, the group executive and the quality and compliance lead for every location. Care workers,
-senior carers and nurses cannot.
+**Who can do this**: the Registered Manager and the deputy manager for their own homes; the
+owner, the group executive and the quality and compliance lead for every home. Care and support
+workers, team leaders or senior carers, and nurses cannot.
 
 **Register row**: QUAL-005.
 
 ## Steps
 
-1. In the side bar, choose **Quality dashboard**. It opens on last month.
+1. In the menu, choose **Quality dashboard**. It opens on last month.
 2. Under **Location and months**, choose the **Location**.
 3. Under **Months**, choose **From** and **To**: whole months that have ended, up to 12 at a time.
 4. Choose **Show indicators**.
-5. The heading names the location and months. Under it, "Counted at" gives the date and time the
+5. The heading names the home and months. Under it, "Counted at" gives the date and time the
    figures were counted.
 6. Each indicator card shows:
    - its status: **Within target**, **Close to target**, **Outside target** or **No rating**, each
@@ -37,17 +34,17 @@ it and shows last month instead.
 - **Missing or incomplete data is never rated.** Five indicators (missed visits, training
   compliance, agency hours, complaints and staff turnover) wait for parts of Thapsus Care that are not
   built yet. They show "No data: Thapsus Care does not record this yet." and are never rated. A period
-  that is not complete in Thapsus Care, for example before the location started recording here or with
+  that is not complete in Thapsus Care, for example before the home started recording here or with
   a downtime whose paper records are not yet entered, shows "No data" with that reason, never a
   figure.
 - **A small count is withheld, never shown as 0.** A count too small to share without pointing at
   one person shows "Withheld: fewer than" the number. Its status against your target is still
   shown, so a rising problem is not hidden. A real zero is shown as 0.
 - **Targets are your organisation's own, never a Thapsus Care score.** With no target, a figure says
-  "No target is set, so this is not rated." To set them, choose **Set targets for** the location
-  (see [How to set indicator targets](set-indicator-targets.md)).
+  "No target is set, so this is not rated." To set them, choose **Set targets for** and the home's
+  name (see [How to set indicator targets](set-indicator-targets.md)).
 - Records added later, for example from a device that was offline, appear in a later view.
 - The figures are counts only. They do not diagnose or predict anything about a person.
-- The rules: [quality spec section 17, rules 16 to 22](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
-  and sections 22 and 23 of the quality spec and hazard HZ-129 (a quality indicator or audit score
-  falsely reassures), both on the `feat/quality-dashboard-pir` branch.
+- The rules are in the [quality specification](../../specs/quality.md#22-quality-dashboard-and-pir-prefill-slice-47-qual-005-qual-006-migration-0108) and its
+  [dashboard screens](../../specs/quality.md#23-web-screens-quality-dashboard-and-pir-figures-slice-65-part-2-qual-005-qual-006); the hazard is
+  [HZ-129: a quality indicator falsely reassures](../../clinical-safety/hazard-log.md#hz-129-a-quality-indicator-falsely-reassures).

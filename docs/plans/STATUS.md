@@ -39,6 +39,28 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## User guides: safety, quality and platform, second pass (07/11/2026)
+
+`docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
+(outbreaks, deaths, missing persons, disclosures, importing medicines, care plans and staff checks)
+and about 30 brought up to `main`, linked from the indexes and the register. Gaps and findings:
+`docs/changelog-dev/2026-11-07-docs-guides-safety-quality-platform-2.md`.
+
+## User guides: workforce and scheduling (07/11/2026)
+
+`docs/guides-workforce-scheduling` (Phase 2 slice 82), from `main` at b65e7b61: 63 guides for the
+HR lead (new role folder), Registered Manager, senior carer, care worker (web and phone) and owner,
+linked from the role indexes, the guides README and the register's user docs column. Rows with no
+screen yet, and what the guides found in the screens, are in
+`docs/changelog-dev/2026-11-07-docs-guides-workforce-scheduling.md`.
+
+## User guides: medicines (07/11/2026)
+
+`docs/guides-medicines` (Phase 2 slice 81), from `main` at b65e7b61: 24 web guides for slices 50
+and 52 to 55, for the care worker, nurse and Registered Manager, linked from the indexes and the
+register. The 7 phone guides for slices 69 and 70 wait on `docs/guides-medicines-phone` until
+`feat/mobile-meds-cd-offline` and its fixes merge. Gaps and findings: `docs/changelog-dev/2026-11-07-docs-guides-medicines.md`.
+
 ## Product rename: Thapsus Care (07/11/2026)
 
 `docs/rename-plan-thapsus-care`, from `main` at 17a5dbbe (after batch 4, #180): ADR-0127 (accepted)
@@ -589,6 +611,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
+- slice 72 leftovers, `feat/mobile-training-placement`: Training tab beside Shifts (H-1365 done); Welsh strings H-1526; tab bar H-1527; Android Maestro run not done (no emulator here);
 - slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0147; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);

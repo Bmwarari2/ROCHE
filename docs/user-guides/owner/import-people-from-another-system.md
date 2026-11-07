@@ -1,12 +1,13 @@
 # How to import people from another system
 
-When you move to Thapsus Care, you can bring the people you support across from your old system, a home
-at a time, from a CSV file. Nobody is added until you have checked the file and confirmed it.
+When you move to Thapsus Care, you can bring the people you support across from your old system, a
+home at a time, from a CSV file (a spreadsheet saved as plain text). Nobody is added until you have
+checked the file and confirmed it.
 
-**Who can do this**: the owner. Another role can do it only if your organisation gives it the
-import wizard, and the right to add and see people, across the whole organisation; someone whose
-role covers some homes only is refused. Adding the people needs you to confirm it is you with your
-passkey or authenticator app (step-up).
+**Who can do this**: the owner. Another role can do it only if your organisation lets that role
+import records for the whole organisation, with the right to add and see people; someone whose role
+covers some homes only is refused. Adding the people needs you to confirm it is you with your
+passkey or authenticator app.
 
 **Register row**: PLAT-014.
 
@@ -15,14 +16,15 @@ passkey or authenticator app (step-up).
 ### Upload the file
 
 1. Save the file from your old system as CSV, with one header row. Dates are dd/mm/yyyy.
-2. Go to **Import people** in the menu.
-3. Under **Upload a file**, choose the **Home**. Everyone in the file is added at this home.
-4. Choose the **CSV file**: a .csv file with one header row, up to 5,000 people.
-5. Under **Match the columns**, check each column. Thapsus Care matches a column to the field with the
+2. Go to **Import records** in the menu.
+3. Under **Upload a file**, choose **What the file holds**: **People**.
+4. Choose the **Home**. Everyone in the file is added at this home.
+5. Choose the **CSV file**: a .csv file with one header row, up to 5,000 rows.
+6. Under **Match the columns**, check each column. Thapsus Care matches a column to the field with the
    same name where there is one. Choose the right field, or **Leave this column out**. Fields
    marked "(needed)" must each have a column. Columns you leave out are not uploaded.
-6. Choose **Upload for checking**. The import opens and says "File uploaded. Check it before
-   adding anyone."
+7. Choose **Upload for checking**. The import opens and says "File uploaded. Check it before
+   adding anything."
 
 ### Check the file
 
@@ -58,9 +60,11 @@ passkey or authenticator app (step-up).
 - The uploaded rows are deleted at the time shown under **Where it stands**, unless the people are
   added first. You can upload again.
 - You cannot import while sample data is in place. Remove it first from
-  [getting started](work-through-getting-started.md).
-- Only people can be imported for now, from a CSV file. Contacts, allergies and staff are still to
-  come.
+  [How to work through the getting started checklist](work-through-getting-started.md).
+- Medicines, care plans and staff file checks are imported the same way, once the people are in
+  Thapsus Care: see
+  [How to import medicines, care plans or staff file checks](import-medicines-care-plans-or-staff-file-checks.md).
+  Contacts and allergies cannot be imported yet.
 - To take an import back, see [How to undo an import](undo-an-import.md).
 - The rules are in the
   [platform specification](../../specs/platform.md#import-wizard-schema-and-api-slice-26-adr-0092),

@@ -3,7 +3,8 @@
 When Thapsus Care could not be used, care was written on paper downtime forms. When Thapsus Care is back,
 copy each form in with the time written on it.
 
-**Who can do this**: anyone who can write notes or charts for the person, including care workers.
+**Who can do this**: anyone who can write notes or charts for the person, including care and support
+workers.
 
 **Register row**: OPS-028.
 

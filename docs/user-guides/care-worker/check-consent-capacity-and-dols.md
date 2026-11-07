@@ -3,8 +3,8 @@
 Before you act on a decision such as bed rails or photographs, check that consent, or a
 best-interests decision, is in place.
 
-**Who can do this**: anyone who can read the care plan, including care workers for the people
-assigned to them.
+**Who can do this**: anyone who can read the care plan, including care and support workers for the
+people assigned to them.
 
 **Register rows**: CARE-021, CARE-022. This page is for reading only. Consent, capacity
 assessments, best-interests decisions and DoLS requests are recorded through the system by a

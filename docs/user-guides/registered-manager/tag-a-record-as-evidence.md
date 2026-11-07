@@ -4,7 +4,8 @@ Tagging adds a record to your evidence library against one or more quality state
 show it to an inspector. You can also remove a tag with a reason.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner and the quality and
-compliance lead. Care workers, senior carers, nurses and the group executive cannot.
+compliance lead. Care and support workers, team leaders or senior carers, nurses and the group
+executive cannot.
 
 **Register row**: QUAL-002.
 
@@ -30,11 +31,11 @@ compliance lead. Care workers, senior carers, nurses and the group executive can
 ## Good to know
 
 - Only the record's type and reference are stored, never its content.
-- You tag against the CQC framework version in force. If none is in force, the page says "No
+- You tag against the Care Quality Commission (CQC) framework version in force. If none is in force, the page says "No
   framework version is in force, so records cannot be tagged."
 - You can only tag a record you are allowed to see. A restricted incident has no **Tag as
   evidence** button.
 - A removed tag is never deleted. It shows when and why it was removed, and stops counting as
   evidence.
 - Other record types have no **Tag as evidence** button yet.
-- The rule: [quality spec section 17, rule 6](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).
+- The rules are in the [quality specification](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).

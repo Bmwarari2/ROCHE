@@ -3,8 +3,8 @@
 Letters are made only from a template that someone has approved. The person who wrote or edited a
 draft can never approve it.
 
-**Who can do this**: write: the owner, Registered Manager, deputy, administrator and quality lead.
-Approve: the owner, Registered Manager, deputy and quality lead.
+**Who can do this**: write: the owner, Registered Manager, deputy manager, administrator and quality
+lead. Approve: the owner, Registered Manager, deputy manager and quality and compliance lead.
 
 **Register row**: COMMS-007.
 
