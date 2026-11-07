@@ -1,6 +1,6 @@
 # How to link Thapsus Care to your HR platform
 
-Connect Thapsus Care to your organisation's HR platform (Thapsus-HR), so staff records, leave, sickness
+Connect Thapsus Care to your organisation's HR platform (Thapsus-HR, a separate product), so staff records, leave, sickness
 and pay are shared without exporting files. Each kind of data has one owner; the other system shows
 it read-only.
 

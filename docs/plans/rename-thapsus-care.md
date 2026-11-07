@@ -197,3 +197,23 @@ After merging `main` at 17a5dbbe (batch 4, migrations to 0151):
   which the script had taken for paths; it now treats a `/` as a path only after a path character,
   and renamed them. The iCalendar `PRODID` (`-//Thapsus Cargo Ltd//Harbour//EN`) is an identifier
   and stays.
+
+### Reviews (07/11/2026)
+
+The accessibility and clinical safety reviewers read the whole diff. Fixed in the same PR:
+
+- HZ-133: the HR link tests remove the product's own name and then refuse any "Thapsus", in every
+  state of the form and in `aria-label`, `title`, `alt` and `placeholder`, with leaked details
+  spelt five ways (hyphen, en dash, non-breaking space, "Human Resources", "Thapsus" alone).
+- HZ-013: the test also checks the s42 deadline is not statutory.
+- Demo names the script had renamed ("Harbour Care Ltd", "Harbour Croft", "Harbour Wynd" and the
+  rest of the test locations) are back and in the script's demo pattern; "Care Care" is gone from
+  the master prompt title and the Article 28 template.
+- Wording: `app.description`; the breach notice strings name the supplier as Thapsus Cargo Ltd; the
+  record history says "Changed by the system (Thapsus Care)"; seven sentences that named the
+  product twice now say it once.
+- The script exports its rules, skips the 0152 test that must name the codename, and has unit
+  tests (`pnpm test:scripts`), including `--check` on the tree.
+
+Left for the CSO: H-1514 (safety case note), H-1515 (a name ending in "Care"; the lone-worker help
+wording) and H-1516 (citing the design document as a source).

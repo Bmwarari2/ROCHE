@@ -312,7 +312,7 @@
   "mobile.sync.held": "{count, plural, one {# entry from before the session ended is still held on this device and not yet back in the upload queue.} other {# entries from before the session ended are still held on this device and not yet back in the upload queue.}} Thapsus Care tries again each time it unlocks.",
   "mobile.discard.reasonCodeRequired": "Choose a reason.",
   "mobile.discard.wordsLabel": "The reason in your own words",
-  "mobile.discard.wordsHint": "Needed when the reason is Other. Kept only on this device, encrypted, until Thapsus Care has recorded the deletion; Thapsus Care records only the reason chosen above.",
+  "mobile.discard.wordsHint": "Needed when the reason is Other. Kept only on this device, encrypted, until Thapsus Care has recorded the deletion; it records only the reason chosen above.",
   "mobile.discard.needsConnection": "Connect to the internet and try again. Deleting another member of staff's entries, or entries whose owner is not known, needs Thapsus Care to record it first. Nothing has been deleted.",
   "mobile.discard.notRecorded": "The deletion could not be recorded, so nothing has been deleted. Try again.",
   "mobile.discard.code.recorded_elsewhere": "Recorded again elsewhere, for example on paper",

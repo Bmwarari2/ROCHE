@@ -23,7 +23,7 @@ const TO = "Thapsus Care";
 
 /** Invented demo and fixture names: places and organisations, not the product. Kept. */
 const DEMO_NAMES =
-  /\bHarbour (?:House|Field|Mews|Demo Care|Quay|Lodge|Cottage|Example Care(?: and Support Services)?|Care(?: Example)? Ltd)\b/g;
+  /\bHarbour (?:House|Field|Mews|Demo Care|Quay|Lodge|Cottage|Croft|Wynd|Shore|Pier|Barn|Byre|Cymru|Example Care(?: and Support Services)?|Care(?: Example)? Ltd)\b/g;
 
 /**
  * Files that must name the codename to prove it is gone: the stored-row migration's test (0152)

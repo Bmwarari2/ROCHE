@@ -20,3 +20,6 @@
   it.
 - Human actions H-1511 (trade mark and store name checks), H-1512 (domain and email sender name)
   and H-1513 (listings, privacy notice, DPIA wording, pilot notice).
+- Reviews: the HZ-133 tests refuse any "Thapsus" other than the product's own name, in every state
+  and in accessible names; demo names the pass had renamed are restored; wording that named the
+  product twice or called the supplier "Thapsus" is clearer. CSO items H-1514 to H-1516.

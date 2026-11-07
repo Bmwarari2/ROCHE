@@ -43,7 +43,7 @@ The schedule then shows on **Quality audits** under **Schedule**, marked **Due**
 
 - Audits already started keep the questions they started with, even if the template changes or is
   retired. Its audits and schedules stay.
-- Thapsus Care's starter templates are Thapsus Care's drafting. Review the wording and weights against your
+- Thapsus Care's starter templates are only a draft. Review the wording and weights against your
   own policies before you rely on them.
 - If the template is already scheduled at every location you can see, the page says "This template
   is scheduled at every location you can see."

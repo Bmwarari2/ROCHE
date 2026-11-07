@@ -261,7 +261,19 @@ describe("hazard HZ-133 the linked states are accessible in both themes", () => 
     expect(times).toEqual(["2026-11-20", "2026-11-24", "2026-11-02"]);
     expect(host.textContent).toContain("Ada Example");
     expect(host.textContent).toContain("A member of staff");
-    expect(host.textContent).not.toMatch(/Thapsus[- ]?HR/i);
+  });
+
+  // HZ-133: no state names the other product (Thapsus-HR) in any spelling, in its text or in what
+  // a screen reader reads from attributes. The product's own name (ADR-0127) is removed first.
+  it.each(states)("%s never names the other product", async (_name, view) => {
+    await render(view());
+    const attributes = [...host.querySelectorAll("[aria-label],[title],[alt],[placeholder]")]
+      .flatMap((e) =>
+        ["aria-label", "title", "alt", "placeholder"].map((a) => e.getAttribute(a) ?? ""),
+      )
+      .join(" ");
+    const read = `${host.textContent ?? ""} ${attributes}`.replaceAll(t("app.name"), "");
+    expect(read).not.toMatch(/thapsus/i);
   });
 });
 

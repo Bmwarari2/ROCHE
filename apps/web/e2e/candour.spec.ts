@@ -384,7 +384,7 @@ test("hazard HZ-013 hazard HZ-091 a decision that differs from Thapsus Care's fi
     .getByLabel("Whose opinion does the decision record?")
     .fill(`Dr Example, GP (${RUN})`);
   await expect(
-    threshold.getByText(/Your answer differs from what Thapsus Care found/),
+    threshold.getByText(/Your answer differs from Thapsus Care's finding/),
   ).toBeVisible();
   await threshold.getByRole("button", { name: "Save the decision" }).click();
   const summary = page.getByRole("main").getByRole("alert");

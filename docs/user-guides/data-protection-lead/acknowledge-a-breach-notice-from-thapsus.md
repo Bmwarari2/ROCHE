@@ -14,10 +14,10 @@ when a notice arrives.
 
 1. You get an urgent notification, "Thapsus has told you about a personal data breach", in Thapsus Care
    and by email. Its link opens the breach in the register. A breach opened from a notice says
-   "Opened from a breach notice from Thapsus".
-2. Open it. Under **Notices from Thapsus**, read **What happened**, **Kinds of data**, **How
-   many**, **Likely consequences**, **What Thapsus has done**, **What your organisation needs to
-   do** and the **Thapsus contact**.
+   "Opened from a breach notice from Thapsus Cargo Ltd".
+2. Open it. Under **Notices from Thapsus Cargo Ltd**, read **What happened**, **Kinds of data**, **How
+   many**, **Likely consequences**, **What Thapsus Cargo Ltd has done**, **What your organisation needs to
+   do** and the **Thapsus Cargo Ltd contact**.
 3. Choose **Acknowledge notice**. The notice then shows when it was acknowledged.
 4. Work through the breach as for any other: see
    [How to record and handle a data breach](record-a-data-breach.md).

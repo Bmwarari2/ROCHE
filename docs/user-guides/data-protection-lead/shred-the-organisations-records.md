@@ -13,7 +13,7 @@ the whole organisation). Each step asks you to confirm it is you (step-up).
 
 - **A shred cannot be undone.** Every stored document, export and data request bundle stops
   opening at once. The organisation's encryption keys are destroyed for good 30 days later, and
-  after that nobody can get the files back: not Thapsus Care, and not Thapsus Care's cloud provider.
+  after that nobody can get the files back: not Thapsus Care and not its cloud provider.
 - Care records in Thapsus Care are not removed by this. They are deleted later, on the retention schedule.
   Database backups keep deleted records until the date the certificate gives.
 - The owner downloads the organisation's full export first (**Data export** in the menu). The

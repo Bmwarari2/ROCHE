@@ -407,7 +407,7 @@ describe("hazard HZ-013 the classifier runs on the server", () => {
     const wales = "0194d000-0000-7000-8000-000000000177";
     await asDemoTenant((c) =>
       c.query(
-        "INSERT INTO location (id, name, nation, regulator) VALUES ($1, 'Thapsus Care Cymru', 'wales', 'ciw')",
+        "INSERT INTO location (id, name, nation, regulator) VALUES ($1, 'Harbour Cymru', 'wales', 'ciw')",
         [wales],
       ),
     );
@@ -1670,7 +1670,7 @@ describe("duty of candour and investigations", () => {
   it("hazard HZ-013 hazard HZ-073 an incident held open with no one to tell reaches the daily signal (round 4 M2)", async () => {
     const PIER = "0194d000-0000-7000-8000-0000000001f8";
     const incidentId = await asDemoTenant(async (c) => {
-      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Thapsus Care Pier')", [PIER]);
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Pier')", [PIER]);
       const { rows } = await c.query<{ id: string }>(
         `INSERT INTO incident (location_id, type, occurred_at, description, raised_by, person_ids,
            classifier_result)

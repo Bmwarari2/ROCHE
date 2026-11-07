@@ -25,7 +25,7 @@ Only if the law does not need it. If in doubt, notify. This cannot be undone.
 
 1. Open the notification and go to the not-required section.
 2. Under **Why is it not required?**, say which facts mean the law does not need it.
-3. If Thapsus Care says "Thapsus Care found this notification is needed", write at least 20 characters and
+3. If you see "Thapsus Care found this notification is needed", write at least 20 characters and
    tick **I have checked the facts, and the law does not need this notification**.
 4. Choose **Record as not required**, and confirm it is you if asked.
 

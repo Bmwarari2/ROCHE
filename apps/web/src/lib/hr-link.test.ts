@@ -32,6 +32,13 @@ import {
   validVersion,
 } from "./hr-link";
 import { t } from "./i18n";
+
+/**
+ * HZ-133: the words never name the other product (Thapsus-HR) in any spelling. The product's own
+ * name (Thapsus Care, ADR-0127) is removed first, so any other "Thapsus" left fails.
+ */
+const withoutProductName = (text: string) => text.replaceAll(t("app.name"), "");
+
 import { problemMessage } from "./outcome";
 import { confirmExportRefusal, fromHrPlatform, paidThroughHrPlatform } from "./pay-time";
 
@@ -246,7 +253,7 @@ describe("hazard HZ-133 managed in the HR platform (rule 2)", () => {
     expect(p.message).toBe(
       "Managed in the HR platform. Change it there; Thapsus Care follows at the next sync.",
     );
-    expect(p.message).not.toMatch(/Thapsus[- ]?HR/i);
+    expect(withoutProductName(p.message)).not.toMatch(/thapsus/i);
   });
 });
 
@@ -299,9 +306,19 @@ describe("hazard HZ-133 locations, matches and releases", () => {
     ["version_conflict", "location", "hrLocationId"],
     ["hr_link_own_file", "match", "staffProfileId"],
   ] as const)("says %s in the catalogue's words at its field", (code, where, field) => {
+    for (const detail of [
+      "Thapsus-HR said no.",
+      "Thapsus\u2013HR said no.",
+      "Thapsus\u00a0HR said no.",
+      "Thapsus Human Resources said no.",
+      "Thapsus said no.",
+    ]) {
+      const leaked = hrLinkProblem({ code, detail }, where, t);
+      expect(withoutProductName(leaked.message)).not.toMatch(/thapsus/i);
+    }
     const p = hrLinkProblem({ code, detail: "Thapsus-HR said no." }, where, t);
     expect(p.code).toBe(code);
-    expect(p.message).not.toMatch(/Thapsus[- ]?HR/i);
+    expect(withoutProductName(p.message)).not.toMatch(/thapsus/i);
     expect(p.fields ? Object.keys(p.fields) : []).toEqual(field ? [field] : []);
   });
 });

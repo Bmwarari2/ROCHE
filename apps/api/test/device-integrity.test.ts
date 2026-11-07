@@ -975,7 +975,7 @@ describe("part 5: copies of refused entries", () => {
     // the care worker; the owner, the only one whose roles reach it, is suspended for the test.
     const croft = "0194d000-0000-7000-8000-0000000001d2";
     const cleo = "0194d000-0000-7000-8600-0000000001d2";
-    await asTenant("INSERT INTO location (id, name) VALUES ($1, 'Thapsus Care Croft')", [croft]);
+    await asTenant("INSERT INTO location (id, name) VALUES ($1, 'Harbour Croft')", [croft]);
     await asTenant(
       `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
        VALUES ($1, $2, 'active', 'Cleo', 'Example', '9990000123')`,
