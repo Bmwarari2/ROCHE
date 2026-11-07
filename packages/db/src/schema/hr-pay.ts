@@ -19,7 +19,7 @@ import { tenantUser } from "./platform";
 import { staffProfile } from "./workforce";
 
 /**
- * Pay through Thapsus-HR (integrations.md section 11.5 rules 11 and 12; slice 89; migration 0151;
+ * Pay through Thapsus-HR (integrations.md section 11.5 rules 11 and 12; slice 89; migration 0148;
  * ADR-0131; HZ-133, HZ-140). Thapsus-HR's pay periods (the pay reference periods for a linked
  * tenant) and its hourly rates, both written by the link's sync alone and read by pay holders;
  * and the units by kind this product worked out when a pay run was locked, kept unchanged as the
