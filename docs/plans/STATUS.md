@@ -17,6 +17,13 @@ adds the Terraform for that job (H-1241): the Cloud Run job `harbour-<env>-dmd`,
 Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job is applied
 (H-1501 to H-1505).
 
+**Committed on 07/11/2026, not pushed:** `fix/workforce-certificate-revalidation-permissions`
+(WORK-004 stays `partial`, WORK-012 `todo`). Two findings from the workforce guides' review: a Care
+Certificate observation needs only `workforce.competence.observe` (API, row-level security and a
+Care Certificate section on the training record, so team leaders and clinical leads can record
+it); and the NMC revalidation confirmation is recorded only by the confirmer HR names, never by HR
+unless named (API, database and web). Migrations 0153 and 0154.
+
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
