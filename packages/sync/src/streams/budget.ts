@@ -1,13 +1,13 @@
 /**
  * Buckets per connection (ADR-0134; HZ-002, HZ-138). PowerSync refuses a connection whose buckets
  * pass `max_buckets_per_connection` in infra/powersync/powersync.yaml, and the phone then gets no
- * fresh data at all. The API estimates a token's buckets before it signs it and narrows the
- * whole-home reach to the homes the member works at when the estimate passes the limit, so a phone
- * at a large group is never refused outright.
+ * fresh data at all, out of sight. The API estimates a token's buckets before it signs it and,
+ * above the limit, refuses it by name (`sync_scope_too_large`), so the phone shows a failed sync.
  *
  * The estimate is an upper bound, from the shape of the streams: each whole home costs a bucket a
  * day for each of the entries, the round and the handover, and the member's own acknowledgements
- * a bucket a ten-day block; each person a whole home carries costs one for their allergies and one
+ * a bucket a ten-day block, and each pair of its homes a bucket a block for the items about
+ * someone who moved between them; each person a whole home carries costs one for their allergies and one
  * for their care reference (with a margin); each assigned person one each for their identity,
  * allergies and care reference, and one a block for their entries, tasks and handover items, and
  * for each whole home's handovers they may appear in. packages/sync/test/bucket-budget.test.ts
@@ -41,7 +41,9 @@ export function estimateBuckets(input: BucketEstimateInput): number {
   const fixed = 4 + input.shiftDays;
   const wholeHomes =
     days * (input.entriesHomes + input.careHomes + input.handoverHomes) +
-    blocks * (input.handoverHomes + 1);
+    blocks * (input.handoverHomes + 1) +
+    // Items about someone who moved between two of the member's homes: a bucket per pair a block.
+    blocks * input.handoverHomes * input.handoverHomes;
   const wholePeople = 3 * input.wholePeople;
   const assigned =
     input.assignedPeople > 0

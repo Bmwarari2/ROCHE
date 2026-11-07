@@ -503,6 +503,16 @@ describe("buckets per home (ADR-0134): what the whole-home cover leaves off is s
     expect(ids(device, "handover_note")).toContain("n-cara-at-north");
   });
 
+  it("never gives a reader who sees only the new home the old home's items about the person (security review, N1)", async () => {
+    const device = await syncFor(
+      hydrated,
+      source,
+      manager({ sub: "agency", handover_location_ids: [SOUTH], handover_assigned: false }),
+    );
+    expect(ids(device, "handover_item")).not.toContain("i-cara-at-north");
+    expect(ids(device, "handover_note")).not.toContain("n-cara-at-north");
+  });
+
   it("gives a covered nurse the task about nobody given to her at another home (security review, M2)", async () => {
     const device = await syncFor(
       hydrated,

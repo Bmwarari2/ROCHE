@@ -37,7 +37,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import { mfaRefusal, requirePermission, withTenant } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
 import { agencyUploadCheck, agencyWindowEnd } from "../services/agency-window";
@@ -288,12 +288,12 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             assignedCovered(reach.locationIds, assignedHomes)
               ? { ...reach, assigned: false }
               : reach;
-          let people = covered(familyReach(access.effective, "people", allIds));
+          const people = covered(familyReach(access.effective, "people", allIds));
           const careReach = familyReach(access.effective, "care", allIds);
-          let care = covered(careReach);
-          let entries = covered(familyReach(access.effective, "entries", allIds));
-          let handovers = covered(familyReach(access.effective, "handover", allIds));
-          let recording = familyReach(access.effective, "entries_write", allIds);
+          const care = covered(careReach);
+          const entries = covered(familyReach(access.effective, "entries", allIds));
+          const handovers = covered(familyReach(access.effective, "handover", allIds));
+          const recording = familyReach(access.effective, "entries_write", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
           const rated = await rateNumber(tx, access.tenantId, OFFLINE_WINDOW_RATE_KEY).catch(
@@ -309,8 +309,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           }
           const offlineDays = offlineWindowDays(new Date(), windowDays);
           // Buckets per connection (ADR-0134; HZ-002): a phone over PowerSync's limit gets no
-          // fresh data at all, so where the estimate passes it the whole-home reach narrows to the
-          // homes the member works at, and the phone is told (`sync_narrowed`).
+          // fresh data at all.
           const estimateFor = async () => {
             const wholeHomes = [...new Set([...people.locationIds, ...care.locationIds])];
             const [{ n } = { n: 0 }] =
@@ -339,25 +338,21 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               assignedHomes: new Set(assignedHomes.map((a) => a.locationId)).size,
             });
           };
-          let estimate = await estimateFor();
-          let narrowed = false;
+          const estimate = await estimateFor();
           if (estimate > SYNC_BUCKET_LIMIT) {
-            const work = new Set(workIds);
-            const toWork = (reach: { locationIds: string[]; assigned: boolean }) => ({
-              ...reach,
-              locationIds: reach.locationIds.filter((l) => work.has(l)),
-            });
-            people = toWork(people);
-            care = toWork(care);
-            entries = toWork(entries);
-            handovers = toWork(handovers);
-            recording = toWork(recording);
-            narrowed = true;
-            estimate = await estimateFor();
-            // Opaque ids and counts only.
+            // PowerSync would refuse this phone's connection and leave it with nothing fresh, out
+            // of sight: refuse the token instead, by name, so the phone shows a failed sync with a
+            // retry (HZ-002, HZ-006). Narrowing to fewer homes, with a notice on the phone, is
+            // H-1430. Opaque ids and counts only.
             c.get("services").logger.warn(
               { tenantId: access.tenantId, estimate, limit: SYNC_BUCKET_LIMIT },
-              "sync token narrowed to the member's work locations to stay under the buckets limit",
+              "sync token refused: the phone would pass the buckets per connection",
+            );
+            throw new HttpProblem(
+              409,
+              "sync_scope_too_large",
+              "This phone cannot hold everything you can see.",
+              "Your access reaches more homes and people than a phone can keep offline. Ask your manager to narrow your roles on this phone, or use the web app.",
             );
           }
           // Where handovers reach the phone, the shift pattern of each nation the organisation
@@ -403,7 +398,6 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               handoverAssigned: handovers.assigned,
               offlineWindowDays: windowDays,
               bucketEstimate: estimate,
-              narrowed,
             },
             requestId: c.get("requestId"),
           });
@@ -461,7 +455,6 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             ...(writePersonIds ? { entries_write_person_ids: writePersonIds } : {}),
             offline_days: offlineDays,
             offline_blocks: offlineWindowBlocks(offlineDays),
-            ...(narrowed ? { sync_narrowed: true } : {}),
             handover_shifts: handoverShifts,
             // The member's own shifts and clock events (scheduling.md section 18): only for those
             // who clock their own time; empty otherwise, so no shift syncs (fails closed).

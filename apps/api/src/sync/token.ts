@@ -70,7 +70,6 @@ export class SyncTokenSigner {
       offline_blocks: [...(claims.offline_blocks ?? [])],
       handover_assigned_location_ids: [...(claims.handover_assigned_location_ids ?? [])],
       care_own_tasks: claims.care_own_tasks === true,
-      ...(claims.sync_narrowed ? { sync_narrowed: true } : {}),
       shift_days: [...(claims.shift_days ?? [])],
       ...(claims.handover_shifts ? { handover_shifts: { ...claims.handover_shifts } } : {}),
     })

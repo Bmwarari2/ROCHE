@@ -139,7 +139,8 @@ $$;
 -- A person's home and status for routing, whoever inserts the row: in the organisation's view, so
 -- a member whose scope does not reach the person never leaves the column empty (the record would
 -- then miss every home's phones, HZ-002). Waits for a move of the person in progress. Returns
--- nothing about anyone outside the caller's organisation.
+-- nothing about anyone outside the caller's organisation. Called only by the routing triggers,
+-- which run as their owner: no application role may call it (security review, N3).
 CREATE OR REPLACE FUNCTION app.sync_person(p_tenant uuid, p_person uuid)
 RETURNS TABLE (location_id uuid, status public.person_status)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
@@ -158,8 +159,6 @@ END
 $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION app.sync_person(uuid, uuid) FROM PUBLIC;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.sync_person(uuid, uuid) TO harbour_app;
 --> statement-breakpoint
 
 -- Existing rows. Row-level security is lifted for the owner for the backfill only, as in 0137, and
@@ -208,9 +207,9 @@ $$;
 --> statement-breakpoint
 
 -- Entries, assessments and administrations, on insert: from the person now, whatever the client
--- sent.
+-- sent. The routing triggers run as their owner, so only they read app.sync_person.
 CREATE OR REPLACE FUNCTION app.set_sync_location() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 BEGIN
   SELECT CASE WHEN app.receives_care(s.status) THEN s.location_id END INTO NEW.sync_location_id
     FROM app.sync_person(NEW.tenant_id, NEW.person_id) s;
@@ -234,7 +233,7 @@ $$;
 -- its own home while the person it is about receives care, else none; a task about nobody, its own
 -- home. Only app.move_sync_location changes it otherwise, when the person leaves or returns to care.
 CREATE OR REPLACE FUNCTION app.set_task_sync_location() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 BEGIN
   IF TG_OP = 'UPDATE' AND app.is_sync_location_move(TG_RELID, to_jsonb(NEW), to_jsonb(OLD)) THEN
     RETURN NEW;
@@ -249,6 +248,8 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
+REVOKE ALL ON FUNCTION app.set_task_sync_location() FROM PUBLIC;
+--> statement-breakpoint
 CREATE TRIGGER set_sync_location BEFORE INSERT OR UPDATE ON public.task
   FOR EACH ROW EXECUTE FUNCTION app.set_task_sync_location();
 --> statement-breakpoint
@@ -256,7 +257,7 @@ CREATE TRIGGER set_sync_location BEFORE INSERT OR UPDATE ON public.task
 -- A handover's rows, on insert: its home and shift end; on an item or note, the person's home now
 -- and whether that is the handover's home (about nobody: at home).
 CREATE OR REPLACE FUNCTION app.set_handover_sync() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 DECLARE
   h_home uuid;
   p_home uuid;

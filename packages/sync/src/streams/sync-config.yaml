@@ -755,8 +755,21 @@ streams:
                handover_item.summary
         FROM handover_item
         WHERE handover_item.tenant_id = auth.parameter('tenant_id')
-          AND handover_item.person_location_id IN auth.parameter('handover_location_ids')
+          AND handover_item.sync_location_id IN auth.parameter('handover_location_ids')
+          AND handover_item.at_home = true
           AND substring(handover_item.shift_end, 1, 10) IN auth.parameter('offline_days')
+      - >-
+        SELECT handover_item.id, handover_item.tenant_id, handover_item.handover_id,
+               handover_item.key AS item_key, handover_item.position, handover_item.kind,
+               handover_item.person_id, handover_item.source_type, handover_item.source_id,
+               handover_item.at, handover_item.late_addition, handover_item.added_at,
+               handover_item.summary
+        FROM handover_item
+        WHERE handover_item.tenant_id = auth.parameter('tenant_id')
+          AND handover_item.sync_location_id IN auth.parameter('handover_location_ids')
+          AND handover_item.person_location_id IN auth.parameter('handover_location_ids')
+          AND handover_item.at_home = false
+          AND substring(handover_item.shift_end, 1, 9) IN auth.parameter('offline_blocks')
       - >-
         SELECT handover_note.id, handover_note.tenant_id, handover_note.handover_id,
                handover_note.item_key, handover_note.person_id, handover_note.body,
@@ -772,8 +785,19 @@ streams:
                handover_note.created_at, handover_note.created_by
         FROM handover_note
         WHERE handover_note.tenant_id = auth.parameter('tenant_id')
-          AND handover_note.person_location_id IN auth.parameter('handover_location_ids')
+          AND handover_note.sync_location_id IN auth.parameter('handover_location_ids')
+          AND handover_note.at_home = true
           AND substring(handover_note.shift_end, 1, 10) IN auth.parameter('offline_days')
+      - >-
+        SELECT handover_note.id, handover_note.tenant_id, handover_note.handover_id,
+               handover_note.item_key, handover_note.person_id, handover_note.body,
+               handover_note.created_at, handover_note.created_by
+        FROM handover_note
+        WHERE handover_note.tenant_id = auth.parameter('tenant_id')
+          AND handover_note.sync_location_id IN auth.parameter('handover_location_ids')
+          AND handover_note.person_location_id IN auth.parameter('handover_location_ids')
+          AND handover_note.at_home = false
+          AND substring(handover_note.shift_end, 1, 9) IN auth.parameter('offline_blocks')
       - >-
         SELECT handover_acknowledgement.id, handover_acknowledgement.tenant_id,
                handover_acknowledgement.handover_id, handover_acknowledgement.tenant_user_id,

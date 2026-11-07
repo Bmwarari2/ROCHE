@@ -244,9 +244,10 @@ describe("sync streams definition", () => {
       ({ stream }) => stream.endsWith("_open_tasks") || stream.endsWith("_handovers"),
     );
     // Since ADR-0134: the location tasks are one query (every task at the home, by its sync home);
-    // whole readers' handovers seven (items and notes about nobody here, or about people living
-    // at their homes now), limited readers' seven (with the mixed scope's two).
-    expect(shiftQueries).toHaveLength(17);
+    // whole readers' handovers nine (items and notes about nobody or someone who lives at the
+    // handover's home, and about someone who moved between two of their homes), limited readers'
+    // seven (with the mixed scope's two).
+    expect(shiftQueries).toHaveLength(19);
     for (const { stream, query } of shiftQueries) {
       // By day where the bucket is a whole home's; by ten-day block where it is a person's, the
       // member's or a home a limited reader may open (ADR-0134).
@@ -257,7 +258,8 @@ describe("sync streams definition", () => {
       expect([match?.[3], match?.[4]], stream).toEqual(
         /(entries|care|handover)_location_ids'\)/.test(query) &&
           !query.includes("person_assignment") &&
-          !query.includes("auth.user_id()")
+          !query.includes("auth.user_id()") &&
+          !query.includes("at_home = false")
           ? ["10", "offline_days"]
           : ["9", "offline_blocks"],
       );
