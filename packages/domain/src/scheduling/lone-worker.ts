@@ -330,7 +330,7 @@ export const ROUTE_PROBLEM_MESSAGES: Record<RouteProblem, string> = {
   in_app_only:
     "Every step must reach people away from the app. Include email: phone notifications and text messages cannot reach staff yet.",
   sms_unavailable:
-    "Text messages cannot be sent: no text message service is set up. Choose a phone notification or email for each step instead.",
+    "Text messages cannot be sent: no text message service is set up. Include email at each step instead.",
 };
 
 /**

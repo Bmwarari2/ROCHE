@@ -526,7 +526,7 @@ describe("hazard HZ-125 no on-call step relies on a channel that cannot reach st
   });
 
   it("says in words what to choose instead", () => {
-    expect(ROUTE_PROBLEM_MESSAGES.sms_unavailable).toMatch(/phone notification or email/);
+    expect(ROUTE_PROBLEM_MESSAGES.sms_unavailable).toMatch(/Include email at each step/);
     expect(ROUTE_PROBLEM_MESSAGES.in_app_only).toMatch(/Include email/);
   });
 });

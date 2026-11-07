@@ -468,7 +468,7 @@ describe("hazard HZ-009 quiet hours always apply to family updates, on the UK cl
   });
 });
 
-describe("no family notification relies on text messages while no SMS gateway is set up (ADR-0132)", () => {
+describe("hazard HZ-061 no family notification relies on text messages while no SMS gateway is set up (ADR-0132; H-1482)", () => {
   it("skips a text message channel in words and still sends by email and app", () => {
     const plan = planFamilyNotification(request({ smsAvailable: false }));
     expect(plan.action).toBe("send");

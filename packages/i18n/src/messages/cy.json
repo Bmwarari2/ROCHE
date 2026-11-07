@@ -6392,7 +6392,7 @@
   "scheduling.loneWorker.route.minutesOrder": "Step {step} must come later than the step before it",
   "scheduling.loneWorker.route.targetRequired": "Choose who is told at step {step}",
   "scheduling.loneWorker.route.channelRequired": "Include email for step {step}, so they are told away from Harbour",
-  "scheduling.loneWorker.route.smsUnavailable": "Text messages cannot be sent: no text message service is set up. Choose a phone notification or email for step {step} instead",
+  "scheduling.loneWorker.route.smsUnavailable": "Text messages cannot be sent: no text message service is set up. Include email for step {step} instead",
   "scheduling.loneWorker.route.smsNotSetUp": "Text messages are not offered because no text message service is set up. Text messages already chosen are removed when you save. Your Harbour administrator can tell you when text messages are available.",
   "scheduling.loneWorker.route.pushNotReady": "Phone notifications cannot reach staff until their phones are registered for them, so every step must include email.",
   "scheduling.loneWorker.route.tooFew": "Name the on-call person or role first, then the Registered Manager",

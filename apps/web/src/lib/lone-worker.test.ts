@@ -404,7 +404,7 @@ describe("hazard HZ-125 the on-call route (H-539, slice 61)", () => {
     expect(read.ok).toBe(false);
     if (!read.ok) {
       expect(read.problems).toEqual([
-        { field: "step-1-channel", message: expect.stringMatching(/phone notification or email/) },
+        { field: "step-1-channel", message: expect.stringMatching(/Include email for step 1/) },
       ]);
     }
   });
