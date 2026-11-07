@@ -19,9 +19,10 @@ workers cannot: tell the person in charge.
 1. Open the person's record and choose **Leaving**.
 2. Under **Record a death**, enter **When the person died**.
 3. Choose **Where the person died**: **In the home**, **In hospital** or **Somewhere else**.
-4. Answer **Was the death expected?** with what the clinician judged. For an unexpected death,
-   follow your home's procedure. The home does not refer a death to the coroner: doctors and the
-   medical examiner do.
+4. Answer **Was the death expected?** with what the clinician judged. If the death was sudden or
+   unexpected, make sure 999 and the police have been called (see Before you start). A doctor or
+   the medical examiner usually refers the death to the coroner, but anyone worried about how a
+   person died can contact the coroner.
 5. Answer **Did the person have a learning disability, or were they autistic?** from what is
    known. It is needed for LeDeR and never assumed.
 6. Add **Death verified by (name, optional)**, **Their role (optional)** and **Funeral director

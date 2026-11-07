@@ -309,7 +309,7 @@ describe("undo names what it removes (HZ-005, HZ-130)", () => {
 
   it("hazard HZ-005 says one medicine in the singular", () => {
     expect(t("import.undo.about", { type: "medicines", records: 1 })).toContain(
-      "withdraws the medicine this import added. It stays",
+      "withdraws the medicine this import added, and removes the open task to check it. It stays",
     );
   });
 

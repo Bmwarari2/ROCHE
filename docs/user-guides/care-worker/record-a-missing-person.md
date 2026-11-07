@@ -41,8 +41,8 @@ Care are for nurses and managers.
   missing person timeline (last seen, search, sightings, police reference, found, welfare check,
   debrief) and the reminder to call the police have **no web screen yet**. Keep the search log as
   your procedure says, and give the police the profile your home keeps.
-- If the person is under a Deprivation of Liberty Safeguards authorisation or the Mental Health
-  Act, a manager may need to notify the Care Quality Commission. Thapsus Care never notifies anyone
-  itself.
+- If the police were told, or the person is under a Deprivation of Liberty authorisation or the
+  Mental Health Act, a manager must notify the Care Quality Commission. Thapsus Care drafts it and
+  never sends it itself.
 - The rules: [safety specification, deaths and missing persons](../../specs/safety.md#deaths-and-missing-persons-plan-slice-37-safe-014-safe-015)
   and hazard [HZ-127](../../clinical-safety/hazard-log.md#hz-127-a-missing-persons-escalation-delayed-or-the-herbert-protocol-profile-out-of-date).
