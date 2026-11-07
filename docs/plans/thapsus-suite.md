@@ -10,8 +10,9 @@ On 07/11/2026 the owner asked for three new products: Thapsus Finance (`Bmwarari
 including Thapsus Care and Thapsus-HR, must work together when a provider buys more than one, and the interface
 must be consistent across all of them.
 
-The suite plan lives in those repositories under `docs/suite/` (`SUITE_PLAN.md`, `INTEGRATION.md`,
-`PLATFORM.md`, `STUDIO.md`, `AI.md`, `DESIGN_SYSTEM.md`). Its integration contract is built on the pattern
+The suite plan lives in `docs/suite/` of `Bmwarari2/PROJECT_ATLAS`, the suite's platform repository (created by the
+owner on 07/11/2026), with read-only copies in the three new product repositories (`SUITE_PLAN.md`,
+`INTEGRATION.md`, `PLATFORM.md`, `STUDIO.md`, `AI.md`, `DESIGN_SYSTEM.md`). Its integration contract is built on the pattern
 Thapsus Care set with Thapsus-HR in [ADR-0126](../decisions/0126-thapsus-hr-link.md): one owner for each kind of
 data, identifiers on the wire and data fetched over the public API, the same region only, staleness said in
 words, and off by default.
