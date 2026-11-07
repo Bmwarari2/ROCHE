@@ -288,11 +288,17 @@ export interface FamilyNotificationRequest {
   readonly tenantQuietHours: QuietHours;
   /** The family member's own window, if they set one. */
   readonly ownQuietHours: QuietHours | null;
+  /**
+   * Whether an SMS gateway is connected (`smsGatewayConfigured`). None is at launch (ADR-0132), so a
+   * text message channel is skipped rather than handed to a port that sends nothing.
+   */
+  readonly smsAvailable: boolean;
   readonly now: Date;
 }
 
 export type SkippedChannelReason =
   | ChannelUnusableReason
+  | "sms_unavailable"
   | "address_not_valid"
   | "no_approved_template"
   | "template_not_allowed";
@@ -353,6 +359,10 @@ export function planFamilyNotification(request: FamilyNotificationRequest): Fami
 
   const ready: { state: FamilyChannelState; template: FamilyNotificationTemplate }[] = [];
   for (const state of request.channels) {
+    if (state.kind === "sms" && !request.smsAvailable) {
+      skip(state, "sms_unavailable");
+      continue;
+    }
     const usability = familyChannelUsability(state);
     if (!usability.usable) {
       skip(state, usability.reason);

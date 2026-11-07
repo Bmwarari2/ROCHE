@@ -61835,7 +61835,7 @@ export interface paths {
     };
     /**
      * Name the on-call route for lone-worker alarms (H-539)
-     * @description scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.
+     * @description scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app, and, until staff phones can receive notifications and an SMS gateway is connected, that means email (ADR-0132; HZ-125). Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.
      */
     put: {
       parameters: {
@@ -79973,6 +79973,8 @@ export interface components {
         message: string;
       }[];
       locationEvidence: boolean;
+      smsAvailable: boolean;
+      pushAvailable: boolean;
       version: number | null;
     };
     LoneWorkerRouteStep: {

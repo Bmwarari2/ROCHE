@@ -1361,8 +1361,12 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
 
 1. **Off until the route is named.** A session starts only when the organisation has saved a
    valid route under the chain key `scheduling.lone_worker.alarm`: step 1 the on-call person or
-   role, a later step the Registered Manager, every step reaching people away from the app (push,
-   email or text message) (`checkRoute`). Otherwise the start is refused in words.
+   role, a later step the Registered Manager, every step reaching people away from the app: email,
+   a phone notification once staff phones register for them, a text message once an SMS gateway is
+   connected. At launch neither of the last two can reach staff, so every step includes email, and a
+   step may not choose a text message (ADR-0132; migration 0145 adds email to saved steps and
+   removes text messages) (`checkRoute`). Otherwise the start is refused in words. A text message
+   that later cannot be sent never switches a saved route off.
 2. **Starting.** For oneself, at a location where one works, with an interval and length within
    the figures (`checkSession`). A retry with the same client id returns the first session.
 3. **When a check-in is due.** One interval after the latest check-in (by its effective time), or
@@ -1511,8 +1515,9 @@ on (H-1033).
 - **On-call route** (`/lone-working/route`, manage): whether lone working is on, the API's
   problems in its words, whether location sharing is on, the escalation order in words, and the
   steps: minutes after the alarm (step 1 is told at once, so it has none), who is told (a shipped staff role that can monitor, or an
-  active member for those who may list the team) and how (phone notification, email, text message,
-  in Harbour). The form refuses, before sending, fewer than two steps, the Registered Manager
+  active member for those who may list the team) and how (phone notification, email or in Harbour;
+  text message only once an SMS gateway is connected; until then, and until staff phones can
+  receive notifications, the page says so and each step must include email: ADR-0132). The form refuses, before sending, fewer than two steps, the Registered Manager
   first, no Registered Manager later, minutes out of order and a step reaching people only inside
   Harbour (`readRoute`); the API checks every role and person again.
 

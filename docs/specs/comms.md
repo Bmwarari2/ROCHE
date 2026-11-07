@@ -302,7 +302,11 @@ by the caller.
     at once; START from the same phone or the portal opts back in. Addresses are checked for shape
     (email with the shared printable-ASCII check also used for letters, so a lookalike letter is
     refused; E.164 for SMS); proof comes from verification. Click-to-call offers only the home's own number
-    as a `tel:` link.
+    as a `tel:` link. **No SMS at launch** (ADR-0132; H-09, H-105): no SMS gateway is contracted,
+    so families are offered app and email only (`offeredFamilyChannelKinds`), and a text message
+    channel is skipped as `sms_unavailable` rather than handed to a port that sends nothing
+    (`planFamilyNotification`), until a gateway is connected (`smsGatewayConfigured`: never the
+    mock). The `comms.sms` port and its mock stay.
 15. **Quiet hours and one notification at a time.** Family updates are never urgent, so quiet hours
     always apply: the tenant's window (`comms.family_notifications.quiet_start_minute` to
     `.quiet_end_minute`, UK time, tenant setting) and the family member's own, if set, both hold a
