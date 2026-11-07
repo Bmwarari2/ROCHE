@@ -3,8 +3,8 @@ import {
   describeSyncBanner,
   NEVER_SYNCED_WARNING,
   REFUSED_TITLE,
+  SCOPE_TOO_LARGE_REASON,
   SCOPE_TOO_LARGE_TITLE,
-  SCOPE_TOO_LARGE_WARNING,
   STALE_WARNING,
 } from "./sync-banner";
 
@@ -183,17 +183,39 @@ describe("hazard HZ-138 a phone refused because the member's access is too wide 
   it("says so in words, with what to do, never a bare failure", () => {
     const content = describeSyncBanner({
       state: "failed",
-      lastSyncedAt: minutesAgo(30),
+      lastSyncedAt: minutesAgo(5),
       now,
       staleAfterMs,
       failureReason: "scope_too_large",
     });
     expect(content.title).toBe(SCOPE_TOO_LARGE_TITLE);
-    expect(content.warning).toBe(SCOPE_TOO_LARGE_WARNING);
-    expect(content.warning).toMatch(/web app/);
+    expect(content.reason).toBe(SCOPE_TOO_LARGE_REASON);
+    expect(content.reason).toMatch(/web app/);
+    expect(content.reason).toMatch(/Your changes are safe on this phone\./);
     expect(content.tone).toBe("danger");
     expect(content.icon).toBe("cloud-alert");
     expect(content.urgent).toBe(true);
-    expect(content.accessibilityLabel).toContain(SCOPE_TOO_LARGE_WARNING);
+    expect(content.retryHint).toBe("Checks again whether this phone can sync");
+    expect(content.accessibilityLabel).toContain(SCOPE_TOO_LARGE_REASON);
   });
+
+  it.each([
+    ["stale", minutesAgo(30), STALE_WARNING],
+    ["never synced", null, NEVER_SYNCED_WARNING],
+  ] as const)(
+    "hazard HZ-002 keeps the %s warning beside the refusal (accessibility review, blocker 1)",
+    (_case, last, warning) => {
+      const content = describeSyncBanner({
+        state: "failed",
+        lastSyncedAt: last,
+        now,
+        staleAfterMs,
+        failureReason: "scope_too_large",
+      });
+      expect(content.warning).toBe(warning);
+      expect(content.reason).toBe(SCOPE_TOO_LARGE_REASON);
+      expect(content.accessibilityLabel).toContain(warning);
+      expect(content.accessibilityLabel).toContain(SCOPE_TOO_LARGE_REASON);
+    },
+  );
 });

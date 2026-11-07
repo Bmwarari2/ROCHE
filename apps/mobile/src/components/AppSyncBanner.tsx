@@ -26,12 +26,11 @@ export function AppSyncBanner() {
   const refused = held === null || issues === null ? null : issues + held;
 
   // The API refused this phone because the member's access is too wide (ADR-0134; HZ-138).
+  // Offline wins: the refusal is said again once the phone can reach the API (review, minor 7).
   const scopeRefused = useScopeRefused();
-  const state = appEnv.demoMode
-    ? "offline"
-    : scopeRefused
-      ? "failed"
-      : deriveConnectionState(status, network);
+  const derived = appEnv.demoMode ? "offline" : deriveConnectionState(status, network);
+  const showRefusal = scopeRefused && !appEnv.demoMode && derived !== "offline";
+  const state = showRefusal ? "failed" : derived;
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);
 
   return (
@@ -41,7 +40,7 @@ export function AppSyncBanner() {
       staleAfterMs={STALE_AFTER_MS}
       queuedChanges={queued}
       refusedEntries={refused}
-      failureReason={scopeRefused && !appEnv.demoMode ? "scope_too_large" : null}
+      failureReason={showRefusal ? "scope_too_large" : null}
       onRetry={() => {
         void vault.retrySync();
       }}

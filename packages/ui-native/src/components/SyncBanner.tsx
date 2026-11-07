@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
 import { describeSyncBanner, type SyncConnectionState } from "../logic/sync-banner";
 import { toneAppearance } from "../logic/theme";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
@@ -68,6 +68,13 @@ export function SyncBanner({
   });
 
   // Warnings and failures are filled so they cannot be missed; calm states sit on the card colour.
+  // A refusal lasts until access changes: announce it once when it starts, then keep it out of the
+  // live region, so the minute-by-minute "Last synced" never re-reads it (accessibility review, 2).
+  const announcement = content.reason ? `${content.title}. ${content.reason}` : null;
+  useEffect(() => {
+    if (announcement) AccessibilityInfo.announceForAccessibility?.(announcement);
+  }, [announcement]);
+
   const filled = content.tone === "warning" || content.tone === "danger";
   const fill = toneAppearance(content.tone);
   const background = filled ? fill.background : theme.colors.card;
@@ -94,7 +101,7 @@ export function SyncBanner({
         accessible
         accessibilityRole={content.urgent ? "alert" : "summary"}
         accessibilityLabel={content.accessibilityLabel}
-        accessibilityLiveRegion={content.urgent ? "assertive" : "polite"}
+        accessibilityLiveRegion={content.reason ? "none" : content.urgent ? "assertive" : "polite"}
         style={styles.message}
       >
         <Icon
@@ -108,6 +115,11 @@ export function SyncBanner({
           <Text variant="bodyDense" tone={textTone} emphasis testID={`${testID}-title`}>
             {content.title}
           </Text>
+          {content.reason ? (
+            <Text variant="bodyDense" tone={textTone} testID={`${testID}-reason`}>
+              {content.reason}
+            </Text>
+          ) : null}
           <Text variant="bodyDense" tone={detailTone} testID={`${testID}-detail`}>
             {content.detail}
           </Text>
@@ -122,7 +134,7 @@ export function SyncBanner({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Retry sync"
-          accessibilityHint="Tries to connect and sync again"
+          accessibilityHint={content.retryHint}
           testID={`${testID}-retry`}
           onPress={() => {
             haptics?.selection();

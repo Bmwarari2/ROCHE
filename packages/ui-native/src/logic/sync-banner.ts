@@ -48,6 +48,10 @@ export interface SyncBannerContent {
   readonly detail: string;
   /** Present when the data may be out of date. */
   readonly warning: string | null;
+  /** Why sync is refused and what to do, when the API said (shown beside any warning). */
+  readonly reason: string | null;
+  /** The Retry button's hint for screen readers. */
+  readonly retryHint: string;
   readonly stale: boolean;
   readonly showRetry: boolean;
   /** Announce changes assertively (failure or stale data) rather than politely. */
@@ -62,10 +66,15 @@ const titles: Record<SyncConnectionState, string> = {
   failed: "Sync failed",
 };
 
-/** Shown when the API refuses this phone because the member's access is too wide (ADR-0134). */
-export const SCOPE_TOO_LARGE_TITLE = "Too much to keep on this phone";
-export const SCOPE_TOO_LARGE_WARNING =
-  "You can see more homes and people than a phone can keep offline, so this phone cannot sync. Use the web app, or ask your manager to give you fewer people or homes on this phone.";
+/**
+ * Shown when the API refuses this phone because the member's access is too wide (ADR-0134; HZ-138),
+ * beside the stale-data warning, never instead of it (accessibility review, blocker 1).
+ */
+export const SCOPE_TOO_LARGE_TITLE = "This phone cannot sync";
+export const SCOPE_TOO_LARGE_REASON =
+  "You can see more homes and people than a phone can keep. Use the web app, or ask your manager to reduce the homes and people you can see. Your changes are safe on this phone.";
+const RETRY_HINT = "Tries to connect and sync again";
+const SCOPE_RETRY_HINT = "Checks again whether this phone can sync";
 
 export const STALE_WARNING = "Data may be out of date. Check important details before you act.";
 export const NEVER_SYNCED_WARNING =
@@ -135,10 +144,10 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     icon = "cloud-alert";
   }
   const scopeTooLarge = input.failureReason === "scope_too_large";
+  const reason = scopeTooLarge ? SCOPE_TOO_LARGE_REASON : null;
   if (scopeTooLarge) {
     tone = "danger";
     icon = "cloud-alert";
-    warning = SCOPE_TOO_LARGE_WARNING;
   }
   const title = scopeTooLarge
     ? SCOPE_TOO_LARGE_TITLE
@@ -146,7 +155,7 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
       ? REFUSED_TITLE
       : titles[state];
   const urgent = state === "failed" || warning !== null || refused !== null || scopeTooLarge;
-  const accessibilityLabel = [`${title}.`, detail, warning].filter(Boolean).join(" ");
+  const accessibilityLabel = [`${title}.`, reason, detail, warning].filter(Boolean).join(" ");
 
   return {
     tone,
@@ -154,6 +163,8 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     title,
     detail,
     warning,
+    reason,
+    retryHint: scopeTooLarge ? SCOPE_RETRY_HINT : RETRY_HINT,
     stale,
     showRetry: state === "failed" || scopeTooLarge,
     urgent,
