@@ -4,7 +4,7 @@ Take a course your organisation offers. When you finish or pass it, it is added 
 record.
 
 **Who can do this**: care and support workers, team leaders or senior carers, clinical leads and
-nurses, agency and bank workers, activities, catering, housekeeping and maintenance staff,
+nurses, agency or bank workers, activities, catering, housekeeping and maintenance staff,
 Registered Managers, deputy managers and owners.
 
 **Register row**: WORK-006.

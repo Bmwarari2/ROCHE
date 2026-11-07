@@ -4,7 +4,7 @@ Confirm you have read your organisation's staff privacy notice, and say whether 
 be used in the newsletter, on the website, on social media or in family updates.
 
 **Who can do this**: care and support workers, team leaders or senior carers, clinical leads and
-nurses, agency and bank workers, activities, catering, housekeeping and maintenance staff,
+nurses, agency or bank workers, activities, catering, housekeeping and maintenance staff,
 Registered Managers, deputy managers and owners, each for themselves.
 
 **Register row**: WORK-011.

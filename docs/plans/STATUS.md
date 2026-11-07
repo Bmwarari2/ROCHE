@@ -39,6 +39,13 @@ destroying Phase 2 records when their retention class ends. Nothing destroys dat
 133 of the 135 Phase 2 tables with personal data are never swept. 15 slices, report only first;
 an ADR and 12 DPO questions come before any record is destroyed.
 
+## User guides: safety, quality and platform, second pass (07/11/2026)
+
+`docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
+(outbreaks, deaths, missing persons, disclosures, importing medicines, care plans and staff checks)
+and about 30 brought up to `main`, linked from the indexes and the register. Gaps and findings:
+`docs/changelog-dev/2026-11-07-docs-guides-safety-quality-platform-2.md`.
+
 ## User guides: workforce and scheduling (07/11/2026)
 
 `docs/guides-workforce-scheduling` (Phase 2 slice 82), from `main` at b65e7b61: 63 guides for the
