@@ -44,13 +44,15 @@ const ONCE: readonly MissingTimelineKind[] = [
   "welfare_check",
   "debrief",
 ];
-/** Kinds that only make sense while the person is still missing. */
+/**
+ * Kinds that only make sense while the person is still missing. The police called is not one: a
+ * call made before the person was found may be recorded afterwards, at its true time (HZ-127).
+ */
 const WHILE_MISSING: readonly MissingTimelineKind[] = [
   "noticed_missing",
   "search_started",
   "search",
   "sighting",
-  "police_called",
 ];
 /** Kinds that need the person found first. */
 const AFTER_FOUND: readonly MissingTimelineKind[] = ["welfare_check", "debrief"];
@@ -98,6 +100,12 @@ export function timelineEntryProblems(
   const found = existing.some((e) => e.kind === "found");
   if (found && WHILE_MISSING.includes(entry.kind)) {
     problems.push("The person has been found: add a note instead.");
+  }
+  const foundAt = existing.find((e) => e.kind === "found")?.at;
+  if (foundAt && entry.kind === "police_called" && entry.at > foundAt) {
+    problems.push(
+      "The person has been found: record the time the police were called, which was before they were found, or add a note instead.",
+    );
   }
   if (!found && AFTER_FOUND.includes(entry.kind)) {
     problems.push("Record that the person was found first.");

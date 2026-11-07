@@ -200,8 +200,15 @@ export const MissingEpisodeView = z
       }),
     ),
     policeCallDueAt: isoDateTime.nullable(),
+    /** The police call target, kept once the call is made (a late call says so; HZ-127). */
+    policeCallTargetAt: isoDateTime.nullable(),
     policeCallLate: z.boolean(),
     policeReference: z.string().nullable(),
+    /**
+     * The police were called but the incident had closed, so no CQC notification was drafted from
+     * it: a task asks the Registered Manager to reopen the incident and notify (HZ-127, HZ-013).
+     */
+    policeInvolvementUnnotified: z.boolean(),
     /** Police involved, or the person is under DoLS or the Mental Health Act (regulation 18(2)(f)). */
     cqcNotificationPrompt: z.boolean(),
     herbertProfile: HerbertProfileState,

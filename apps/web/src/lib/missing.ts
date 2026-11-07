@@ -13,6 +13,29 @@ export const MISSING_READ = "safety.incident.read";
 export const MISSING_REPORT = "safety.incident.report";
 export const MISSING_MANAGE = "safety.incident.manage";
 
+/**
+ * A found episode with no police call on its timeline says a call made while the person was
+ * missing may still be recorded, at its true time (HZ-127): the API takes it until the episode
+ * closes, answering police involved for the CQC notification.
+ */
+export function latePoliceCallShown(episode: {
+  readonly status: string;
+  readonly policeReference: string | null;
+}): boolean {
+  return episode.status === "found" && !episode.policeReference;
+}
+
+/** How long after the time it happened an entry is said to have been recorded later (HZ-127). */
+export const RECORDED_LATER_MS = 15 * 60_000;
+
+/** Whether a timeline entry was recorded well after the time it gives, so the screen says so. */
+export function recordedLater(entry: {
+  readonly at: string;
+  readonly recordedAt: string;
+}): boolean {
+  return Date.parse(entry.recordedAt) - Date.parse(entry.at) > RECORDED_LATER_MS;
+}
+
 /** Shown to whoever may read incidents (the API's own check). */
 export function missingShown(permissions: readonly string[]): boolean {
   return permissions.includes(MISSING_READ);
@@ -99,7 +122,14 @@ export interface PoliceCall {
   readonly immediateRisk?: boolean;
 }
 
-export type PoliceCallState = "called" | "overdue" | "now" | "due" | "missed" | "not_needed";
+export type PoliceCallState =
+  | "called"
+  | "called_late"
+  | "overdue"
+  | "now"
+  | "due"
+  | "missed"
+  | "not_needed";
 
 /**
  * The police call as the screens put it first: overdue, call now (immediate risk), due by the
@@ -109,7 +139,8 @@ export type PoliceCallState = "called" | "overdue" | "now" | "due" | "missed" | 
  * target without waiting for the API.
  */
 export function policeCallState(episode: PoliceCall, now: Date = new Date()): PoliceCallState {
-  if (episode.policeReference) return "called";
+  // Called after the target, even when recorded once the person was found: still said as late.
+  if (episode.policeReference) return episode.policeCallLate ? "called_late" : "called";
   const late =
     episode.policeCallLate ||
     (episode.policeCallDueAt !== null && Date.parse(episode.policeCallDueAt) <= now.getTime());
@@ -125,6 +156,7 @@ export function policeCallChip(state: PoliceCallState, when: string, t: Translat
   switch (state) {
     case "overdue":
     case "missed":
+    case "called_late":
       return { status: "overdue", icon: "circle-alert", label };
     case "now":
       return { status: "overdue", icon: "triangle-alert", label };
