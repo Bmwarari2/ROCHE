@@ -211,7 +211,7 @@ describe("reading the forms", () => {
   });
 });
 
-describe("hazard HZ-115 hazard HZ-008 the paper register is the record until Harbour's is released at the home (H-1517)", () => {
+describe("hazard HZ-115 hazard HZ-008 the paper register is the record until Thapsus Care's is released at the home (H-1517)", () => {
   it.each([
     ["the flag on at the location", { [CD_RECORDING_FLAG]: true }, true],
     ["the flag off", { [CD_RECORDING_FLAG]: false }, false],
@@ -222,7 +222,7 @@ describe("hazard HZ-115 hazard HZ-008 the paper register is the record until Har
     expect(cdRecordingOn(flags)).toBe(on);
   });
 
-  it("says in words that the paper register is the record, and the round no longer sends staff to Harbour's", () => {
+  it("says in words that the paper register is the record, and the round no longer sends staff to Thapsus Care's", () => {
     expect(t("cd.notTurnedOn.title")).toMatch(/not turned on/);
     expect(t("cd.notTurnedOn.body")).toMatch(/paper controlled drugs register is the record/);
     expect(t("medicines.round.cdNotice")).toMatch(/paper controlled drugs register/);

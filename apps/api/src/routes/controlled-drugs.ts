@@ -47,6 +47,7 @@ import {
   type PageRow,
   pageEntries,
   pageFor,
+  requireCdRecording,
   type StockCheckRow,
   stockCheckOut,
   witnessPolicyFor,
@@ -225,48 +226,58 @@ export const controlledDrugsRouter = createRouter()
         200: jsonBody(CdPageSummary, "The page"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
       const access = await requirePermission(c, ADMINISTER);
       const { id: personId } = c.req.valid("param");
       const { entryId } = c.req.valid("json");
-      const out = await withTenant(c, async (tx) => {
-        const person = await loadPerson(tx, personId);
-        await lockPerson(tx, personId);
-        const stored = (await personEntries(tx, personId)).find((s) => s.entry.id === entryId);
-        if (!stored) throw problems.notFound();
-        const [row] = await tx
-          .select({ cd: medication.cdSchedule })
-          .from(medication)
-          .where(eq(medication.id, entryId));
-        if (!row?.cd) {
-          throw problems.invalid(
-            "This medicine is not a controlled drug, so it has no register page.",
-          );
-        }
-        const { page, opened } = await pageFor(tx, stored.entry, access.tenantUserId);
-        if (opened) {
-          await audit(c, tx, access, {
+      const out = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const person = await loadPerson(tx, personId);
+          await lockPerson(tx, personId);
+          // Nothing goes in Thapsus Care's register until recording is released here (H-1517).
+          await requireCdRecording(tx, person.locationId, {
             action: "medicines.cd.page_opened",
-            resourceType: "controlled_drug_page",
-            resourceId: page.id,
+            resourceType: "medication",
+            resourceId: entryId,
             scope: { personId },
           });
-        }
-        const rates = await medicinesRates(
-          tx,
-          access.tenantId,
-          person.nation,
-          ukIsoDate(new Date()),
-        );
-        return summary(
-          tx,
-          page,
-          await witnessPolicyFor(tx, person.locationId),
-          rates.cdStockCheckIntervalDays,
-        );
-      });
+          const stored = (await personEntries(tx, personId)).find((s) => s.entry.id === entryId);
+          if (!stored) throw problems.notFound();
+          const [row] = await tx
+            .select({ cd: medication.cdSchedule })
+            .from(medication)
+            .where(eq(medication.id, entryId));
+          if (!row?.cd) {
+            throw problems.invalid(
+              "This medicine is not a controlled drug, so it has no register page.",
+            );
+          }
+          const { page, opened } = await pageFor(tx, stored.entry, access.tenantUserId);
+          if (opened) {
+            await audit(c, tx, access, {
+              action: "medicines.cd.page_opened",
+              resourceType: "controlled_drug_page",
+              resourceId: page.id,
+              scope: { personId },
+            });
+          }
+          const rates = await medicinesRates(
+            tx,
+            access.tenantId,
+            person.nation,
+            ukIsoDate(new Date()),
+          );
+          return summary(
+            tx,
+            page,
+            await witnessPolicyFor(tx, person.locationId),
+            rates.cdStockCheckIntervalDays,
+          );
+        }),
+      );
       return c.json(out, 200);
     },
   )
@@ -502,6 +513,7 @@ export const controlledDrugsRouter = createRouter()
         201: jsonBody(WitnessAssertionOut, "Signed"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -516,6 +528,12 @@ export const controlledDrugsRouter = createRouter()
         withTenant(c, async (tx) => {
           requireStepUp(access, "medicines.cd.witness_asserted", pageId);
           const page = await lockedPage(tx, pageId);
+          await requireCdRecording(tx, (await loadPerson(tx, page.personId)).locationId, {
+            action: "medicines.cd.witness_asserted",
+            resourceType: "controlled_drug_page",
+            resourceId: pageId,
+            scope: { personId: page.personId },
+          });
           if (competence !== "current") {
             throw new AuditedRefusal(
               refusal([
@@ -613,6 +631,12 @@ export const controlledDrugsRouter = createRouter()
           requireStepUp(access, "medicines.cd.entry_recorded", pageId);
           const page = await lockedPage(tx, pageId);
           const person = await loadPerson(tx, page.personId);
+          await requireCdRecording(tx, person.locationId, {
+            action: "medicines.cd.entry_recorded",
+            resourceType: "controlled_drug_page",
+            resourceId: pageId,
+            scope: { personId: page.personId, movement: body.movement },
+          });
           const occurredAt = body.occurredAt ? new Date(body.occurredAt) : now;
           const deny = (issues: readonly { problem: string; message: string }[]) =>
             new AuditedRefusal(refusal(issues), {
@@ -723,6 +747,12 @@ export const controlledDrugsRouter = createRouter()
           requireStepUp(access, "medicines.cd.stock_checked", pageId);
           const page = await lockedPage(tx, pageId);
           const person = await loadPerson(tx, page.personId);
+          await requireCdRecording(tx, person.locationId, {
+            action: "medicines.cd.stock_checked",
+            resourceType: "controlled_drug_page",
+            resourceId: pageId,
+            scope: { personId: page.personId },
+          });
           const policy = await witnessPolicyFor(tx, person.locationId);
           const entries = (await pageEntries(tx, page.id)).map((r) => cdEntryOf(page, r));
           const result = cdStockCheck(entries, body.counted);

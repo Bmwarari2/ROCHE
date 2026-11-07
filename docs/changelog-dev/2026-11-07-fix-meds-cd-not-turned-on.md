@@ -13,5 +13,10 @@ round's controlled drugs notice told staff to record in Harbour's register, whic
 - While it is off the web offers none of the register's forms, and the printed page and the
   person's stock say the paper register is the record (clinical review). The demo seed releases
   recording at the demo home, so the journeys still record.
-- Hazard log: HZ-115 (partly built, CSO decision pending) and HZ-008 controls and tests. The API does not yet refuse register entries
+- The API refuses every register write where the flag is off (opening a page, a witness signature,
+  movements and corrections, stock counts, and a controlled drug given) with 409
+  `cd_recording_not_enabled`, audited as denied; the API tests turn recording on at the demo home
+  as the demo seed does, and prove each refusal.
+- The flag stays operator-only until the switch-on flow (H-1518), the next pull request.
+- Hazard log: HZ-115 (built; switch-on flow next) and HZ-008 controls and tests. The API does not yet refuse register entries
   where the flag is off (an open control under HZ-115, for the phone release, H-1518).

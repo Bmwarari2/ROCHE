@@ -125,29 +125,19 @@ describe("hazard HZ-115 hazard HZ-008 controlled drug recording is released loca
       token: h.tokens[who] ?? "",
     });
 
-  it("is off at every location until the location's own row turns it on, and only there", async () => {
-    const off = await flagsAt("carer", DEMO.locationId);
-    expect(off.status, await off.clone().text()).toBe(200);
-    expect(((await off.json()) as Flags).flags["medicines.cd_recording"]).toBe(false);
-    await asTenant(
-      "INSERT INTO feature_flag (flag_key, location_id, enabled) VALUES ('medicines.cd_recording', $1, true)",
-      [DEMO.locationId],
-    );
-    try {
-      const on = (await (await flagsAt("owner", DEMO.locationId)).json()) as Flags;
-      expect(on).toMatchObject({ locationId: DEMO.locationId });
-      expect(on.flags["medicines.cd_recording"]).toBe(true);
-      const lodge = await flagsAt("owner", LODGE.locationId);
-      expect(lodge.status).toBe(200);
-      expect(((await lodge.json()) as Flags).flags["medicines.cd_recording"]).toBe(false);
-      // The organisation-wide answer in /v1/me stays off: it is set per location.
-      const whole = (await (await me({ token: h.tokens.owner ?? "" })).json()) as {
-        flags: Record<string, boolean>;
-      };
-      expect(whole.flags["medicines.cd_recording"]).toBe(false);
-    } finally {
-      await asTenant("DELETE FROM feature_flag WHERE flag_key = 'medicines.cd_recording'");
-    }
+  it("is off at a home without its own row, and on only where that row turns it on", async () => {
+    // The harness releases recording at the demo home only, as the demo seed does.
+    const lodge = await flagsAt("owner", LODGE.locationId);
+    expect(lodge.status, await lodge.clone().text()).toBe(200);
+    expect(((await lodge.json()) as Flags).flags["medicines.cd_recording"]).toBe(false);
+    const demo = (await (await flagsAt("carer", DEMO.locationId)).json()) as Flags;
+    expect(demo).toMatchObject({ locationId: DEMO.locationId });
+    expect(demo.flags["medicines.cd_recording"]).toBe(true);
+    // The organisation-wide answer in /v1/me stays off: it is set per location.
+    const whole = (await (await me({ token: h.tokens.owner ?? "" })).json()) as {
+      flags: Record<string, boolean>;
+    };
+    expect(whole.flags["medicines.cd_recording"]).toBe(false);
   });
 
   it("answers only for a location the member works at", async () => {

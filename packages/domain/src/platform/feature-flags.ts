@@ -122,7 +122,7 @@ export const FLAGS = {
   // the record. Until then the paper register is, and the register screens say so. Set per location.
   "medicines.cd_recording": {
     description:
-      "Controlled drugs recorded in Harbour's register at this location (off until both the web and the phone record them; H-1517)",
+      "Controlled drugs recorded in Thapsus Care's register at this location (off until both the web and the phone record them; H-1517)",
     defaultEnabled: false,
     licensed: false,
   },

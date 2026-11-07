@@ -47962,6 +47962,15 @@ export interface paths {
             "application/problem+json": components["schemas"]["ProblemDetails"];
           };
         };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
         /** @description The request did not validate */
         422: {
           headers: {
@@ -48251,6 +48260,15 @@ export interface paths {
         };
         /** @description Not found or outside your access */
         404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
           headers: {
             [name: string]: unknown;
           };
