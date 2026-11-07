@@ -367,6 +367,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               medsBlocks: offlineWindowBlocks(medsRecentDays(new Date())).length,
               medsAssignedPeople: meds.assigned ? assignedHomes.length : 0,
               medsPeople,
+              locations: allIds.length,
             });
           };
           const estimate = await estimateFor();

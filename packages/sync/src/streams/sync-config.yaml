@@ -139,6 +139,7 @@ streams:
       FROM service AS "location_service"
       WHERE tenant_id = auth.parameter('tenant_id')
         AND location_id IN auth.parameter('location_ids')
+        AND deleted_at IS NULL
 
   assigned_people:
     auto_subscribe: true

@@ -131,7 +131,7 @@ export function DoseRecordPanel({
   const { data: serviceRows } = useQuery<{ service_type: string | null }>(WITNESS_SERVICES_SQL, [
     dose.personId,
   ]);
-  const witnessPolicy = phoneWitnessPolicy(serviceRows ?? []);
+  const { policy: witnessPolicy, known: policyKnown } = phoneWitnessPolicy(serviceRows ?? []);
   const loneAllowed = witnessPolicy === "where_available";
   // Said as the panel opens, before any check or outcome is chosen (slice 70 reviews; WCAG 4.1.3).
   useEffect(() => {
@@ -566,7 +566,9 @@ export function DoseRecordPanel({
               )}
               {!witnessSigned && !loneAllowed ? (
                 <StatusLine tone="warning" testID="cd-witness-required">
-                  {t("mobile.meds.cdWitnessRequired")}
+                  {policyKnown
+                    ? t("mobile.meds.cdWitnessRequired")
+                    : t("mobile.meds.cdWitnessRulesUnknown")}
                 </StatusLine>
               ) : null}
               {!witnessSigned && loneAllowed ? (

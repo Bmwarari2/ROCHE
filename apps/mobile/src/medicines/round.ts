@@ -332,7 +332,7 @@ export function phoneRound(input: {
       doses: round.doses,
       whenRequired: round.whenRequired,
       unreadable,
-      controlledDrugIds: new Set(rows.filter((r) => r.cd_schedule).map((r) => r.id)),
+      controlledDrugIds: new Set(rows.filter((r) => r.cd_schedule != null).map((r) => r.id)),
     };
   });
 }

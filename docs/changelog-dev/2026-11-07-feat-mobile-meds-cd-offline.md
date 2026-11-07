@@ -31,6 +31,9 @@ H-1439 (CSO) and H-1440 (security and DPO), with the two pilot risks split out a
 - The phone offers "no one is here to witness" only where the home's witness policy allows it; a new
   stream `my_location_services` (service types only, no personal data; `service` joins the
   publication in 0153) lets it apply the API's rule.
+- One domain rule (`witnessPolicyForServices`) for the API and the phone; deleted services ignored;
+  the phone says when it does not know a home's rules yet. The stream is proven isolated, publishes
+  only its columns, and the bucket estimate counts the token's homes.
 - "Needs attention" names the medicine, the outcome and the dose time for a refused medicine record.
 - Export catalogue describes the witness signature column. H-1528 (CSO) logged; H-1514 and H-1515
   extended to the renamed slice 69 and 70 text. Maestro `hazard-HZ-116-cd-phone-guards.yaml`

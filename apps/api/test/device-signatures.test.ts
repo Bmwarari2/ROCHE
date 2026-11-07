@@ -260,7 +260,7 @@ describe("hazard HZ-116 a controlled drug witnessed on one phone offline (ADR-00
     expect((await json<{ code: string }>(r)).code).toBe("administration_pair_witness_signed_after");
   });
 
-  it("takes the recorder's signature with why there was no witness only where the policy allows", async () => {
+  it("hazard HZ-116 takes the recorder's signature with why there was no witness only where the policy allows", async () => {
     const at = new Date();
     const id = uuidV7At(at);
     const r = await dose(id, at, {

@@ -67,4 +67,7 @@ CREATE POLICY sync_replication_read ON public.service AS PERMISSIVE FOR SELECT T
 --> statement-breakpoint
 GRANT SELECT ON public.service TO harbour_sync;
 --> statement-breakpoint
-ALTER PUBLICATION powersync ADD TABLE public.service;
+-- Only the columns the stream reads (and the key and deletion mark): never the service's name or
+-- who created or changed it (merge security review, L1).
+ALTER PUBLICATION powersync ADD TABLE public.service (id, tenant_id, location_id, service_type,
+  status, deleted_at);

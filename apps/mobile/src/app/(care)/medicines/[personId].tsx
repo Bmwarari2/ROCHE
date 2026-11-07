@@ -136,7 +136,7 @@ export default function PersonMedicinesScreen() {
       ...unit,
       mayGive,
       // Not yet known counts as a controlled drug (slice 70 clinical review, L5).
-      controlledDrug: round ? round.controlledDrugIds.has(entryId) : true,
+      controlledDrug: !round || !row || round.controlledDrugIds.has(entryId),
       allergyWords: allergy.words,
       nextAllowedAt: prn?.nextAllowedAt ? new Date(prn.nextAllowedAt) : null,
       lastDoseNotOnDevice: prn?.lastDoseNotOnDevice ?? false,
