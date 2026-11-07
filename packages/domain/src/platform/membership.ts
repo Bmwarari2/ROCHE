@@ -65,7 +65,9 @@ export type MembershipProblem =
   /** Ending while the member's entries are still held on a device. */
   | "entries_to_hand_over"
   /** Refused by the database only (`app.change_membership`): it counts the role holders. */
-  | "last_user_manager";
+  | "last_user_manager"
+  /** Refused by the database only: a leaving still recorded is withdrawn before reinstating. */
+  | "leaving_still_recorded";
 
 /**
  * `apply` changes the membership; `replay` means it is already in the state asked for (a retry
@@ -132,6 +134,8 @@ export const MEMBERSHIP_MESSAGES: Readonly<Record<MembershipProblem, string>> = 
     "They used a device for Care mode. Their phone cannot report once suspended, so say how its contents were checked before you end the membership.",
   entries_to_hand_over:
     "Care entries of theirs are still held on a device. Hand them over, or record their deletion on the device, then end the membership.",
+  leaving_still_recorded:
+    "Their leaving is still recorded. Withdraw it first, in their staff file or through the HR link, then reinstate them.",
   last_user_manager:
     "This is the organisation's last active member who manages users through a role, so they stay. Give the role to someone else first.",
 };

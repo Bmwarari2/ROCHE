@@ -462,6 +462,36 @@ describe("H-1469 reinstating an ended membership (a wrong leaving date withdrawn
     ).rejects.toThrow(/only through app.change_membership/);
   });
 
+  it("never while a leaving is still recorded: it is withdrawn first (HZ-133, the leavers sweep)", async () => {
+    const TOM = "0199f000-0000-7000-8000-000000000753";
+    const [leaver] = await owner(async (c) => {
+      await c.query(
+        `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status)
+         VALUES ($1, 'auth-tom', 'Tom Example', 'tom@example.invalid', 'left')`,
+        [TOM],
+      );
+      const profile = await c.query<{ id: string }>(
+        "INSERT INTO staff_profile (tenant_user_id, job_title) VALUES ($1, 'Care worker') RETURNING id",
+        [TOM],
+      );
+      return (
+        await c.query<{ id: string }>(
+          `INSERT INTO leaver_record (staff_profile_id, leaving_on, reason, access_removed_at)
+           VALUES ($1, current_date - 1, 'resignation', now()) RETURNING id`,
+          [profile.rows[0]?.id],
+        )
+      ).rows;
+    });
+    await expect(as(a.manager)(change(TOM, "reinstate"))).rejects.toThrow(/leaving_still_recorded/);
+    expect((await stateOf(TOM))?.status).toBe("left");
+    // Withdrawn in the staff file (soft-deleted), the membership comes back.
+    await owner((c) =>
+      c.query("UPDATE leaver_record SET deleted_at = now() WHERE id = $1", [leaver?.id]),
+    );
+    expect(await as(a.manager)(change(TOM, "reinstate"))).toBe("left");
+    expect((await stateOf(TOM))?.status).toBe("active");
+  });
+
   it("never once the sign-in has been erased", async () => {
     await owner((c) =>
       c.query(

@@ -335,7 +335,9 @@ shows it; upload and remove a logo; axe in light and dark).
     invitation). Sessions ended at the suspension stay ended; audited `platform.member.reinstated`.
     A holder of the permission across the organisation may also bring an ended membership back
     (H-1469; a wrong leaving date withdrawn, HZ-133), active with its sign-in or invited without
-    one, never once the sign-in has been erased or while the member's deletion request stands; its
+    one, never while a leaving is still recorded (409 `leaving_still_recorded`: withdraw it first,
+    in the staff file or through the HR link's withdraw), never once the sign-in has been erased
+    or while the member's deletion request stands; its
     roles and grants stay ended. `tenant_user_membership_guard` (replaced in place) allows this one
     transition for `harbour_member_owner` only. `mayReinstate` on the status tells the page.
   - Suspending counts and hurries only the member's own held entries (the device report names the

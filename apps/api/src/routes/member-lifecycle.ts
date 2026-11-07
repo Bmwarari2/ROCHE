@@ -148,6 +148,7 @@ function organisationWide(access: TenantAccess): boolean {
 
 const DATABASE_REFUSALS: ReadonlySet<string> = new Set<MembershipProblem>([
   "beyond_inviter",
+  "leaving_still_recorded",
   "own_membership",
   "membership_ended",
   "suspend_first",

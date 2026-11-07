@@ -225,6 +225,7 @@ const REFUSALS = new Set([
   "entries_waiting",
   "entries_to_hand_over",
   "devices_unchecked",
+  "leaving_still_recorded",
 ]);
 
 /** The words for a team refusal, or null for one the shared problem words cover. */

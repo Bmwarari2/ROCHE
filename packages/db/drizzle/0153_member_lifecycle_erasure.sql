@@ -14,6 +14,11 @@ GRANT SELECT (sign_in_erasure_requested_at, sign_in_erased_at, status_changed_at
 --> statement-breakpoint
 GRANT SELECT (id, status) ON public.tenant TO harbour_member_owner;
 --> statement-breakpoint
+GRANT SELECT (tenant_id, staff_profile_id, leaving_on, access_removed_at, deleted_at)
+  ON public.leaver_record TO harbour_member_owner;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, id, tenant_user_id) ON public.staff_profile TO harbour_member_owner;
+--> statement-breakpoint
 CREATE POLICY member_owner_tenant_status ON public.tenant AS PERMISSIVE FOR SELECT
   TO harbour_member_owner USING (true);
 --> statement-breakpoint
@@ -174,6 +179,16 @@ BEGIN
     END IF;
     IF v_status NOT IN ('suspended', 'left') THEN
       RAISE EXCEPTION 'membership_ended' USING ERRCODE = 'check_violation';
+    END IF;
+    -- A leaving still recorded, whose day has come or whose access was ended for it, is withdrawn
+    -- first, in the staff file or through the HR link (rule 8): otherwise the leavers sweep would
+    -- end the access again within the hour (HZ-133; H-1469).
+    IF EXISTS (SELECT 1 FROM public.leaver_record l
+                 JOIN public.staff_profile p ON p.tenant_id = l.tenant_id AND p.id = l.staff_profile_id
+                WHERE l.tenant_id = v_tenant AND p.tenant_user_id = p_member AND l.deleted_at IS NULL
+                  AND (l.access_removed_at IS NOT NULL
+                       OR l.leaving_on <= (now() AT TIME ZONE 'Europe/London')::date)) THEN
+      RAISE EXCEPTION 'leaving_still_recorded' USING ERRCODE = 'check_violation';
     END IF;
     UPDATE public.tenant_user
        SET status = CASE WHEN v_auth IS NULL THEN 'invited' ELSE 'active' END::public.tenant_user_status,
