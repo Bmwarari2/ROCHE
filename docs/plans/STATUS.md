@@ -32,6 +32,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Thapsus suite plan (07/11/2026)
+
+`claude/thapsus-systems-dev-plan-2rkfaj`, documentation only. The owner asked for three new products
+(Thapsus Finance, CRM and ERP) that work with Thapsus Care and Thapsus-HR, with one design system.
+[thapsus-suite.md](thapsus-suite.md) sets out the links Care would gain (Thapsus Finance as an
+accounting target, optional ERP and CRM links), what never crosses, the token bridge (Care keeps its
+blue) and slices S.1 to S.6 for the lead session to schedule. No register row changes.
+
 ## User guides: safety, quality and platform, second pass (07/11/2026)
 
 `docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
