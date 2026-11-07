@@ -1040,17 +1040,19 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 4 
     );
   }, 120_000);
 
-  it("names no one in the token above 100 assigned people, so the phone falls back to the location rule (low)", async () => {
+  it("refuses a phone token by name to a care worker assigned to 101 people, whose phone PowerSync would refuse (ADR-0134)", async () => {
+    // With medicines on the phone (slice 68), each assigned person costs about 28 buckets at the
+    // longest window, so 101 of them pass PowerSync's buckets per connection: the API says so
+    // rather than signing a token the phone cannot use. The fallback that names no one above 100
+    // in `entries_write_person_ids` is then out of a phone's reach; H-1430 revisits it with
+    // narrowing.
     const response = await h.request("/v1/sync/token", {
       token: max,
       tenant: DEMO.tenantId,
       method: "POST",
     });
-    expect(response.status).toBe(200);
-    const { token } = (await response.json()) as SyncToken;
-    const claims = (await jwtVerify(token, h.handle.signer.verificationKey)).payload;
-    expect(claims).toMatchObject({ entries_write_assigned: true, entries_write_location_ids: [] });
-    expect(claims).not.toHaveProperty("entries_write_person_ids");
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { code: string }).code).toBe("sync_scope_too_large");
   });
 
   it("audits a break-glass alert no one active could be sent, and still opens the record (low)", async () => {
