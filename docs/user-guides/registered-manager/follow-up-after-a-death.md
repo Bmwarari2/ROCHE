@@ -1,7 +1,8 @@
 # How to follow up after a death
 
 Deal with the notifications after a person we support dies: the regulator's death notification,
-the medical examiner information pack and LeDeR.
+the medical examiner information pack and LeDeR (the NHS programme that learns from the lives and
+deaths of people with a learning disability and autistic people).
 
 **Who can do this**: people who manage incidents (the Registered Manager, the deputy manager, the
 nurse or clinical lead, and the owner) prepare the notifications. Only the Registered Manager and
@@ -31,12 +32,15 @@ the owner record them as submitted or not required.
 
 ## Good to know
 
+- The Care Quality Commission death notification is due without delay.
 - Thapsus Care does not put the medical examiner pack together yet. You gather it.
 - Thapsus Care never sends anything to the Care Quality Commission, the medical examiner or LeDeR, and
   never judges whether a death was expected. That is the clinician's recorded judgement.
-- The death record itself has no web screen yet: recording verification of death, the family told,
-  the police told, the room left as it is, and the mortality review. Keep these on your usual
-  records for now, and ask the person who manages Thapsus Care for your organisation.
+- The death record, under **Deaths** in the menu, links to each of these notifications with its
+  status, and holds the clinician's judgement, the other steps after the death and the mortality
+  review (see [How to keep a death record](../nurse/keep-a-death-record.md) and
+  [How to record a mortality review](../nurse/record-a-mortality-review.md)). It cannot close
+  until each notification is submitted or recorded as not required.
 - The death is recorded on the person's record (see [How to record a death](../senior-carer/record-a-death.md)).
 - The rules: [safety specification, deaths and missing persons](../../specs/safety.md#deaths-and-missing-persons-plan-slice-37-safe-014-safe-015)
   and hazard [HZ-013](../../clinical-safety/hazard-log.md#hz-013-statutory-notification-missed-or-late).

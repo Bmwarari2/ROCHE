@@ -3,10 +3,10 @@
 Acknowledge, look into and close the concerns people raise, and keep in touch with the person who
 raised them.
 
-**Who can do this**: the Freedom to Speak Up lead (the built-in role "Freedom to Speak Up lead").
-That role carries nothing else, and nobody who manages users or roles can hold it. Members of staff
-the lead names on a case can read that case and write on it, but only the lead moves it on.
-Managers, the owner and the quality lead cannot see cases unless the lead names them.
+**Who can do this**: the Freedom to Speak Up lead. That role carries nothing else, and nobody who
+manages users or roles can hold it. Members of staff the lead names on a case can read that case
+and write on it, but only the lead moves it on. Deputy managers, the Registered Manager, the owner
+and the quality and compliance lead cannot see cases unless the lead names them.
 
 **Register row**: SAFE-012.
 
@@ -51,5 +51,8 @@ Managers, the owner and the quality lead cannot see cases unless the lead names 
   yourself.
 - Appointing the lead has no web screen yet. Ask the person who manages Thapsus Care for your
   organisation.
-- The rules: [safety specification, Phase 2 rule 3](../../specs/safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012)
+- Exporting every case has no web screen yet. Your organisation's full export leaves speak-up
+  cases out. If you need a copy of the cases, ask the person who manages Thapsus Care for your
+  organisation.
+- The rules: [safety specification, speaking up](../../specs/safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012)
   and [ADR-0089](../../decisions/0089-restricted-silos-whistleblowing.md).

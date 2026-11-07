@@ -48,6 +48,7 @@ at your home, and the tasks below.
 - [How to give a homely remedy](../care-worker/give-a-homely-remedy.md)
 - [How to give a when-required (PRN) medicine in the browser](../care-worker/give-a-when-required-medicine-in-the-browser.md)
 - [How to give medicines in the browser round](../care-worker/give-medicines-in-the-browser-round.md)
+- [How to keep a missing person's timeline](../care-worker/keep-a-missing-person-timeline.md)
 - [How to keep a wellbeing check-in](../care-worker/keep-a-wellbeing-check-in.md)
 - [How to mark the body map](../care-worker/mark-the-body-map.md)
 - [How to print the MAR chart](../care-worker/print-the-mar-chart.md)
