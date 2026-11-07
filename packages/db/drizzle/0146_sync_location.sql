@@ -229,15 +229,14 @@ END
 $$;
 --> statement-breakpoint
 
--- A task, on insert and on every change (a reschedule, a new home, a client that sends the column):
--- its own home while the person it is about receives care, else none; a task about nobody, its own
--- home. Only app.move_sync_location changes it otherwise, when the person leaves or returns to care.
+-- A task, on insert and on every change (a reschedule, a new home, a client that sends the column,
+-- and app.move_sync_location when the person leaves or returns to care): always recomputed, its own
+-- home while the person it is about receives care, else none; a task about nobody, its own home.
+-- No early return for a move: this runs as its owner, so it could not tell a move from a caller who
+-- set the move flag itself; a move writes exactly this value anyway (security re-check, N5).
 CREATE OR REPLACE FUNCTION app.set_task_sync_location() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 BEGIN
-  IF TG_OP = 'UPDATE' AND app.is_sync_location_move(TG_RELID, to_jsonb(NEW), to_jsonb(OLD)) THEN
-    RETURN NEW;
-  END IF;
   IF NEW.person_id IS NULL THEN
     NEW.sync_location_id := NEW.location_id;
   ELSE

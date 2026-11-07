@@ -103639,6 +103639,16 @@
               }
             }
           },
+          "409": {
+            "description": "sync_scope_too_large: the member's access reaches more homes and people than a phone can hold offline under PowerSync's buckets per connection (ADR-0134); no token",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "description": "The request did not validate",
             "content": {

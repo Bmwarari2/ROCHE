@@ -204,7 +204,7 @@ export function familyReach(
 /** Deletions that remove a device's whole hold (or its unsent work at sign-out). */
 const WHOLE_HOLD_KINDS: ReadonlySet<string> = new Set(["held_deleted", "signed_out_with_unsent"]);
 
-import { createRouter, errorResponses, jsonBody, security } from "./openapi";
+import { createRouter, errorResponses, jsonBody, problem, security } from "./openapi";
 
 /**
  * Offline sync (sections 6 and 17): the API mints PowerSync tokens and applies client uploads. It
@@ -245,7 +245,13 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         description:
           "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
         security,
-        responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
+        responses: {
+          200: jsonBody(SyncToken, "Token"),
+          ...errorResponses,
+          409: problem(
+            "sync_scope_too_large: the member's access reaches more homes and people than a phone can hold offline under PowerSync's buckets per connection (ADR-0134); no token",
+          ),
+        },
       }),
       async (c) => {
         const access = await requirePermission(c, "people.person.read");

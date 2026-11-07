@@ -171,6 +171,13 @@ describe("hazard HZ-138 a person's recent record moves to their new home's phone
     const after = await read();
     expect(after.task).toEqual({ version: before.task?.version, s: null });
     expect(after.history).toBe(before.history);
+    // A direct change by the application is recomputed, never kept, even with the move flag set
+    // (security re-check, N5).
+    await inContext(app(), tenant(), async (c) => {
+      await c.query("SELECT set_config('app.sync_location_move', 'on', true)");
+      await c.query("UPDATE task SET sync_location_id = $2 WHERE id = $1", [task, a.locationSouth]);
+    }).catch(() => undefined);
+    expect((await read()).task?.s).toBeNull();
     // A direct change by the application is recomputed, never kept.
     await inContext(app(), tenant(), (c) =>
       c.query("UPDATE task SET sync_location_id = $2 WHERE id = $1", [task, a.locationSouth]),
