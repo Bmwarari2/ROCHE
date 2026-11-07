@@ -702,6 +702,24 @@ describe("H-970 statutory leave is never declined; carer's and parental leave ma
     expect(JSON.stringify(events)).not.toContain("Two others");
   });
 
+  it("refuses a postponement at a stale version with 409, giving no leave on new dates", async () => {
+    const carers = await ask("carers_leave", 66, 67);
+    const stale = await post("manager", `/v1/absences/${carers.id}/decision`, {
+      version: carers.version + 1,
+      decision: "postpone",
+      reason: "Two others are away that week",
+      startsOn: inDays(73),
+      endsOn: inDays(74),
+    });
+    expect(stale.status).toBe(409);
+    expect(await codeOf(stale)).toBe("version_conflict");
+    const rows = await sql<{ state: string }>(
+      "SELECT state FROM absence WHERE id = $1 OR postponed_from_id = $1",
+      [carers.id],
+    );
+    expect(rows).toEqual([{ state: "requested" }]);
+  });
+
   it("refuses a postponement once the notice period has passed", async () => {
     const carers = await ask("carers_leave", 80, 80);
     // The request arrived long ago (as if it had been waiting for a decision). The mutable-row

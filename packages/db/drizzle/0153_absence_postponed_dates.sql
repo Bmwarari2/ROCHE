@@ -10,6 +10,13 @@ ALTER TABLE "absence" ADD CONSTRAINT "absence_postponed_from" CHECK (postponed_f
 -- request, so the rota, cover needs and timesheets treat it as any approved leave. The statutory
 -- limits are the domain's (packages/domain/src/scheduling/absence.ts) from the rate table.
 --
+-- The statutory date limits on the replacement row (the same length, after the first day asked
+-- for, no later than the rate table's months after it, notice within its days of the request) are
+-- enforced by the domain and the API, not here: the database holds the link, its kinds, one per
+-- request and who may write it. The postponing approver is accountable on both rows: `decided_by`
+-- and `decided_at` on the postponed request and on the approved replacement are theirs, and each
+-- row has its own audit event.
+--
 -- Who writes an absence: as migration 0142, plus the approver writing the leave on the new dates of
 -- a request they have just postponed: the same member, home and kind, approved in their own name,
 -- never the member's own. The roles are those 0151 gave every restrictive policy (ADR-0133).

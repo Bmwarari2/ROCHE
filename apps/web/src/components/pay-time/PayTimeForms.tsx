@@ -370,8 +370,11 @@ export function DecisionForm({
     "newEndsOn",
     "confirmsPostponable",
   ]);
-  const [choice, setChoice] = useState<DecisionChoice | null>(null);
   const options = decisionOptions(request.kind, request.canPostpone);
+  // With only one choice (statutory leave that cannot be postponed now), it is chosen already.
+  const [choice, setChoice] = useState<DecisionChoice | null>(
+    options.length === 1 ? (options[0] ?? null) : null,
+  );
   const { submit, result, pending } = useSubmit(
     (form) => readDecision(form, t, version, request),
     (body) => decideAbsence(id, body),

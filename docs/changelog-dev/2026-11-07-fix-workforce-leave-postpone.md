@@ -37,3 +37,16 @@ Branch `fix/workforce-leave-postpone`.
   (`absence_postpone_no_rate`) and the screen offers approve only.
 - The e2e journey in `apps/web/e2e/pay-time.spec.ts` covers the decline of annual leave; a
   postponement journey can follow.
+
+## Review round: accessibility and security
+
+- The reason's label says it is needed to decline or postpone; the postponement's errors are listed
+  in the order of the fields (new dates, confirmation, reason); a statutory request with one
+  choice has it chosen already; "unduly disrupted" became "serious problems for the service"; a
+  postponed request says "New dates: ... to ...", so "Postponed" is not said twice.
+- New journeys in `apps/web/e2e/pay-time.spec.ts`: parental leave postponed (no decline, the
+  errors of an empty postponement, then new dates and the confirmation) and maternity leave
+  approved as its only choice.
+- API test: a postponement at a stale version is refused with 409 and gives no leave on new dates.
+  Migration 0153 says the date limits are the domain's and the API's, and that the postponing
+  approver is accountable on both rows.

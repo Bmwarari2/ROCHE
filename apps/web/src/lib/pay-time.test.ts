@@ -329,6 +329,19 @@ describe("readDecision and readOverride", () => {
     if (!out.ok) expect(Object.keys(out.errors).sort()).toEqual(["newEndsOn", "newStartsOn"]);
   });
 
+  it("lists the errors in the order of the fields on screen: dates, confirmation, reason", () => {
+    const out = readDecision(form({ decision: "postpone" }), t, 3, parental);
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(Object.keys(out.errors)).toEqual([
+        "newStartsOn",
+        "newEndsOn",
+        "confirmsPostponable",
+        "reason",
+      ]);
+    }
+  });
+
   it("an override needs a reason of 3 to 500 characters", () => {
     expect(readOverride(form({ reason: "ok" }), t, 1).ok).toBe(false);
     expect(readOverride(form({ reason: "x".repeat(501) }), t, 1).ok).toBe(false);

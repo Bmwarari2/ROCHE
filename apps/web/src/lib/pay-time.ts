@@ -314,11 +314,9 @@ export function readDecision(
   if (chosen !== "postpone" || !request) {
     return { ok: true, body: { version, decision: chosen, ...(reason ? { reason } : {}) } };
   }
+  // Errors in the order the fields are on screen: new dates, confirmation, reason.
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
-  if (reason.length < 3 || reason.length > 500) {
-    errors.reason = t("payTime.absence.decide.postponeReasonError");
-  }
   const startsOn = dateOf(
     form,
     "newStartsOn",
@@ -356,6 +354,9 @@ export function readDecision(
   const confirmed = form.get("confirmsPostponable") !== null;
   if (request.kind === "parental_leave" && !confirmed) {
     errors.confirmsPostponable = t("payTime.absence.decide.confirmError");
+  }
+  if (reason.length < 3 || reason.length > 500) {
+    errors.reason = t("payTime.absence.decide.postponeReasonError");
   }
   if (Object.keys(errors).length > 0) return failed(errors, parts);
   return {
