@@ -1222,11 +1222,11 @@ the whole organisation) reads them for the full export, never writes.
    the database holds the same rules).
 43. **Coroner tracker.** A coroner request may record a Regulation 28 prevention of future deaths
     report by the date it was sent; the response is due within
-    `coroner.prevention_report_response_days` (rate table) beginning with that date, so the date
-    sent is the first day of the period and the last is the period less one day later, or by a
-    later date the coroner allowed (the extension, after the usual due date); the response is
-    recorded when sent (Coroners (Investigations) Regulations 2013 reg 29; Coroners and Justice Act
-    2009 Schedule 5 paragraph 7; `preventionResponse` in the domain).
+    `coroner.prevention_report_response_days` (rate table) of that date, so on the date sent plus
+    that many days (Coroners (Investigations) Regulations 2013 reg 29(4)), or by a later date the
+    coroner allowed (reg 29(5); the extension, later than the usual due date, which may be granted
+    after it); the response is recorded when sent. A date left out when saving keeps what was
+    recorded (`preventionResponse` in the domain).
 44. **Audit.** Every read and change writes `audit_event` with ids, codes and counts only, never the
     requester's name, purpose, reasons or record content; viewing records and the pack are audited
     as care-record views.

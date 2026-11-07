@@ -103,7 +103,12 @@ export async function withdrawDisclosure(
 
 export async function recordPreventionReport(
   id: string,
-  body: { reportOn: string; respondedOn?: string | null; expectedVersion: number },
+  body: {
+    reportOn: string;
+    respondedOn?: string | null;
+    extendedTo?: string | null;
+    expectedVersion: number;
+  },
 ): Promise<ActionResult<unknown>> {
   if (!isUuid(id)) return notFound();
   return sendAndRevalidate(paths(id), (api) =>

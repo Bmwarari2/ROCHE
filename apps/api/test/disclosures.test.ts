@@ -499,7 +499,7 @@ describe("SAFE-016 rule 42: a disclosure pack is never uploaded", () => {
   });
 });
 
-describe("SAFE-016 rule 44: a coroner's Regulation 28 report", () => {
+describe("SAFE-016 rule 43: a coroner's Regulation 28 report", () => {
   it("dates the response from the rate table, for coroner requests only", async () => {
     const req = await logRequest();
     const r = await post(`/v1/disclosures/${req.id}/prevention-report`, {
@@ -509,10 +509,10 @@ describe("SAFE-016 rule 44: a coroner's Regulation 28 report", () => {
     expect(r.status).toBe(200);
     const out = (await r.json()) as Request;
     expect(out.prevention?.state).toBe("due");
-    // Within the rate's 56 days beginning with the day the report was sent: that day is day one.
+    // Within the rate's 56 days of the date the report was sent (reg 29(4)).
     const days =
       (Date.parse(out.prevention?.responseDueOn ?? "") - Date.parse(today())) / 86_400_000;
-    expect(days).toBe(55);
+    expect(days).toBe(56);
     expect(out.prevention?.statutoryDueOn).toBe(out.prevention?.responseDueOn);
     // The coroner allows longer: the response is due then; an "extension" no later is refused.
     const shortExtension = await post(`/v1/disclosures/${req.id}/prevention-report`, {
@@ -538,6 +538,17 @@ describe("SAFE-016 rule 44: a coroner's Regulation 28 report", () => {
       extendedTo: later,
       responseDueOn: later,
       state: "due",
+    });
+    // The response recorded later, the extension left out: the extension stays.
+    const responded = await post(`/v1/disclosures/${req.id}/prevention-report`, {
+      expectedVersion: withExtension.version,
+      reportOn: today(),
+      respondedOn: today(),
+    });
+    expect(responded.status, await responded.clone().text()).toBe(200);
+    expect(((await responded.json()) as Request).prevention).toMatchObject({
+      extendedTo: later,
+      state: "responded",
     });
     const police = await logRequest({
       type: "police",

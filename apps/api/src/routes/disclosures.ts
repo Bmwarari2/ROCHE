@@ -43,6 +43,7 @@ import {
   PREVENTION_REPORT_PROBLEM_MESSAGES,
   preventionReportProblems,
   preventionResponse,
+  preventionStatutoryDueOn,
   type RateNation,
   resolveRate,
   resolveSafetyPhase2Rates,
@@ -1273,7 +1274,7 @@ export const disclosuresRouter = createRouter()
       tags,
       summary: "Record a coroner's Regulation 28 report and the response",
       description:
-        "safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). reportOn is the date the report was sent: the response is due within coroner.prevention_report_response_days (rate table) beginning with that day, or by extendedTo, a later date the coroner allowed (422 extension_not_later otherwise). Dates sent and responded not in the future (422 date_in_future); the response not before the report (422 response_before_report). Audited (safety.disclosure.prevention_recorded).",
+        "safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). reportOn is the date the report was sent: the response is due within coroner.prevention_report_response_days (rate table) of that date (Coroners (Investigations) Regulations 2013 reg 29(4)), or by extendedTo, a later date the coroner allowed (reg 29(5); 422 extension_not_later otherwise, naming the due date). A field left out keeps what was recorded; null clears it. Dates sent and responded not in the future (422 date_in_future); the response not before the report (422 response_before_report). Audited (safety.disclosure.prevention_recorded).",
       security,
       request: versioned(RecordPreventionReport),
       responses: requestResponses,
@@ -1293,33 +1294,42 @@ export const disclosuresRouter = createRouter()
         }
         if (row.version !== input.expectedVersion) throw stale();
         const [t] = await tx.select({ nation: tenant.nation }).from(tenant);
+        const responseDays = await preventionDays(
+          tx,
+          access.tenantId,
+          t?.nation ?? "england",
+          input.reportOn,
+        );
+        // A field left out keeps what was recorded; null clears it.
+        const respondedOn =
+          input.respondedOn === undefined ? row.preventionRespondedOn : input.respondedOn;
+        const extendedTo =
+          input.extendedTo === undefined ? row.preventionExtendedTo : input.extendedTo;
         const problems = preventionReportProblems({
           sentOn: input.reportOn,
-          respondedOn: input.respondedOn ?? null,
-          extendedTo: input.extendedTo ?? null,
-          responseDays: await preventionDays(
-            tx,
-            access.tenantId,
-            t?.nation ?? "england",
-            input.reportOn,
-          ),
+          respondedOn,
+          extendedTo,
+          responseDays,
           today: ukIsoDate(new Date()),
         });
         const [first] = problems;
         if (first) {
+          const due = preventionStatutoryDueOn(input.reportOn, responseDays);
           throw unprocessable(
             first === "sent_in_future" || first === "responded_in_future"
               ? "date_in_future"
               : first,
-            PREVENTION_REPORT_PROBLEM_MESSAGES[first],
+            first === "extension_not_later"
+              ? `An extension must be later than the date the response is due, ${due.split("-").reverse().join("/")}.`
+              : PREVENTION_REPORT_PROBLEM_MESSAGES[first],
           );
         }
         const [saved] = await tx
           .update(disclosureRequest)
           .set({
             preventionReportOn: input.reportOn,
-            preventionRespondedOn: input.respondedOn ?? null,
-            preventionExtendedTo: input.extendedTo ?? null,
+            preventionRespondedOn: respondedOn,
+            preventionExtendedTo: extendedTo,
           })
           .where(
             and(eq(disclosureRequest.id, id), eq(disclosureRequest.version, input.expectedVersion)),
@@ -1327,8 +1337,8 @@ export const disclosuresRouter = createRouter()
           .returning();
         if (!saved) throw stale();
         await audit(c, tx, access, "prevention_recorded", id, {
-          responded: input.respondedOn !== undefined && input.respondedOn !== null,
-          extended: input.extendedTo !== undefined && input.extendedTo !== null,
+          responded: respondedOn !== null,
+          extended: extendedTo !== null,
         });
         return requestOut(tx, access, saved);
       });

@@ -212,12 +212,17 @@ export interface PreventionResponse {
 }
 
 /**
- * When the response to a prevention of future deaths report is due (Coroners and Justice Act 2009,
- * Schedule 5 paragraph 7; Coroners (Investigations) Regulations 2013 regulation 29): within
- * `coroner.prevention_report_response_days` (the rate table) beginning with the day the report was
- * sent, so that day is the first of the period and the last is that many days less one later; or
- * by the later date the coroner allowed. Dates are UK calendar days (`YYYY-MM-DD`).
+ * When the response to a prevention of future deaths report is due (Coroners (Investigations)
+ * Regulations 2013 regulation 29(4); Coroners and Justice Act 2009, Schedule 5 paragraph 7): within
+ * `coroner.prevention_report_response_days` (the rate table) of the date the report was sent, so
+ * that day is not counted and the response is due that many days after it; or by the later date
+ * the coroner allowed (regulation 29(5), which may be granted even after the period has passed).
+ * Dates are UK calendar days (`YYYY-MM-DD`).
  */
+export function preventionStatutoryDueOn(sentOn: string, responseDays: number): string {
+  return addIsoDays(sentOn, responseDays);
+}
+
 export function preventionResponse(input: {
   readonly sentOn: string;
   readonly responseDays: number;
@@ -225,7 +230,7 @@ export function preventionResponse(input: {
   readonly respondedOn: string | null;
   readonly today: string;
 }): PreventionResponse {
-  const statutoryDueOn = addIsoDays(input.sentOn, input.responseDays - 1);
+  const statutoryDueOn = preventionStatutoryDueOn(input.sentOn, input.responseDays);
   const extended = input.extendedTo !== null && input.extendedTo > statutoryDueOn;
   const dueOn = extended && input.extendedTo ? input.extendedTo : statutoryDueOn;
   const state = input.respondedOn ? "responded" : input.today > dueOn ? "overdue" : "due";
@@ -260,7 +265,7 @@ export function preventionReportProblems(input: {
     problems.push("response_before_report");
   if (
     input.extendedTo !== null &&
-    input.extendedTo <= addIsoDays(input.sentOn, input.responseDays - 1)
+    input.extendedTo <= preventionStatutoryDueOn(input.sentOn, input.responseDays)
   ) {
     problems.push("extension_not_later");
   }

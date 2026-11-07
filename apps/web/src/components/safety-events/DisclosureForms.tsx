@@ -277,9 +277,16 @@ export function WithdrawForm({ id, version }: { readonly id: string; readonly ve
 export function PreventionReportForm({
   id,
   version,
+  recorded,
 }: {
   readonly id: string;
   readonly version: number;
+  /** What is recorded: the form starts from it, so saving again keeps it unless changed. */
+  readonly recorded?: {
+    readonly reportOn: string;
+    readonly respondedOn: string | null;
+    readonly extendedTo: string | null;
+  } | null;
 }) {
   const ids = useFieldIds(["reportOn", "respondedOn", "extendedTo"]);
   const { submit, result, pending } = useSubmit(
@@ -293,7 +300,8 @@ export function PreventionReportForm({
         id={ids.reportOn}
         name="reportOn"
         legend={t("disclosures.prevention.reportOn")}
-        hint={t("care.date.hint")}
+        hint={t("disclosures.prevention.reportHint")}
+        defaultValue={recorded?.reportOn ?? null}
         labels={labels}
         error={errorFor(result, "reportOn")}
         errorParts={dateBoxesOf(partsFor(result, "reportOn"))}
@@ -303,6 +311,7 @@ export function PreventionReportForm({
         name="respondedOn"
         legend={t("disclosures.prevention.respondedOn")}
         hint={t("disclosures.prevention.respondedHint")}
+        defaultValue={recorded?.respondedOn ?? null}
         labels={labels}
         error={errorFor(result, "respondedOn")}
         errorParts={dateBoxesOf(partsFor(result, "respondedOn"))}
@@ -312,6 +321,7 @@ export function PreventionReportForm({
         name="extendedTo"
         legend={t("disclosures.prevention.extendedTo")}
         hint={t("disclosures.prevention.extendedHint")}
+        defaultValue={recorded?.extendedTo ?? null}
         labels={labels}
         error={errorFor(result, "extendedTo")}
         errorParts={dateBoxesOf(partsFor(result, "extendedTo"))}

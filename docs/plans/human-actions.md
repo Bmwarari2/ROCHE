@@ -1036,14 +1036,17 @@ gates stay unsigned until H-20.
 | H-1496 | Decide whether invoker helper functions called from definers (for example `app.holds_permission_at`) also pin `pg_temp` last. Recommended answer: yes, in one later migration; low risk today as they qualify every table | Lead engineer | ADR-0133 (security review L4) | None | open (recommended answer in force) |
 | H-1497 | Decide whether the audit chain trigger (`app.audit_event_chain`) gets its own NOLOGIN owner, apart from `harbour_platform_definer`, which also provisions organisations from operator input. Recommended answer: yes, in a later migration | Lead engineer | ADR-0133 (security review L5) | None | open (recommended answer in force) |
 
-## Guide gaps from the slice 83 review: Regulation 28 (H-1570 to H-1571)
+## Guide gaps from the slice 83 review: Regulation 28 (H-1570 to H-1572)
 
-Logged by the Regulation 28 PR (lead's list of 07/11/2026, item 5; block H-1561 to H-1580).
+Logged by the Regulation 28 PR (lead's list of 07/11/2026, item 5; block H-1561 to H-1580). The
+legal check of the 56 days stays with H-822 and H-1547 (reg 29(4): within 56 days of the date the
+report is sent, so due 56 days after it, as built).
 
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
-| H-1570 | Verify the Regulation 28 response period: 56 days beginning with the day the report is sent (so the date sent is day one and the response is due 55 days later), as built, against the Coroners (Investigations) Regulations 2013 and the Coroners and Justice Act 2009 Schedule 5 paragraph 7, and mark `coroner.prevention_report_response_days` verified in the rate table. Before this change the due date was a day later | DPO with legal review | [rates.md](../specs/rates.md); `preventionResponse` (domain) | First coroner request at a real tenant | open |
-| H-1571 | Confirm that only a later date the coroner allowed counts as an extension (one on or before the usual due date is refused), and that an extension may be recorded after the request is released, refused or withdrawn | DPO | safety.md rule 43; migration 0157 | None | provisional: owner-accepted recommendation, pending review at the testing phase |
+| H-1570 | At each pilot tenant, check Regulation 28 entries saved before this change: they were entered as the date the report was received and are now read as the date it was sent, so a report that arrived late shows a due date too late. Recommended answer: the Registered Manager checks each against the coroner's report | Pilot tenants' Registered Managers | safety.md rule 43; migration 0157 | First release with this change at a pilot | open |
+| H-1571 | Confirm that only a later date the coroner allowed counts as an extension (one on or before the usual due date is refused), that an extension may be recorded after the request is released, refused or withdrawn, and whether clearing Regulation 28 dates on a closed request should be blocked | DPO | safety.md rule 43; migration 0157 | None | provisional: owner-accepted recommendation, pending review at the testing phase |
+| H-1572 | Decide whether a missed or wrongly dated Regulation 28 response is a clinical hazard (widen HZ-013 or a new hazard for prevention of future deaths actions not taken) or record no clinical hazard with the reason, and name the hazard the SAFE-016 tests carry | CSO | `packages/domain/src/safety/disclosure.ts` (`preventionResponse`) | None | open |
 
 ## Per tenant at onboarding
 

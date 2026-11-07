@@ -152,6 +152,16 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     case "step_up_required":
       return { code, message: t("errors.stepUpRequired") };
     // The person who raised an incident never closes it (safety.md rule 11).
+    // A coroner's Regulation 28 dates (SAFE-016): the API's own sentence, which names the date the
+    // response is due, tied to the field it is about.
+    case "extension_not_later":
+    case "response_before_report": {
+      const message = detail || t("care.errors.invalid");
+      const field = code === "extension_not_later" ? "extendedTo" : "respondedOn";
+      return { code, message, fields: { [field]: message } };
+    }
+    case "date_in_future":
+      return { code, message: detail || t("care.errors.invalid") };
     case "separation_of_duties":
       return { code, message: t("errors.separationOfDuties") };
     case "mfa_verification_required":

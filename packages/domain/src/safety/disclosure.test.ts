@@ -210,42 +210,28 @@ describe("a coroner's Regulation 28 report (rule 43)", () => {
   });
 
   it.each([
-    // sent on, extended to, responded on, today: due on, extended, state
-    ["2026-01-01", null, null, "2026-01-01", 0, false, "due"],
-    ["2026-01-01", null, null, "lastDay", 0, false, "due"],
-    ["2026-01-01", null, null, "dayAfter", 0, false, "overdue"],
-    ["2026-01-01", null, "2026-01-10", "dayAfter", 0, false, "responded"],
-    ["2026-01-01", "extension", null, "dayAfter", 30, true, "due"],
-    ["2026-03-20", null, null, "2026-03-20", 0, false, "due"],
+    // Fixed dates, across both clock changes: 56 days after the date the report was sent.
+    ["2026-01-01", null, null, "2026-02-26", "2026-02-26", false, "due"],
+    ["2026-01-01", null, null, "2026-02-27", "2026-02-26", false, "overdue"],
+    ["2026-03-20", null, null, "2026-05-15", "2026-05-15", false, "due"],
+    ["2026-10-01", null, null, "2026-11-26", "2026-11-26", false, "due"],
+    ["2026-01-01", null, "2026-02-27", "2026-03-01", "2026-02-26", false, "responded"],
+    // An extension the coroner allowed, even after the period passed (regulation 29(5)).
+    ["2026-01-01", "2026-03-31", null, "2026-03-01", "2026-03-31", true, "due"],
+    ["2026-01-01", "2026-03-31", null, "2026-04-01", "2026-03-31", true, "overdue"],
   ] as const)(
-    "a report sent on %s (extended %s, responded %s), seen on %s",
-    (sentOn, extendedTo, respondedOn, today, extraDays, extended, state) => {
-      const last = new Date(Date.parse(`${sentOn}T12:00:00Z`) + (days - 1) * 86_400_000)
-        .toISOString()
-        .slice(0, 10);
-      const after = new Date(Date.parse(`${last}T12:00:00Z`) + 86_400_000)
-        .toISOString()
-        .slice(0, 10);
-      const extension = new Date(Date.parse(`${last}T12:00:00Z`) + 30 * 86_400_000)
-        .toISOString()
-        .slice(0, 10);
-      const seen = today === "lastDay" ? last : today === "dayAfter" ? after : today;
+    "SAFE-016 a report sent on %s (extended to %s, responded %s), seen on %s, is due on %s",
+    (sentOn, extendedTo, respondedOn, today, dueOn, extended, state) => {
+      // The rate table holds 56 days for England and Wales; these dates assume it.
+      expect(days).toBe(56);
       const out = preventionResponse({
         sentOn,
         responseDays: days,
-        extendedTo: extendedTo === "extension" ? extension : extendedTo,
+        extendedTo,
         respondedOn,
-        today: seen,
+        today,
       });
-      // The day the report was sent is the first day of the period.
-      expect(out.statutoryDueOn).toBe(last);
-      expect(out.dueOn).toBe(
-        extraDays === 0
-          ? last
-          : new Date(Date.parse(`${last}T12:00:00Z`) + extraDays * 86_400_000)
-              .toISOString()
-              .slice(0, 10),
-      );
+      expect(out.dueOn).toBe(dueOn);
       expect(out.extended).toBe(extended);
       expect(out.state).toBe(state);
     },
@@ -255,7 +241,8 @@ describe("a coroner's Regulation 28 report (rule 43)", () => {
     [{ sentOn: "2026-02-01" }, ["sent_in_future"]],
     [{ respondedOn: "2026-02-01" }, ["responded_in_future"]],
     [{ respondedOn: "2025-12-31" }, ["response_before_report"]],
-    [{ extendedTo: "2026-01-02" }, ["extension_not_later"]],
+    [{ extendedTo: "2026-02-26" }, ["extension_not_later"]],
+    [{ extendedTo: "2026-02-27" }, []],
     [{}, []],
   ] as const)("refuses %j with %j", (change, problems) => {
     expect(

@@ -45472,7 +45472,7 @@ export interface paths {
     put?: never;
     /**
      * Record a coroner's Regulation 28 report and the response
-     * @description safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). reportOn is the date the report was sent: the response is due within coroner.prevention_report_response_days (rate table) beginning with that day, or by extendedTo, a later date the coroner allowed (422 extension_not_later otherwise). Dates sent and responded not in the future (422 date_in_future); the response not before the report (422 response_before_report). Audited (safety.disclosure.prevention_recorded).
+     * @description safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). reportOn is the date the report was sent: the response is due within coroner.prevention_report_response_days (rate table) of that date (Coroners (Investigations) Regulations 2013 reg 29(4)), or by extendedTo, a later date the coroner allowed (reg 29(5); 422 extension_not_later otherwise, naming the due date). A field left out keeps what was recorded; null clears it. Dates sent and responded not in the future (422 date_in_future); the response not before the report (422 response_before_report). Audited (safety.disclosure.prevention_recorded).
      */
     post: {
       parameters: {

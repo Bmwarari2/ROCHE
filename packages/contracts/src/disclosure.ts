@@ -80,9 +80,9 @@ export const DisclosureRequestOut = z
       withhold: z.number().int(),
     }),
     /**
-     * Coroner: a Regulation 28 report. `reportOn` is the date the report was sent, the first day of
-     * the response period (rate table, `coroner.prevention_report_response_days`); the response is
-     * due on `responseDueOn`, the coroner's extension when one was given.
+     * Coroner: a Regulation 28 report. `reportOn` is the date the report was sent; the response is
+     * due within `coroner.prevention_report_response_days` (rate table) of it (`statutoryDueOn`),
+     * or on the coroner's extension when one was given (`responseDueOn`).
      */
     prevention: z
       .object({
@@ -144,10 +144,11 @@ export const RecordDisclosureHandOver = z
 export const RecordPreventionReport = z
   .object({
     ...Versioned,
-    /** The date the report was sent (the first day of the response period). */
+    /** The date the report was sent (the response period runs from it). */
     reportOn: ukDate,
+    /** Left out keeps what was recorded; null clears it. */
     respondedOn: ukDate.nullable().optional(),
-    /** A later date the coroner allowed for the response, if any. */
+    /** A later date the coroner allowed for the response, if any; left out keeps it. */
     extendedTo: ukDate.nullable().optional(),
   })
   .meta({ id: "RecordPreventionReport" });
