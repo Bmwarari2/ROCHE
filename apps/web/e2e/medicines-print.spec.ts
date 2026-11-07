@@ -37,7 +37,7 @@ test("hazard HZ-122 hazard HZ-007 the nurse downloads a month's MAR chart as a P
 
   // When no PDF comes back, the tab says so, in words with an icon, and takes focus.
   await page.goto(`/people/${demoPerson(1)}/medicines?print=failed`);
-  const status = main(page).getByRole("status").filter({ hasText: "could not be made" });
+  const status = main(page).getByRole("alert").filter({ hasText: "could not be made" });
   await expect(status).toBeFocused();
   await bothThemes(page, "the medicines tab when the MAR chart could not be made");
 });

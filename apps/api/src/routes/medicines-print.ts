@@ -182,7 +182,7 @@ export const medicinesPrintRouter = createRouter()
       tags,
       summary: "A controlled drugs register page, to print (PDF)",
       description:
-        "The page heading, every entry in order with its signatures and running balance, each correction under the entry it corrects, and every stock check. Every page says when it was printed and that it is not the live record (HZ-122). Replaces the plain print view (H-1331). Audited.",
+        "The page heading, every entry in order with its signatures and running balance, every entry in register order, each correction saying which entry it corrects, and every stock check. Every page says when it was printed and that it is not the live record (HZ-122). Replaces the plain print view (H-1331). Audited.",
       security,
       request: { params: z.object({ pageId: z.uuid() }) },
       responses: {
@@ -239,10 +239,12 @@ export const medicinesPrintRouter = createRouter()
       const bytes = renderCdRegisterPdf({
         person: {
           name: [read.p.givenName, read.p.familyName].filter(Boolean).join(" "),
+          preferredName: read.p.preferredName,
           dateOfBirth: read.p.dateOfBirth,
           nhsNumber: read.p.nhsNumber,
           locationName: read.p.locationName,
         },
+        communication: communicationStatementOf(read.p),
         page: {
           productName: read.page.productName,
           unitName: read.page.unitName,

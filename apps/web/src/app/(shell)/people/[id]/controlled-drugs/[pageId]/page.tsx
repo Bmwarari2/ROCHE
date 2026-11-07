@@ -1,11 +1,11 @@
 import { ButtonLink, Card } from "@harbour/ui";
-import { FileDown, Printer, TriangleAlert } from "lucide-react";
+import { FileDown, Printer } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
 import { RecordFrame } from "@/components/care/RecordFrame";
+import { WarningArrival } from "@/components/care/WarningArrival";
 import { CorrectionForm, EntryForm, StockCheckForm, WitnessForm } from "@/components/cd/CdForms";
 import { RegisterEntries, StockChecks } from "@/components/cd/Register";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
@@ -102,10 +102,7 @@ async function RegisterPage({
   return (
     <>
       {firstParam(query.print) === "failed" ? (
-        <ArrivalNotice>
-          <TriangleAlert size={18} strokeWidth={1.5} aria-hidden="true" />
-          {t("cd.print.failed")}
-        </ArrivalNotice>
+        <WarningArrival>{t("cd.print.failed")}</WarningArrival>
       ) : null}
       {done && ARRIVALS.has(done) ? (
         <RecordedArrival message={t("cd.done", { done, until })} param="done" />

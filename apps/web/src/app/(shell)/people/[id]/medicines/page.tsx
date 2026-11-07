@@ -2,10 +2,10 @@ import { Button, ButtonLink, Card, EmptyState, SelectField, StatusChip } from "@
 import { ClipboardList, Pill, Plus, Printer, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
 import { RecordFrame } from "@/components/care/RecordFrame";
+import { WarningArrival } from "@/components/care/WarningArrival";
 import { StartReconciliationForm } from "@/components/medicines/ReconciliationForms";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
@@ -186,10 +186,7 @@ async function MedicinesTab({
         <form method="get" action={marPrintHref(id)} className="flex flex-col gap-3">
           <p className="m-0 max-w-prose">{t("medicines.print.about")}</p>
           {print === "failed" ? (
-            <ArrivalNotice>
-              <TriangleAlert size={18} strokeWidth={1.5} aria-hidden="true" />
-              {t("medicines.print.failed")}
-            </ArrivalNotice>
+            <WarningArrival>{t("medicines.print.failed")}</WarningArrival>
           ) : null}
           <SelectField
             id="mar-month"

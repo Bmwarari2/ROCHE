@@ -413,10 +413,12 @@ describe("hazard HZ-122 the register page's lines (clinical review B3)", () => {
     const lines = cdRegisterLines({
       person: {
         name: "Ada Example",
+        preferredName: null,
         dateOfBirth: null,
         nhsNumber: null,
         locationName: "Harbour House",
       },
+      communication: { status: "none_identified", confirmedBy: "u1", confirmedAt: printedAt },
       page: { productName: "Morphine 10mg/5ml oral solution", unitName: "ml", balance: 95 },
       entries,
       stockChecks: [
@@ -445,6 +447,7 @@ describe("hazard HZ-122 the register page's lines (clinical review B3)", () => {
     expect(lines.join("\n")).toContain("no witness: Night shift, one nurse");
     expect(lines.join("\n")).toContain("Balanced. Counted by Ada Example");
     expect(lines[1]).toBe(marPrintedNotice(printedAt));
+    expect(lines).toContain("No communication needs identified.");
   });
 });
 

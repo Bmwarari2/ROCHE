@@ -1,7 +1,7 @@
-import { formatNhsNumber } from "@harbour/domain";
-import { marPrintedNotice } from "./mar-pdf";
+import type { CommunicationStatement } from "@harbour/domain";
+import { communicationLines, marIdentity, marPrintedNotice } from "./mar-pdf";
 import { type PdfLine, renderPdf } from "./pdf";
-import { ukDate, ukDateTime } from "./transfer-pack-pdf";
+import { ukDateTime } from "./transfer-pack-pdf";
 
 /**
  * A controlled drugs register page as a PDF (Phase 2 slice 50; MEDS-014; medicines.md section 17).
@@ -46,10 +46,12 @@ export interface CdPrintCheck {
 export interface CdPrintInput {
   readonly person: {
     readonly name: string;
+    readonly preferredName: string | null;
     readonly dateOfBirth: string | null;
     readonly nhsNumber: string | null;
     readonly locationName: string;
   };
+  readonly communication: CommunicationStatement;
   readonly page: {
     readonly productName: string;
     readonly unitName: string;
@@ -83,11 +85,9 @@ export function cdRegisterLines(input: CdPrintInput): PdfLine[] {
   const lines: PdfLine[] = [
     { text: `Controlled drugs register: ${input.page.productName}`, bold: true, size: 14 },
     { text: marPrintedNotice(input.printedAt), bold: true },
-    {
-      text: `${input.person.name}. Born ${ukDate(input.person.dateOfBirth)}. NHS number ${
-        input.person.nhsNumber ? formatNhsNumber(input.person.nhsNumber) : "not recorded"
-      }. ${input.person.locationName}.`,
-    },
+    { text: marIdentity(input.person) },
+    { text: "Communication needs", bold: true, gapBefore: 8 },
+    ...communicationLines(input.communication).map((text) => ({ text })),
     { text: `Unit: ${unit}. Balance when printed: ${input.page.balance} ${unit}.` },
     { text: "Entries", bold: true, gapBefore: 8 },
   ];
@@ -127,11 +127,12 @@ export function cdRegisterLines(input: CdPrintInput): PdfLine[] {
 }
 
 export function renderCdRegisterPdf(input: CdPrintInput): Uint8Array {
-  const heading = `${input.person.name}, controlled drugs register: ${input.page.productName}`;
+  const heading = `Controlled drugs register: ${input.page.productName}. ${marIdentity(input.person)}`;
   return renderPdf({
     title: "Controlled drugs register page",
     header: [heading, marPrintedNotice(input.printedAt)],
     lines: cdRegisterLines(input),
-    footer: (page, pages) => `${heading}. Page ${page} of ${pages}`,
+    footer: (page, pages) =>
+      `${input.person.name}, controlled drugs register: ${input.page.productName}. Page ${page} of ${pages}`,
   });
 }

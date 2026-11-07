@@ -222,7 +222,7 @@ function allergyLines(a: AllergyStatement): string[] {
   return ["Allergy status not recorded. Find out before giving any medicine."];
 }
 
-function communicationLines(c: CommunicationStatement): string[] {
+export function communicationLines(c: CommunicationStatement): string[] {
   if (c.status === "recorded") {
     return c.needs.map((n) => `${n.display}${n.preferredFormat ? ` (${n.preferredFormat})` : ""}`);
   }
@@ -359,7 +359,9 @@ function toRecord(r: AdministrationRow, entry: MarEntry): MarRecord {
       r.quantity !== null
         ? `${formatDoseQuantity(Number(r.quantity))} ${unitName(entry, r.unitCode)}`.trim()
         : null,
-    reason: r.reasonCode ? (REASON_WORDS[r.reasonCode] ?? r.reasonCode) : null,
+    reason: r.reasonCode
+      ? [REASON_WORDS[r.reasonCode] ?? r.reasonCode, r.reasonNote].filter(Boolean).join(": ")
+      : r.reasonNote,
   };
 }
 
