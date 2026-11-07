@@ -221,6 +221,14 @@ database (SQLCipher), removed when the person leaves the member's scope, at sign
 The dm+d subset on the phone is national reference data, not personal data. No new recipient or
 sub-processor.
 
+The round on the phone (Phase 2 slice 69; ADR-0081): B1 now also covers, with each dose recorded on
+a phone, how the person was identified (photo confirmation or a wristband token) and how the pack
+was checked (its GTIN, batch and expiry, or why it could not be scanned, with up to 500 characters
+of words), kept as the record's `scan_evidence` with its retention class (H-1437); the dose waits
+on the phone, encrypted, until it is sent. The camera reads barcodes on the device only: no image
+is kept or sent. Reminders for time-critical doses are local notifications that name no one. No
+new recipient or sub-processor (H-1432 adds attestation vendors when it lands).
+
 Rounds and conflict review (Phase 2 slice 48, migration 0134): B1 now also covers a second record
 of a dose uploaded from a device after one was held (the record as the device sent it, who sent
 it and when, and what the server found wrong with it), kept for the nurse in charge, and its

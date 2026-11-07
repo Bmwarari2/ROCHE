@@ -296,3 +296,13 @@ The `clinical-safety-reviewer` agent checks the answer against the diff. A "Yes"
 | Obtain a regulatory opinion confirming the validated-tool calculation position (section 5) | Brian |
 | Confirm terms for using NEWS2, MUST and Waterlow in software, and the authoritative Waterlow source | Brian with CSO |
 | Review and approve this boundary statement | CSO |
+
+**The medicines round on the phone (Phase 2 slice 69; ADR-0081)**: the phone runs the same
+`medicineRound` as the API on its synced MAR rows: which doses are due, late or recorded, from the
+prescriber's schedule and the tenant's dose windows in the rate table, and when a when-required
+medicine may next be given from the prescribed interval and maximum. It applies those
+tenant-configured rules and the prescription as written; it makes no recommendation, score or
+judgement of its own. Matching a scanned pack to the MAR entry's dm+d product and checking its
+expiry is a record-keeping check against reference data, not a clinical decision. Where the phone
+cannot know (a last dose older than its records) it says so and sends the carer to the nurse in
+charge. Re-checked for this PR: nothing in the slice moves Harbour across the boundary.

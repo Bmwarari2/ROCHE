@@ -980,6 +980,7 @@ is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/
 | `medication_administration.flags` | Harbour | As medicines.md rule 17, with `given_before_recorded` and `clock_drift` | Shown in words. |
 | `medication_administration.due_at`, `given_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
 | `medication_administration.supersedes_id` | Harbour | The record corrected | Shown struck through beside its correction. |
+| `medication_administration.scan_evidence` | Harbour (ADR-0081); GS1 GTIN-14 and AI 10 and 17 | JSON: `identity` (`photo` or `wristband`), `pack` (`method` `scanned` with `gtin`, `batch`, `expiry` (ISO date) and `amppId` (dm+d AMPP), or `override` with a `code` from `PACK_OVERRIDE_REASONS` and up to 500 characters of words) | Sent by a phone with each record (slice 69); empty on a web record, meaning not checked at the point of care. No pack serial and no image. Kept with the record and its retention class (H-1437). |
 | `medication_administration_witness.method` | Harbour (ADR-0084) | `step_up`, `device_factor` | |
 | `medication_dosing_record.doses` | Harbour | JSON: `date` (ISO 8601 date), `time` (`HH:MM`, UK), `quantity` | In the entry's unit. |
 | `medication.tags` | Harbour (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |

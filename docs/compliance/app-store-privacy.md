@@ -137,7 +137,8 @@ Code and tests: `apps/api/src/services/account-deletion.ts`, `apps/api/test/acco
 
 | Planned feature | Changes |
 | --- | --- |
-| Camera photos (person photo, wound photos), medicine barcode scanning | Apple: Photos or Videos (App Functionality, linked); Google: Photos (collected). Unblock `CAMERA` |
+| Camera photos (person photo, wound photos) | Apple: Photos or Videos (App Functionality, linked); Google: Photos (collected) |
+| Medicine barcode scanning (done, Phase 2 slice 69; ADR-0081) | `CAMERA` unblocked; frames are read on the device and never kept or sent, so no new data type is collected. The usage text says so |
 | Visit verification by location (domiciliary, foreground only) | Apple: Precise Location; Google: Approximate and precise location, with the prominent disclosure. No background location in v1 |
 | Voice notes | Apple: Audio Data; Google: Voice or sound recordings |
 | Push notifications | Push token as an identifier; a push provider becomes a sub-processor (docs/compliance/sub-processors.md) |

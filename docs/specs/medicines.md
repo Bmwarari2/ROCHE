@@ -1096,6 +1096,24 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
   so it is checked at its drift-corrected time, idempotent by id, and a refusal comes back to the
   device as a conflict for the nurse in charge (slice 70).
 
+### 13.9 The round on the phone (slice 69; ADR-0081)
+
+1. The phone runs `medicineRound` (packages/domain `medicines/round.ts`), the API's own round, on
+   its synced rows, slot by slot with yesterday's doses still outstanding first; a version it cannot
+   read is named, never left out. A when-required medicine whose interval reaches before the
+   administrations the phone holds says the last dose may not be on the phone.
+2. The round opens only on a device the root and jailbreak checks trust, after a complete sync and
+   once the medicines figures are read from the rate table (`roundGate`). Controlled drugs are not
+   recorded on the phone until slice 70.
+3. A dose given needs photo confirmation (or, once issued, a wristband token) and a pack scan that
+   matches the entry's product, or an override reason; another product or an expired pack is never
+   overridden. Inside the interval, or with the last dose unknown, the phone does not record it.
+4. The record is written to the phone at once and sent with `deviceRecordedAt` and `pointOfCare`;
+   the API requires the checks on a phone's upload, matches a scanned pack through dm+d, judges the
+   record at the phone's time (within the clock-drift figure of its UUIDv7) and keeps the checks as
+   `scan_evidence`. A refused record moves to "needs attention" and leaves the round.
+5. Local reminders when a time-critical dose's window opens, naming no one.
+
 ### 13.9 Audit and outbox
 
 Audit actions, carrying ids, outcomes, flags and problem codes, never the medicine or the dose:
