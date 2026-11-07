@@ -18,6 +18,9 @@ import { type ActionResult, collectedRefusal, errorFor } from "@/lib/outcome";
  * again and refuses in words. Saving a valid route switches lone-worker check-ins on.
  */
 
+/** The page's note saying which channels reach staff yet; each step's channels refer to it. */
+export const SMS_NOTE_ID = "route-sms-note";
+
 interface Option {
   readonly value: string;
   readonly label: string;
@@ -42,6 +45,7 @@ export function LoneWorkerRouteForm({
   roles,
   people,
   smsAvailable,
+  pushAvailable,
 }: {
   readonly steps: readonly LoneWorkerRouteStep[];
   readonly version: number | null;
@@ -50,6 +54,8 @@ export function LoneWorkerRouteForm({
   readonly people: readonly Option[];
   /** Text message is offered only once an SMS gateway is connected (ADR-0132). */
   readonly smsAvailable: boolean;
+  /** A phone notification counts only once staff phones can receive them (HZ-125). */
+  readonly pushAvailable: boolean;
 }) {
   const router = useRouter();
   const [steps, setSteps] = useState<readonly Row[]>(() =>
@@ -83,6 +89,7 @@ export function LoneWorkerRouteForm({
     event.preventDefault();
     const read = readRoute(new FormData(event.currentTarget), steps.length, t, {
       smsAvailable,
+      pushAvailable,
     });
     if (!read.ok) {
       setResult(collectedRefusal(read.problems));
@@ -145,7 +152,15 @@ export function LoneWorkerRouteForm({
                 />
                 <fieldset
                   className="m-0 flex flex-col gap-2 border-0 p-0"
-                  aria-describedby={channelError ? `route-step-${n}-channel-error` : undefined}
+                  aria-describedby={
+                    [
+                      channelError ? `route-step-${n}-channel-error` : null,
+                      // Why there is no text message option (ADR-0132), read with each step.
+                      smsAvailable && pushAvailable ? null : SMS_NOTE_ID,
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
                 >
                   <legend className="mb-1">{t("scheduling.loneWorker.route.channels")}</legend>
                   {channelError ? (

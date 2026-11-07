@@ -342,7 +342,7 @@ describe("hazard HZ-125 acknowledging needs an outcome and a note (slice 61)", (
   });
 });
 
-const NO_SMS = { smsAvailable: false } as const;
+const NO_SMS = { smsAvailable: false, pushAvailable: false } as const;
 
 describe("hazard HZ-125 the on-call route (H-539, slice 61)", () => {
   const good = {
@@ -412,8 +412,24 @@ describe("hazard HZ-125 the on-call route (H-539, slice 61)", () => {
   it("accepts a text message once a gateway is connected", () => {
     const read = readRoute(form({ ...good, "step-1-channel": ["sms"] }), 2, t, {
       smsAvailable: true,
+      pushAvailable: false,
     });
     expect(read.ok).toBe(true);
+  });
+
+  it("hazard HZ-125 refuses a step with a phone notification only while staff phones cannot receive them", () => {
+    const read = readRoute(form({ ...good, "step-1-channel": ["push"] }), 2, t, NO_SMS);
+    expect(read.ok).toBe(false);
+    if (!read.ok) {
+      expect(read.problems).toEqual([
+        { field: "step-1-channel", message: expect.stringMatching(/Include email for step 1/) },
+      ]);
+    }
+    const later = readRoute(form({ ...good, "step-1-channel": ["push"] }), 2, t, {
+      smsAvailable: false,
+      pushAvailable: true,
+    });
+    expect(later.ok).toBe(true);
   });
 
   it.each([

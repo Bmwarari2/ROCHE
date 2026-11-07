@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/care/Notice";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
-import { LoneWorkerRouteForm } from "@/components/scheduling/LoneWorkerRouteForm";
+import { LoneWorkerRouteForm, SMS_NOTE_ID } from "@/components/scheduling/LoneWorkerRouteForm";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { loneWorkerAccess, routeRoleOptions } from "@/lib/lone-worker";
@@ -32,7 +32,8 @@ export default async function LoneWorkerRoutePage() {
     .filter((m) => m.state === "active")
     .map((m) => ({ value: `person:${m.id}`, label: m.displayName }));
   const roles = routeRoleOptions().map((r) => ({ value: `role:${r.key}`, label: r.name }));
-  const { on, steps, problems, version, locationEvidence, smsAvailable } = route.data;
+  const { on, steps, problems, version, locationEvidence, smsAvailable, pushAvailable } =
+    route.data;
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -85,10 +86,18 @@ export default async function LoneWorkerRoutePage() {
           <h2 id="route-steps" className="hb-card__title">
             {t("scheduling.loneWorker.route.steps")}
           </h2>
-          {smsAvailable ? null : (
-            <p className="m-0 text-body-dense text-text-secondary">
-              {t("scheduling.loneWorker.route.smsNotSetUp")}
-            </p>
+          {smsAvailable && pushAvailable ? null : (
+            <div
+              id={SMS_NOTE_ID}
+              className="flex flex-col gap-1 text-body-dense text-text-secondary"
+            >
+              {smsAvailable ? null : (
+                <p className="m-0">{t("scheduling.loneWorker.route.smsNotSetUp")}</p>
+              )}
+              {pushAvailable ? null : (
+                <p className="m-0">{t("scheduling.loneWorker.route.pushNotReady")}</p>
+              )}
+            </div>
           )}
           <LoneWorkerRouteForm
             steps={steps}
@@ -96,6 +105,7 @@ export default async function LoneWorkerRoutePage() {
             roles={roles}
             people={people}
             smsAvailable={smsAvailable}
+            pushAvailable={pushAvailable}
           />
         </div>
       </Card>

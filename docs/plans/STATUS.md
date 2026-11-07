@@ -30,10 +30,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## No SMS at launch (07/11/2026)
 
-`fix/comms-no-sms-at-launch` (ADR-0132): nothing relies on a text message while no SMS gateway is
-connected. A lone-worker route step cannot choose one (refused in words), saved routes lose it
-(migration 0145, an SMS-only step gains a phone notification), the delivery job skips it, and
-families are offered app and email only. See
+`fix/comms-no-sms-at-launch` (ADR-0132): nothing relies on a channel that cannot reach people. No
+SMS gateway is contracted and staff phones cannot yet receive notifications, so every lone-worker
+route step must include email (migration 0145 adds it to saved routes and removes text messages,
+audited, with a task for the route's managers), the delivery job skips text messages, and families
+are offered app and email only. H-1481 and H-1482 for the CSO. See
 `docs/changelog-dev/2026-11-07-fix-comms-no-sms-at-launch.md`.
 
 ## Merge batch 3c (06/11/2026)

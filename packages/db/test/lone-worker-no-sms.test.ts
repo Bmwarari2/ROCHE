@@ -6,8 +6,8 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Migration 0145 (ADR-0132: no SMS at launch; HZ-125). Saved lone-worker routes lose 'sms'; a step
- * left with no way to reach people away from the app gains a phone notification. Other chains are
+ * Migration 0145 (ADR-0132: no SMS at launch; HZ-125). Saved lone-worker routes lose 'sms' and every
+ * step gains email, the one channel that reaches staff today (push has no destination). Other chains are
  * untouched, each change is audited, and a second run changes nothing.
  */
 
@@ -52,7 +52,7 @@ afterAll(async () => {
 });
 
 describe("hazard HZ-125 no saved lone-worker route relies on text messages (migration 0145)", () => {
-  it("removes text messages, gives an SMS-only step a phone notification, and audits once", async () => {
+  it("removes text messages, still alerts someone by email at every changed step, tells the route's managers and audits once", async () => {
     await asOwner(TENANT_A, (c) =>
       c.query("INSERT INTO escalation_chain (key, name, steps) VALUES ($1, 'On call', $2)", [
         ROUTE,
@@ -61,6 +61,7 @@ describe("hazard HZ-125 no saved lone-worker route relies on text messages (migr
           step(5, ["sms"]),
           step(10, ["in_app", "sms"]),
           step(15, ["email"], "registered_manager"),
+          step(20, ["push"], "owner"),
         ]),
       ]),
     );
@@ -85,10 +86,27 @@ describe("hazard HZ-125 no saved lone-worker route relies on text messages (migr
         ).rows,
     );
     expect(route?.steps.map((s) => s.channels)).toEqual([
-      ["push"],
-      ["push"],
-      ["in_app", "push"],
+      ["push", "email"],
       ["email"],
+      ["in_app", "email"],
+      ["email"],
+      ["push", "email"],
+    ]);
+    // Every changed route still alerts someone: each step keeps its target and includes email,
+    // the one channel with a destination for staff today (push has none until devices register).
+    for (const s of route?.steps ?? []) expect(s.channels).toContain("email");
+    const tasks = async () =>
+      asOwner(
+        TENANT_A,
+        async (c) =>
+          (
+            await c.query<{ required_permission: string; source_type: string }>(
+              "SELECT required_permission, source_type FROM task WHERE kind = 'scheduling.lone_worker.route_sms_removed'",
+            )
+          ).rows,
+      );
+    expect(await tasks()).toEqual([
+      { required_permission: "scheduling.lone_worker.manage", source_type: "escalation_chain" },
     ]);
     const [other] = await asOwner(
       TENANT_B,
@@ -111,19 +129,20 @@ describe("hazard HZ-125 no saved lone-worker route relies on text messages (migr
             )
           ).rows,
       );
-    expect(await audit()).toEqual([{ scope: expect.objectContaining({ steps: 3 }) }]);
+    expect(await audit()).toEqual([{ scope: expect.objectContaining({ steps: 4 }) }]);
 
     // A second run finds nothing to change and audits nothing more.
     await rerun();
     expect(await audit()).toHaveLength(1);
+    expect(await tasks()).toHaveLength(1);
   });
 
-  it("leaves row-level security forced on escalation_chain", async () => {
+  it("leaves row-level security forced on escalation_chain and task", async () => {
     const forced = await db
       .pool("harbour_owner")
       .query<{ relforcerowsecurity: boolean }>(
-        "SELECT relforcerowsecurity FROM pg_class WHERE oid = 'public.escalation_chain'::regclass",
+        "SELECT relforcerowsecurity FROM pg_class WHERE oid IN ('public.escalation_chain'::regclass, 'public.task'::regclass)",
       );
-    expect(forced.rows[0]?.relforcerowsecurity).toBe(true);
+    expect(forced.rows.map((r) => r.relforcerowsecurity)).toEqual([true, true]);
   });
 });

@@ -59,6 +59,11 @@ export const LoneWorkerRoute = z
      * launch (ADR-0132), so the form offers phone notification and email only.
      */
     smsAvailable: z.boolean(),
+    /**
+     * Whether a phone notification can reach staff: not until staff phones register for them. Until
+     * then every step must include email, the one channel that reaches staff away from Harbour.
+     */
+    pushAvailable: z.boolean(),
     /** The saved route's version, to send back with a change; null before one is saved. */
     version: version.nullable(),
   })

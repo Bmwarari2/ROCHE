@@ -74,3 +74,10 @@ export async function smsAvailable(tx: Transaction): Promise<boolean> {
     .where(eq(integrationConnection.port, "comms.sms"));
   return smsGatewayConfigured(connection ?? null);
 }
+
+/**
+ * Whether a phone notification can reach a member of staff. Not yet: staff devices do not register
+ * push tokens, so `processDeliveries` finds no destination and skips it. Until they do, a lone-worker
+ * route step must include email (HZ-125; ADR-0132).
+ */
+export const STAFF_PUSH_AVAILABLE = false;

@@ -205,7 +205,19 @@ describe("off until the organisation names its on-call route (H-539)", () => {
       );
     }
     const route = await as("manager", "/v1/lone-worker/route");
-    expect(await json<{ smsAvailable: boolean }>(route)).toMatchObject({ smsAvailable: false });
+    expect(await json<{ smsAvailable: boolean; pushAvailable: boolean }>(route)).toMatchObject({
+      smsAvailable: false,
+      pushAvailable: false,
+    });
+  });
+
+  it("hazard HZ-125 refuses a step with a phone notification only while staff phones cannot receive them", async () => {
+    const r = await as("manager", "/v1/lone-worker/route", {
+      method: "PUT",
+      body: { steps: [{ ...ROUTE.steps[0], channels: ["push"] }, ROUTE.steps[1]], version: null },
+    });
+    expect(r.status).toBe(422);
+    expect((await json<ProblemDetails>(r)).detail).toMatch(/Include email/);
   });
 
   it("refuses a family or visitor role, or a person who cannot acknowledge alarms, on the route", async () => {
@@ -249,6 +261,23 @@ describe("off until the organisation names its on-call route (H-539)", () => {
 });
 
 describe("sessions", () => {
+  it("hazard HZ-125 keeps a saved route on when a text message it lists cannot be sent, and says so", async () => {
+    const setSteps = (steps: unknown) =>
+      asDemoTenant((c) =>
+        c.query(
+          "UPDATE escalation_chain SET steps = $1 WHERE key = 'scheduling.lone_worker.alarm'",
+          [JSON.stringify(steps)],
+        ),
+      );
+    await setSteps([{ ...ROUTE.steps[0], channels: ["email", "sms"] }, ROUTE.steps[1]]);
+    const route = await json<{ on: boolean; problems: { code: string }[] }>(
+      await as("manager", "/v1/lone-worker/route"),
+    );
+    expect(route.on).toBe(true);
+    expect(route.problems.map((p) => p.code)).toEqual(["sms_unavailable"]);
+    await setSteps(ROUTE.steps);
+  });
+
   it("refuses a location where the worker does not work, and figures outside the organisation's", async () => {
     expect((await start("carer", { locationId: LODGE.locationId })).status).toBe(422);
     const short = await start("carer", { intervalMinutes: 1 });

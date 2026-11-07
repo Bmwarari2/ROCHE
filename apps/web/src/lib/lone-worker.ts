@@ -392,7 +392,7 @@ export function readRoute(
   form: FormLike,
   count: number,
   t: Translator,
-  options: { readonly smsAvailable: boolean },
+  options: { readonly smsAvailable: boolean; readonly pushAvailable: boolean },
 ): { ok: true; steps: LoneWorkerRouteStep[] } | { ok: false; problems: FieldProblem[] } {
   const problems: FieldProblem[] = [];
   const steps: LoneWorkerRouteStep[] = [];
@@ -431,7 +431,16 @@ export function readRoute(
         field: `step-${n}-channel`,
         message: t("scheduling.loneWorker.route.smsUnavailable", { step: n }),
       });
-    } else if (!channels.some((c) => c !== "in_app" && (c !== "sms" || options.smsAvailable))) {
+    } else if (
+      // Only a channel that can reach staff counts: email always; a phone notification or a text
+      // message only once it can (HZ-125; ADR-0132).
+      !channels.some(
+        (c) =>
+          c === "email" ||
+          (c === "push" && options.pushAvailable) ||
+          (c === "sms" && options.smsAvailable),
+      )
+    ) {
       problems.push({
         field: `step-${n}-channel`,
         message: t("scheduling.loneWorker.route.channelRequired", { step: n }),
