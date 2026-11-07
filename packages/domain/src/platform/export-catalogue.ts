@@ -2311,6 +2311,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "Whether the giver confirmed they checked the person's allergies (true or false).",
       },
+      medicines_compared: {
+        description:
+          "Whether the giver confirmed they compared the remedy with the person's current medicines (true or false; false before it was asked).",
+      },
       already_given_reason: { description: "Why a dose already given was recorded only later." },
       flags: { description: "What the protocol check found, for a dose already given outside it." },
       recorded_at: { description: "When it was stored (instant, UTC)." },

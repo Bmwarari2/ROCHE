@@ -321,6 +321,7 @@ function doseOut(r: DoseRow, protocol: ProtocolRow | undefined, rows: readonly D
     givenAt: r.givenAt.toISOString(),
     givenBy: r.givenBy,
     allergiesChecked: r.allergiesChecked,
+    medicinesCompared: r.medicinesCompared,
     alreadyGivenReason: r.alreadyGivenReason,
     flags: [...r.flags],
     recordedAt: r.recordedAt.toISOString(),
@@ -1249,6 +1250,7 @@ export const medicinesAuthorityRouter = createRouter()
                 givenAt: at,
                 givenBy: access.tenantUserId,
                 allergiesChecked: body.allergiesChecked,
+                medicinesCompared: body.medicinesCompared,
                 alreadyGivenReason: body.alreadyGiven?.reason ?? null,
                 flags: found,
               })
@@ -1275,7 +1277,13 @@ export const medicinesAuthorityRouter = createRouter()
           action: "medicines.homely_dose.recorded",
           resourceType: "homely_remedy_administration",
           resourceId: stored.id,
-          scope: { personId, protocolId: protocol.id, flags: found },
+          scope: {
+            personId,
+            protocolId: protocol.id,
+            flags: found,
+            allergiesChecked: true,
+            medicinesCompared: true,
+          },
         });
         return { status: 201 as const, dose: doseOut(stored, protocol, [...rows, stored]) };
       });

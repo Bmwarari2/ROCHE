@@ -281,6 +281,15 @@ score. The police call time is the tenant's own target from the rate table, appl
 Herbert Protocol profile copies what the record already holds and says where each part came from.
 Nothing interprets clinical data.
 
+Medicines stock, homely remedies and medication errors on the web (Phase 2 slice 55) stay on the
+same side. A storage reading shows only the API's "In range" or "Out of range", decided against the
+tenant's rate table range, with the figures beside it; the screen names no direction or cause and
+never says whether the medicines can still be used (the pharmacist decides; HZ-132). A homely remedy
+dose is checked against the tenant's own protocol as written, and the person's current medicines are
+listed for the giver to compare; Harbour does not judge an interaction (HZ-120, H-1410). Medication
+error reports count records and judge nothing; the escalations shown are the API's prompts, never sent
+and never a severity score (HZ-134).
+
 ## 7. The question every clinical PR answers
 
 The PR template's clinical-safety section contains this question. A PR labelled `clinical` cannot merge until it is answered.

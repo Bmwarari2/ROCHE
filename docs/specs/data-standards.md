@@ -1387,6 +1387,7 @@ is exported. Dates are UK dates; times are instants in UTC, shown in UK time, 24
 | `homely_remedy_protocol.dose_quantity`, `max_daily_quantity`, `min_interval_hours`, `max_days` | Harbour | Numeric in `unit_name`; hours; days | The home's figures, agreed with a GP or pharmacist; `max_days` within `medicines.homely_remedy.max_days_ceiling`. |
 | `homely_remedy_administration.outcome` | Harbour | `given`, `entered_in_error` | A record entered in error stays, struck through, and no longer counts. |
 | `homely_remedy_administration.allergies_checked`, `already_given_reason`, `flags` | Harbour | Boolean; text; array of `HomelyDoseProblem` codes | Flags only on a dose already given outside the protocol, with its reason. |
+| `homely_remedy_administration.medicines_compared` | Harbour | Boolean | The giver confirmed they compared the remedy with the person's current medicines (HZ-120); required on every dose given from migration 0155 (`NOT VALID` check, so earlier doses keep false); in the audit event's scope and the export. |
 
 ## Integrations: Thapsus-HR link (Phase 2, slice 87)
 
