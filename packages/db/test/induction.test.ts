@@ -252,17 +252,71 @@ describe("the Care Certificate (rule 20)", () => {
     });
   });
 
-  it("is observed only by a holder of workforce.competence.observe", async () => {
-    await asHr((c) => assess(c, "cc03", a.manager));
-    await expect(
-      asHr((c) =>
-        c.query(
-          `UPDATE care_certificate_progress SET observed_on = '2026-11-12', observed_by = $2
-            WHERE staff_profile_id = $1 AND standard_id = 'cc03'`,
-          [PROFILE, a.manager],
-        ),
+  // Row-level security agrees with the API: the observation (the table's only update) needs
+  // workforce.competence.observe and no staff file permission (migration 0154).
+  it.each([
+    ["an assessor with workforce.competence.observe alone", "assessor", 1],
+    ["HR with the staff file's permissions but not the observe permission", "hr", 0],
+    ["the worker", "worker", 0],
+  ] as const)("observing: %s updates %s row(s)", async (_name, who, updated) => {
+    const standard = `cc0${4 + ["assessor", "hr", "worker"].indexOf(who)}`;
+    await asHr((c) => assess(c, standard, a.manager));
+    const run = { assessor: asAssessor, hr: asHr, worker: asWorker }[who];
+    const actor = { assessor: a.northManager, hr: a.manager, worker: a.carer }[who];
+    const result = await run((c) =>
+      c.query(
+        `UPDATE care_certificate_progress SET observed_on = '2026-11-12', observed_by = $3
+          WHERE staff_profile_id = $1 AND standard_id = $2`,
+        [PROFILE, standard, actor],
       ),
-    ).rejects.toMatchObject({ code: "23514" });
+    );
+    expect(result.rowCount).toBe(updated);
+    const [row] = (
+      await asOwnerRole(TENANT_A, (c) =>
+        c.query<{ observed_by: string | null }>(
+          "SELECT observed_by FROM care_certificate_progress WHERE staff_profile_id = $1 AND standard_id = $2",
+          [PROFILE, standard],
+        ),
+      )
+    ).rows;
+    expect(row?.observed_by ?? null).toBe(updated === 1 ? actor : null);
+  });
+
+  it("is observed only by a holder of workforce.competence.observe (the guard, for the system too)", async () => {
+    // The update policy hides the row from HR without the observe permission; the guard of
+    // migration 0091 also refuses an observation signed without it.
+    await asHr((c) => assess(c, "cc03", a.manager));
+    const result = await asHr((c) =>
+      c.query(
+        `UPDATE care_certificate_progress SET observed_on = '2026-11-12', observed_by = $2
+          WHERE staff_profile_id = $1 AND standard_id = 'cc03'`,
+        [PROFILE, a.manager],
+      ),
+    );
+    expect(result.rowCount).toBe(0);
+  });
+
+  it.each([
+    ["an assessor with workforce.competence.observe alone", "assessor", PROFILE],
+    ["HR", "hr", PROFILE],
+    ["the worker, for themselves", "worker", PROFILE],
+  ] as const)("names the worker's file to %s (migration 0154)", async (_name, who, expected) => {
+    const run = { assessor: asAssessor, hr: asHr, worker: asWorker }[who];
+    const { rows } = await run((c) =>
+      c.query<{ id: string | null }>("SELECT app.care_certificate_profile($1) AS id", [a.carer]),
+    );
+    expect(rows[0]?.id).toBe(expected);
+  });
+
+  it("names no file to someone without the permissions, or across organisations", async () => {
+    const lookup = (c: pg.PoolClient, member: string) =>
+      c.query<{ id: string | null }>("SELECT app.care_certificate_profile($1) AS id", [member]);
+    // The worker asking about HR's own file: no staff file or observe permission.
+    expect((await asWorker((c) => lookup(c, a.manager))).rows[0]?.id).toBeNull();
+    const other = await inContext(app(), ctx(TENANT_B, ids.b.manager, "tenant"), (c) =>
+      lookup(c, a.carer),
+    );
+    expect(other.rows[0]?.id).toBeNull();
   });
 
   it("keeps an observation once signed", async () => {

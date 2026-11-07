@@ -967,6 +967,20 @@
       "when": 1794033640694,
       "tag": "0152_product_name_stored_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1794042692327,
+      "tag": "0153_revalidation_confirmer",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1794042709387,
+      "tag": "0154_certificate_revalidation_security",
+      "breakpoints": true
     }
   ]
 }

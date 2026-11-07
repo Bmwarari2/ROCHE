@@ -90,3 +90,72 @@ export function revalidationPlan(
 export function nextRevalidationDue(revalidatedOn: string, rates: RevalidationRates): string {
   return addYears(revalidatedOn, rates.nmcCycleYears);
 }
+
+/** Who confirms a revalidation: HR or a line manager (rule 8; the NMC's revalidation guidance). */
+export const REVALIDATION_CONFIRMING_PERMISSIONS = [
+  "workforce.training.manage",
+  "workforce.supervision.manage",
+] as const;
+/** Naming the confirmer is part of HR's planner. */
+const TRAINING_MANAGE = "workforce.training.manage";
+
+export type RevalidationConfirmationProblem =
+  | "own_record"
+  | "not_permitted"
+  | "no_confirmer"
+  | "not_the_confirmer"
+  | "not_reviewed"
+  | "already_confirmed";
+
+/**
+ * Rule 8 (H-693), separation of duties: the confirmation is recorded only by the confirmer named
+ * on the cycle, acting for themselves, after HR's review, never by the nurse. HR keeps the rest
+ * of the planner but cannot tick the confirmation unless someone else named them confirmer.
+ */
+export function checkRevalidationConfirmation(input: {
+  readonly actorId: string;
+  readonly actorPermissions: readonly string[];
+  readonly workerId: string;
+  readonly confirmerId: string | null;
+  readonly reviewState: "draft" | "submitted" | "reviewed";
+  readonly confirmed: boolean;
+}): { ok: true } | { ok: false; problem: RevalidationConfirmationProblem } {
+  const fail = (problem: RevalidationConfirmationProblem) => ({ ok: false, problem }) as const;
+  if (input.actorId === input.workerId) return fail("own_record");
+  if (!REVALIDATION_CONFIRMING_PERMISSIONS.some((p) => input.actorPermissions.includes(p))) {
+    return fail("not_permitted");
+  }
+  if (input.confirmerId === null) return fail("no_confirmer");
+  if (input.confirmerId !== input.actorId) return fail("not_the_confirmer");
+  if (input.reviewState !== "reviewed") return fail("not_reviewed");
+  if (input.confirmed) return fail("already_confirmed");
+  return { ok: true };
+}
+
+export type ConfirmerNamingProblem =
+  | "own_record"
+  | "not_permitted"
+  | "names_worker"
+  | "names_self"
+  | "already_confirmed";
+
+/**
+ * HR (`workforce.training.manage`) names who confirms a nurse's revalidation: never on their own
+ * record, never the nurse, never themselves (so nobody can make themselves the confirmer), and
+ * never once it is confirmed.
+ */
+export function checkConfirmerNaming(input: {
+  readonly actorId: string;
+  readonly actorPermissions: readonly string[];
+  readonly workerId: string;
+  readonly confirmerId: string;
+  readonly confirmed: boolean;
+}): { ok: true } | { ok: false; problem: ConfirmerNamingProblem } {
+  const fail = (problem: ConfirmerNamingProblem) => ({ ok: false, problem }) as const;
+  if (input.actorId === input.workerId) return fail("own_record");
+  if (!input.actorPermissions.includes(TRAINING_MANAGE)) return fail("not_permitted");
+  if (input.confirmerId === input.workerId) return fail("names_worker");
+  if (input.confirmerId === input.actorId) return fail("names_self");
+  if (input.confirmed) return fail("already_confirmed");
+  return { ok: true };
+}

@@ -633,12 +633,12 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
       "SELECT version FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
       [NURSE, cycle],
     );
-    // No confirmation before the review.
+    // No confirmation before a confirmer is named (nor before the review).
     const early = await as("manager", `${dev(NURSE)}/revalidation/confirmation`, {
       method: "POST",
       body: { expectedVersion: row?.version, cycleDueOn: cycle, confirmedOn: today() },
     });
-    expect(early.status).toBe(409);
+    expect(early.status).toBe(403);
     const reviewed = await as("owner", `${dev(NURSE)}/revalidation/review`, {
       method: "POST",
       body: { expectedVersion: row?.version, cycleDueOn: cycle },
@@ -652,25 +652,71 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
     expect(late.status).toBe(409);
   });
 
-  it("the confirmer confirms in their own name; the nurse cannot", async () => {
-    const [row] = await sql<{ version: number }>(
-      "SELECT version FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
+  const version = async () =>
+    (
+      await sql<{ version: number }>(
+        "SELECT version FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
+        [NURSE, cycle],
+      )
+    )[0]?.version;
+  const nameConfirmer = async (who: string, confirmerId: string) =>
+    as(who, `${dev(NURSE)}/revalidation/confirmer`, {
+      method: "PUT",
+      body: { expectedVersion: await version(), cycleDueOn: cycle, confirmerId },
+    });
+  const confirm = async (who: string) =>
+    as(who, `${dev(NURSE)}/revalidation/confirmation`, {
+      method: "POST",
+      body: { expectedVersion: await version(), cycleDueOn: cycle, confirmedOn: today() },
+    });
+
+  // The owner holds HR's workforce.training.manage; the Registered Manager is the line manager.
+  it.each([
+    ["HR names themselves", "owner", DEMO.users.owner.id, 422],
+    ["HR names the nurse", "owner", NURSE, 422],
+    ["the nurse names their own confirmer", "nurse", DEMO.users.manager.id, 403],
+    ["a care worker names one", "carer", DEMO.users.manager.id, 403],
+  ] as const)("refuses naming the confirmer: %s", async (_name, who, confirmerId, expected) => {
+    expect((await nameConfirmer(who, confirmerId)).status).toBe(expected);
+  });
+
+  it("HR names the line manager as confirmer, and is then refused the confirmation", async () => {
+    const named = await nameConfirmer("owner", DEMO.users.manager.id);
+    expect(named.status).toBe(200);
+    const plan = (await named.json()) as { revalidation: { confirmer: { id: string } | null } };
+    expect(plan.revalidation.confirmer?.id).toBe(DEMO.users.manager.id);
+    const hr = await confirm("owner");
+    expect(hr.status).toBe(403);
+    expect(((await hr.json()) as { code: string }).code).toBe("not_the_confirmer");
+    const [denied] = await sql<{ n: number }>(
+      `SELECT count(*)::int AS n FROM audit_event
+        WHERE action = 'workforce.revalidation.confirmed' AND outcome = 'denied'
+          AND reason = 'not_the_confirmer'`,
+    );
+    expect(denied?.n).toBeGreaterThanOrEqual(1);
+  });
+
+  it.each([
+    ["the nurse", "nurse", 403],
+    ["HR, not named", "owner", 403],
+    ["a care worker", "carer", 403],
+  ] as const)("refuses the confirmation by %s", async (_name, who, expected) => {
+    expect((await confirm(who)).status).toBe(expected);
+    const [stored] = await sql<{ confirmation: boolean }>(
+      "SELECT confirmation FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
       [NURSE, cycle],
     );
-    const own = await as("nurse", `${dev(NURSE)}/revalidation/confirmation`, {
-      method: "POST",
-      body: { expectedVersion: row?.version, cycleDueOn: cycle, confirmedOn: today() },
-    });
-    expect(own.status).toBe(403);
-    const confirmed = await as("manager", `${dev(NURSE)}/revalidation/confirmation`, {
-      method: "POST",
-      body: { expectedVersion: row?.version, cycleDueOn: cycle, confirmedOn: today() },
-    });
+    expect(stored?.confirmation).toBe(false);
+  });
+
+  it("the named confirmer confirms in their own name; then the confirmer is fixed", async () => {
+    const confirmed = await confirm("manager");
     expect(confirmed.status).toBe(200);
     const [stored] = await sql<{ confirmed_by: string; confirmation: boolean }>(
       "SELECT confirmed_by, confirmation FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
       [NURSE, cycle],
     );
     expect(stored).toEqual({ confirmed_by: DEMO.users.manager.id, confirmation: true });
+    expect((await nameConfirmer("owner", DEMO.users.carer.id)).status).toBe(409);
   });
 });

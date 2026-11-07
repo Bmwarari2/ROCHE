@@ -1,3 +1,4 @@
+import { checkRevalidationConfirmation } from "@harbour/domain";
 import type { MessageKey, Translator } from "@harbour/i18n";
 import type { SafetyChip } from "@/lib/incidents";
 
@@ -31,6 +32,38 @@ export function developmentActions(permissions: readonly string[], self: boolean
     withdraw: may(OBSERVE) || may(TRAINING),
     supervise: may(SUPERVISION),
     revalidation: may(TRAINING),
+  };
+}
+
+/**
+ * The revalidation planner's confirmation (workforce.md rule 8, separation of duties): HR names
+ * the confirmer until the cycle is confirmed (never on their own record); the confirmation is
+ * offered only to the confirmer named on the cycle, acting for themselves, once HR has reviewed
+ * it. HR never sees the tick unless someone else named them. The API and the database refuse
+ * everyone else too.
+ */
+export function revalidationConfirmActions(input: {
+  readonly permissions: readonly string[];
+  readonly me: string;
+  readonly memberId: string;
+  readonly plan: {
+    readonly confirmerId: string | null;
+    readonly reviewState: string;
+    readonly confirmation: boolean;
+  } | null;
+}): { nameConfirmer: boolean; confirm: boolean } {
+  const { plan } = input;
+  if (!plan || input.me === input.memberId) return { nameConfirmer: false, confirm: false };
+  return {
+    nameConfirmer: has(input.permissions, TRAINING) && !plan.confirmation,
+    confirm: checkRevalidationConfirmation({
+      actorId: input.me,
+      actorPermissions: input.permissions,
+      workerId: input.memberId,
+      confirmerId: plan.confirmerId,
+      reviewState: plan.reviewState as "draft" | "submitted" | "reviewed",
+      confirmed: plan.confirmation,
+    }).ok,
   };
 }
 

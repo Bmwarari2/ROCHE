@@ -17,6 +17,7 @@ import {
   present,
   REVALIDATION_REQUIREMENTS,
   requirementChip,
+  revalidationConfirmActions,
   STAFF_FILE_READ,
   SUPERVISION,
   SUPERVISION_KINDS,
@@ -47,7 +48,6 @@ describe("every code the screens show has words", () => {
         "reflectiveDiscussion",
         "healthAndCharacter",
         "professionalIndemnity",
-        "confirmation",
       ],
     ],
     ["development.tier", ["1", "2"]],
@@ -99,6 +99,69 @@ describe("who is offered what", () => {
       false,
       false,
     ]);
+  });
+});
+
+describe("the revalidation confirmation is offered only to the named confirmer (rule 8)", () => {
+  const NURSE = "u-nurse";
+  const HR = "u-hr";
+  const MANAGER = "u-manager";
+  const reviewed = { confirmerId: MANAGER, reviewState: "reviewed", confirmation: false } as const;
+  it.each([
+    [
+      "HR, not named",
+      HR,
+      [TRAINING, SUPERVISION],
+      reviewed,
+      { nameConfirmer: true, confirm: false },
+    ],
+    [
+      "the named line manager",
+      MANAGER,
+      [SUPERVISION],
+      reviewed,
+      { nameConfirmer: false, confirm: true },
+    ],
+    [
+      "HR, named by someone else",
+      HR,
+      [TRAINING],
+      { ...reviewed, confirmerId: HR },
+      { nameConfirmer: true, confirm: true },
+    ],
+    [
+      "the nurse",
+      NURSE,
+      [TRAINING, SUPERVISION],
+      reviewed,
+      { nameConfirmer: false, confirm: false },
+    ],
+    [
+      "the named confirmer before HR's review",
+      MANAGER,
+      [SUPERVISION],
+      { ...reviewed, reviewState: "submitted" },
+      { nameConfirmer: false, confirm: false },
+    ],
+    [
+      "anyone once confirmed",
+      MANAGER,
+      [TRAINING, SUPERVISION],
+      { ...reviewed, confirmation: true },
+      { nameConfirmer: false, confirm: false },
+    ],
+    ["HR with no evidence yet", HR, [TRAINING], null, { nameConfirmer: false, confirm: false }],
+    [
+      "the named confirmer without a confirming permission",
+      MANAGER,
+      [OBSERVE],
+      reviewed,
+      { nameConfirmer: false, confirm: false },
+    ],
+  ] as const)("%s", (_name, me, permissions, plan, expected) => {
+    expect(revalidationConfirmActions({ permissions, me, memberId: NURSE, plan })).toEqual(
+      expected,
+    );
   });
 });
 

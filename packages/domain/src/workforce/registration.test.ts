@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
+import { builtinRole } from "../platform/roles";
 import { addYears } from "./dates";
 import { resolveWorkforceRates } from "./rates";
 import {
+  checkConfirmerNaming,
+  checkRevalidationConfirmation,
   nextRevalidationDue,
   type Registration,
   type RevalidationEvidence,
@@ -68,5 +71,82 @@ describe("qualifications and NMC revalidation (workforce.md rule 8)", () => {
     expect(nextRevalidationDue("2027-03-31", rates)).toBe(
       addYears("2027-03-31", rates.nmcCycleYears),
     );
+  });
+});
+
+describe("the revalidation confirmation is the named confirmer's (rule 8; H-693)", () => {
+  const NURSE = "u-nurse";
+  const HR = "u-hr";
+  const MANAGER = "u-manager";
+  const permissionsOf = (key: string) => builtinRole(key)?.permissions ?? [];
+  const hr = permissionsOf("hr");
+  const manager = permissionsOf("registered_manager");
+  const base = {
+    workerId: NURSE,
+    confirmerId: MANAGER as string | null,
+    reviewState: "reviewed" as const,
+    confirmed: false,
+  };
+  it.each([
+    ["the named confirmer, a line manager", { actorId: MANAGER, actorPermissions: manager }, null],
+    ["HR, not named", { actorId: HR, actorPermissions: hr }, "not_the_confirmer"],
+    ["HR, named by someone else", { actorId: HR, actorPermissions: hr, confirmerId: HR }, null],
+    [
+      "the nurse",
+      { actorId: NURSE, actorPermissions: permissionsOf("clinical_lead") },
+      "own_record",
+    ],
+    [
+      "the named confirmer without a confirming permission",
+      { actorId: MANAGER, actorPermissions: permissionsOf("team_leader") },
+      "not_permitted",
+    ],
+    [
+      "anyone, before a confirmer is named",
+      { actorId: MANAGER, actorPermissions: manager, confirmerId: null },
+      "no_confirmer",
+    ],
+    [
+      "the named confirmer, before HR's review",
+      { actorId: MANAGER, actorPermissions: manager, reviewState: "submitted" as const },
+      "not_reviewed",
+    ],
+    [
+      "the named confirmer, a second time",
+      { actorId: MANAGER, actorPermissions: manager, confirmed: true },
+      "already_confirmed",
+    ],
+  ] as const)("%s", (_name, overrides, problem) => {
+    const result = checkRevalidationConfirmation({ ...base, ...overrides });
+    expect(result).toEqual(problem === null ? { ok: true } : { ok: false, problem });
+  });
+
+  it.each([
+    ["HR names a line manager", { actorId: HR, actorPermissions: hr }, null],
+    ["HR names themselves", { actorId: HR, actorPermissions: hr, confirmerId: HR }, "names_self"],
+    [
+      "HR names the nurse",
+      { actorId: HR, actorPermissions: hr, confirmerId: NURSE },
+      "names_worker",
+    ],
+    ["the nurse names someone", { actorId: NURSE, actorPermissions: hr }, "own_record"],
+    [
+      "a line manager without HR's permission",
+      { actorId: MANAGER, actorPermissions: permissionsOf("clinical_lead") },
+      "not_permitted",
+    ],
+    [
+      "HR, once confirmed",
+      { actorId: HR, actorPermissions: hr, confirmed: true },
+      "already_confirmed",
+    ],
+  ] as const)("naming the confirmer: %s", (_name, overrides, problem) => {
+    const result = checkConfirmerNaming({
+      workerId: NURSE,
+      confirmerId: MANAGER,
+      confirmed: false,
+      ...overrides,
+    });
+    expect(result).toEqual(problem === null ? { ok: true } : { ok: false, problem });
   });
 });

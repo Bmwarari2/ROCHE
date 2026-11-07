@@ -354,3 +354,95 @@ describe("workforce reminder tasks reach their permission's holders (workforce.m
     ).toBe(0);
   });
 });
+
+describe("H-693 only the named confirmer records the revalidation confirmation (rule 8; migration 0154)", () => {
+  const CYCLE = "2027-03-31";
+  const update =
+    (set: string, params: unknown[] = []) =>
+    (c: pg.PoolClient) =>
+      c.query(
+        `UPDATE revalidation_evidence SET ${set} WHERE worker_id = $1 AND cycle_due_on = $2`,
+        [a.carer, CYCLE, ...params],
+      );
+  const stored = () =>
+    asOwner(TENANT_A, async (c) => {
+      const { rows } = await c.query<{
+        confirmer_id: string | null;
+        confirmation: boolean;
+        confirmed_by: string | null;
+      }>(
+        "SELECT confirmer_id, confirmation, confirmed_by FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
+        [a.carer, CYCLE],
+      );
+      return rows[0];
+    });
+
+  beforeAll(async () => {
+    // The nurse's evidence, written by HR here, then reviewed by HR.
+    await asHr((c) =>
+      c.query(
+        `INSERT INTO revalidation_evidence (worker_id, cycle_due_on, practice_hours, cpd_hours)
+         VALUES ($1, $2, 450, 35)`,
+        [a.carer, CYCLE],
+      ),
+    );
+    await asHr(
+      update("review_state = 'reviewed', reviewed_by = $3, reviewed_at = now()", [a.manager]),
+    );
+  });
+
+  // In order: each is refused, with nothing changed.
+  it.each([
+    [
+      "HR ticks the confirmation with no confirmer named",
+      asHr,
+      "confirmation = true, confirmed_by = $3, confirmed_on = DATE '2026-11-07'",
+      [a.manager],
+    ],
+    ["the nurse names a confirmer", asCarer, "confirmer_id = $3", [a.northManager]],
+    ["a line manager names themselves", asNorth, "confirmer_id = $3", [a.northManager]],
+    ["HR names themselves", asHr, "confirmer_id = $3", [a.manager]],
+    ["HR names the nurse", asHr, "confirmer_id = $3", [a.carer]],
+    [
+      "HR names themselves and ticks it at once",
+      asHr,
+      "confirmer_id = $3, confirmation = true, confirmed_by = $3, confirmed_on = DATE '2026-11-07'",
+      [a.manager],
+    ],
+  ] as const)("refuses: %s", async (_name, as, set, params) => {
+    await expect(as(update(set, [...params]))).rejects.toMatchObject({ code: "23514" });
+    expect(await stored()).toEqual({ confirmer_id: null, confirmation: false, confirmed_by: null });
+  });
+
+  it("lets HR name a line manager as confirmer", async () => {
+    expect((await asHr(update("confirmer_id = $3", [a.northManager]))).rowCount).toBe(1);
+    expect((await stored())?.confirmer_id).toBe(a.northManager);
+  });
+
+  it.each([
+    ["HR, in their own name", asHr, a.manager],
+    ["HR, in the confirmer's name", asHr, a.northManager],
+    ["the nurse", asCarer, a.carer],
+    ["the confirmer, in HR's name", asNorth, a.manager],
+  ] as const)("refuses the confirmation by %s", async (_name, as, by) => {
+    await expect(
+      as(update("confirmation = true, confirmed_by = $3, confirmed_on = DATE '2026-11-07'", [by])),
+    ).rejects.toMatchObject({ code: "23514" });
+    expect((await stored())?.confirmation).toBe(false);
+  });
+
+  it("records the named confirmer's own confirmation, then fixes the confirmer", async () => {
+    const done = await asNorth(
+      update("confirmation = true, confirmed_by = $3, confirmed_on = DATE '2026-11-07'", [
+        a.northManager,
+      ]),
+    );
+    expect(done.rowCount).toBe(1);
+    expect(await stored()).toEqual({
+      confirmer_id: a.northManager,
+      confirmation: true,
+      confirmed_by: a.northManager,
+    });
+    await expect(asHr(update("confirmer_id = NULL"))).rejects.toMatchObject({ code: "23514" });
+  });
+});
