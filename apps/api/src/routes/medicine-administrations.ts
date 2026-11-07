@@ -830,6 +830,8 @@ export const medicineAdministrationsRouter = createRouter()
           if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
           const cdMove = isCd ? registerMoveForCorrection(original, body, at) : null;
           if (cdMove) {
+            // Refused before anything else where the register is not released here (H-1517).
+            await requireCdRecording(tx, facts.person.locationId, deny([]).audit);
             requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
             // The witness is never the giver or the recorder: the signature check and the
             // register trigger compare both (security review H2).

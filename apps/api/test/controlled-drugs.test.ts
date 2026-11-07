@@ -521,6 +521,52 @@ describe("hazard HZ-115 nothing goes in the register where controlled drug recor
     });
     expect(opened.status, await opened.clone().text()).toBe(200);
     const pageId = (await json<{ id: string }>(opened)).id;
+    const registerRows = () =>
+      asDemo(
+        async (c) =>
+          (
+            await c.query(
+              `SELECT (SELECT count(*) FROM controlled_drug_page)::int AS pages,
+                      (SELECT count(*) FROM controlled_drug_entry)::int AS entries,
+                      (SELECT count(*) FROM controlled_drug_stock_check)::int AS checks`,
+            )
+          ).rows[0],
+      );
+    // A receipt and a dose given while released, so there is something to correct later.
+    const receipt = await send("manager", `/v1/controlled-drugs/pages/${pageId}/entries`, {
+      method: "POST",
+      body: {
+        movement: "receipt",
+        quantity: 28,
+        counterparty: "Example Pharmacy",
+        reference: "Delivery note 2002",
+        witness: { witnessAssertionId: await witness(pageId, "receipt", 28) },
+      },
+    });
+    expect(receipt.status, await receipt.clone().text()).toBe(201);
+    const dueRound = await json<{ doses: { entryId: string; dueAt: string; state: string }[] }>(
+      await send("manager", `/v1/people/${BEN}/medicine-round`),
+    );
+    const givenDue = dueRound.doses.find((d) => d.entryId === entryId && d.state !== "late")
+      ?.dueAt as string;
+    const givenId = randomUUID();
+    const gave = await send("manager", `/v1/people/${BEN}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: givenId,
+        entryId,
+        dueAt: givenDue,
+        outcome: "given",
+        amount: { quantity: 1, unitCode: TABLET.code },
+        controlledDrug: {
+          witnessAssertionId: await witness(pageId, "administration", 1, givenId),
+        },
+      },
+    });
+    expect(gave.status, await gave.clone().text()).toBe(201);
+    const givenAt = (await json<{ administration: { givenAt: string } }>(gave)).administration
+      .givenAt;
+    const before = await registerRows();
     await setRecording(false);
     try {
       // Opening a page.
@@ -581,6 +627,25 @@ describe("hazard HZ-115 nothing goes in the register where controlled drug recor
           },
         }),
       );
+      // Correcting the amount of the controlled drug given while recording was released.
+      await refusedFor(
+        await send("manager", `/v1/medicine-administrations/${givenId}/corrections`, {
+          method: "POST",
+          body: {
+            id: randomUUID(),
+            correctionReason: "Two tablets were given, not one",
+            entryId,
+            dueAt: givenDue,
+            outcome: "given",
+            // A different amount moves the register's balance, so it would write a margin entry.
+            amount: { quantity: 2, unitCode: TABLET.code },
+            amountDifferenceReason: "Two tablets were given by mistake",
+            givenAt: givenAt,
+          },
+        }),
+      );
+      // Nothing reached the register.
+      expect(await registerRows()).toEqual(before);
       // Each refusal is audited as denied, with its code.
       const denied = await asDemo(async (c) =>
         (
@@ -597,6 +662,7 @@ describe("hazard HZ-115 nothing goes in the register where controlled drug recor
           "medicines.cd.entry_recorded",
           "medicines.cd.stock_checked",
           "medicines.administration.recorded",
+          "medicines.administration.corrected",
         ]),
       );
     } finally {
