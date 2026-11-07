@@ -543,6 +543,49 @@ describe("hazard HZ-023 the printed transfer pack", () => {
     );
   });
 
+  it("hazard HZ-023 prints a medicines list from the eMAR with when it was read, when last given and the entry's notice (slice 49)", () => {
+    const text = print({
+      ...PACK,
+      content: {
+        ...PACK.content,
+        medicines: {
+          status: "recorded",
+          source: "emar",
+          producedAt: "2026-07-01T08:05:00Z",
+          items: [
+            {
+              name: "Co-careldopa 25mg/100mg tablets",
+              dose: "1 tablet",
+              route: "Oral",
+              frequency: "1 tablet every day at 08:00",
+              timeCritical: true,
+              lastGivenAt: "2026-07-01T07:02:00Z",
+              status: null,
+            },
+            {
+              name: "Lactulose 3.35g/5ml oral solution",
+              dose: "15 ml",
+              route: "Oral",
+              frequency: "When required",
+              timeCritical: false,
+              lastGivenAt: null,
+              status:
+                "On hold on the eMAR: not to be given now. Do not give: the check found a difference from the source document.",
+            },
+          ],
+        },
+      },
+    })
+      .flat()
+      .join(" ");
+    expect(text).toContain("From the eMAR at 01/07/2026 09:05 BST. This is not the live record");
+    expect(text).toContain("TIME-CRITICAL: Co-careldopa 25mg/100mg tablets");
+    expect(text).toContain("Last given: 01/07/2026 08:02");
+    expect(text).toContain("Last given: not recorded on the eMAR");
+    expect(text).toContain("On hold on the eMAR: not to be given now.");
+    expect(text).not.toContain("From the pre-admission assessment");
+  });
+
   it("hazard HZ-015 prints the CPR decision in force on page 1, however long the medicines list", () => {
     const medicines = Array.from({ length: 25 }, (_, n) => ({
       name: `Medicine number ${n + 1}, a modified-release preparation taken with food and plenty of water`,

@@ -2109,3 +2109,158 @@ domain change. Hazard HZ-134 (with HZ-003 for an omitted dose and HZ-119 for the
   medication error and its follow-up`, `hazard HZ-134 the manager books, moves and records a
   medication review`, `hazard HZ-134 hazard HZ-119 the home's review tracker and medicines reports`
   (axe in light and dark at every screen, with and without errors).
+## 16. PRN protocols, outcomes and the psychotropic report (slice 28; MEDS-003)
+
+Hazard HZ-117; human actions H-1380 to H-1389. Sections 14 and 15 are slices 45 and 38 (on their
+own branches). Harbour counts, compares with the protocol and displays; it never recommends a
+dose, a medicine or an alternative (medical-device boundary).
+
+### 16.1 PRN protocols
+
+A **PRN protocol** (`prn_protocol`, mutable with `expected_version`, every version kept in
+`record_version`) is the home's guidance for one of the person's current when-required entries
+(the stable `medicine_id`, copied by the database): what it is for, the **signs** that mean it may
+be needed (at least one), the **non-drug alternatives** to try first, the **order of use** among
+the person's medicines for the same purpose (a group and a place, one medicine per place), the
+expected effect, the prescriber or pharmacist it was **agreed** with and when, and a **review** date
+within `medicines.prn_protocol.review_max_days` (H-1382). One open protocol per medicine.
+
+The **dose, the most in 24 hours and the minimum interval stay the prescriber's**, on the entry
+(migration 0123, rule 13): a protocol shows them from the latest version of the entry and never
+holds a second copy, so a changed prescription is always what staff see (H-1381). Changing a
+protocol needs a new reason; a withdrawn protocol is closed. Statuses, read with the latest
+version of the entry: in use, review overdue, medicine stopped (the entry is stopped or replaced
+with nothing current), no longer prescribed when required, withdrawn.
+
+### 16.2 Outcomes
+
+The **outcome** of a when-required dose that was given or taken (`prn_outcome`, append-only,
+client UUID): it helped, it helped a little, it did not help, the person was asleep, could not
+tell; a note; when it was seen (after the dose, never in the future). One outcome per dose; a
+correction names the outcome it corrects, with a reason. Doses whose outcome is due
+(`medicines.prn.outcome_check_minutes` after the dose, `prnOutcomeDueAt`) and not recorded are
+listed for the person, however long ago (H-1383).
+
+### 16.3 The organisation's medicine lists and the PRN frequency report
+
+The organisation's **medicine lists** (`medicine_list_item`) hold exact dm+d products (VMPs) for
+each tag (`time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic`; ADR-0082, H-514); never
+an ingredient or a name. A removal is kept with its reason. They feed rule 13's tag suggestions and
+the psychotropic count (H-1384).
+
+The **PRN frequency report** (`GET /v1/locations/{id}/medicines/prn-frequency`) counts, for each
+person and when-required medicine in a period (UK dates, inclusive, at most
+`medicines.prn_report.max_days`, H-1385): doses given or taken (latest records only; a record a
+correction replaced never counts), UK calendar days with doses, the most on one calendar day (UK time, not the prescriber's rolling
+24 hours), doses given with no protocol in force, doses given under a protocol past the review date in force at the time (from the protocol's
+version history, so a review recorded later never rewrites what was overdue),
+outcomes by kind and those outstanding. A protocol is in force from when it was recorded (or the
+agreement date, if later: a date typed in never covers earlier doses) until the instant it was
+withdrawn. A medicine is psychotropic when the
+dose's own entry version is tagged so or its product is on the organisation's psychotropic list;
+the report can show those alone. It always carries the note that it is a count for the
+prescriber and pharmacist, never a judgement (H-1386). People are counted at their current home.
+The path differs from slice 45's usage report, which this report extends (H-1387).
+
+### 16.4 Permissions
+
+| Action | Permission | Scope |
+| --- | --- | --- |
+| Read a person's protocols and outstanding outcomes | `medicines.record.manage`, `medicines.emar.administer` or `care.plan.read` | The person |
+| Record, change and withdraw a protocol | `medicines.record.manage` | The person |
+| Record or correct an outcome | `medicines.emar.administer` or `medicines.record.manage` | The person |
+| Read a medicine list | `medicines.list.manage`, `medicines.record.manage` or `medicines.emar.administer` | The organisation |
+| Add to or remove from a medicine list | `medicines.list.manage` (new: owner, Registered Manager, deputy; backfilled by migration 0143) | The organisation |
+| Read the PRN frequency report | `medicines.record.manage` | The home |
+
+All are care-record permissions (MFA). Audited with ids only.
+
+### 16.5 Schema (migration 0143)
+
+`medicine_list_item`, `prn_protocol` and `prn_outcome`, each with `tenant_id`, forced row-level
+security and the tenant policy; the person's scope on protocols and outcomes; write policies (lists:
+`medicines.list.manage`; protocols: `medicines.record.manage` at the person's home; outcomes:
+either permission, including a care worker's assigned role, through `app.may_record_for_person`,
+the same function slice 38 defines); history on lists and protocols; append-only outcomes with
+the recorder checked as the member signed in; no delete. Retention `mar_chart` (lists:
+`organisation_document`). Sample data removal lists protocols and outcomes. Not sent to devices
+yet (slice 68).
+
+### 16.6 Test list
+
+- Domain, table-driven: every protocol problem and status; every outcome problem; the report's
+  counts across the clock change; the list check.
+- Database: list writes by permission, closed once removed; a protocol only for a current
+  when-required entry, at the person's home, one open per medicine, a new reason for every change,
+  closed once withdrawn; outcomes for a when-required dose by the recorder, once per dose,
+  corrections, append-only; isolation; the role backfill.
+- API: list permission and duplicates; a protocol showing the entry's limits and the psychotropic
+  list, one open per medicine, a taken place, changes with the version read; outstanding outcomes,
+  refusals in words, idempotent resend, correction; the report's counts, filter, period cap and
+  permission.
+
+
+## 16. Medicines in the Phase 1 outputs (slice 49, API)
+
+MEDS-001 and MEDS-002, with HZ-003, HZ-021 and HZ-023. Migration 0144 (a refused dose as a
+handover source; the pack's build snapshot); the packs' JSON content gains fields. Code: `apps/api/src/services/medicines-outputs.ts`, `emarSnapshotNotice` in
+`packages/domain/src/medicines/outputs.ts`.
+
+- **Every printed or exported medicines list** opens with when it was read from the eMAR and "This
+  is not the live record: check the eMAR, or the paper MAR in use, before giving or holding any
+  medicine" (UK date, 24-hour time and zone). Each line is the record as read; the lists never say
+  what to give or hold (medical-device boundary).
+- **Downtime pack (HZ-021, H-102)**: for each person with entries on the eMAR, `medicines_due` lists
+  the scheduled doses from when the pack is built to the end of its validity (the rate
+  `downtime_pack.valid_hours`), using the round's rules, so a dose since the same UK time the day
+  before that is still open is included. Each dose has dose, route, due time, time-critical and
+  `due`, `given` or `not_given` (only `due` is kept). A dose still open from before is
+  `outstanding: true`, listed first and printed "No outcome recorded when the list was made: …, was due …".
+  A dose of an entry that may not be given now (a check that found a difference) is `onHold: true`
+  and prints "On hold on the eMAR, not to be given: …". The entry's notice (not yet checked, a
+  variable dose, a change tomorrow) is `notice` and prints on the next line. When-required medicines
+  carry dose, route, indication and when last given; one on hold is listed as "On hold on the eMAR,
+  not to be given: when required: …" with its notice, never left off. `producedAt` is when the eMAR was read. An empty
+  list prints "No dose is due on the eMAR while this pack is in use, and no when-required medicine is
+  on it."
+  - Someone with no eMAR entries keeps where the paper MAR is kept.
+  - Someone whose eMAR cannot be read (each person in a savepoint) gets the section state
+    `unreadable`: "Medicines could not be read from the eMAR when this pack was made. Use the eMAR,
+    or <the paper MAR place> if it is in use." It also gets a `medicines_unreadable` warning. The
+    person ids are logged and audited (`medicinesUnreadable`), the nightly build raises the job
+    alarm, and the pack is built again on the next read.
+  - The medicines rates are read once per pack. Each person's administration records are read for
+    `MEDICINES_OUTPUT_HISTORY_DAYS` (configuration, default 35), with the latest given record of each
+    medicine version before that, uncorrected, so "last given" never goes missing
+    (`recentAdministrations`).
+  - A medicines change, a dosing record or an administration for anyone on the pack makes it stale
+    when it is next read online. Besides the record times, the pack keeps the database snapshot it
+    was built from (`buildSnapshot`): a row written by a transaction that snapshot could not see (one
+    that began before the build and committed after it) also makes it stale, so the printed "as at"
+    is never later than the data it covers. A printed or cached copy is not updated (residual risk:
+    H-102).
+- **Transfer pack (HZ-023, H-82)**: for a person with entries on the eMAR, `medicines` has `source:
+  "emar"`, `producedAt` and each entry in force (not withdrawn, not yet started, replaced, stopped or
+  ended). Each item has:
+  - name, dose (each distinct scheduled dose, joined), route, and how often in words or "When
+    required";
+  - `lastGivenAt`: the latest given, self-administered or given-by-family record across the entry's
+    versions;
+  - `status`: the home's record for a hospital reader, never an instruction. Examples: "On hold on
+    the home's eMAR: check found a difference.", "Recorded on the home's eMAR as not yet checked.",
+    "Variable dose: the dose for each day is on the home's dosing record. Ask the home." It is null
+    when checked.
+
+  The PDF adds "Last given: …" or "not recorded on the eMAR", and the status as its own line. An empty
+  list still reads not recorded. Someone with no entries keeps the pre-admission list, marked as
+  needing checking against the MAR. If the eMAR cannot be read, the pre-admission list is used and
+  the first page carries `medicines_emar_unreadable` ("The care home's electronic medicines record
+  could not be read …"), logged and audited by person id.
+- **Handover and care plans (HZ-003, H-151)**: outstanding doses (`medicines.dose.outstanding`) and
+  a person whose doses could not be worked out (`medicines.dose.check_failed`) reach the shift
+  handover as their tasks. A dose refused on the eMAR (the record that stands; a corrected one is
+  not) reaches it as a `refusal` item, source `medication_administration`, summary
+  `handover.summary.refusal` with `chart: medicine` ("Refused: a medicine"); a refusal recorded late
+  is added to a locked handover by the sweep. A care plan medicines action still never generates
+  tasks; its notice reads "Not a round: medicines rounds are on the eMAR". Not yet: a medicine not
+  available raises no stock task on this base (slice 42's hook; for the batch).

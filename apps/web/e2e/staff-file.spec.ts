@@ -142,6 +142,9 @@ test("HR keeps a staff file and records a check", async ({ page }) => {
     await expect(create.getByRole("alert")).toContainText("Choose the member of staff");
     await create.getByLabel("Member of staff").selectOption({ label: `${CARER}` });
     await create.getByLabel("Job title").fill("Care worker");
+    // The wellbeing and workforce journeys make this same file at Harbour House; whichever runs
+    // first makes it, so all three agree (a survey at the home is answered only by its staff).
+    await create.getByLabel("Where they mainly work").selectOption({ label: "Harbour House" });
     await create.getByRole("button", { name: "Start the staff file" }).click();
     await page.waitForURL((url) => /^\/staff\/[0-9a-f-]{36}$/.test(url.pathname));
   } else {

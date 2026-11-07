@@ -7725,6 +7725,11 @@
     "staff.form.nmcPart",
     "staff.form.nmcPartHint",
     "staff.registration.nmcPart",
-    "staff.choose.nmcPart"
+    "staff.choose.nmcPart",
+    "rota.hrLink.staleTitle",
+    "rota.hrLink.staleBody",
+    "rota.hrLink.neverBody",
+    "rota.hrLink.uncheckedBody",
+    "rota.hrLink.lastUpdated"
   ]
 }

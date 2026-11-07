@@ -7724,5 +7724,10 @@
   "staff.form.nmcPart": "Part of the NMC register",
   "staff.form.nmcPartHint": "Only for the Nursing and Midwifery Council. Only the nurse part counts as a registered nurse on a shift.",
   "staff.registration.nmcPart": "{part, select, nurse {Nurse} midwife {Midwife} nursing_associate {Nursing associate} other {Another part}}",
-  "staff.choose.nmcPart": "Choose the part of the NMC register"
+  "staff.choose.nmcPart": "Choose the part of the NMC register",
+  "rota.hrLink.staleTitle": "Staff data from the HR platform may be out of date",
+  "rota.hrLink.staleBody": "{app} has not had leave, sickness and staff changes from the HR platform since the time below. It still keeps people off the rota for absences it already knows about. Check the HR platform before you rely on who is available.",
+  "rota.hrLink.neverBody": "{app} has not had leave, sickness and staff changes from the HR platform yet. Check the HR platform before you rely on who is available.",
+  "rota.hrLink.uncheckedBody": "{app} could not check when it last had staff changes from the HR platform. Check the HR platform before you rely on who is available.",
+  "rota.hrLink.lastUpdated": "Last updated"
 }

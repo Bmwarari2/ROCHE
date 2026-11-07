@@ -19,6 +19,7 @@ import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { TenantKeysShredded } from "./integrations/envelope";
 import { createEsignOcrServices } from "./integrations/esign-ocr";
+import { createHrLinkServices } from "./integrations/hr-link";
 import {
   LearningPlatformAdapter,
   MemoryLearningPlatformSecrets,
@@ -64,6 +65,9 @@ import { exportsRouter } from "./routes/exports";
 import { familyFeedRouter } from "./routes/family-feed";
 import { feedPublishRouter } from "./routes/feed-publish";
 import { handoversRouter } from "./routes/handovers";
+import { hrLinkInboundRouter, hrLinkRouter } from "./routes/hr-link";
+import { hrLinkAbsencesRouter } from "./routes/hr-link-absences";
+import { hrLinkLeaversRouter } from "./routes/hr-link-leavers";
 import { incidentsRouter } from "./routes/incidents";
 import { inductionRouter } from "./routes/induction";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
@@ -113,6 +117,7 @@ import {
 } from "./routes/platform";
 import { platformImportsRouter } from "./routes/platform-imports";
 import { policiesRouter } from "./routes/policies";
+import { prnProtocolsRouter } from "./routes/prn-protocols";
 import { qualityAuditsRouter } from "./routes/quality-audits";
 import { qualityDashboardRouter } from "./routes/quality-dashboard";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
@@ -139,6 +144,7 @@ import { timeAttendanceRouter } from "./routes/time-attendance";
 import { vettingRouter } from "./routes/vetting";
 import { wellbeingRouter } from "./routes/wellbeing";
 import { workflowsRouter } from "./routes/workflows";
+import { configureMedicinesOutputs } from "./services/medicines-outputs";
 import {
   createOidcDiscovery,
   createSsoHooks,
@@ -204,6 +210,7 @@ export interface AppHandle {
 }
 
 export function createApp(config: Config, logger: Logger): AppHandle {
+  configureMedicinesOutputs({ historyDays: config.MEDICINES_OUTPUT_HISTORY_DAYS });
   const appPool = createPool(config.DATABASE_APP_URL, {}, idleErrorLogger(logger, "app"));
   const authPool = createPool(
     config.DATABASE_AUTH_URL,
@@ -271,6 +278,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     }),
     pharmacy: config.PHARMACY_ORDERS === "mock" ? pharmacyMock : null,
     mockEmail: mocks.email,
+    hrLink: createHrLinkServices({
+      production: config.NODE_ENV === "production",
+      domain: config.THAPSUS_HR_DOMAIN ?? null,
+    }),
     evidenceLinkThrottles: {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
       link: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK, 60_000),
@@ -508,6 +519,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);
   app.route("/", createRefusedEntriesRouter());
+  // The HR link's own paths come before the generic /v1/integrations/{port} routes, which would
+  // otherwise take /v1/integrations/hr-link as a port and refuse it.
+  app.route("/", hrLinkRouter);
+  app.route("/", hrLinkLeaversRouter);
+  app.route("/", hrLinkAbsencesRouter);
+  app.route("/", hrLinkInboundRouter);
   app.route("/", integrationsRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);
@@ -527,6 +544,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", medicationErrorsRouter);
   app.route("/", medicineStockRouter);
   app.route("/", medicinesAuthorityRouter);
+  app.route("/", prnProtocolsRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

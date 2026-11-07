@@ -7,12 +7,37 @@ the recommendation for each question that had no stated default, plus H-56. All 
 testing phase after development, before any real tenant goes live; nothing here is a DCB0129 sign-off, a
 DPIA approval or a legal opinion. Questions still on unmerged branches are included, with their branch.
 
+**Owner decisions, 06/11/2026 ([ADR-0132](../decisions/0132-owner-decisions-06-11.md)).** The owner answered
+the ten questions that had no default:
+
+- **H-09 and H-105, the SMS gateway: not the recommendation.** There is no SMS at launch: families get
+  app and email notifications only. The SMS port and its mock stay; no gateway is contracted. SMS is
+  deferred until after launch, and launch-facing copy, settings and guides stop offering it.
+- **H-521, right to work:** as recommended. Manual checks with evidence until the testing phase, then a
+  GOV.UK-certified identity service provider.
+- **H-522, DBS:** as recommended. A DBS-registered umbrella body's e-bulk service; Update Service checks
+  only with the worker's consent.
+- **H-535, policies:** as recommended. The starter templates stay labelled drafts for the solicitor; a QCS
+  import only under a written licence when a tenant asks.
+- **H-569, app stores:** as recommended. Medical category, as built.
+- **H-663, security monitoring:** as recommended. The Google Cloud set (Security Command Center Standard, a
+  locked europe-west2 log bucket kept 400 days, alerting); findings go to Brian and on-call; CVSS 7 or
+  above fixed within 14 days.
+- **H-664, ISO 27001:** as recommended.
+- **H-781, outbreaks outside England:** as recommended. England only until each nation pack.
+- **H-829, disclosure screens:** as recommended. Agreed with the design partner at the testing phase.
+
+**Clinical safety officer items, 06/11/2026 (ADR-0132).** Every open item owned by the CSO takes its
+recommended answer and is recorded as "provisional: owner-accepted recommendation, pending CSO review at
+the testing phase". None is a CSO signature. Signing the DCB0129 safety cases (H-24, H-545, H-840) and the
+Phase 2 gate still needs the named clinical safety officer (H-20).
+
 "Build change" marks a recommendation that differs from what is built; those changes are scheduled as
 follow-up work and listed in [STATUS.md](STATUS.md).
 
 | # | Owner | Recommended answer | Build change | Where |
 | --- | --- | --- | --- | --- |
-| H-09 | Brian | Choose the gateway at the testing phase against these criteria: numbers and messages processed, stored and routed only in the UK (direct UK network connections, no offshore aggregation), an Article 28 contract with no international transfer, Cyber Essentials Plus or ISO 27001, a sender ID registered with the UK SMS SenderID Protection Registry, delivery receipts and STOP and START replies by webhook, and PECR-compliant opt-outs. Keep the mock adapter until then, and add the chosen provider to the sub-processor register and the DPIA (H-105), with 30 days' notice to tenants before it carries family data. | No | main |
+| H-09 | Brian | **Owner decision, 06/11/2026: no SMS at launch** (ADR-0132). Families get app and email notifications only; the SMS port and mock adapter stay, no gateway is contracted, and launch-facing copy, settings and guides stop offering SMS. SMS is reconsidered after launch, against these criteria: numbers and messages processed, stored and routed only in the UK, an Article 28 contract with no international transfer, Cyber Essentials Plus or ISO 27001, a registered sender ID, delivery receipts and STOP and START replies, and PECR-compliant opt-outs (H-105). | Yes: hide SMS where it is offered | main |
 | H-14 | Brian | Accept as built: Brian runs `seed:users` on dev with `HARBOUR_DEMO_OWNER_EMAIL` set in the environment to his own address (never committed), enrols a passkey, signs in, sees the empty demo home and records the date here. The testing-phase review checks that the passkey's relying-party ID matches the dev domain (H-05) and that dev holds only invented data. | No | main |
 | H-21 | CSO | Approve the clinical risk management plan and the engineering ratings for HZ-001 to HZ-021 as proposed. Accept the six level-3 residual risks (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014) on the justifications in each entry, each conditional on its verification tests passing before the release that relies on it, with HZ-003 and HZ-005 re-rated when the eMAR (Phase 2) and pharmacy import (Phase 5) land. | No | main |
 | H-24 | CSO, Brian | Sign safety case v0.0 as written once the CSO is appointed (H-20) and H-21 is done: it claims only that the Phase 0 foundations contain no clinical function and are used with demo data in dev and staging. The signature authorises no real tenant; the review checks it against DCB0129's safety case report requirements. | No | main |
