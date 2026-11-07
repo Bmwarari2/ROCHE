@@ -7,6 +7,7 @@ import {
   codeOptions,
   competenceChip,
   developmentActions,
+  developmentArrivalKey,
   developmentShown,
   listOf,
   matchesName,
@@ -106,7 +107,12 @@ describe("the revalidation confirmation is offered only to the named confirmer (
   const NURSE = "u-nurse";
   const HR = "u-hr";
   const MANAGER = "u-manager";
-  const reviewed = { confirmerId: MANAGER, reviewState: "reviewed", confirmation: false } as const;
+  const reviewed = {
+    confirmerId: MANAGER,
+    reviewedById: "u-other-hr",
+    reviewState: "reviewed",
+    confirmation: false,
+  } as const;
   it.each([
     [
       "HR, not named",
@@ -152,6 +158,13 @@ describe("the revalidation confirmation is offered only to the named confirmer (
     ],
     ["HR with no evidence yet", HR, [TRAINING], null, { nameConfirmer: false, confirm: false }],
     [
+      "the named confirmer who also reviewed it (separate duties)",
+      MANAGER,
+      [TRAINING, SUPERVISION],
+      { ...reviewed, reviewedById: MANAGER },
+      { nameConfirmer: true, confirm: false },
+    ],
+    [
       "the named confirmer without a confirming permission",
       MANAGER,
       [OBSERVE],
@@ -162,6 +175,21 @@ describe("the revalidation confirmation is offered only to the named confirmer (
     expect(revalidationConfirmActions({ permissions, me, memberId: NURSE, plan })).toEqual(
       expected,
     );
+  });
+});
+
+describe("what the training pages announce on arrival", () => {
+  it.each([
+    ["development.revalidation.confirmedSaved", true],
+    ["development.competence.signedOff", true],
+    // The Care Certificate's section is on the training record too.
+    ["workforce.careCertificate.assessed", true],
+    ["workforce.careCertificate.observed", true],
+    ["workforce.careCertificate.nothing", false],
+    ["workforce.leaving.recorded", false],
+    ["Anything typed into the address", false],
+  ])("%s: %s", (key, said) => {
+    expect(developmentArrivalKey(key)).toBe(said);
   });
 });
 

@@ -98109,7 +98109,7 @@
           "workforce"
         ],
         "summary": "Colleagues to choose from",
-        "description": "workforce.recruitment.manage, workforce.staff_file.read, workforce.staff_file.manage, workforce.casework.manage or workforce.training.manage. The organisation's members of staff, by name and job title only, for choosing a panel, a colleague shadowed, a case member or a nurse's revalidation confirmer.",
+        "description": "workforce.recruitment.manage, workforce.staff_file.read, workforce.staff_file.manage or workforce.casework.manage. The organisation's members of staff, by name and job title only, for choosing a panel, a colleague shadowed or a case member.",
         "security": [
           {
             "bearerAuth": []
@@ -99464,6 +99464,95 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/revalidation/confirmers": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Who may be named a nurse's revalidation confirmer",
+        "description": "workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false,
+            "name": "cycleDueOn",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Who may be named",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColleagueList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

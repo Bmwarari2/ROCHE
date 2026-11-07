@@ -210,6 +210,13 @@ test("the owner reads the staff list, a member's induction and their leaving", a
   await expect(main(page).getByRole("heading", { name: "Induction checklist" })).toBeVisible();
   // Each checklist item's status is a word beside an icon.
   await expect(main(page).getByText("To do").first()).toBeVisible();
+  // The Care Certificate stays on the induction (now a shared section), status in words.
+  const certificate = main(page).locator("section[aria-labelledby='care-certificate']");
+  await expect(certificate.getByRole("heading", { name: "Care Certificate" })).toBeVisible();
+  await expect(certificate.getByRole("listitem")).toHaveCount(16);
+  await expect(
+    certificate.getByRole("heading", { name: "Understand your role", exact: true }),
+  ).toBeVisible();
   await expectAccessible(page, "induction");
 
   await page.goto("/workforce/staff");

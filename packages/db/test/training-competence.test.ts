@@ -34,6 +34,8 @@ const asCarer = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
 const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_B, b.manager, "none"), fn);
 
+const HR2 = "0199f200-0000-7000-8000-0000000000d1";
+const PLAIN = "0199f200-0000-7000-8000-0000000000d2";
 const SIGN_OFF = "0199f200-0000-7000-8000-0000000000a1";
 const TRAINING = "0199f200-0000-7000-8000-0000000000b1";
 const SUPERVISION = "0199f200-0000-7000-8000-0000000000c1";
@@ -84,6 +86,20 @@ beforeAll(async () => {
          ($2, '0199f200-0000-7000-8000-000000000502', $3),
          ($4, '0199f200-0000-7000-8000-000000000503', $3)`,
       [a.manager, a.northManager, a.locationNorth, a.carer],
+    );
+    // A second HR member (to review while another names the confirmer) and a member with the
+    // care worker's self-service role only.
+    await c.query(
+      `INSERT INTO tenant_user (id, display_name, email, status) VALUES
+         ($1, 'Hana Second', 'hana.second@example.invalid', 'active'),
+         ($2, 'Pat Plain', 'pat.plain@example.invalid', 'active')`,
+      [HR2, PLAIN],
+    );
+    await c.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
+         ($1, '0199f200-0000-7000-8000-000000000501', NULL),
+         ($2, '0199f200-0000-7000-8000-000000000503', $3)`,
+      [HR2, PLAIN, a.locationNorth],
     );
   });
   await asOwner(TENANT_B, async (c) => {
@@ -414,6 +430,15 @@ describe("H-693 only the named confirmer records the revalidation confirmation (
     expect(await stored()).toEqual({ confirmer_id: null, confirmation: false, confirmed_by: null });
   });
 
+  it("refuses naming a member who holds neither confirming permission (advisory b)", async () => {
+    // The care worker's role carries workforce.self.read only.
+    await expect(asHr(update("confirmer_id = $3", [PLAIN]))).rejects.toMatchObject({
+      code: "23514",
+      message: "revalidation_confirmer_not_permitted",
+    });
+    expect((await stored())?.confirmer_id).toBeNull();
+  });
+
   it("lets HR name a line manager as confirmer", async () => {
     expect((await asHr(update("confirmer_id = $3", [a.northManager]))).rowCount).toBe(1);
     expect((await stored())?.confirmer_id).toBe(a.northManager);
@@ -444,5 +469,65 @@ describe("H-693 only the named confirmer records the revalidation confirmation (
       confirmed_by: a.northManager,
     });
     await expect(asHr(update("confirmer_id = NULL"))).rejects.toMatchObject({ code: "23514" });
+  });
+});
+
+describe("review and confirmation are separate duties (security advisory a; migration 0154)", () => {
+  const CYCLE = "2027-09-30";
+  const asHr2 = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+    inContext(app(), ctx(TENANT_A, HR2, "none"), fn);
+  const update =
+    (set: string, params: unknown[] = []) =>
+    (c: pg.PoolClient) =>
+      c.query(
+        `UPDATE revalidation_evidence SET ${set} WHERE worker_id = $1 AND cycle_due_on = $2`,
+        [a.carer, CYCLE, ...params],
+      );
+
+  beforeAll(async () => {
+    await asHr((c) =>
+      c.query(
+        "INSERT INTO revalidation_evidence (worker_id, cycle_due_on, practice_hours) VALUES ($1, $2, 450)",
+        [a.carer, CYCLE],
+      ),
+    );
+  });
+
+  it("never names the reviewer as confirmer", async () => {
+    // The second HR member reviews; HR then cannot name them confirmer.
+    await asHr2(update("review_state = 'reviewed', reviewed_by = $3, reviewed_at = now()", [HR2]));
+    await expect(asHr(update("confirmer_id = $3", [HR2]))).rejects.toMatchObject({
+      code: "23514",
+      message: "revalidation_reviewer_cannot_confirm",
+    });
+  });
+
+  it("never lets the named confirmer review", async () => {
+    const LATER = "2028-09-30";
+    await asHr((c) =>
+      c.query(
+        "INSERT INTO revalidation_evidence (worker_id, cycle_due_on, practice_hours, confirmer_id) VALUES ($1, $2, 450, $3)",
+        [a.carer, LATER, HR2],
+      ),
+    );
+    await expect(
+      asHr2((c) =>
+        c.query(
+          `UPDATE revalidation_evidence SET review_state = 'reviewed', reviewed_by = $3, reviewed_at = now()
+            WHERE worker_id = $1 AND cycle_due_on = $2`,
+          [a.carer, LATER, HR2],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23514", message: "revalidation_reviewer_cannot_confirm" });
+  });
+
+  it("lets HR name a confirmer other than the reviewer, who then confirms", async () => {
+    expect((await asHr2(update("confirmer_id = $3", [a.manager]))).rowCount).toBe(1);
+    const done = await asHr(
+      update("confirmation = true, confirmed_by = $3, confirmed_on = DATE '2026-11-07'", [
+        a.manager,
+      ]),
+    );
+    expect(done.rowCount).toBe(1);
   });
 });

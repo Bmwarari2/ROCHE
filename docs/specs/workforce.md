@@ -195,7 +195,7 @@ has no routes); the matrix the API slices use:
 | Manage the training matrix and records | `workforce.training.manage` | |
 | Sign off observed competence | `workforce.competence.observe` | Never for oneself; the observer must hold a valid sign-off for the same competence where the tenant requires it |
 | Observe a Care Certificate standard in practice (rule 20) | `workforce.competence.observe` | Alone: no staff file permission is needed, so team leaders and clinical leads observe; never on one's own file. The knowledge assessment before it: `workforce.staff_file.manage` or `workforce.competence.observe` |
-| Name a nurse's revalidation confirmer (rule 8) | `workforce.training.manage` | Never on one's own record, never the nurse, never oneself; not once confirmed |
+| Name a nurse's revalidation confirmer (rule 8) | `workforce.training.manage` | Only a member holding `workforce.training.manage` or `workforce.supervision.manage`; never on one's own record, never the nurse, oneself or the cycle's reviewer; not once confirmed |
 | Record the revalidation confirmation (rule 8) | The confirmer named on the cycle, holding `workforce.training.manage` or `workforce.supervision.manage` | Separation of duties: only the named confirmer, acting for themselves and in their own name, after HR's review; HR keeps the rest of the planner and is refused unless someone else named them |
 | Schedule and record supervision, appraisal and spot checks | `workforce.supervision.manage` | |
 | See own file, training, competence and revalidation dates | `workforce.self.read` | |
@@ -337,11 +337,14 @@ whatever the clock change.
    document-expiry days. The nurse enters their own evidence (`PUT /v1/me/revalidation`: counts
    and declarations, never the reflective text) and sends it for review; HR
    (`workforce.training.manage`) reviews it, after which the counts are fixed; HR names the
-   confirmer (never the nurse and never themselves); the confirmation is recorded only by that
-   named confirmer, acting for themselves and in their own name, never the nurse and never HR
-   unless someone else named them (separation of duties; a line manager holding
-   `workforce.supervision.manage`, or HR, ideally an NMC registrant, as the NMC's revalidation
-   guidance sets out; enforced by the API and the database, migration 0154). The nurse stays responsible for revalidating with the NMC; Thapsus Care only tracks it
+   confirmer: only a member holding `workforce.training.manage` or `workforce.supervision.manage`
+   (`app.member_may_confirm_revalidation`), never the nurse, never themselves and never whoever
+   reviewed the cycle; the confirmation is recorded only by that named confirmer, acting for
+   themselves and in their own name, never the nurse and never HR unless someone else named
+   them. Review and confirmation are separate duties: the reviewer never confirms and the named
+   confirmer never reviews (a line manager, or HR, ideally an NMC registrant, as the NMC's
+   revalidation guidance sets out; enforced by the domain, the API and the database, migration
+   0154; security review of 07/11/2026). The nurse stays responsible for revalidating with the NMC; Thapsus Care only tracks it
    (H-693, recommended answer applied 31/10/2026). The NMC registration records the part of the
    register (`nmcPart`: nurse, midwife or nursing associate); only the nurse part counts as a
    registered nurse on duty, and a nursing associate never does (H-835).
@@ -572,7 +575,9 @@ Slice 17 (training, competence, supervision, revalidation; members by `tenant_us
 | `POST /v1/workforce/members/{memberId}/competences/{signOffId}/withdraw` | `workforce.competence.observe` or `workforce.training.manage` | Withdraw a sign-off with a reason; publishes `workforce.competence.changed` |
 | `POST /v1/workforce/members/{memberId}/supervisions` | `workforce.supervision.manage` | Record a supervision, appraisal or spot check held by the caller |
 | `PUT /v1/workforce/members/{memberId}/revalidation` | `workforce.training.manage` | Record revalidation evidence for a cycle (never the confirmation) |
-| `PUT /v1/workforce/members/{memberId}/revalidation/confirmer` | `workforce.training.manage` | Name who confirms a cycle (`expectedVersion`): never the nurse or oneself, never once confirmed (rule 8) |
+| `POST /v1/workforce/members/{memberId}/revalidation/review` | `workforce.training.manage` | Mark the evidence reviewed (`expectedVersion`), never on one's own record (403 `own_development_record`) and never by the named confirmer (403 `confirmer_reviews`); audited |
+| `GET /v1/workforce/members/{memberId}/revalidation/confirmers` | `workforce.training.manage` | Who may be named (`cycleDueOn` optional): members holding `.training.manage` or `.supervision.manage`, by name and job title, without the nurse, the caller or the cycle's reviewer; audited as `workforce.revalidation.confirmers_listed` |
+| `PUT /v1/workforce/members/{memberId}/revalidation/confirmer` | `workforce.training.manage` | Name who confirms a cycle (`expectedVersion`): never the nurse or oneself (422 `names_worker`, `names_self`), never the reviewer (422 `names_reviewer`), only someone who may confirm (422 `confirmer_not_permitted`), never once confirmed (409); each refusal audited (rule 8) |
 | `POST /v1/workforce/members/{memberId}/revalidation/confirmation` | the named confirmer, holding `workforce.training.manage` or `workforce.supervision.manage` | Record their own confirmation after HR's review; anyone else, HR included, 403 `not_the_confirmer` (audited as `workforce.revalidation.confirmed`, denied). Naming is audited as `workforce.revalidation.confirmer_named` |
 | `GET /v1/me/development` | `workforce.self.read` | The member's own development record |
 

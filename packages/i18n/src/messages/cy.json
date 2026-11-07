@@ -4656,6 +4656,8 @@
   "development.revalidation.confirmCheck": "I held the confirmation discussion with {name} and saw their evidence",
   "development.revalidation.confirmSubmit": "Record confirmation",
   "development.revalidation.confirmedSaved": "Confirmation recorded",
+  "development.revalidation.confirmCheckRequired": "Tick the box to confirm",
+  "development.revalidation.noColleagues": "No colleagues can be named as the confirmer at the moment.",
   "development.requirements.title": "Training requirements",
   "development.requirements.description": "The training each role needs and how often it is refreshed. The matrix and each member's record follow it.",
   "development.requirements.empty": "No training requirements yet",

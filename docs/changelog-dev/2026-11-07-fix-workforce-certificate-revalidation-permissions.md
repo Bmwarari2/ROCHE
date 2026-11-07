@@ -34,11 +34,36 @@ workforce guides' review.
     confirmer". Only the named confirmer is offered "Record your confirmation", with a date and a
     confirmation box. The plan shows who is to confirm, or who confirmed and when.
   - Existing confirmations are kept as recorded.
-- `GET /v1/workforce/colleagues` also admits `workforce.training.manage`, so HR can choose the
-  confirmer. It returns names and job titles only.
 - The roles and the permission catalogue are unchanged. Docs updated: `workforce.md` (section 3
   table, sections 2b and 2e, rules 8 and 20, routes, screens), `data-standards.md`,
   `records-of-processing.md` and the export catalogue (`confirmer_id`).
+
+## Review round: accessibility and security (07/11/2026)
+
+- Accessibility: a Care Certificate step on the training record is now announced and focused on
+  arrival. `DevelopmentArrival` accepts the Care Certificate's keys through
+  `developmentArrivalKey`, which is unit-tested. The confirmation's tick box is also checked on the
+  server ("Tick the box to confirm"). When nobody can be named confirmer, the page says so in a
+  sentence instead of showing an empty list.
+- Security, advisory a: review and confirmation are separate duties. Whoever reviewed a cycle is
+  never named its confirmer (422 `names_reviewer`), the named confirmer never reviews it (403
+  `confirmer_reviews`), and the reviewer never confirms (403 `reviewer_confirms`). The database
+  guard refuses `confirmer_id = reviewed_by`.
+- Security, advisory b: only a member holding `workforce.training.manage` or
+  `workforce.supervision.manage` can be named confirmer (422 `confirmer_not_permitted`, audited).
+  This is counted by the definer `app.member_may_confirm_revalidation`, which also counts HR's
+  roles with no person scope.
+- The picker now comes from the new `GET .../revalidation/confirmers`, through the definer
+  `app.revalidation_confirmer_candidates`. It leaves out the nurse, the caller and the reviewer.
+  The earlier widening of `GET /v1/workforce/colleagues` is withdrawn.
+- These changes are in migration 0154, which is not yet merged and is edited in place. Database,
+  API and domain tests cover each rule.
+- New Playwright journeys in `apps/web/e2e/training.spec.ts`:
+  - "a clinical lead without the staff file records a Care Certificate observation". The demo
+    seed has no team leader. The demo nurse, a clinical lead, holds the observe permission and no
+    staff file permission.
+  - "HR names the revalidation confirmer; only the named confirmer records the confirmation".
+  - `apps/web/e2e/workforce.spec.ts`: the induction test now also checks the Care Certificate.
 
 ## What is next
 

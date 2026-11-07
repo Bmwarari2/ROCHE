@@ -105,6 +105,7 @@ export type RevalidationConfirmationProblem =
   | "no_confirmer"
   | "not_the_confirmer"
   | "not_reviewed"
+  | "reviewer_confirms"
   | "already_confirmed";
 
 /**
@@ -117,6 +118,8 @@ export function checkRevalidationConfirmation(input: {
   readonly actorPermissions: readonly string[];
   readonly workerId: string;
   readonly confirmerId: string | null;
+  /** Who reviewed the cycle: never also its confirmer (separate duties). */
+  readonly reviewedBy: string | null;
   readonly reviewState: "draft" | "submitted" | "reviewed";
   readonly confirmed: boolean;
 }): { ok: true } | { ok: false; problem: RevalidationConfirmationProblem } {
@@ -128,6 +131,7 @@ export function checkRevalidationConfirmation(input: {
   if (input.confirmerId === null) return fail("no_confirmer");
   if (input.confirmerId !== input.actorId) return fail("not_the_confirmer");
   if (input.reviewState !== "reviewed") return fail("not_reviewed");
+  if (input.reviewedBy === input.actorId) return fail("reviewer_confirms");
   if (input.confirmed) return fail("already_confirmed");
   return { ok: true };
 }
@@ -137,18 +141,24 @@ export type ConfirmerNamingProblem =
   | "not_permitted"
   | "names_worker"
   | "names_self"
+  | "names_reviewer"
+  | "confirmer_not_permitted"
   | "already_confirmed";
 
 /**
  * HR (`workforce.training.manage`) names who confirms a nurse's revalidation: never on their own
- * record, never the nurse, never themselves (so nobody can make themselves the confirmer), and
- * never once it is confirmed.
+ * record, never the nurse, never themselves (so nobody can make themselves the confirmer), never
+ * whoever reviewed the cycle (review and confirmation are separate duties), only someone holding
+ * `workforce.training.manage` or `workforce.supervision.manage` (`confirmerMayConfirm`, as the
+ * database counts it), and never once it is confirmed.
  */
 export function checkConfirmerNaming(input: {
   readonly actorId: string;
   readonly actorPermissions: readonly string[];
   readonly workerId: string;
   readonly confirmerId: string;
+  readonly confirmerMayConfirm: boolean;
+  readonly reviewedBy: string | null;
   readonly confirmed: boolean;
 }): { ok: true } | { ok: false; problem: ConfirmerNamingProblem } {
   const fail = (problem: ConfirmerNamingProblem) => ({ ok: false, problem }) as const;
@@ -156,6 +166,8 @@ export function checkConfirmerNaming(input: {
   if (!input.actorPermissions.includes(TRAINING_MANAGE)) return fail("not_permitted");
   if (input.confirmerId === input.workerId) return fail("names_worker");
   if (input.confirmerId === input.actorId) return fail("names_self");
+  if (input.confirmerId === input.reviewedBy) return fail("names_reviewer");
+  if (!input.confirmerMayConfirm) return fail("confirmer_not_permitted");
   if (input.confirmed) return fail("already_confirmed");
   return { ok: true };
 }

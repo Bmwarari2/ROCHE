@@ -31122,7 +31122,7 @@ export interface paths {
     };
     /**
      * Colleagues to choose from
-     * @description workforce.recruitment.manage, workforce.staff_file.read, workforce.staff_file.manage, workforce.casework.manage or workforce.training.manage. The organisation's members of staff, by name and job title only, for choosing a panel, a colleague shadowed, a case member or a nurse's revalidation confirmer.
+     * @description workforce.recruitment.manage, workforce.staff_file.read, workforce.staff_file.manage or workforce.casework.manage. The organisation's members of staff, by name and job title only, for choosing a panel, a colleague shadowed or a case member.
      */
     get: {
       parameters: {
@@ -32358,6 +32358,85 @@ export interface paths {
         };
       };
     };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/revalidation/confirmers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Who may be named a nurse's revalidation confirmer
+     * @description workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.
+     */
+    get: {
+      parameters: {
+        query?: {
+          cycleDueOn?: string;
+        };
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Who may be named */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ColleagueList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;

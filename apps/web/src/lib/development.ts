@@ -1,5 +1,6 @@
 import { checkRevalidationConfirmation } from "@harbour/domain";
 import type { MessageKey, Translator } from "@harbour/i18n";
+import enGB from "@harbour/i18n/messages/en-GB.json";
 import type { SafetyChip } from "@/lib/incidents";
 
 /**
@@ -48,6 +49,7 @@ export function revalidationConfirmActions(input: {
   readonly memberId: string;
   readonly plan: {
     readonly confirmerId: string | null;
+    readonly reviewedById: string | null;
     readonly reviewState: string;
     readonly confirmation: boolean;
   } | null;
@@ -61,11 +63,22 @@ export function revalidationConfirmActions(input: {
       actorPermissions: input.permissions,
       workerId: input.memberId,
       confirmerId: plan.confirmerId,
+      reviewedBy: plan.reviewedById,
       reviewState: plan.reviewState as "draft" | "submitted" | "reviewed",
       confirmed: plan.confirmation,
     }).ok,
   };
 }
+
+/**
+ * The keys the training pages may say as done (`?done=<key>`): their own catalogue entries, and
+ * the Care Certificate's, whose section (shared with the induction) is also on the training
+ * record. Only a known catalogue key, so the address never puts words of its own on the page.
+ */
+export const developmentArrivalKey = (key: string): key is MessageKey =>
+  (/^development\.[A-Za-z0-9_.]+$/.test(key) ||
+    /^workforce\.careCertificate\.[A-Za-z0-9_.]+$/.test(key)) &&
+  key in enGB;
 
 export type DevelopmentValues = Readonly<Record<string, string | boolean | null>>;
 

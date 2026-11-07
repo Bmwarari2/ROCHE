@@ -134,6 +134,7 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
     plan: plan
       ? {
           confirmerId: plan.confirmer?.id ?? null,
+          reviewedById: plan.reviewedBy?.id ?? null,
           reviewState: plan.reviewState,
           confirmation: plan.confirmation,
         }
@@ -142,15 +143,20 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
   // Rule 20: observers (team leaders, clinical leads) record the Care Certificate here, without
   // the staff file; the API answers 404 when the member has no staff file.
   const cc = careCertificateActions(me.permissions, self);
-  const [certificate, colleagues] = await Promise.all([
+  const [certificate, confirmers] = await Promise.all([
     cc.assess || cc.observe || me.permissions.includes(STAFF_FILE_READ)
       ? api.GET("/v1/workforce/members/{memberId}/care-certificate", {
           params: { path: { memberId } },
         })
       : null,
-    confirming.nameConfirmer ? api.GET("/v1/workforce/colleagues") : null,
+    // Only members who may confirm, never the nurse, oneself or the reviewer (the API decides).
+    confirming.nameConfirmer && plan
+      ? api.GET("/v1/workforce/members/{memberId}/revalidation/confirmers", {
+          params: { path: { memberId }, query: { cycleDueOn: plan.cycleDueOn } },
+        })
+      : null,
   ]);
-  const confirmerOptions = present(colleagues?.data?.items)
+  const confirmerOptions = present(confirmers?.data?.items)
     .filter((c) => c.id !== memberId && c.id !== me.tenantUserId)
     .map((c) => ({ value: c.id, label: c.displayName }));
 
@@ -737,7 +743,15 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
               />
             </Card>
           ) : null}
-          {plan && confirming.nameConfirmer ? (
+          {plan && confirming.nameConfirmer && confirmerOptions.length === 0 ? (
+            <Card>
+              <h3 className="m-0 text-body font-semibold">
+                {t("development.revalidation.nameConfirmer")}
+              </h3>
+              <p className="m-0 mt-2">{t("development.revalidation.noColleagues")}</p>
+            </Card>
+          ) : null}
+          {plan && confirming.nameConfirmer && confirmerOptions.length > 0 ? (
             <Card>
               <DevelopmentForm
                 headingLevel={3}
@@ -789,6 +803,7 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
                     name: "confirm",
                     label: t("development.revalidation.confirmCheck", { name }),
                     required: true,
+                    requiredMessage: t("development.revalidation.confirmCheckRequired"),
                   },
                 ]}
               />

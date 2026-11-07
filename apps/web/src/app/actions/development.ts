@@ -252,6 +252,10 @@ export async function confirmRevalidation(
   values: Values,
 ): Promise<ActionResult<unknown>> {
   if (!isUuid(memberId)) return bad();
+  // The confirmer ticks that they held the discussion; checked here too, not only in the browser.
+  if (!bool(values, "confirm")) {
+    return fieldErrors({ confirm: t("development.revalidation.confirmCheckRequired") });
+  }
   return send((api) =>
     api.POST("/v1/workforce/members/{memberId}/revalidation/confirmation", {
       params: { path: { memberId } },

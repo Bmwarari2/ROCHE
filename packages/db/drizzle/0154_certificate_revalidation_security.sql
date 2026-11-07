@@ -49,8 +49,62 @@ REVOKE CREATE ON SCHEMA app FROM harbour_workforce_definer;
 -- 2. NMC revalidation (rule 8, H-693), separation of duties: HR (workforce.training.manage) names
 -- the confirmer (confirmer_id, migration 0153), never the nurse and never themselves; only the
 -- named confirmer, acting for themselves, records the confirmation, after HR's review. HR keeps
--- the rest of the planner and may still take a confirmation back. Existing confirmations stay
+-- the rest of the planner and may still take a confirmation back. Whoever reviewed a cycle never
+-- confirms it, and only a holder of workforce.training.manage or .supervision.manage is named
+-- (security review of this branch, advisories a and b). Existing confirmations stay
 -- as recorded: each was already in its confirmer's own name.
+-- Who may be named confirmer (security review, advisory b): an active member holding
+-- workforce.training.manage or workforce.supervision.manage through a role in force (HR's roles
+-- have no person scope, so every scope kind but the portals counts). A definer: HR naming a line
+-- manager cannot read other members' role assignments.
+CREATE OR REPLACE FUNCTION app.member_may_confirm_revalidation(p_member uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.tenant_user tu
+    JOIN public.role_assignment ra ON ra.tenant_id = tu.tenant_id AND ra.tenant_user_id = tu.id
+    JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
+    WHERE tu.tenant_id = app.current_tenant_id()
+      AND tu.id = p_member
+      AND tu.status = 'active'
+      AND tu.deleted_at IS NULL
+      AND ra.deleted_at IS NULL
+      AND r.deleted_at IS NULL
+      AND r.archived_at IS NULL
+      AND ra.valid_from <= now()
+      AND (ra.valid_to IS NULL OR ra.valid_to > now())
+      AND r.scope_kind::text IN ('tenant', 'location', 'none')
+      AND r.permissions && ARRAY['workforce.training.manage',
+        'workforce.supervision.manage']::text[])
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.member_may_confirm_revalidation(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.member_may_confirm_revalidation(uuid) TO harbour_app;
+--> statement-breakpoint
+-- The members HR may name as confirmer, for the planner's picker: answered only to a holder of
+-- workforce.training.manage, empty to anyone else.
+CREATE OR REPLACE FUNCTION app.revalidation_confirmer_candidates() RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT tu.id FROM public.tenant_user tu
+   WHERE tu.tenant_id = app.current_tenant_id()
+     AND app.holds_staff_permission('workforce.training.manage')
+     AND app.member_may_confirm_revalidation(tu.id)
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.revalidation_confirmer_candidates() FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.revalidation_confirmer_candidates() TO harbour_app;
+--> statement-breakpoint
+GRANT CREATE ON SCHEMA app TO harbour_workforce_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.member_may_confirm_revalidation(uuid) OWNER TO harbour_workforce_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.revalidation_confirmer_candidates() OWNER TO harbour_workforce_definer;
+--> statement-breakpoint
+REVOKE CREATE ON SCHEMA app FROM harbour_workforce_definer;
+--> statement-breakpoint
+
 CREATE OR REPLACE FUNCTION app.revalidation_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -80,6 +134,11 @@ BEGIN
   IF me IS NULL THEN
     RAISE EXCEPTION 'revalidation_needs_a_member' USING ERRCODE = 'check_violation';
   END IF;
+  -- Review and confirmation are separate duties (security review, advisory a): whoever reviewed
+  -- a cycle is never its confirmer, whichever is recorded first.
+  IF NEW.confirmer_id IS NOT NULL AND NEW.confirmer_id = NEW.reviewed_by THEN
+    RAISE EXCEPTION 'revalidation_reviewer_cannot_confirm' USING ERRCODE = 'check_violation';
+  END IF;
   -- The nurse never touches the confirmation or the confirmer, nor writes once reviewed.
   IF me = NEW.worker_id THEN
     IF NEW.confirmation OR confirmation_changed OR confirmer_changed
@@ -96,6 +155,11 @@ BEGIN
   IF confirmer_changed AND (NOT hr OR NEW.confirmer_id = me OR was_confirmed
       OR NEW.confirmation) THEN
     RAISE EXCEPTION 'revalidation_confirmer_named_by_hr' USING ERRCODE = 'check_violation';
+  END IF;
+  -- Only someone who may confirm (HR or a line manager) is named (advisory b).
+  IF confirmer_changed AND NEW.confirmer_id IS NOT NULL
+     AND NOT app.member_may_confirm_revalidation(NEW.confirmer_id) THEN
+    RAISE EXCEPTION 'revalidation_confirmer_not_permitted' USING ERRCODE = 'check_violation';
   END IF;
   -- The confirmation is the named confirmer's, in their own name, after the review; only HR
   -- takes one back.

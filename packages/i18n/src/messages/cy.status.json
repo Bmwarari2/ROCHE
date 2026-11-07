@@ -3867,6 +3867,8 @@
     "development.revalidation.confirmCheck",
     "development.revalidation.confirmSubmit",
     "development.revalidation.confirmedSaved",
+    "development.revalidation.confirmCheckRequired",
+    "development.revalidation.noColleagues",
     "development.requirements.title",
     "development.requirements.description",
     "development.requirements.empty",

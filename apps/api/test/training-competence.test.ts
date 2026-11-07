@@ -708,6 +708,8 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
     ["HR names the nurse", "owner", NURSE, 422],
     ["the nurse names their own confirmer", "nurse", DEMO.users.manager.id, 403],
     ["a care worker names one", "carer", DEMO.users.manager.id, 403],
+    // Advisory b: only someone holding training.manage or supervision.manage is named.
+    ["HR names a care worker, who may not confirm", "owner", CARER, 422],
   ] as const)("refuses naming the confirmer: %s", async (_name, who, confirmerId, expected) => {
     expect((await nameConfirmer(who, confirmerId)).status).toBe(expected);
   });
@@ -728,6 +730,36 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
     expect(denied?.n).toBeGreaterThanOrEqual(1);
   });
 
+  it("refuses naming whoever reviewed the cycle, with a plain code (advisory a)", async () => {
+    // The owner reviewed; the manager (also HR) may not name them.
+    const named = await nameConfirmer("manager", DEMO.users.owner.id);
+    expect(named.status).toBe(422);
+    expect(((await named.json()) as { code: string }).code).toBe("names_reviewer");
+    const refusedCarer = await nameConfirmer("owner", CARER);
+    expect(((await refusedCarer.json()) as { code: string }).code).toBe("confirmer_not_permitted");
+    const [denied] = await sql<{ n: number }>(
+      `SELECT count(*)::int AS n FROM audit_event
+        WHERE action = 'workforce.revalidation.confirmer_named' AND outcome = 'denied'
+          AND reason IN ('names_reviewer', 'confirmer_not_permitted')`,
+    );
+    expect(denied?.n).toBeGreaterThanOrEqual(2);
+  });
+
+  it("offers HR only members who may confirm, never the nurse, themselves or the reviewer", async () => {
+    const list = async (who: string) =>
+      (
+        (await (
+          await as(who, `${dev(NURSE)}/revalidation/confirmers?cycleDueOn=${cycle}`)
+        ).json()) as { items: { id: string }[] }
+      ).items.map((i) => i.id);
+    const forOwner = await list("owner");
+    expect(forOwner).toContain(DEMO.users.manager.id);
+    for (const id of [NURSE, CARER, DEMO.users.owner.id]) expect(forOwner).not.toContain(id);
+    // The owner reviewed this cycle, so the manager is not offered them.
+    expect(await list("manager")).not.toContain(DEMO.users.owner.id);
+    expect((await as("carer", `${dev(NURSE)}/revalidation/confirmers`)).status).toBe(403);
+  });
+
   it.each([
     ["the nurse", "nurse", 403],
     ["HR, not named", "owner", 403],
@@ -741,6 +773,37 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
     expect(stored?.confirmation).toBe(false);
   });
 
+  it("refuses the review by the confirmer named before it (advisory a)", async () => {
+    const second = daysFromToday(800);
+    const saved = await as("owner", `${dev(NURSE)}/revalidation`, {
+      method: "PUT",
+      body: { ...counts, cycleDueOn: second },
+    });
+    expect(saved.status).toBe(200);
+    const versionOf = async () =>
+      (
+        await sql<{ version: number }>(
+          "SELECT version FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
+          [NURSE, second],
+        )
+      )[0]?.version;
+    const named = await as("owner", `${dev(NURSE)}/revalidation/confirmer`, {
+      method: "PUT",
+      body: {
+        expectedVersion: await versionOf(),
+        cycleDueOn: second,
+        confirmerId: DEMO.users.manager.id,
+      },
+    });
+    expect(named.status).toBe(200);
+    const review = await as("manager", `${dev(NURSE)}/revalidation/review`, {
+      method: "POST",
+      body: { expectedVersion: await versionOf(), cycleDueOn: second },
+    });
+    expect(review.status).toBe(403);
+    expect(((await review.json()) as { code: string }).code).toBe("confirmer_reviews");
+  });
+
   it("the named confirmer confirms in their own name; then the confirmer is fixed", async () => {
     const confirmed = await confirm("manager");
     expect(confirmed.status).toBe(200);
@@ -749,6 +812,6 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
       [NURSE, cycle],
     );
     expect(stored).toEqual({ confirmed_by: DEMO.users.manager.id, confirmation: true });
-    expect((await nameConfirmer("owner", DEMO.users.carer.id)).status).toBe(409);
+    expect((await nameConfirmer("owner", DEMO.users.manager.id)).status).toBe(409);
   });
 });

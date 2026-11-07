@@ -84,13 +84,18 @@ describe("the revalidation confirmation is the named confirmer's (rule 8; H-693)
   const base = {
     workerId: NURSE,
     confirmerId: MANAGER as string | null,
+    reviewedBy: HR as string | null,
     reviewState: "reviewed" as const,
     confirmed: false,
   };
   it.each([
     ["the named confirmer, a line manager", { actorId: MANAGER, actorPermissions: manager }, null],
     ["HR, not named", { actorId: HR, actorPermissions: hr }, "not_the_confirmer"],
-    ["HR, named by someone else", { actorId: HR, actorPermissions: hr, confirmerId: HR }, null],
+    [
+      "HR, named by someone else, another HR member having reviewed",
+      { actorId: HR, actorPermissions: hr, confirmerId: HR, reviewedBy: "u-hr-2" },
+      null,
+    ],
     [
       "the nurse",
       { actorId: NURSE, actorPermissions: permissionsOf("clinical_lead") },
@@ -110,6 +115,11 @@ describe("the revalidation confirmation is the named confirmer's (rule 8; H-693)
       "the named confirmer, before HR's review",
       { actorId: MANAGER, actorPermissions: manager, reviewState: "submitted" as const },
       "not_reviewed",
+    ],
+    [
+      "the named confirmer who also reviewed it (advisory a)",
+      { actorId: MANAGER, actorPermissions: manager, reviewedBy: MANAGER },
+      "reviewer_confirms",
     ],
     [
       "the named confirmer, a second time",
@@ -136,6 +146,16 @@ describe("the revalidation confirmation is the named confirmer's (rule 8; H-693)
       "not_permitted",
     ],
     [
+      "HR names someone holding neither confirming permission (advisory b)",
+      { actorId: HR, actorPermissions: hr, confirmerMayConfirm: false },
+      "confirmer_not_permitted",
+    ],
+    [
+      "HR names whoever reviewed the cycle (advisory a)",
+      { actorId: HR, actorPermissions: hr, reviewedBy: MANAGER },
+      "names_reviewer",
+    ],
+    [
       "HR, once confirmed",
       { actorId: HR, actorPermissions: hr, confirmed: true },
       "already_confirmed",
@@ -144,6 +164,8 @@ describe("the revalidation confirmation is the named confirmer's (rule 8; H-693)
     const result = checkConfirmerNaming({
       workerId: NURSE,
       confirmerId: MANAGER,
+      confirmerMayConfirm: true,
+      reviewedBy: null,
       confirmed: false,
       ...overrides,
     });

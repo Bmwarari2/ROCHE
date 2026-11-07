@@ -22,7 +22,7 @@ export const colleaguesRouter = createRouter().openapi(
     tags: ["workforce"],
     summary: "Colleagues to choose from",
     description:
-      "workforce.recruitment.manage, workforce.staff_file.read, workforce.staff_file.manage, workforce.casework.manage or workforce.training.manage. The organisation's members of staff, by name and job title only, for choosing a panel, a colleague shadowed, a case member or a nurse's revalidation confirmer.",
+      "workforce.recruitment.manage, workforce.staff_file.read, workforce.staff_file.manage or workforce.casework.manage. The organisation's members of staff, by name and job title only, for choosing a panel, a colleague shadowed or a case member.",
     security,
     responses: { 200: jsonBody(ColleagueList, "Colleagues"), ...errorResponses },
   }),
@@ -32,8 +32,6 @@ export const colleaguesRouter = createRouter().openapi(
       "workforce.staff_file.read",
       "workforce.staff_file.manage",
       "workforce.casework.manage",
-      // Naming a nurse's revalidation confirmer (workforce.md rule 8).
-      "workforce.training.manage",
     ]);
     const items = await withTenant(c, async (tx) => {
       const rows = await tx
