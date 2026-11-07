@@ -106,9 +106,13 @@ async function putRevalidation(
   access: TenantAccess,
   memberId: string,
   input: PutRevalidationEvidence,
+  forSomeoneElse = false,
 ): Promise<void> {
   const { expectedVersion, submit, ...body } = input;
   await change(c, access, A.revalidation, memberId, async (tx) => {
+    // HR's route never writes their own record; refused inside the transaction so it is audited
+    // and answered 403 (the nurse's own route passes false).
+    if (forSomeoneElse && memberId === access.tenantUserId) throw own(A.revalidation, memberId);
     const [existing] = await tx
       .select({
         id: revalidationEvidence.id,
@@ -748,8 +752,7 @@ export const developmentRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, TRAINING);
       const { memberId } = c.req.valid("param");
-      if (memberId === access.tenantUserId) throw own(A.revalidation, memberId);
-      await putRevalidation(c, access, memberId, c.req.valid("json"));
+      await putRevalidation(c, access, memberId, c.req.valid("json"), true);
       return c.json(await recordFor(c, access, memberId), 200);
     },
   )
@@ -790,8 +793,9 @@ export const developmentRouter = createRouter()
       const access = await requirePermission(c, TRAINING);
       const { memberId } = c.req.valid("param");
       const body = c.req.valid("json");
-      if (memberId === access.tenantUserId) throw own(A.reviewed, memberId);
       await change(c, access, A.reviewed, memberId, async (tx) => {
+        // Refused inside the transaction, so it is audited and answered 403.
+        if (memberId === access.tenantUserId) throw own(A.reviewed, memberId);
         const [row] = await tx
           .update(revalidationEvidence)
           .set({ reviewState: "reviewed", reviewedBy: access.tenantUserId, reviewedAt: new Date() })

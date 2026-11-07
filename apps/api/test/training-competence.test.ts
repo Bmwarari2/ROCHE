@@ -628,6 +628,38 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
     );
   });
 
+  // HR never writes or reviews their own revalidation: 403, audited, never a 500.
+  it.each([
+    [
+      "recording evidence",
+      "PUT",
+      "revalidation",
+      "workforce.revalidation.recorded",
+      () => ({ ...counts }),
+    ],
+    [
+      "reviewing it",
+      "POST",
+      "revalidation/review",
+      "workforce.revalidation.reviewed",
+      () => ({ expectedVersion: 1, cycleDueOn: cycle }),
+    ],
+  ] as const)("refuses HR %s on their own record", async (_name, method, path, action, body) => {
+    const own = await as("manager", `${dev(DEMO.users.manager.id)}/${path}`, {
+      method,
+      body: body(),
+    });
+    expect(own.status).toBe(403);
+    expect(((await own.json()) as { code: string }).code).toBe("own_development_record");
+    const [denied] = await sql<{ n: number }>(
+      `SELECT count(*)::int AS n FROM audit_event
+        WHERE action = $1 AND outcome = 'denied' AND reason = 'own_record'
+          AND actor_tenant_user_id = $2`,
+      [action, DEMO.users.manager.id],
+    );
+    expect(denied?.n).toBeGreaterThanOrEqual(1);
+  });
+
   it("HR reviews it, then the counts are fixed", async () => {
     const [row] = await sql<{ version: number }>(
       "SELECT version FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",

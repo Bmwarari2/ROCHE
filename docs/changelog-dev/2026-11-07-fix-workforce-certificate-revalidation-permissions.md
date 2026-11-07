@@ -44,6 +44,6 @@ workforce guides' review.
 
 - Run the e2e specs that cover these screens: `apps/web/e2e/workforce.spec.ts`, plus the
   training record specs.
-- The development routes still throw `own()` refusals outside the audited transaction in a few
-  places (PUT revalidation, review), which would answer 500 rather than 403. Fixed here only for
-  the confirmation route.
+- The PUT revalidation and review routes threw the own-record refusal outside the audited
+  transaction, so it answered 500 and was not audited. Both now refuse HR's own record inside the
+  transaction with an audited 403, as the confirmation route does, with an API test for each.
