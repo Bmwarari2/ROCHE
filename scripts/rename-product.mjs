@@ -56,16 +56,24 @@ function scopeOf(path) {
 const COMMENT = /^\s*(?:\/\/|\*|\/\*|\{\/\*)/;
 
 /** Lines rewritten by hand (the plan, section 1): left for a person, never half-renamed. */
-const BY_HAND = [/is a working codename/, /\| Harbour \(working name\) \|/];
+const BY_HAND = [
+  /is a working codename/,
+  /\| Harbour \(working name\) \|/,
+  // The iOS project name follows Expo's `name` at prebuild: check the real names, then edit.
+  /xcodebuild|\.xcworkspace/,
+];
 
 function rename(text, scope) {
   let count = 0;
   const swap = (segment) =>
     segment.replace(/\bHarbour\b/g, (match, offset, whole) => {
       // Never inside a host name, address or URL ("Family.Harbour.Example", "Harbour@…").
+      // A full stop or colon after it in prose ("… in Harbour.", "Harbour: …") is renamed.
       const before = whole[offset - 1] ?? "";
-      const after = whole[offset + match.length] ?? "";
-      if (/[./@:]/.test(before) || /[./@:]/.test(after)) return match;
+      const after = whole.slice(offset + match.length, offset + match.length + 3);
+      if (/[./@]/.test(before) || /^[.@][A-Za-z0-9]/.test(after) || after.startsWith("://")) {
+        return match;
+      }
       // Skip the demo names: check whether this occurrence starts one.
       DEMO_NAMES.lastIndex = 0;
       for (const demo of whole.matchAll(DEMO_NAMES)) {

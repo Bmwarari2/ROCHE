@@ -28,6 +28,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Rename plan: Thapsus Care (07/11/2026)
+
+Pushed on `docs/rename-plan-thapsus-care`, not merged, no PR: ADR-0127 (proposed), the plan
+[rename-thapsus-care.md](rename-thapsus-care.md) and `scripts/rename-product.mjs` (dry run,
+`--apply`, `--check`). About 2,800 user-visible "Harbour" in 356 files change in one pass after merge
+batch 4; identifiers (`@harbour/*`, `HARBOUR_*`, roles, the tenant header, bundle ids, the deep
+link scheme, the passkey rpID, cloud and Terraform) stay. No strings are changed yet. Open: the demo
+names, the human actions' numbers, and the SMTP test fix in the rename PR.
+
 ## Merge batch 3c (06/11/2026)
 
 `integration/phase-2-batch-3c`, from batch 3b: the Thapsus-HR link's slices 87 and 88 (0141,
