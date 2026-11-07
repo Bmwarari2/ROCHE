@@ -39,3 +39,18 @@ output "secret_ids" {
   description = "Secrets this service may read."
   value       = sort(tolist(local.secret_ids))
 }
+
+output "timeout_seconds" {
+  description = "Request timeout of a service, or task timeout of a job."
+  value       = var.timeout_seconds
+}
+
+output "job" {
+  description = "A job's execution settings (null for a service)."
+  value = var.kind == "job" ? {
+    task_count  = var.task_count
+    parallelism = var.parallelism
+    max_retries = var.max_retries
+    invokers    = var.job_invokers
+  } : null
+}

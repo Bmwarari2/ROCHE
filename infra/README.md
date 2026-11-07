@@ -55,6 +55,7 @@ call the same `harbour_stack` module, so staging rehearses exactly what prod wil
 | `flags.<domain>` | load balancer (Cloud Armor), then `flagsmith` (port 8000) | Optional, `enable_flagsmith = false` by default; only Harbour's NAT addresses and `flags_admin_ranges` reach it |
 | none | `worker` | pg-boss jobs; same image as `api`; internal ingress; CPU always allocated |
 | none | `migrate` Cloud Run job | `db:bootstrap` and migrations, run by the release job |
+| none | `dmd` Cloud Run job (`harbour-<env>-dmd`), started by Cloud Scheduler (`harbour-<env>-dmd-monthly`) | The monthly dm+d release download from TRUD and load (H-1241, [runbook](../docs/runbooks/dmd-release.md)): `17 3 3 * *` Europe/London (03:17 on the 3rd), one task, at most one retry, a 90-minute task timeout (the 60-minute load limit plus 30 for the download), 2 CPUs and 6Gi because the archive and the unpacked release sit in `/tmp`, which is memory (H-1243). No bucket: it downloads into a private temporary directory and deletes the files. Its own service account and database role (`harbour_dmd_job`); Cloud Scheduler calls the Cloud Run Admin API as its own account, which may start this job only |
 
 Every Cloud Run service with a host has ingress `internal-and-cloud-load-balancing`, so it can
 be reached only through the load balancer and Cloud Armor; the worker's ingress is internal.
@@ -155,7 +156,8 @@ terraform apply          # creates the project baseline, keys, network, database
    and the PowerSync and, if used, Flagsmith images, then push the first api and web images
    (the release job does this from then on).
 3. **Secrets** (H-07). `GCP_PROJECT_ID=${PROJECT} infra/scripts/seed-secrets.sh ${ENV}`. Add the
-   SMTP provider's user and password to `smtp-user` and `smtp-password` when email is set up.
+   SMTP provider's user and password to `smtp-user` and `smtp-password` when email is set up, and
+   in staging and prod the TRUD API key to `trud-api-key` (H-1501).
 4. **Migrations.** Run the migration job (it runs `db:bootstrap`, creating the roles and their
    passwords from the secrets, then the migrations):
 
@@ -181,7 +183,7 @@ environment:
 | --- | --- | --- |
 | `harbour-<env>-gh-plan` | `environment:<env>-plan` (pull requests from this repository, never forks) | read the project's configuration and state |
 | `harbour-<env>-gh-deploy` | `environment:<env>` | apply the stack; no basic roles and no project IAM (the stack grants only on resources), organisation policy, federation or deny policies |
-| `harbour-<env>-gh-release` | `environment:<env>-release` | push images, update and run the migration job, release new revisions, acting as the runtime accounts only |
+| `harbour-<env>-gh-release` | `environment:<env>-release` | push images, update and run the migration job, move the dm+d job to the new image, release new revisions, acting as the runtime accounts only |
 
 A deny policy on each project stops all three reading secret values, objects (care documents,
 exports, the audit archive), logs or database exports, creating keys or changing the federation,
@@ -201,8 +203,8 @@ plan, apply and release jobs skip with a notice.
 The `release-dev` job builds the api and web images before it signs in (so no credential is in the
 build context while dependencies install), signs in as the release account without writing a
 credentials file, pushes the images to Artifact Registry tagged with the commit SHA (tags are
-immutable), updates and executes the migration job with the new api image, then releases api,
-worker and web. Terraform ignores the services' images after the first
+immutable), updates and executes the migration job with the new api image, moves the dm+d job to
+that image (Cloud Scheduler runs it), then releases api, worker and web. Terraform ignores the services' images after the first
 apply, so an infrastructure change can never roll an application back.
 
 ## Runtime contract for application images
@@ -212,7 +214,7 @@ apply, so an infrastructure change can never roll an application back.
 | Command | `node apps/api/dist/server.js`, `node apps/api/dist/worker.js` | image default |
 | Port and health check | 4000, `GET /health` | 3000, `GET /api/health` |
 
-The images bundle no CA. The api, worker, migrate job and PowerSync mount the Cloud SQL server
+The images bundle no CA. The api, worker, migrate and dm+d jobs and PowerSync mount the Cloud SQL server
 CA from the `db-server-ca` secret at `/secrets/cloudsql/server-ca.pem` and set
 `NODE_EXTRA_CA_CERTS` to that path; they connect to the private IP with TLS (`verify-ca`), with
 no Auth Proxy or connector.
@@ -240,6 +242,16 @@ with the `secrets` key. Thapsus adds it and grants the API's service account
 `roles/secretmanager.secretAccessor` and `roles/secretmanager.viewer` on that secret only (H-751);
 the API reads it through the europe-west2 endpoint at sign-in, and a key it may not read counts as
 missing.
+
+dm+d job (`node apps/api/dist/dmd-job.js`): `HARBOUR_ENV`, `APP_VERSION`, `NODE_EXTRA_CA_CERTS`,
+`DMD_LOAD_TIMEOUT_MINUTES`; secrets `DATABASE_DMD_URL` (from `db-harbour_dmd_job-url`) and, in
+staging and prod, `TRUD_API_KEY` (from `trud-api-key`, put there by hand, H-1501). No other service
+reads either. `NODE_ENV` is left unset: with `production` the API's configuration would demand
+every API secret, which this job must never hold, and `HARBOUR_ENV` already marks staging and prod
+as places where real people work (H-1505). Dev has no TRUD key and loads nothing real. Egress: the
+job reaches `isd.digital.nhs.uk` over HTTPS from the NAT addresses. The VPC has no egress firewall
+(a rule by host name needs Cloud NGFW), so the job itself refuses any host but `TRUD_ALLOWED_HOSTS`,
+redirects included (H-1245).
 
 Migrate job: `DATABASE_HOST` (private IP), `DATABASE_PORT`, `DATABASE_NAME`,
 `DATABASE_SSL_MODE=verify-ca`, `DATABASE_ADMIN_USER=postgres`, `DATABASE_ADMIN_PASSWORD`,
@@ -295,8 +307,9 @@ Audit logs (Admin Activity and Data Access for every service), pgAudit and datab
 logs, and Cloud Armor requests go to the `harbour-<env>-security` bucket in europe-west2, kept
 400 days or more and locked in prod; other Cloud Run and Cloud SQL logs to `harbour-<env>-app`
 (30 days). Both are encrypted with the project's `logs` key. Log-based metrics read the worker's structured
-events (`escalation.unrouted.daily`, `worker.job.failed`, `security.export.foreign_rows`) and
-alert by email, with the API's server errors, database CPU and disk, and the worker or
+events (`escalation.unrouted.daily`, `worker.job.failed`, `security.export.foreign_rows`,
+`dmd.release.late`) and the dm+d job's (`dmd.release.refused`, `dmd.release.failed`,
+`dmd.download.failed`), and alert by email, with a failed execution of the dm+d job, with the API's server errors, database CPU and disk, and the worker or
 PowerSync having no instance. The on-call runbook says what to do for each.
 
 ## Disaster recovery

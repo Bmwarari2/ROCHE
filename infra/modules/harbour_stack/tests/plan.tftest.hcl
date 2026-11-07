@@ -150,6 +150,8 @@ run "everything_in_london" {
       module.svc_web.location == "europe-west2",
       module.svc_powersync.location == "europe-west2",
       module.job_migrate.location == "europe-west2",
+      module.job_dmd.location == "europe-west2",
+      google_cloud_scheduler_job.dmd.region == "europe-west2",
     ])
     error_message = "Databases, backups, keys, images, the network, logs and services must all be in europe-west2."
   }
@@ -297,6 +299,129 @@ run "services_and_database" {
   assert {
     condition     = local.app_environment["SSO_KEY_STORE"] == "gcp"
     error_message = "Single sign-on keys must come from Secret Manager in production (ADR-0091)."
+  }
+}
+
+# The monthly dm+d release download (H-1241, docs/runbooks/dmd-release.md): its own job, role and
+# secrets, one task at a time, at most one retry, started by Cloud Scheduler on UK time.
+run "dmd_job" {
+  command = plan
+
+  assert {
+    condition     = module.job_dmd.name == "harbour-dev-dmd" && output.dmd_job == "harbour-dev-dmd"
+    error_message = "The dm+d job must be harbour-<env>-dmd, and listed in the outputs."
+  }
+
+  assert {
+    condition = (
+      module.job_dmd.job.max_retries <= 1 &&
+      module.job_dmd.job.task_count == 1 &&
+      module.job_dmd.job.parallelism == 1
+    )
+    error_message = "The dm+d job must run one task at a time and retry it at most once."
+  }
+
+  # The task timeout covers the load's own limit and the download.
+  assert {
+    condition     = module.job_dmd.timeout_seconds > local.dmd.load_timeout_minutes * 60
+    error_message = "The dm+d job's task timeout must be above DMD_LOAD_TIMEOUT_MINUTES plus the download."
+  }
+
+  # The migrate job keeps its settings.
+  assert {
+    condition     = module.job_migrate.job.max_retries == 0 && module.job_migrate.job.task_count == 1 && module.job_migrate.job.parallelism == null
+    error_message = "The migrate job must keep one task and no retries."
+  }
+
+  # The job's database URL reaches the job only; the migrate job sets the role's password.
+  assert {
+    condition = (
+      anytrue([for s in module.job_dmd.secret_ids : endswith(s, "/secrets/harbour-dev-db-harbour_dmd_job-url")]) &&
+      anytrue([for s in module.job_migrate.secret_ids : endswith(s, "/secrets/harbour-dev-db-harbour_dmd_job-password")]) &&
+      !anytrue(flatten([
+        for m in [module.svc_api, module.svc_worker, module.svc_web, module.svc_powersync, module.job_migrate] :
+        [for s in m.secret_ids : strcontains(s, "db-harbour_dmd_job-url")]
+      ]))
+    )
+    error_message = "DATABASE_DMD_URL must reach the dm+d job only, and the migrate job must set harbour_dmd_job's password."
+  }
+
+  # The job reads only its own URL and the server CA (and, outside dev, the TRUD key).
+  assert {
+    condition     = length(module.job_dmd.secret_ids) == 2 && anytrue([for s in module.job_dmd.secret_ids : endswith(s, "/secrets/harbour-dev-db-server-ca")])
+    error_message = "In dev the dm+d job must read its database URL and the server CA only (no TRUD key: dev uses the invented fixture)."
+  }
+
+  assert {
+    condition     = !contains(keys(module.secrets.secret_names), "trud-api-key")
+    error_message = "Dev must have no TRUD key."
+  }
+
+  assert {
+    condition = (
+      google_cloud_scheduler_job.dmd.time_zone == "Europe/London" &&
+      google_cloud_scheduler_job.dmd.schedule == "17 3 3 * *" &&
+      endswith(google_cloud_scheduler_job.dmd.http_target[0].uri, "/locations/europe-west2/jobs/harbour-dev-dmd:run")
+    )
+    error_message = "Cloud Scheduler must start the dm+d job early on the 3rd of each month, UK time."
+  }
+
+  assert {
+    condition     = jsonencode(keys(module.job_dmd.job.invokers)) == jsonencode(["scheduler"])
+    error_message = "Only Cloud Scheduler's own account may start the dm+d job."
+  }
+
+  assert {
+    condition     = contains(module.project.services, "cloudscheduler.googleapis.com")
+    error_message = "The Cloud Scheduler API must be enabled."
+  }
+
+  # Each dm+d event alerts on any one line of the job's own logs; dmd.release.late comes from the
+  # worker's daily check.
+  assert {
+    condition = alltrue([
+      for k, e in { dmd_release_refused = "dmd.release.refused", dmd_release_failed = "dmd.release.failed", dmd_download_failed = "dmd.download.failed" } :
+      strcontains(module.observability.dmd_log_metric_filters[k], "jsonPayload.event=\"${e}\"") &&
+      strcontains(module.observability.dmd_log_metric_filters[k], "resource.labels.job_name=\"harbour-dev-dmd\"") &&
+      module.observability.dmd_log_alert_rules[k].threshold == 0 &&
+      module.observability.dmd_log_alert_rules[k].comparison == "COMPARISON_GT"
+    ])
+    error_message = "The refused, failed and download failed alerts must match the dm+d job's events, on any one line."
+  }
+
+  assert {
+    condition = (
+      strcontains(module.observability.log_metric_filters.dmd_release_late, "jsonPayload.event=\"dmd.release.late\"") &&
+      module.observability.log_alert_rules.dmd_release_late.threshold == 0
+    )
+    error_message = "The late release alert must match the worker's dmd.release.late event, on any one line."
+  }
+
+  assert {
+    condition     = strcontains(module.observability.dmd_execution_failed_filter, "job_name=\"harbour-dev-dmd\"") && strcontains(module.observability.dmd_execution_failed_filter, "result=\"failed\"")
+    error_message = "A failed execution of the dm+d job must alert."
+  }
+}
+
+# Staging and prod download from TRUD: the key is bound to the dm+d job and nothing else.
+run "dmd_trud_key_staging" {
+  command = plan
+
+  variables {
+    environment = "staging"
+  }
+
+  assert {
+    condition     = anytrue([for s in module.job_dmd.secret_ids : endswith(s, "/secrets/harbour-staging-trud-api-key")])
+    error_message = "The dm+d job must read the TRUD key in staging."
+  }
+
+  assert {
+    condition = !anytrue(flatten([
+      for m in [module.svc_api, module.svc_worker, module.svc_web, module.svc_powersync, module.job_migrate] :
+      [for s in m.secret_ids : strcontains(s, "trud-api-key") || strcontains(s, "db-harbour_dmd_job-url")]
+    ]))
+    error_message = "The TRUD key and the dm+d job's database URL must be bound to the dm+d job only."
   }
 }
 

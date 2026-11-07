@@ -12,6 +12,10 @@ screens (#128, `docs/user-guides/`).
 names before loading, and runs as its own Cloud Run job with alerts on refused, failed and late
 releases. Migration 0131; human actions H-1240 to H-1245. The job's Terraform waits for #164
 (H-1241).
+**Committed on 07/11/2026, not pushed:** `feat/infra-dmd-download` (INTG-006 stays `partial`). It
+adds the Terraform for that job (H-1241): the Cloud Run job `harbour-<env>-dmd`, its monthly Cloud
+Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job is applied
+(H-1501 to H-1505).
 
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`

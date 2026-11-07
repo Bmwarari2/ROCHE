@@ -12,6 +12,21 @@ output "log_alert_rules" {
   value       = local.log_alert_rules
 }
 
+output "dmd_log_metric_filters" {
+  description = "Filters of the dm+d job's log metrics, by purpose."
+  value       = local.dmd_log_metric_filters
+}
+
+output "dmd_log_alert_rules" {
+  description = "How each dm+d job log metric alerts, by purpose."
+  value       = local.dmd_log_alert_rules
+}
+
+output "dmd_execution_failed_filter" {
+  description = "Filter of the alert on a failed execution of the dm+d job."
+  value       = local.dmd_execution_failed_filter
+}
+
 output "security_log_bucket" {
   value = {
     location       = google_logging_project_bucket_config.security.location

@@ -15,6 +15,7 @@ module "observability" {
   worker_service_name         = module.svc_worker.name
   api_service_name            = module.svc_api.name
   always_on_services          = [module.svc_worker.name, module.svc_powersync.name]
+  dmd_job_name                = module.job_dmd.name
 
   kms_key_id = module.kms.key_ids["logs"]
 
@@ -59,6 +60,7 @@ resource "google_service_account_iam_member" "release_acts_as" {
     worker    = module.svc_worker.service_account_email
     web       = module.svc_web.service_account_email
     migrate   = module.job_migrate.service_account_email
+    dmd       = module.job_dmd.service_account_email
     powersync = module.svc_powersync.service_account_email
   }
 

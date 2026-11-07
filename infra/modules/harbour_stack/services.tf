@@ -244,6 +244,115 @@ module "job_migrate" {
 }
 
 # ---------------------------------------------------------------------------------------------
+# dm+d release download (integrations.md section 11, "Release download"; ADR-0080; H-1241): a
+# Cloud Run job started monthly by Cloud Scheduler. It asks TRUD for the latest release, downloads
+# it into a private directory, loads it as its own database role (harbour_dmd_job) and deletes the
+# files (docs/runbooks/dmd-release.md). It reads no bucket: the archive and the unpacked release
+# live under the OS temporary directory, which on Cloud Run is memory, so memory is sized for
+# both plus the heap (sizes.dmd, H-1243).
+#
+# Egress: the job sends all its traffic through the VPC, so it reaches TRUD
+# (https://isd.digital.nhs.uk) from Cloud NAT's static addresses. The VPC has no egress
+# firewall, and a rule by host name needs Cloud NGFW, which this network does not have, so the
+# narrowing is the application's: the job refuses any address, archive link or redirect off
+# TRUD_ALLOWED_HOSTS, over HTTPS only (apps/api/src/config.ts; H-1245).
+# ---------------------------------------------------------------------------------------------
+
+locals {
+  dmd = {
+    # The loader's own limit (DMD_LOAD_TIMEOUT_MINUTES), set here so the task timeout follows it.
+    load_timeout_minutes = 60
+    # Time allowed for asking TRUD and downloading the archive, on top of the load.
+    download_minutes = 30
+  }
+  dmd_task_timeout_seconds = (local.dmd.load_timeout_minutes + local.dmd.download_minutes) * 60
+}
+
+module "job_dmd" {
+  source = "../cloud_run_service"
+
+  project_id      = var.project_id
+  region          = var.region
+  kind            = "job"
+  name            = "${local.name_prefix}-dmd"
+  image           = local.images.api
+  command         = var.dmd_command
+  cpu             = local.sizes.dmd.cpu
+  memory          = local.sizes.dmd.memory
+  timeout_seconds = local.dmd_task_timeout_seconds
+
+  # One task, one at a time. A failed task is tried once more: the run is idempotent (a release
+  # already loaded is not downloaded again) and the database loads one release at a time under
+  # an advisory lock, whole or not at all.
+  task_count  = 1
+  parallelism = 1
+  max_retries = 1
+
+  # NODE_ENV is deliberately not "production": the API's configuration then demands every API
+  # secret, which this job must never hold. HARBOUR_ENV alone marks staging and prod as places
+  # where real people work, so the job uses TRUD, never the invented fixture (H-1505).
+  env = {
+    HARBOUR_ENV              = var.environment
+    APP_VERSION              = var.initial_image_tag
+    NODE_EXTRA_CA_CERTS      = local.db_ca_file
+    DMD_LOAD_TIMEOUT_MINUTES = tostring(local.dmd.load_timeout_minutes)
+  }
+  # Only this job reads these: never the API, the worker or the web tier. Dev serves no real
+  # releases (it uses the invented fixture), so it has no TRUD key.
+  secret_env = merge(
+    { DATABASE_DMD_URL = local.secret["db-harbour_dmd_job-url"] },
+    local.dmd_uses_trud ? { TRUD_API_KEY = local.secret["trud-api-key"] } : {},
+  )
+  secret_volumes = local.db_ca_volume
+
+  # Cloud Scheduler's own account may start this job and nothing else.
+  job_invokers = { scheduler = "serviceAccount:${google_service_account.dmd_scheduler.email}" }
+
+  network_id          = module.network.network_id
+  subnet_id           = module.network.subnet_id
+  deletion_protection = var.deletion_protection
+  labels              = local.labels
+
+  depends_on = [module.secrets]
+}
+
+resource "google_service_account" "dmd_scheduler" {
+  project      = var.project_id
+  account_id   = "${local.name_prefix}-dmd-scheduler"
+  display_name = "Cloud Scheduler: starts ${local.name_prefix}-dmd"
+}
+
+# Monthly, early on the 3rd, UK time. Cloud Scheduler holds no data (it calls the Cloud Run Admin
+# API with an OAuth token), so it needs no key of its own. A start that fails is tried once more;
+# a second execution is harmless (see above). A run that never starts shows as dmd.release.late.
+resource "google_cloud_scheduler_job" "dmd" {
+  project          = var.project_id
+  region           = var.region
+  name             = "${local.name_prefix}-dmd-monthly"
+  description      = "Starts the dm+d release download (${module.job_dmd.name}); docs/runbooks/dmd-release.md"
+  schedule         = var.dmd_schedule
+  time_zone        = "Europe/London"
+  attempt_deadline = "180s"
+
+  retry_config {
+    retry_count          = 1
+    min_backoff_duration = "600s"
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${module.job_dmd.name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.dmd_scheduler.email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
+    }
+  }
+
+  depends_on = [module.project, module.job_dmd]
+}
+
+# ---------------------------------------------------------------------------------------------
 # Web (Next.js). Reached only through the load balancer; never opens a database connection.
 # ---------------------------------------------------------------------------------------------
 

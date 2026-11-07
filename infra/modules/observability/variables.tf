@@ -48,6 +48,11 @@ variable "worker_service_name" {
   type        = string
 }
 
+variable "dmd_job_name" {
+  description = "Cloud Run job whose structured logs carry the dm+d release job's events (H-1241)."
+  type        = string
+}
+
 variable "api_service_name" {
   type = string
 }

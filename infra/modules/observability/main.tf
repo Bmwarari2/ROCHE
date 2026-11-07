@@ -1,7 +1,8 @@
 # Logs and alerts in London, both log buckets encrypted with the project's key. Security logs
 # (audit logs including Data Access, pgAudit and database connection logs, Cloud Armor requests)
-# go to their own bucket kept for at least 400 days, locked in prod; application logs to another. The worker's structured events (pino JSON) drive the alerts the on-call runbook
-# names (docs/runbooks/on-call.md; HZ-070, HZ-073).
+# go to their own bucket kept for at least 400 days, locked in prod; application logs to another.
+# The worker's and the dm+d job's structured events (pino JSON) drive the alerts the on-call and
+# dm+d runbooks name (docs/runbooks/on-call.md, dmd-release.md; HZ-070, HZ-073, HZ-113).
 
 resource "google_logging_project_bucket_config" "security" {
   project        = var.project_id
@@ -99,6 +100,14 @@ locals {
       period      = 3600
       description = "A location's nightly downtime pack could not be built (HZ-021): staff may have no pack in date in an outage. Act the same day."
     }
+    # The worker's daily dm+d check (06:23): the release in use is older than 35 days, or none is
+    # loaded where real people work (HZ-113). Over an hour, so each daily check alerts again.
+    dmd_release_late = {
+      event       = "dmd.release.late"
+      queue       = ""
+      period      = 3600
+      description = "The dm+d release in use is late: no release has loaded for more than 35 days (HZ-113), and every medicines screen says so; docs/runbooks/dmd-release.md says what to do."
+    }
   }
 
   log_metric_filters = {
@@ -159,6 +168,139 @@ resource "google_monitoring_alert_policy" "worker_events" {
       aggregations {
         alignment_period   = "${each.value.period}s"
         per_series_aligner = each.value.aligner
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "86400s"
+  }
+}
+
+# ---------------------------------------------------------------------------------------------
+# The dm+d release job (H-1241, docs/runbooks/dmd-release.md). It runs monthly as a Cloud Run job,
+# whose JSON lines (pino) carry the `event` field; dmd.release.late comes from the worker above.
+# ---------------------------------------------------------------------------------------------
+
+locals {
+  dmd_job_events = {
+    dmd_release_refused = {
+      event       = "dmd.release.refused"
+      description = "A dm+d release was refused by its checks and not loaded; the release in use stays in use."
+    }
+    dmd_release_failed = {
+      event       = "dmd.release.failed"
+      description = "A dm+d release failed to load (a database error or the time limit); nothing half-loaded is used."
+    }
+    dmd_download_failed = {
+      event       = "dmd.download.failed"
+      description = "The dm+d release could not be downloaded from TRUD (most often a lapsed key: a 401)."
+    }
+  }
+
+  dmd_log_metric_filters = {
+    for k, v in local.dmd_job_events :
+    k => "resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"${var.dmd_job_name}\" AND jsonPayload.event=\"${v.event}\""
+  }
+
+  dmd_execution_failed_filter = "metric.type=\"run.googleapis.com/job/completed_execution_count\" AND resource.type=\"cloud_run_job\" AND resource.label.job_name=\"${var.dmd_job_name}\" AND metric.label.result=\"failed\""
+}
+
+resource "google_logging_metric" "dmd" {
+  for_each = local.dmd_job_events
+
+  project = var.project_id
+  name    = "${var.name_prefix}-${replace(each.key, "_", "-")}"
+  filter  = local.dmd_log_metric_filters[each.key]
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
+}
+
+locals {
+  # Any one line alerts. The job runs monthly, so an hour's window holds one run and its retry.
+  dmd_log_alert_rules = {
+    for k, v in local.dmd_job_events : k => {
+      metric      = "logging.googleapis.com/user/${google_logging_metric.dmd[k].name}"
+      aligner     = "ALIGN_SUM"
+      period      = 3600
+      threshold   = 0
+      comparison  = "COMPARISON_GT"
+      description = v.description
+    }
+  }
+}
+
+resource "google_monitoring_alert_policy" "dmd_events" {
+  for_each = local.dmd_log_alert_rules
+
+  project               = var.project_id
+  display_name          = "${var.name_prefix} ${each.key}"
+  combiner              = "OR"
+  notification_channels = local.channels
+
+  documentation {
+    content   = "${each.value.description} See docs/runbooks/dmd-release.md."
+    mime_type = "text/markdown"
+  }
+
+  conditions {
+    display_name = each.key
+
+    condition_threshold {
+      filter          = "metric.type=\"${each.value.metric}\" AND resource.type=\"cloud_run_job\""
+      comparison      = each.value.comparison
+      threshold_value = each.value.threshold
+      duration        = "0s"
+
+      aggregations {
+        alignment_period   = "${each.value.period}s"
+        per_series_aligner = each.value.aligner
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "86400s"
+  }
+}
+
+# An execution of the dm+d job that failed, whatever the cause, including one that logged nothing
+# (out of memory, the task timeout, a secret it could not read).
+resource "google_monitoring_alert_policy" "dmd_execution_failed" {
+  project               = var.project_id
+  display_name          = "${var.name_prefix} dmd job execution failed"
+  combiner              = "OR"
+  notification_channels = local.channels
+
+  documentation {
+    content   = "An execution of the dm+d release job (${var.dmd_job_name}) failed. Read its logs, then see docs/runbooks/dmd-release.md."
+    mime_type = "text/markdown"
+  }
+
+  conditions {
+    display_name = "Failed executions"
+
+    condition_threshold {
+      filter          = local.dmd_execution_failed_filter
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+
+      aggregations {
+        alignment_period   = "3600s"
+        per_series_aligner = "ALIGN_SUM"
       }
 
       trigger {
