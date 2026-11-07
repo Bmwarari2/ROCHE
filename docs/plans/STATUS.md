@@ -539,6 +539,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
+- slice 72 leftovers, `feat/mobile-training-placement`: Training tab beside Shifts (H-1365 done); Welsh strings H-1526; tab bar H-1527; Android Maestro run not done (no emulator here);
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
 - slice 71 shifts, clock and lone working on the phone, `feat/mobile-shifts-checkins` (0139; HZ-125; H-1310 to H-1319): streams, phone screens, offline queue; MOB-007 partial;
