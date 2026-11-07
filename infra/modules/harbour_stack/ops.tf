@@ -16,6 +16,7 @@ module "observability" {
   api_service_name            = module.svc_api.name
   always_on_services          = [module.svc_worker.name, module.svc_powersync.name]
   dmd_job_name                = module.job_dmd.name
+  dmd_alerts                  = local.dmd_uses_trud
 
   kms_key_id = module.kms.key_ids["logs"]
 

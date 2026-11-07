@@ -247,8 +247,9 @@ dm+d job (`node apps/api/dist/dmd-job.js`): `HARBOUR_ENV`, `APP_VERSION`, `NODE_
 `DMD_LOAD_TIMEOUT_MINUTES`; secrets `DATABASE_DMD_URL` (from `db-harbour_dmd_job-url`) and, in
 staging and prod, `TRUD_API_KEY` (from `trud-api-key`, put there by hand, H-1501). No other service
 reads either. It runs with `NODE_ENV=production` and reads only its own settings
-(`loadDmdJobConfig`), so it needs none of the API's secrets; `HARBOUR_ENV` marks staging and prod
-as places where real people work. Dev has no TRUD key and loads nothing real. Egress: the
+(`loadDmdJobConfig`), so it needs none of the API's secrets; production mode means it only ever
+downloads from TRUD. Cloud Scheduler and the dm+d alerts exist in staging and prod only: dev has
+no TRUD key, so its job is defined but never scheduled and raises no dm+d alert. Egress: the
 job reaches `isd.digital.nhs.uk` over HTTPS from the NAT addresses. The VPC has no egress firewall
 (a rule by host name needs Cloud NGFW), so the job itself refuses any host but `TRUD_ALLOWED_HOSTS`,
 redirects included (H-1245).

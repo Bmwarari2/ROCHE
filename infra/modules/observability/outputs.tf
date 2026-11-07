@@ -42,3 +42,11 @@ output "security_sink_filter" {
 output "app_sink_filter" {
   value = local.app_filter
 }
+
+output "dmd_alert_policy_names" {
+  description = "The dm+d alert policies created (none where the job does not download from TRUD)."
+  value = concat(
+    [for p in google_monitoring_alert_policy.dmd_events : p.display_name],
+    [for p in google_monitoring_alert_policy.dmd_execution_failed : p.display_name],
+  )
+}

@@ -53,6 +53,12 @@ variable "dmd_job_name" {
   type        = string
 }
 
+variable "dmd_alerts" {
+  description = "Whether the dm+d release alerts exist: only where the job downloads from TRUD (not dev, which has no key)."
+  type        = bool
+  default     = true
+}
+
 variable "api_service_name" {
   type = string
 }

@@ -151,7 +151,7 @@ run "everything_in_london" {
       module.svc_powersync.location == "europe-west2",
       module.job_migrate.location == "europe-west2",
       module.job_dmd.location == "europe-west2",
-      google_cloud_scheduler_job.dmd.region == "europe-west2",
+      alltrue([for j in google_cloud_scheduler_job.dmd : j.region == "europe-west2"]),
     ])
     error_message = "Databases, backups, keys, images, the network, logs and services must all be in europe-west2."
   }
@@ -355,7 +355,7 @@ run "dmd_job" {
   # The job reads only its own URL and the server CA (and, outside dev, the TRUD key).
   assert {
     condition     = length(module.job_dmd.secret_ids) == 2 && anytrue([for s in module.job_dmd.secret_ids : endswith(s, "/secrets/harbour-dev-db-server-ca")])
-    error_message = "In dev the dm+d job must read its database URL and the server CA only (no TRUD key: dev uses the invented fixture)."
+    error_message = "In dev the dm+d job must read its database URL and the server CA only (no TRUD key: dev downloads nothing real)."
   }
 
   assert {
@@ -363,18 +363,24 @@ run "dmd_job" {
     error_message = "Dev must have no TRUD key."
   }
 
+  # Dev has no TRUD key: the job would fail every month, so it is never scheduled there and has
+  # no dm+d alerts (security check of PR #179). It can still be run by hand.
   assert {
     condition = (
-      google_cloud_scheduler_job.dmd.time_zone == "Europe/London" &&
-      google_cloud_scheduler_job.dmd.schedule == "17 3 3 * *" &&
-      endswith(google_cloud_scheduler_job.dmd.http_target[0].uri, "/locations/europe-west2/jobs/harbour-dev-dmd:run")
+      length(google_cloud_scheduler_job.dmd) == 0 &&
+      length(google_service_account.dmd_scheduler) == 0 &&
+      length(module.job_dmd.job.invokers) == 0
     )
-    error_message = "Cloud Scheduler must start the dm+d job early on the 3rd of each month, UK time."
+    error_message = "Dev must not schedule the dm+d job, nor give anyone the right to start it."
   }
 
   assert {
-    condition     = jsonencode(keys(module.job_dmd.job.invokers)) == jsonencode(["scheduler"])
-    error_message = "Only Cloud Scheduler's own account may start the dm+d job."
+    condition = (
+      length(module.observability.dmd_log_alert_rules) == 0 &&
+      !contains(keys(module.observability.log_alert_rules), "dmd_release_late") &&
+      length(module.observability.dmd_alert_policy_names) == 0
+    )
+    error_message = "Dev must have no dm+d alerts."
   }
 
   assert {
@@ -382,31 +388,6 @@ run "dmd_job" {
     error_message = "The Cloud Scheduler API must be enabled."
   }
 
-  # Each dm+d event alerts on any one line of the job's own logs; dmd.release.late comes from the
-  # worker's daily check.
-  assert {
-    condition = alltrue([
-      for k, e in { dmd_release_refused = "dmd.release.refused", dmd_release_failed = "dmd.release.failed", dmd_download_failed = "dmd.download.failed" } :
-      strcontains(module.observability.dmd_log_metric_filters[k], "jsonPayload.event=\"${e}\"") &&
-      strcontains(module.observability.dmd_log_metric_filters[k], "resource.labels.job_name=\"harbour-dev-dmd\"") &&
-      module.observability.dmd_log_alert_rules[k].threshold == 0 &&
-      module.observability.dmd_log_alert_rules[k].comparison == "COMPARISON_GT"
-    ])
-    error_message = "The refused, failed and download failed alerts must match the dm+d job's events, on any one line."
-  }
-
-  assert {
-    condition = (
-      strcontains(module.observability.log_metric_filters.dmd_release_late, "jsonPayload.event=\"dmd.release.late\"") &&
-      module.observability.log_alert_rules.dmd_release_late.threshold == 0
-    )
-    error_message = "The late release alert must match the worker's dmd.release.late event, on any one line."
-  }
-
-  assert {
-    condition     = strcontains(module.observability.dmd_execution_failed_filter, "job_name=\"harbour-dev-dmd\"") && strcontains(module.observability.dmd_execution_failed_filter, "result=\"failed\"")
-    error_message = "A failed execution of the dm+d job must alert."
-  }
 }
 
 # Staging and prod download from TRUD: the key is bound to the dm+d job and nothing else.
@@ -428,6 +409,58 @@ run "dmd_trud_key_staging" {
       [for s in m.secret_ids : strcontains(s, "trud-api-key") || strcontains(s, "db-harbour_dmd_job-url")]
     ]))
     error_message = "The TRUD key and the dm+d job's database URL must be bound to the dm+d job only."
+  }
+
+  # Exactly its database URL, the server CA and the TRUD key: nothing of the API's.
+  assert {
+    condition = jsonencode(sort([for s in module.job_dmd.secret_ids : regex("[^/]+$", s)])) == jsonencode(sort([
+      "harbour-staging-db-harbour_dmd_job-url",
+      "harbour-staging-db-server-ca",
+      "harbour-staging-trud-api-key",
+    ]))
+    error_message = "In staging the dm+d job must read exactly its database URL, the server CA and the TRUD key."
+  }
+
+  assert {
+    condition = (
+      length(google_cloud_scheduler_job.dmd) == 1 &&
+      google_cloud_scheduler_job.dmd[0].time_zone == "Europe/London" &&
+      google_cloud_scheduler_job.dmd[0].schedule == "17 3 3 * *" &&
+      google_cloud_scheduler_job.dmd[0].region == "europe-west2" &&
+      endswith(google_cloud_scheduler_job.dmd[0].http_target[0].uri, "/locations/europe-west2/jobs/harbour-staging-dmd:run")
+    )
+    error_message = "Cloud Scheduler must start the dm+d job early on the 3rd of each month, UK time."
+  }
+
+  assert {
+    condition     = jsonencode(keys(module.job_dmd.job.invokers)) == jsonencode(["scheduler"])
+    error_message = "Only Cloud Scheduler's own account may start the dm+d job."
+  }
+
+  # Each dm+d event alerts on any one line of the job's own logs; dmd.release.late comes from the
+  # worker's daily check.
+  assert {
+    condition = alltrue([
+      for k, e in { dmd_release_refused = "dmd.release.refused", dmd_release_failed = "dmd.release.failed", dmd_download_failed = "dmd.download.failed" } :
+      strcontains(module.observability.dmd_log_metric_filters[k], "jsonPayload.event=\"${e}\"") &&
+      strcontains(module.observability.dmd_log_metric_filters[k], "resource.labels.job_name=\"harbour-staging-dmd\"") &&
+      module.observability.dmd_log_alert_rules[k].threshold == 0 &&
+      module.observability.dmd_log_alert_rules[k].comparison == "COMPARISON_GT"
+    ])
+    error_message = "The refused, failed and download failed alerts must match the dm+d job's events, on any one line."
+  }
+
+  assert {
+    condition = (
+      strcontains(module.observability.log_metric_filters.dmd_release_late, "jsonPayload.event=\"dmd.release.late\"") &&
+      module.observability.log_alert_rules.dmd_release_late.threshold == 0
+    )
+    error_message = "The late release alert must match the worker's dmd.release.late event, on any one line."
+  }
+
+  assert {
+    condition     = strcontains(module.observability.dmd_execution_failed_filter, "job_name=\"harbour-staging-dmd\"") && strcontains(module.observability.dmd_execution_failed_filter, "result=\"failed\"")
+    error_message = "A failed execution of the dm+d job must alert."
   }
 }
 

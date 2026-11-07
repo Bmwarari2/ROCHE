@@ -289,8 +289,9 @@ module "job_dmd" {
   max_retries = 1
 
   # The job reads only its own settings (loadDmdJobConfig, H-1505), so it runs in production mode
-  # without any of the API's secrets. HARBOUR_ENV marks staging and prod as places where real
-  # people work, so the job uses TRUD, never the invented fixture.
+  # without any of the API's secrets. Production mode means a place where real people work, so the
+  # job only ever uses TRUD. Dev has no TRUD key, so it is never scheduled there and has no dm+d
+  # alerts (security check of PR #179); the job is still defined, to run by hand once a key is set.
   env = {
     NODE_ENV                 = "production"
     HARBOUR_ENV              = var.environment
@@ -298,16 +299,16 @@ module "job_dmd" {
     NODE_EXTRA_CA_CERTS      = local.db_ca_file
     DMD_LOAD_TIMEOUT_MINUTES = tostring(local.dmd.load_timeout_minutes)
   }
-  # Only this job reads these: never the API, the worker or the web tier. Dev serves no real
-  # releases (it uses the invented fixture), so it has no TRUD key.
+  # Only this job reads these: never the API, the worker or the web tier. Dev downloads nothing
+  # real, so it has no TRUD key.
   secret_env = merge(
     { DATABASE_DMD_URL = local.secret["db-harbour_dmd_job-url"] },
     local.dmd_uses_trud ? { TRUD_API_KEY = local.secret["trud-api-key"] } : {},
   )
   secret_volumes = local.db_ca_volume
 
-  # Cloud Scheduler's own account may start this job and nothing else.
-  job_invokers = { scheduler = "serviceAccount:${google_service_account.dmd_scheduler.email}" }
+  # Cloud Scheduler's own account may start this job and nothing else (staging and prod only).
+  job_invokers = local.dmd_uses_trud ? { scheduler = "serviceAccount:${google_service_account.dmd_scheduler[0].email}" } : {}
 
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_id
@@ -318,6 +319,8 @@ module "job_dmd" {
 }
 
 resource "google_service_account" "dmd_scheduler" {
+  count = local.dmd_uses_trud ? 1 : 0
+
   project      = var.project_id
   account_id   = "${local.name_prefix}-dmd-scheduler"
   display_name = "Cloud Scheduler: starts ${local.name_prefix}-dmd"
@@ -327,6 +330,8 @@ resource "google_service_account" "dmd_scheduler" {
 # API with an OAuth token), so it needs no key of its own. A start that fails is tried once more;
 # a second execution is harmless (see above). A run that never starts shows as dmd.release.late.
 resource "google_cloud_scheduler_job" "dmd" {
+  count = local.dmd_uses_trud ? 1 : 0
+
   project          = var.project_id
   region           = var.region
   name             = "${local.name_prefix}-dmd-monthly"
@@ -345,7 +350,7 @@ resource "google_cloud_scheduler_job" "dmd" {
     uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${module.job_dmd.name}:run"
 
     oauth_token {
-      service_account_email = google_service_account.dmd_scheduler.email
+      service_account_email = google_service_account.dmd_scheduler[0].email
       scope                 = "https://www.googleapis.com/auth/cloud-platform"
     }
   }

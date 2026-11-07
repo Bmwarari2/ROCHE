@@ -72,7 +72,7 @@ locals {
   channels = [for c in google_monitoring_notification_channel.email : c.id]
 
   # The worker logs JSON (pino), so each metric matches the structured `event` field.
-  worker_events = {
+  worker_events_all = {
     escalation_unrouted_daily = {
       event       = "escalation.unrouted.daily"
       queue       = ""
@@ -108,6 +108,12 @@ locals {
       period      = 3600
       description = "The dm+d release in use is late: no release has loaded for more than 35 days (HZ-113), and every medicines screen says so; docs/runbooks/dmd-release.md says what to do."
     }
+  }
+
+  # dmd.release.late only where the job downloads from TRUD: dev loads nothing real, so it would
+  # alert every day.
+  worker_events = {
+    for k, v in local.worker_events_all : k => v if var.dmd_alerts || k != "dmd_release_late"
   }
 
   log_metric_filters = {
@@ -211,7 +217,7 @@ locals {
 }
 
 resource "google_logging_metric" "dmd" {
-  for_each = local.dmd_job_events
+  for_each = var.dmd_alerts ? local.dmd_job_events : {}
 
   project = var.project_id
   name    = "${var.name_prefix}-${replace(each.key, "_", "-")}"
@@ -234,7 +240,7 @@ locals {
       threshold   = 0
       comparison  = "COMPARISON_GT"
       description = v.description
-    }
+    } if var.dmd_alerts
   }
 }
 
@@ -279,6 +285,8 @@ resource "google_monitoring_alert_policy" "dmd_events" {
 # An execution of the dm+d job that failed, whatever the cause, including one that logged nothing
 # (out of memory, the task timeout, a secret it could not read).
 resource "google_monitoring_alert_policy" "dmd_execution_failed" {
+  count = var.dmd_alerts ? 1 : 0
+
   project               = var.project_id
   display_name          = "${var.name_prefix} dmd job execution failed"
   combiner              = "OR"

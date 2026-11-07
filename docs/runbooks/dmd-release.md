@@ -16,11 +16,12 @@ leaves the release in use unchanged until a whole new one has loaded.
   (the 60-minute load limit, `DMD_LOAD_TIMEOUT_MINUTES`, plus 30 minutes for the download). The
   archive and the unpacked release sit in `/tmp`, which on Cloud Run is memory, so the job has 6Gi
   and 2 CPUs until a real release is measured (H-1243). No bucket is used.
-- **Environments:** staging and prod download from TRUD. Dev has no TRUD key and serves the
-  invented fixture, which the built image does not carry, so a dev run finds no release
-  (`dmd.release.none`) and succeeds. The job runs with `NODE_ENV=production` and reads only its
-  own settings (`loadDmdJobConfig`: its database URL, TRUD and the loader's limits); its
-  `HARBOUR_ENV` marks staging and prod as places where real people work.
+- **Environments:** the job runs with `NODE_ENV=production` and reads only its own settings
+  (`loadDmdJobConfig`: its database URL as `harbour_dmd_job` over verified TLS, TRUD's own host
+  and the loader's limits). Production mode counts as a place where real people work, so the job
+  only ever downloads from TRUD. Staging and prod have the TRUD key, the monthly schedule and the
+  alerts. Dev has no key, no schedule and no dm+d alerts: the job is defined there but a run by
+  hand fails with `trud_unconfigured` until a key is added.
 - **Egress:** the job reaches `isd.digital.nhs.uk` over HTTPS from the environment's NAT addresses.
   The network has no egress firewall, so the job itself refuses any other host, redirects included
   (`TRUD_ALLOWED_HOSTS`; H-1245).

@@ -680,6 +680,12 @@ the real service (H-1240 to H-1243).**
    environment where real people work. There the TRUD adapter is used when `TRUD_API_KEY` is set, and
    otherwise there is no source and the job fails (`trud_unconfigured`). A new environment's name
    therefore fails safe. The invented fixture stays refused outside dev and test databases (rule 1).
+   The deployed job always runs with `NODE_ENV=production` (H-1505), so in every Google Cloud
+   environment it downloads from TRUD or fails; dev has no TRUD key, so the job is not scheduled
+   there and has no dm+d alerts. In production mode its settings are checked on their own
+   (`loadDmdJobConfig`): `DATABASE_DMD_URL` connects as `harbour_dmd_job` to a host that is not
+   loopback with `sslmode` `verify-ca` or `verify-full`, and `TRUD_ALLOWED_HOSTS` lists only
+   TRUD's own host.
 
 **Schema** (migration 0131):
 - the login role `harbour_dmd_job` (created by `db:bootstrap`) receives EXECUTE on the four loader

@@ -286,42 +286,72 @@ describe("the TRUD settings (slice 75)", () => {
 });
 
 describe("the dm+d job's own settings (H-1505)", () => {
-  const DMD_URL = "postgres://harbour_dmd_job:secret@10.0.0.5:5432/harbour?sslmode=verify-ca";
+  const DMD_URL =
+    "postgres://harbour_dmd_job:secret@10.0.0.5:5432/harbour?sslmode=verify-ca&sslrootcert=/secrets/ca.pem";
+  const prod = (env: Record<string, string> = {}) => ({
+    NODE_ENV: "production",
+    DATABASE_DMD_URL: DMD_URL,
+    ...env,
+  });
 
   it("runs in production with only its own settings, none of the API's secrets", () => {
-    const config = loadDmdJobConfig({ NODE_ENV: "production", DATABASE_DMD_URL: DMD_URL });
+    const config = loadDmdJobConfig(
+      prod({
+        BETTER_AUTH_SECRET: "a-real-looking-secret-0123456789abcdef0123",
+        DATABASE_APP_URL: "postgres://harbour_app:x@10.0.0.5:5432/harbour",
+        SYNC_SIGNING_KEY_PEM: "-----BEGIN PRIVATE KEY-----",
+      }),
+    );
     expect(config.NODE_ENV).toBe("production");
     expect(config.DATABASE_DMD_URL).toBe(DMD_URL);
     expect(config.TRUD_DMD_ITEM).toBe(24);
-    expect(Object.keys(config)).not.toContain("BETTER_AUTH_SECRET");
-    expect(() => loadConfig({ NODE_ENV: "production", DATABASE_DMD_URL: DMD_URL })).toThrow();
+    for (const key of ["BETTER_AUTH_SECRET", "DATABASE_APP_URL", "SYNC_SIGNING_KEY_PEM"]) {
+      expect(Object.keys(config)).not.toContain(key);
+    }
+    expect(() => loadConfig(prod())).toThrow();
   });
 
   it.each([
-    ["the local database role in production", { NODE_ENV: "production" }],
+    ["the default local role", { DATABASE_DMD_URL: undefined }],
+    ["an empty database URL", { DATABASE_DMD_URL: "" }],
+    ["a database URL that is not a URL", { DATABASE_DMD_URL: "harbour_dmd_job@db" }],
     [
-      "an address off the allowed hosts",
-      {
-        NODE_ENV: "production",
-        DATABASE_DMD_URL: DMD_URL,
-        TRUD_BASE_URL: "https://example.invalid/t",
-      },
+      "another role",
+      { DATABASE_DMD_URL: "postgres://harbour_worker:x@10.0.0.5:5432/harbour?sslmode=verify-ca" },
     ],
     [
-      "a key with a path in it",
+      "a loopback host",
+      { DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@127.0.0.1:5432/harbour?sslmode=verify-ca" },
+    ],
+    [
+      "TLS that does not verify the server",
+      { DATABASE_DMD_URL: "postgres://harbour_dmd_job:x@10.0.0.5:5432/harbour?sslmode=require" },
+    ],
+    ["plain http to TRUD", { TRUD_BASE_URL: "http://isd.digital.nhs.uk/trud/api/v1" }],
+    ["an address off the allowed hosts", { TRUD_BASE_URL: "https://example.invalid/t" }],
+    [
+      "an overridden host list",
       {
-        NODE_ENV: "production",
-        DATABASE_DMD_URL: DMD_URL,
-        TRUD_API_KEY: "abc/def/0123456789abcdef",
+        TRUD_ALLOWED_HOSTS: "attacker.example",
+        TRUD_BASE_URL: "https://attacker.example/trud/api/v1",
       },
     ],
-  ])("refuses %s", (_case, env) => {
-    expect(() => loadDmdJobConfig(env)).toThrow();
+    ["a key with a path in it", { TRUD_API_KEY: "abc/def/0123456789abcdef" }],
+    ["a limit out of range", { DMD_LOAD_TIMEOUT_MINUTES: "241" }],
+  ])("refuses %s in production", (_case, env) => {
+    // An undefined value removes the variable, so the schema's local default applies.
+    const merged = Object.fromEntries(
+      Object.entries({ ...prod(), ...env }).filter(([, v]) => v !== undefined),
+    );
+    expect(() => loadDmdJobConfig(merged)).toThrow();
+  });
+
+  it("accepts verify-full and a postgresql URL", () => {
+    const url = "postgresql://harbour_dmd_job:x@db.internal:5432/harbour?sslmode=verify-full";
+    expect(loadDmdJobConfig(prod({ DATABASE_DMD_URL: url })).DATABASE_DMD_URL).toBe(url);
   });
 
   it("leaves a missing TRUD key to the job, which logs it and fails", () => {
-    expect(
-      loadDmdJobConfig({ NODE_ENV: "production", DATABASE_DMD_URL: DMD_URL }).TRUD_API_KEY,
-    ).toBeUndefined();
+    expect(loadDmdJobConfig(prod()).TRUD_API_KEY).toBeUndefined();
   });
 });

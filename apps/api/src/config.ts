@@ -9,6 +9,8 @@ import { z } from "zod";
 
 /** The only Google Cloud region personal data may live in (ADR-0098). */
 export const GCP_REGIONS = ["europe-west2"] as const;
+/** TRUD's own host: the only one a production download may reach (slice 75, rule 3). */
+export const TRUD_DEFAULT_HOSTS = ["isd.digital.nhs.uk"] as const;
 
 const GCP_PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 /** A Cloud KMS key in an allowed region: projects/<p>/locations/<region>/keyRings/<r>/cryptoKeys/<k>. */
@@ -108,7 +110,7 @@ const Env = z.object({
   /** Hosts the download may reach, the archive's address and every redirect (comma separated). */
   TRUD_ALLOWED_HOSTS: z
     .string()
-    .default("isd.digital.nhs.uk")
+    .default(TRUD_DEFAULT_HOSTS.join(","))
     .transform((v) =>
       v
         .split(",")
@@ -403,15 +405,46 @@ export function loadDmdJobConfig(env: NodeJS.ProcessEnv = process.env): DmdJobCo
   if (!trudUrlAllowed(parsed.TRUD_BASE_URL, parsed.TRUD_ALLOWED_HOSTS)) {
     throw new Error("TRUD_BASE_URL must be https on one of TRUD_ALLOWED_HOSTS");
   }
-  // In production the job's own role is required; a missing TRUD key is left to the job, which
-  // logs `trud_unconfigured` and exits non-zero so the alert fires (runbook).
-  if (
-    parsed.NODE_ENV === "production" &&
-    parsed.DATABASE_DMD_URL.includes("harbour_dmd_job_local")
-  ) {
-    throw new Error("DATABASE_DMD_URL must be set in production");
+  // A missing TRUD key is left to the job, which logs `trud_unconfigured` and exits non-zero so
+  // the alert fires (runbook).
+  if (parsed.NODE_ENV === "production") {
+    // The host list comes from the same environment, so production accepts TRUD's own host only.
+    const ownHosts: readonly string[] = TRUD_DEFAULT_HOSTS;
+    if (!parsed.TRUD_ALLOWED_HOSTS.every((h) => ownHosts.includes(h))) {
+      throw new Error("TRUD_ALLOWED_HOSTS must list TRUD's own host only in production");
+    }
+    checkDmdDatabaseUrl(parsed.DATABASE_DMD_URL);
   }
   return parsed;
+}
+
+const LOOPBACK = /^(localhost|127(\.\d{1,3}){3}|\[?::1\]?|0\.0\.0\.0)$/i;
+
+/**
+ * In production the job connects as its own role (harbour_dmd_job), to a real database host, over
+ * TLS that verifies the server (security check of PR #179).
+ */
+function checkDmdDatabaseUrl(value: string): void {
+  if (value.trim() === "") throw new Error("DATABASE_DMD_URL must be set in production");
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("DATABASE_DMD_URL must be a postgres URL in production");
+  }
+  if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+    throw new Error("DATABASE_DMD_URL must be a postgres URL in production");
+  }
+  if (decodeURIComponent(url.username) !== "harbour_dmd_job") {
+    throw new Error("DATABASE_DMD_URL must connect as harbour_dmd_job in production");
+  }
+  if (url.hostname === "" || LOOPBACK.test(url.hostname)) {
+    throw new Error("DATABASE_DMD_URL must name the database host in production");
+  }
+  const sslmode = url.searchParams.get("sslmode");
+  if (sslmode !== "verify-ca" && sslmode !== "verify-full") {
+    throw new Error("DATABASE_DMD_URL must use sslmode=verify-ca or verify-full in production");
+  }
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
