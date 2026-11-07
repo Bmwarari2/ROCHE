@@ -74,6 +74,7 @@
 | [HZ-119](#hz-119-expired-competence-does-not-block-administration-or-the-manager-override-becomes-routine) | Expired competence does not block administration, or the manager override becomes routine | Major / Medium / 3 | Major / Very low / 2 now the override report exists (slice 45; engineering proposal; the CSO rates it, H-513 and H-1295) | Open | None (Phase 2) | Phase 2 |
 | [HZ-120](#hz-120-self-administration-or-a-homely-remedy-continued-without-a-current-assessment-or-outside-its-protocol) | Self-administration or a homely remedy continued without a current assessment or outside its protocol | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1350) | Open | None (Phase 2) | Phase 2 (slices 38, 52, 55) |
 | [HZ-121](#hz-121-medicines-not-reconciled-after-admission-transfer-or-return-from-hospital) | Medicines not reconciled after admission, transfer or return from hospital | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
+| [HZ-122](#hz-122-a-printed-mar-or-controlled-drugs-register-export-out-of-date-incomplete-or-taken-for-the-live-record) | A printed MAR or controlled drugs register export out of date, incomplete or taken for the live record | Major / Medium / 3 | Major / Low / 2 (owner-accepted recommendation, pending CSO review at the testing phase; H-1406) | Open | None (Phase 2) | Phase 2 (slices 50, 54) |
 | [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3, then Major / Very low / 2 once the CSO confirms the move (slices 21 and 59 built; H-830, H-960) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 17, 21, 27, 30, 59, 71, 78) |
 | [HZ-125](#hz-125-a-lone-workers-missed-check-in-or-call-for-help-not-escalated-or-a-false-sense-of-safety) | A lone worker's missed check-in or call for help not escalated, or a false sense of safety | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 until the phone reminds the worker offline and offers help from the lock screen (H-1313, H-1314), then for the CSO (engineering proposal; the CSO rates it, H-1030) | Open | None (Phase 2) | Phase 2 (slices 46, 61, 71) |
@@ -869,6 +870,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/web/e2e/homely-remedies.spec.ts`: the person and every allergy beside the homely remedy form, and the giver confirming the comparison | Passing (Phase 2 slice 55) |
 | Design (slice 53): every dose is recorded on its own page with the person's name, date of birth, NHS number, allergy status and every allergy (most severe first) at the top of the form, and the medicine (product, dose, route, indication and instructions) beside it; Harbour never matches them (ADR-0082) | Built in Phase 2 slice 53 |
 | `apps/web/e2e/medicine-round.spec.ts`: the allergies shown beside the medicine on the record-a-dose page | Passing (web journey with axe in CI) (Phase 2 slice 53) |
+| Design (slice 50): the printed MAR chart has an allergy section on its first page: every allergy, most severe first, "No known allergies" with when it was recorded, and "Allergy status not recorded" never shown as none (HZ-122); `apps/api/test/medicines-print.test.ts`: `hazard HZ-007 hazard HZ-122 the chart's lines` | Built and passing (Phase 2 slice 50) |
 
 ---
 
@@ -3595,6 +3597,43 @@ person receiving care.
 | `apps/web/src/lib/medicines.test.ts`: `hazard HZ-121 reconciliation: a person decides every entry and line` (no decision assumed; only offered lines; a stop needs a reason; completion needs allergies compared and the person's involvement); `apps/web/e2e/medicines.spec.ts` (a change reconciled from a source and a line to completion). Two users deciding at once is refused by the version check in `decideReconciliation`; a test with two sessions is a gap (H-1286) | Passing (Phase 2 slice 52); two-session test a gap |
 
 ---
+
+## HZ-122 A printed MAR or controlled drugs register export out of date, incomplete or taken for the live record
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-122 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `medicines` module (lead engineer) |
+| Source | Master prompt 10.2 (MEDS-014); [phase-2.md](../plans/phase-2.md) slices 50 and 54; [medicines.md](../specs/medicines.md) section 17; related to HZ-004 (duplicated administration), HZ-007 (allergies), HZ-021 (downtime) |
+
+**Description**: a printed MAR chart or controlled drugs register page is used in place of the eMAR or the register, after a dose or entry has been recorded since it was printed; or it leaves out a dose, an allergy, a covert mark or a correction; or it cannot be read without knowing the codes.
+
+**Causes**: a print with no printed time, or one that does not say it is not the live record; a chart without the allergy section or with "unknown" shown as none; outcome codes with no key; a dose with no outcome printed as blank rather than in words; a covert dose or a correction not marked; a register page whose corrections are not beside the entries they correct, or whose witnesses are not named.
+
+**Effects**: a dose given twice or missed (HZ-004, HZ-003); an allergy missed (HZ-007); an inspector or the police misled about a controlled drug's history.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The MAR chart is drawn from the eMAR when asked, never stored: one person, one calendar month in UK time; every page names the person and says when it was printed and that it is not the live record; the allergy section lists every allergy, most severe first, and says when the status is not recorded; a key to the codes; every dose by day with its outcome code, the giver's initials, and "covert" and "corrected" marks, and in words when it is past with no outcome, not yet due, or before the entry was recorded; when-required doses as recorded with their amounts; the staff initials named | Phase 2 slice 50 |
+| Design | The controlled drugs register page as a PDF: the heading, every entry in order with its running balance, who recorded and witnessed it (or why no witness), in register order with each correction saying which entry it corrects (a correction of a correction too), and every stock check with its result in words; the printed time and "not the live record" on every page (replaces the plain print view, H-1331) | Phase 2 slice 50 |
+| Design | Both are audited by id only (`medicines.mar.printed`, `medicines.cd.printed`); the web streams them as downloads that are not cached (a downloaded file stays on the device, under the home's policy on printed MARs) | Phase 2 slice 50 |
+| Process | Deployer control: the home's policy on printed MARs (destroyed when replaced; never used to give a dose while the eMAR is available) | Before each real tenant |
+| Test | See Verification | Phase 2 slice 50 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 2** (owner-accepted recommendation, pending CSO review at the testing phase; H-1406).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/medicines-print.test.ts`: `hazard HZ-122 each dose's cell says what the record says, never more` (table-driven), `hazard HZ-007 hazard HZ-122 the chart's lines` (the notice first, allergies most severe first, unknown never as none, the key, time-critical and covert marks, initials), `the month in UK time` (across both clock changes and the year end), `hazard HZ-122 the register page's lines` (corrections under their entries, signatures, stock checks), `hazard HZ-122 hazard HZ-007 the printed MAR through the API` (the notice on every page, audited, another organisation refused) | Passing (Phase 2 slice 50) |
+| `apps/web/src/lib/medicines-print.test.ts`: `hazard HZ-122 the months a MAR chart may be printed for`; `apps/web/e2e/medicines-print.spec.ts`: `hazard HZ-122 hazard HZ-007 the nurse downloads a month's MAR chart as a PDF` (axe, light and dark) | Passing (Phase 2 slice 50) |
 
 ## HZ-123 Staffing below the tenant's assessed need or skill mix without a visible warning
 

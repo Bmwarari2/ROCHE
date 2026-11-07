@@ -305,3 +305,5 @@ The `clinical-safety-reviewer` agent checks the answer against the diff. A "Yes"
 | Obtain a regulatory opinion confirming the validated-tool calculation position (section 5) | Brian |
 | Confirm terms for using NEWS2, MUST and Waterlow in software, and the authoritative Waterlow source | Brian with CSO |
 | Review and approve this boundary statement | CSO |
+
+**Printable MAR chart and controlled drugs register page (Phase 2 slice 50)**: these stay inside the boundary. They print the record as it stands: each dose's outcome as recorded, the reason recorded, when and by whom, the allergies and communication needs as recorded, and the register's entries, signatures and stock checks. They add no score, judgement or recommendation; "no outcome recorded" and "not yet due" describe the record, and every page says it is not the live record and to check the eMAR before giving or holding any medicine.

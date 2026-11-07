@@ -1,10 +1,11 @@
-import { ButtonLink, Card, EmptyState, StatusChip } from "@harbour/ui";
-import { ClipboardList, ListChecks, Pill, Plus, TriangleAlert } from "lucide-react";
+import { Button, ButtonLink, Card, EmptyState, SelectField, StatusChip } from "@harbour/ui";
+import { ClipboardList, ListChecks, Pill, Plus, Printer, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
 import { RecordFrame } from "@/components/care/RecordFrame";
+import { WarningArrival } from "@/components/care/WarningArrival";
 import { StartReconciliationForm } from "@/components/medicines/ReconciliationForms";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
@@ -20,10 +21,12 @@ import {
   medicinesShown,
   reconciliationHref,
 } from "@/lib/medicines";
+import { marPrintHref, printableMonths } from "@/lib/medicines-print";
 import { getPerson, readOrFail } from "@/lib/person-record";
-import { recordMetadata } from "@/lib/record-metadata";
+import { firstParam, recordMetadata } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export async function generateMetadata(): Promise<Metadata> {
   return recordMetadata("medicines");
@@ -35,8 +38,16 @@ export async function generateMetadata(): Promise<Metadata> {
  * words (never rewritten), its dates, and its state as an icon and a word. An entry not yet
  * checked always says so, with the API's notice. Reconciliations due are shown first.
  */
-async function MedicinesTab({ params }: { readonly params: Params }) {
+async function MedicinesTab({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { id } = await params;
+  const print = firstParam((await searchParams).print);
+  const months = printableMonths();
   const { person } = await getPerson(id);
   if (!person) return null;
   const { me } = await getShellContext();
@@ -215,6 +226,31 @@ async function MedicinesTab({ params }: { readonly params: Params }) {
           </ul>
         )}
       </Card>
+      <Card as="section" title={t("medicines.print.title")} headingLevel={3}>
+        {/* A plain GET form: the PDF downloads, so client-side navigation must not take it. */}
+        <form method="get" action={marPrintHref(id)} className="flex flex-col gap-3">
+          <p className="m-0 max-w-prose">{t("medicines.print.about")}</p>
+          {print === "failed" ? (
+            <WarningArrival>{t("medicines.print.failed")}</WarningArrival>
+          ) : null}
+          <SelectField
+            id="mar-month"
+            name="month"
+            label={t("medicines.print.month")}
+            defaultValue={months[0]?.value ?? ""}
+            options={months}
+          />
+          <div>
+            <Button
+              type="submit"
+              variant="secondary"
+              icon={<Printer size={18} strokeWidth={1.5} aria-hidden="true" />}
+            >
+              {t("medicines.print.submit")}
+            </Button>
+          </div>
+        </form>
+      </Card>
       {writer && !data.openReconciliationId ? (
         <Card as="section" title={t("medicines.rec.changeTitle")} headingLevel={3}>
           <div className="flex flex-col gap-3">
@@ -232,7 +268,10 @@ async function MedicinesTab({ params }: { readonly params: Params }) {
   );
 }
 
-export default async function MedicinesPage(props: { readonly params: Params }) {
+export default async function MedicinesPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { id } = await props.params;
   return (
     <RecordFrame personId={id} tab="medicines">

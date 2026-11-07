@@ -196,6 +196,10 @@ batch 3b; no migration): the home's and a person's medicines round, recording a 
 with the person and allergies beside the medicine, when-required medicines with when last given, and
 the covert record beside the medicine. Next: slice 55 (stock, homely remedies, errors), then 50.
 
+**Phase 2 slice 50, printable MAR and register page** (`feat/meds-printable-mar`, MEDS-014, from
+batch 3b; no migration): the MAR chart for a month and a controlled drugs register page as PDFs, each
+with the printed time and "not the live record" on every page (HZ-122, new; HZ-007).
+
 **Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
 recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
 H-213, H-214, H-262, H-264 (migration 0118), H-267, H-269, H-270, H-381, H-410, H-420, H-481,

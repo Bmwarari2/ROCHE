@@ -8012,6 +8012,13 @@
     "medicines.round.title",
     "medicines.round.unitUnknown",
     "medicines.round.workedOutAt",
-    "shell.nav.medicinesRound"
+    "shell.nav.medicinesRound",
+    "cd.print.failed",
+    "cd.print.pdf",
+    "medicines.print.about",
+    "medicines.print.failed",
+    "medicines.print.month",
+    "medicines.print.submit",
+    "medicines.print.title"
   ]
 }

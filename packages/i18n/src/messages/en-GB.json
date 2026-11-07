@@ -7646,7 +7646,7 @@
   "cd.page.policy": "{policy, select, required {Every entry needs a witness.} other {Every entry needs a witness where one is available. If you work alone, say why there is none: it is flagged for review. A destruction always needs a witness.}}",
   "cd.page.entries": "Entries",
   "cd.page.checks": "Stock counts",
-  "cd.print.open": "Print this page",
+  "cd.print.open": "Print this page from the browser",
   "cd.print.title": "Controlled drugs register page",
   "cd.print.heading": "Controlled drugs register: {product}",
   "cd.print.person": "For {name}, born {born}, NHS number {nhs}",
@@ -8011,5 +8011,12 @@
   "medicines.round.title": "Medicines round",
   "medicines.round.unitUnknown": "The unit for this dose is not known, so it cannot be recorded as given here. Check the medicine's entry with the nurse in charge.",
   "medicines.round.workedOutAt": "Worked out at {at}. Reload the page before giving a dose if it has been open a while.",
-  "shell.nav.medicinesRound": "Medicines round"
+  "shell.nav.medicinesRound": "Medicines round",
+  "cd.print.failed": "The register page could not be made just now. Try again in a moment.",
+  "cd.print.pdf": "Download the register page (PDF)",
+  "medicines.print.about": "A PDF of one month's MAR chart, with the allergies, a key to the codes and every dose. It says when it was printed and that it is not the live record.",
+  "medicines.print.failed": "The MAR chart could not be made just now. Try again in a moment.",
+  "medicines.print.month": "Month",
+  "medicines.print.submit": "Download the MAR chart (PDF)",
+  "medicines.print.title": "Print the MAR chart"
 }
