@@ -34,13 +34,19 @@ Care are for nurses and managers.
 - It sets urgent tasks for nurses and managers, **Give the police the Herbert Protocol profile**
   and **Keep the missing person search log**, and a task **Check welfare on return** for when the
   person comes back.
+- On the incident page, a nurse or manager chooses **Record the missing person episode for**
+  the person's name. This works for a **Missing person** incident and for a **Left without
+  agreement** incident, for the person affected. Opening the episode starts the police call
+  target: an urgent task to call the police by that time, and, if the risk assessment says call at
+  once, an alert to the clinical leads and team leaders on site. The episode page keeps the
+  timeline (last seen, search, sightings, police called with their reference, found, welfare
+  check, debrief).
 
 ## Good to know
 
-- The Herbert Protocol profile (photograph, description, places they may go, routines), the
-  missing person timeline (last seen, search, sightings, police reference, found, welfare check,
-  debrief) and the reminder to call the police have **no web screen yet**. Keep the search log as
-  your procedure says, and give the police the profile your home keeps.
+- If you are worried, call the police straight away. The target is your organisation's, never a
+  reason to wait.
+- The person's Herbert Protocol profile is on the **Herbert Protocol** tab of their record.
 - If the person is under a Deprivation of Liberty Safeguards authorisation or the Mental Health
   Act, a manager may need to notify the Care Quality Commission. Thapsus Care never notifies anyone
   itself.

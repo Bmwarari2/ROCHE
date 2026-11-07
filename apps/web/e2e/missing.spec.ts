@@ -152,10 +152,12 @@ test("HZ-127 an absconding incident opens a missing person episode from the inci
   const incident = (await recorded.json()) as { id: string };
 
   await page.goto(`/incidents/${incident.id}`);
-  await page
-    .getByRole("link", { name: /missing person episode/i })
-    .first()
-    .click();
+  // One link, for the person affected, naming them; the incident page passes axe with it.
+  const link = page.getByRole("link", { name: /^Record the missing person episode for / });
+  await expect(link).toHaveCount(1);
+  await expect(link).toHaveAttribute("href", new RegExp(`person=${person}$`));
+  await accessibleInBothThemes(page, "absconding incident with the episode link");
+  await link.click();
   await page.waitForURL(/\/missing\/new\?/);
   await fillWhen(page, "When they were noticed missing", noticed);
   await page

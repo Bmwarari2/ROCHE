@@ -2,9 +2,9 @@ import type { Translator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
   kindsFor,
+  missingEpisodeSubjects,
   missingShown,
   missingStatusChip,
-  opensMissingEpisode,
   policeCallChip,
   policeCallState,
   prefillSources,
@@ -223,16 +223,31 @@ describe("missing persons", () => {
 });
 
 describe("opening an episode from its incident", () => {
-  it.each([
-    ["missing_person", true],
-    ["absconding", true],
-    ["fall", false],
-    ["medication", false],
-  ])("hazard HZ-127 offers it on a %s incident: %s", (type, offered) => {
-    expect(opensMissingEpisode(type, ["safety.incident.report"])).toBe(offered);
+  const AFFECTED = "0199f000-0000-7000-8000-0000000000c1";
+  const WITNESS = "0199f000-0000-7000-8000-0000000000c2";
+  const REPORT = ["safety.incident.report"];
+  const incidentOf = (type: string, status = "open") => ({
+    type,
+    status,
+    people: [
+      { kind: "service_user", role: "affected", personId: AFFECTED },
+      { kind: "service_user", role: "witness", personId: WITNESS },
+      { kind: "staff", role: "affected", personId: null },
+    ],
   });
 
-  it("hazard HZ-127 offers it only to whoever may report incidents (the API's check)", () => {
-    expect(opensMissingEpisode("absconding", ["safety.incident.read"])).toBe(false);
+  it.each([
+    ["missing_person", [AFFECTED]],
+    ["absconding", [AFFECTED]],
+    ["fall", []],
+    ["medication", []],
+  ])("hazard HZ-127 offers it on a %s incident for the person affected only", (type, offered) => {
+    expect(missingEpisodeSubjects(incidentOf(type), REPORT)).toEqual(offered);
+  });
+
+  it("hazard HZ-127 never offers it for a witness, on a closed incident, or without report", () => {
+    expect(missingEpisodeSubjects(incidentOf("absconding"), REPORT)).not.toContain(WITNESS);
+    expect(missingEpisodeSubjects(incidentOf("absconding", "closed"), REPORT)).toEqual([]);
+    expect(missingEpisodeSubjects(incidentOf("absconding"), ["safety.incident.read"])).toEqual([]);
   });
 });

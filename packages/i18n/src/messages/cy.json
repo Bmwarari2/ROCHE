@@ -2918,7 +2918,7 @@
   "missing.title": "Missing persons",
   "missing.description": "People missing or recently found, still missing first. The police call target comes first on each.",
   "missing.empty": "Nobody is missing",
-  "missing.emptyHint": "An episode is opened from its missing person incident.",
+  "missing.emptyHint": "An episode is opened from its missing person or left without agreement incident.",
   "missing.truncated": "Only the newest episodes are listed. Older closed episodes are not shown.",
   "missing.itemTitle": "{name} is missing",
   "missing.itemTitleHidden": "Missing person not in your scope",

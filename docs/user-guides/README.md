@@ -143,8 +143,8 @@ QUAL-009, INSI-001, INTG-011 and the MOB rows. Write each guide with its screen.
 
 **Phase 2 safety, quality and platform rows with no guide yet** (slice 83), because their screens
 are still to come: SAFE-013 (outbreaks and IPC; screens in slice 63) and SAFE-016 (coroner, police
-and solicitor disclosures; H-829). The death record, its steps and the mortality review, the
-missing person episode and the Herbert Protocol profile have no screens yet either: their guides
-say what does exist today.
+and solicitor disclosures; H-829). The death record, its steps and the mortality review have
+no screens yet either: their guides say what does exist today. The missing person episode and the
+Herbert Protocol profile have screens (slice 63), in the missing person guide.
 
 The scripted Phase 1 demonstration is in [docs/demo/phase-1-walkthrough.md](../demo/phase-1-walkthrough.md).
