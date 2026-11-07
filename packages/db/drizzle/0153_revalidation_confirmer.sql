@@ -1,0 +1,3 @@
+ALTER TABLE "revalidation_evidence" ADD COLUMN "confirmer_id" uuid;--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD CONSTRAINT "revalidation_evidence_confirmer_fk" FOREIGN KEY ("tenant_id","confirmer_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "revalidation_evidence" ADD CONSTRAINT "revalidation_evidence_confirmer" CHECK (confirmer_id IS DISTINCT FROM worker_id);

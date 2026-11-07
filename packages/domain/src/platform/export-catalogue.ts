@@ -9599,6 +9599,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       reviewed_by: { description: "Who reviewed it in HR (tenant_user.id)." },
       reviewed_at: { description: "When it was reviewed (UTC)." },
+      confirmer_id: {
+        description:
+          "Who is to confirm this cycle, named by HR; only they record the confirmation (tenant_user.id).",
+      },
       confirmed_by: {
         description: "The confirmer, in their own name and never the nurse (tenant_user.id).",
       },

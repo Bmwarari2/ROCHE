@@ -39,6 +39,7 @@ import {
   inductionState,
   type LeaverItemKind,
   leaverState,
+  mayRecordStandardStep,
   type ProbationOutcome,
   resolveRate,
   type StandardProgress,
@@ -83,8 +84,9 @@ import { audit, dbCode } from "./people-shared";
  * Induction, the Care Certificate and leavers (workforce.md section 2e, rules 19 to 23 and
  * section 5; WORK-004, WORK-013; plan slice 29). Read with workforce.staff_file.read (or the
  * worker's own with workforce.self.read); written with .manage, never on one's own file; Care
- * Certificate observations by holders of workforce.competence.observe. The database enforces the
- * same (migration 0091). Audit events carry opaque ids and codes only: never notes, the exit
+ * Certificate observations only by holders of workforce.competence.observe, which needs no staff
+ * file permission (the knowledge assessment by them or by .manage). The database enforces the
+ * same (migrations 0091 and 0154). Audit events carry opaque ids and codes only: never notes, the exit
  * interview summary or a requester's name.
  */
 
@@ -100,6 +102,7 @@ const A = {
   review: "workforce.induction.probation_review",
   probation: "workforce.induction.probation_decided",
   careCertificate: "workforce.care_certificate.recorded",
+  careCertificateViewed: "workforce.care_certificate.viewed",
   leavingViewed: "workforce.leaving.viewed",
   leaving: "workforce.leaving.recorded",
   leaverTicked: "workforce.leaving.item_ticked",
@@ -111,6 +114,7 @@ const A = {
 const SOURCE = "staff_profile";
 
 const FileParam = z.object({ id: z.uuid() });
+const MemberParam = z.object({ memberId: z.uuid() });
 const InductionItemParam = z.object({
   id: z.uuid(),
   kind: z.enum([
@@ -824,12 +828,48 @@ export const inductionRouter = createRouter()
   )
   .openapi(
     createRoute({
+      method: "get",
+      path: "/v1/workforce/members/{memberId}/care-certificate",
+      tags: ["workforce"],
+      summary: "A member's Care Certificate",
+      description:
+        "workforce.staff_file.read, workforce.staff_file.manage or workforce.competence.observe. The Care Certificate alone, with the staff file's id to record against, so an observer (a team leader or clinical lead) can find and observe it without any staff file permission; 404 when the member has no staff file. Audited.",
+      security,
+      request: { params: MemberParam },
+      responses: {
+        200: jsonBody(CareCertificateView, "The Care Certificate"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const { memberId } = c.req.valid("param");
+      const access = await requireAnyPermission(c, [READ, MANAGE, OBSERVE]);
+      const view = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          // An observer may not read staff profiles: the database names the member's file.
+          const found = await tx.execute<{ id: string | null }>(
+            sql`SELECT app.care_certificate_profile(${memberId}::uuid) AS id`,
+          );
+          const profileId = found.rows[0]?.id ?? null;
+          if (!profileId) {
+            throw refused(problems.notFound(), A.careCertificateViewed, memberId, "not_found");
+          }
+          await auditFile(c, tx, access, A.careCertificateViewed, profileId);
+          return careCertificateView(tx, profileId);
+        }),
+      );
+      return c.json(view, 200);
+    },
+  )
+  .openapi(
+    createRoute({
       method: "put",
       path: "/v1/workforce/staff-files/{id}/care-certificate/{standardId}",
       tags: ["workforce"],
       summary: "Record a Care Certificate standard's assessment or observation",
       description:
-        "workforce.staff_file.manage or workforce.competence.observe, never on one's own file, in the caller's own name: the knowledge assessment, then the observation in practice (observers only). Audited.",
+        "Never on one's own file, in the caller's own name: the knowledge assessment (workforce.staff_file.manage or workforce.competence.observe), then the observation in practice (workforce.competence.observe only; no staff file permission needed). Audited.",
       security,
       request: {
         params: StandardParam,
@@ -844,9 +884,18 @@ export const inductionRouter = createRouter()
     async (c) => {
       const { id, standardId } = c.req.valid("param");
       const body = c.req.valid("json");
-      const access = await requireAnyPermission(c, [MANAGE, OBSERVE]);
-      const observes = refusalOf(access, OBSERVE) === null;
+      // The observation needs the permission meant for observing competence, and only that
+      // (rule 20); the knowledge assessment is also the staff file's.
+      const access = await requireAnyPermission(
+        c,
+        body.step === "observation" ? [OBSERVE] : [MANAGE, OBSERVE],
+      );
+      const usable = ([MANAGE, OBSERVE] as const).filter((p) => refusalOf(access, p) === null);
+      const observes = mayRecordStandardStep(usable, "observation");
       const detail = await change(c, access, A.careCertificate, id, async (tx) => {
+        if (!mayRecordStandardStep(usable, body.step)) {
+          throw refused(problems.forbidden(), A.careCertificate, id, "not_an_observer");
+        }
         // An assessor may not read the staff file: the database tells only whether it is theirs.
         const worker = await tx.execute<{ id: string | null }>(
           sql`SELECT app.staff_profile_worker(${id}::uuid) AS id`,

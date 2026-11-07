@@ -2,6 +2,7 @@ import {
   ALL_CASE_OUTCOMES,
   APPEAL_OUTCOMES,
   APPLICATION_STAGES,
+  builtinRole,
   CASE_CLOSING_REASONS,
   CASE_MEMBER_ROLES,
   CASE_STAGES,
@@ -32,6 +33,7 @@ import enGB from "@harbour/i18n/messages/en-GB.json";
 import { describe, expect, it } from "vitest";
 import {
   CASEWORK,
+  careCertificateActions,
   caseStageChip,
   caseworkShown,
   checklistChip,
@@ -127,6 +129,23 @@ describe("who is offered which screen", () => {
 
   it("never offers employee relations for staff file or recruitment alone (the silo)", () => {
     expect(caseworkShown([RECRUITMENT, STAFF_FILE_READ, STAFF_FILE_MANAGE])).toBe(false);
+  });
+});
+
+describe("who is offered a Care Certificate step (rule 20)", () => {
+  const roles = (key: string) => builtinRole(key)?.permissions ?? [];
+  // The observation needs only workforce.competence.observe: team leaders and clinical leads
+  // are offered it without any staff file permission.
+  it.each([
+    ["team leader", roles("team_leader"), false, { assess: true, observe: true }],
+    ["clinical lead", roles("clinical_lead"), false, { assess: true, observe: true }],
+    ["HR", roles("hr"), false, { assess: true, observe: true }],
+    ["staff file manage alone", [STAFF_FILE_MANAGE], false, { assess: true, observe: false }],
+    ["staff file read alone", [STAFF_FILE_READ], false, { assess: false, observe: false }],
+    ["care worker", roles("care_worker"), false, { assess: false, observe: false }],
+    ["anyone on their own file", roles("hr"), true, { assess: false, observe: false }],
+  ] as const)("%s", (_name, permissions, own, expected) => {
+    expect(careCertificateActions(permissions, own)).toEqual(expected);
   });
 });
 
