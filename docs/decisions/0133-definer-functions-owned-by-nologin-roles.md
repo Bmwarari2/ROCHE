@@ -118,5 +118,5 @@ row-level security applies to that role.
 
 ## More information
 
-Migration `packages/db/drizzle/0154_definer_owners.sql`; roles in `packages/db/src/admin/roles.ts`;
+Migration `packages/db/drizzle/0151_definer_owners.sql`; roles in `packages/db/src/admin/roles.ts`;
 human actions H-1491 to H-1497.
