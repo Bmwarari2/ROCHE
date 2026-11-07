@@ -32,6 +32,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## User guides: medicines (07/11/2026)
+
+`docs/guides-medicines` (Phase 2 slice 81), from `main` at b65e7b61: 24 web guides for slices 50
+and 52 to 55, for the care worker, nurse and Registered Manager, linked from the indexes and the
+register. The 7 phone guides for slices 69 and 70 wait on `docs/guides-medicines-phone` until
+`feat/mobile-meds-cd-offline` and its fixes merge. Gaps and findings: `docs/changelog-dev/2026-11-07-docs-guides-medicines.md`.
+
 ## Product rename: Thapsus Care (07/11/2026)
 
 `docs/rename-plan-thapsus-care`, from `main` at 17a5dbbe (after batch 4, #180): ADR-0127 (accepted)
