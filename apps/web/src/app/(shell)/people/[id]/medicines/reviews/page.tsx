@@ -53,7 +53,10 @@ async function PersonReviews({
   });
   const data = readOrFail(read, personReviewsHref(id));
   if (!data) return <NoAccess />;
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  // Each arrival starts the forms afresh: no last answer, its "booked" or an open change form.
+  const at = firstParam(query.at) ?? "first";
   const tracker = reviewChip(data.tracker.status, data.tracker.statusWords);
   const date = (iso: string | null) => formatDate(iso) ?? t("medicines.errors.noneRecorded");
 
@@ -64,7 +67,7 @@ async function PersonReviews({
         <p className="m-0 max-w-prose text-text-secondary">{t("medicines.errors.review.intro")}</p>
       </div>
       {done && (DONE as readonly string[]).includes(done) ? (
-        <ArrivalNotice>{t("medicines.errors.review.done", { done })}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.errors.review.done", { done })}</ArrivalNotice>
       ) : null}
       <Card as="section" title={t("medicines.errors.review.where")} headingLevel={3}>
         <div className="flex flex-col gap-2">
@@ -96,7 +99,7 @@ async function PersonReviews({
         </div>
       </Card>
       <Card as="section" title={t("medicines.errors.review.scheduleTitle")} headingLevel={3}>
-        <ScheduleReviewForm personId={id} />
+        <ScheduleReviewForm key={at} personId={id} />
       </Card>
       <Card as="section" title={t("medicines.errors.review.list")} headingLevel={3}>
         {data.reviews.length === 0 ? (
@@ -153,7 +156,7 @@ async function PersonReviews({
                       </dd>
                     </dl>
                   ) : null}
-                  <details className="flex flex-col gap-3">
+                  <details key={at} className="flex flex-col gap-3">
                     <summary className="inline-flex min-h-target cursor-pointer items-center underline">
                       {t("medicines.errors.review.changeSummary", {
                         state: review.doneOn ? "done" : "booked",

@@ -87,7 +87,10 @@ async function StockItemTab({
         .map((m) => ({ id: m.id, name: m.displayName }))
     : null;
   const below = balanceChip(item.balance, t);
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  // Each arrival starts the forms afresh, without the last one's answers or its "recorded".
+  const at = firstParam(query.at) ?? "first";
   const when = (iso: string) => formatDateTime(iso) ?? "";
   const names = new Map((witnesses ?? []).map((w) => [w.id, w.name]));
   const who = (memberId: string) =>
@@ -109,7 +112,7 @@ async function StockItemTab({
         </p>
       </div>
       {done && (DONE as readonly string[]).includes(done) ? (
-        <ArrivalNotice>{t("medicines.stock.itemArrived", { done })}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.stock.itemArrived", { done })}</ArrivalNotice>
       ) : null}
       <Card as="section" title={t("medicines.stock.movements")} headingLevel={3}>
         {item.movements.length === 0 ? (
@@ -155,10 +158,17 @@ async function StockItemTab({
       {manage ? (
         <>
           <Card as="section" title={t("medicines.stock.receipt.title")} headingLevel={3}>
-            <ReceiptForm personId={id} itemId={item.id} unitName={item.unitName} lines={lines} />
+            <ReceiptForm
+              key={at}
+              personId={id}
+              itemId={item.id}
+              unitName={item.unitName}
+              lines={lines}
+            />
           </Card>
           <Card as="section" title={t("medicines.stock.count.title")} headingLevel={3}>
             <CountForm
+              key={at}
               personId={id}
               itemId={item.id}
               unitName={item.unitName}
@@ -166,10 +176,11 @@ async function StockItemTab({
             />
           </Card>
           <Card as="section" title={t("medicines.stock.return.title")} headingLevel={3}>
-            <ReturnForm personId={id} itemId={item.id} unitName={item.unitName} />
+            <ReturnForm key={at} personId={id} itemId={item.id} unitName={item.unitName} />
           </Card>
           <Card as="section" title={t("medicines.stock.disposal.title")} headingLevel={3}>
             <DisposalForm
+              key={at}
               personId={id}
               itemId={item.id}
               unitName={item.unitName}

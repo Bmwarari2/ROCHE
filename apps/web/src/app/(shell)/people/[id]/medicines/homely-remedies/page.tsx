@@ -64,7 +64,9 @@ async function PersonHomely({
   const mayGive = reaching.includes(HOMELY_GIVER);
   const usable = usableProtocols(protocols.data?.items ?? []);
   const rows = doseRows(data.items);
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  const at = firstParam(query.at) ?? "first";
   const when = (iso: string) => formatDateTime(iso) ?? "";
 
   return (
@@ -74,9 +76,9 @@ async function PersonHomely({
         <p className="m-0 max-w-prose text-text-secondary">{t("medicines.homely.personIntro")}</p>
       </div>
       {done === "recorded" ? (
-        <ArrivalNotice>{t("medicines.homely.dose.done")}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.homely.dose.done")}</ArrivalNotice>
       ) : done === "marked" ? (
-        <ArrivalNotice>{t("medicines.homely.error.done")}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.homely.error.done")}</ArrivalNotice>
       ) : null}
       {mayGive ? (
         <Card as="section" title={t("medicines.homely.dose.title")} headingLevel={3}>
@@ -93,6 +95,8 @@ async function PersonHomely({
             </div>
           ) : (
             <HomelyDoseForm
+              // Each arrival starts a fresh form, not the last dose's check and its "recorded".
+              key={at}
               personId={id}
               protocols={usable}
               recordId={randomUUID()}

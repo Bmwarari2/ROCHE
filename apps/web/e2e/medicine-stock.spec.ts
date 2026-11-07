@@ -64,6 +64,14 @@ async function freeResident(request: APIRequestContext): Promise<string> {
   throw new Error("No demo resident has an empty MAR: reseed the database");
 }
 
+/** The name the order groups a resident's medicines under. */
+async function fullName(request: APIRequestContext, person: string): Promise<string> {
+  const r = await request.get(`${API_URL}/v1/people/${person}`, { headers });
+  expect(r.ok()).toBe(true);
+  const body = (await r.json()) as { givenName: string; familyName: string };
+  return `${body.givenName} ${body.familyName}`.trim();
+}
+
 async function transcribe(request: APIRequestContext, person: string): Promise<string> {
   const found = await request.get(`${API_URL}/v1/medicines/products?q=paracetamol`, { headers });
   expect(found.ok()).toBe(true);
@@ -186,7 +194,11 @@ test("hazard HZ-132 hazard HZ-003 the manager orders, receives, counts and dispo
   await lines.getByRole("button", { name: "Start order" }).click();
   await expect(lines.getByText("Enter a quantity for at least one medicine").first()).toBeVisible();
   await bothThemes(manager, "a new order with errors");
-  await lines.getByLabel(`${product}, quantity in tablet`).fill("56");
+  // Each resident's medicines are grouped under their name; earlier runs leave others to order.
+  await lines
+    .getByRole("group", { name: await fullName(manager.request, person), exact: true })
+    .getByLabel(`${product}, quantity in tablet`)
+    .fill("56");
   await bothThemes(manager, "a new order");
   await lines.getByRole("button", { name: "Start order" }).click();
   await manager.waitForURL(/\/orders\/[0-9a-f-]{36}\?done=created/);
@@ -243,7 +255,7 @@ test("hazard HZ-132 hazard HZ-003 the manager orders, receives, counts and dispo
   await disposal.getByRole("button", { name: "Record disposal" }).click();
   await expect(main(manager).getByRole("alert")).toBeFocused();
   await bothThemes(manager, "a disposal with errors");
-  await disposal.getByLabel("Witness").selectOption({ label: "Nell Nurse" });
+  await disposal.getByLabel("Witness", { exact: true }).selectOption({ label: "Nell Nurse" });
   await disposal.getByRole("button", { name: "Record disposal" }).click();
   await manager.waitForURL(/done=disposed_awaiting/);
   await expect(main(manager).getByRole("status").first()).toContainText(

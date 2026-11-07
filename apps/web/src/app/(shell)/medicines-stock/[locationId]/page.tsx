@@ -63,7 +63,10 @@ export default async function MedicinesStockPage({
   if (!orders.data) failWith(orders.error, orders.response, locationStockHref(locationId));
   if (!storage.data) failWith(storage.error, storage.response, locationStockHref(locationId));
   const manage = stockManaged(me.permissions);
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  // Each arrival starts the forms afresh, without the last one's answers or its "saved".
+  const at = firstParam(query.at) ?? "first";
   const day = (iso: string | null) => formatDate(iso) ?? "";
 
   return (
@@ -78,7 +81,7 @@ export default async function MedicinesStockPage({
         </Link>
       </p>
       {done === "cycle" || done === "storage" ? (
-        <ArrivalNotice>{t("medicines.stock.arrived", { done })}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.stock.arrived", { done })}</ArrivalNotice>
       ) : null}
 
       <Card as="section" title={t("medicines.stock.cycle.title")} headingLevel={2}>
@@ -101,6 +104,7 @@ export default async function MedicinesStockPage({
           )}
           {manage ? (
             <CycleForm
+              key={at}
               locationId={locationId}
               anchorOn={cycle.data.anchorOn}
               version={cycle.data.version}
@@ -194,7 +198,7 @@ export default async function MedicinesStockPage({
           {manage ? (
             <div className="flex flex-col gap-2">
               <h3 className="m-0 text-body font-semibold">{t("medicines.stock.storage.add")}</h3>
-              <AddStorageForm locationId={locationId} />
+              <AddStorageForm key={at} locationId={locationId} />
             </div>
           ) : null}
         </div>

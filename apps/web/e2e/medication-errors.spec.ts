@@ -23,8 +23,14 @@ test.describe.configure({ mode: "serial" });
 
 const main = (page: Page) => page.getByRole("main");
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
-const arrived = (page: Page, words: string) =>
-  expect(page.getByRole("status").getByText(words, { exact: true })).toBeVisible();
+/**
+ * The page the form went to, then its notice. The form says the same words before it goes, so the
+ * address is awaited first: acting on the old page loses the next step when the new one arrives.
+ */
+async function arrived(page: Page, done: string, words: string) {
+  await page.waitForURL(new RegExp(`[?&]done=${done}(&|$)`));
+  await expect(page.getByRole("status").getByText(words, { exact: true })).toBeVisible();
+}
 
 async function bothThemes(page: Page, name: string) {
   await expectAccessible(page, `${name} (light)`);
@@ -43,6 +49,12 @@ function ukDate(days: number): Record<"day" | "month" | "year", string> {
   }).formatToParts(new Date(Date.now() + days * 86_400_000));
   const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return { day: part("day"), month: part("month"), year: part("year") };
+}
+
+/** A UK date some days from today, as the page shows it (dd/mm/yyyy). */
+function ukShown(days: number): string {
+  const { day, month, year } = ukDate(days);
+  return `${day.padStart(2, "0")}/${month.padStart(2, "0")}/${year}`;
 }
 
 /** The UK date and time some minutes ago, for the date and time boxes. */
@@ -108,7 +120,7 @@ test("hazard HZ-134 hazard HZ-003 the manager records a medication error and its
   // An omitted dose answered as not reaching the person is said at its field (HZ-003).
   await main(page).getByRole("checkbox", { name: "Dose omitted" }).check();
   const reached = main(page).getByRole("group", { name: "Did it reach the person?" });
-  await reached.getByRole("radio", { name: "No" }).check();
+  await reached.getByRole("radio", { name: "No", exact: true }).check();
   await main(page).getByRole("button", { name: "Record the details" }).click();
   await expect(
     main(page)
@@ -117,9 +129,9 @@ test("hazard HZ-134 hazard HZ-003 the manager records a medication error and its
   ).toBeVisible();
   await bothThemes(page, "the medication error form with an error");
 
-  await reached.getByRole("radio", { name: "Yes" }).check();
+  await reached.getByRole("radio", { name: "Yes", exact: true }).check();
   await main(page).getByRole("button", { name: "Record the details" }).click();
-  await arrived(page, "Medication error details recorded");
+  await arrived(page, "added", "Medication error details recorded");
   const todo = region(page, "What is still to do");
   await expect(todo.getByText("Get clinical advice")).toBeVisible();
   await expect(todo.getByText("Consider safeguarding")).toBeVisible();
@@ -132,7 +144,7 @@ test("hazard HZ-134 hazard HZ-003 the manager records a medication error and its
   await fillDate(page, "When they were told", ukDateTime(30));
   await main(page).getByLabel("Their advice").fill("Give the dose now and observe.");
   await main(page).getByRole("button", { name: "Save the changes" }).click();
-  await arrived(page, "Medication error details changed");
+  await arrived(page, "changed", "Medication error details changed");
   await expect(region(page, "What is still to do").getByText("Get clinical advice")).toHaveCount(0);
   await expect(region(page, "What was recorded").getByText("Out-of-hours GP")).toBeVisible();
 });
@@ -153,33 +165,37 @@ test("hazard HZ-134 the manager books, moves and records a medication review", a
 
   await fillDate(page, "Date the review is due", ukDate(40));
   await main(page).getByRole("button", { name: "Book the review" }).click();
-  await arrived(page, "Review booked");
+  await arrived(page, "scheduled", "Review booked");
 
-  // Move it, with a reason.
+  // Move it, with a reason. Earlier runs leave their reviews here too, so each step works inside
+  // this run's review only.
   const reviews = region(page, "Reviews");
-  await reviews
-    .getByText(/^Record, move or cancel the review due on/)
-    .first()
-    .click();
-  await reviews.getByRole("radio", { name: "Move it to another date" }).first().check();
+  const booked = reviews
+    .getByRole("listitem")
+    .filter({ hasText: `Record, move or cancel the review due on ${ukShown(40)}` })
+    .first();
+  await booked.getByText(/^Record, move or cancel the review due on/).click();
+  await booked.getByRole("radio", { name: "Move it to another date" }).check();
   await fillDate(page, "New date it is due", ukDate(45));
-  await reviews.getByLabel("Why is it moving?").fill(`The GP is away that week (${RUN}).`);
-  await reviews.getByRole("button", { name: "Move the review" }).click();
-  await arrived(page, "Review moved");
+  await booked.getByLabel("Why is it moving?").fill(`The GP is away that week (${RUN}).`);
+  await booked.getByRole("button", { name: "Move the review" }).click();
+  await arrived(page, "reschedule", "Review moved");
 
   // Record it done, in the clinician's words.
-  await reviews
-    .getByText(/^Record, move or cancel the review due on/)
-    .first()
-    .click();
-  await reviews.getByRole("radio", { name: "Record it as done" }).first().check();
+  const moved = reviews.getByRole("listitem").filter({ hasText: `(${RUN})` });
+  await expect(moved).toContainText(`Due on ${ukShown(45)}`);
+  await moved.getByText(/^Record, move or cancel the review due on/).click();
+  await moved.getByRole("radio", { name: "Record it as done" }).check();
   await fillDate(page, "Date it was done", ukDate(0));
-  await reviews.getByLabel("Clinician", { exact: true }).fill("Dr Ada Example");
-  await reviews.getByLabel("Their role").selectOption("gp");
-  await reviews.getByLabel("Outcome").fill("No changes to the medicines.");
-  await reviews.getByRole("button", { name: "Record the review" }).click();
-  await arrived(page, "Review recorded as done");
-  await expect(region(page, "Reviews").getByText("No changes to the medicines.")).toBeVisible();
+  await moved.getByLabel("Clinician", { exact: true }).fill("Dr Ada Example");
+  await moved.getByLabel("Their role").selectOption("gp");
+  await moved.getByLabel("Outcome").fill(`No changes to the medicines (${RUN}).`);
+  await moved.getByRole("button", { name: "Record the review" }).click();
+  await arrived(page, "recorded", "Review recorded as done");
+  // The outcome as recorded; the closed form that corrects it starts from the same words.
+  await expect(
+    reviews.getByRole("definition").getByText(`No changes to the medicines (${RUN}).`),
+  ).toBeVisible();
   await bothThemes(page, "a person's medication reviews with one done");
 });
 

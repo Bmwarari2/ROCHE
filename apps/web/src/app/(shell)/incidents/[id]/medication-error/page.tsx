@@ -56,6 +56,8 @@ export default async function MedicationErrorPage({
   if (!isUuid(id)) notFound();
   const query = await searchParams;
   const done = firstParam(query.done);
+  // Each arrival starts the form afresh from what is recorded, without the last "recorded".
+  const at = firstParam(query.at) ?? "first";
   const chosen = firstParam(query.person);
   const { me } = await getShellContext();
   const title = t("medicines.errors.title");
@@ -212,6 +214,7 @@ export default async function MedicationErrorPage({
         headingLevel={2}
       >
         <MedicationErrorForm
+          key={at}
           incidentId={id}
           occurredAt={incident.occurredAt}
           people={[{ value: formPerson, label: nameOf(formPerson) }]}
@@ -226,7 +229,7 @@ export default async function MedicationErrorPage({
   return page(
     <>
       {done === "added" || done === "changed" ? (
-        <ArrivalNotice>{t("medicines.errors.done", { done })}</ArrivalNotice>
+        <ArrivalNotice key={at}>{t("medicines.errors.done", { done })}</ArrivalNotice>
       ) : null}
       {closed ? (
         <Notice icon={<Lock {...iconProps} />} title={t("medicines.errors.closed")} />

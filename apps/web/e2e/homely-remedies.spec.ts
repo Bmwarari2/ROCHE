@@ -21,6 +21,9 @@ const PRODUCT = `Paracetamol 500mg tablets ${RUN}`;
 test.describe.configure({ mode: "serial" });
 
 const main = (page: Page) => page.getByRole("main");
+/** The notice a form leaves on the page it went to; the forms' own live regions are there too. */
+const arrival = (page: Page, words: string) =>
+  expect(main(page).getByRole("status").filter({ hasText: words })).toBeVisible();
 const headers = { "x-harbour-tenant": DEMO_TENANT };
 
 async function bothThemes(page: Page, name: string) {
@@ -113,7 +116,7 @@ test("hazard HZ-120 hazard HZ-007 homely remedies only within the home's protoco
   await bothThemes(manager, "add a protocol");
   await main(manager).getByRole("button", { name: "Add the protocol" }).click();
   await manager.waitForURL(/\/homely-remedies\?done=added/);
-  await expect(main(manager).getByRole("status")).toContainText("Protocol added");
+  await arrival(manager, "Protocol added");
   const card = main(manager).getByRole("article").filter({ hasText: PRODUCT });
   await expect(card).toContainText("In use");
   await bothThemes(manager, "the protocols after one is added");
@@ -133,7 +136,7 @@ test("hazard HZ-120 hazard HZ-007 homely remedies only within the home's protoco
   await main(manager).getByLabel("Why it is changing").fill("Agreed again with the GP");
   await main(manager).getByRole("button", { name: "Change the protocol" }).click();
   await manager.waitForURL(/\/homely-remedies\?done=changed/);
-  await expect(main(manager).getByRole("status")).toContainText("Protocol changed");
+  await arrival(manager, "Protocol changed");
   await expect(main(manager).getByRole("article").filter({ hasText: PRODUCT })).toContainText(
     "Last changed because Agreed again with the GP",
   );
@@ -172,7 +175,7 @@ test("hazard HZ-120 hazard HZ-007 homely remedies only within the home's protoco
   await give.getByLabel("I have compared the person's allergies with this remedy").check();
   await give.getByRole("button", { name: "Record the dose" }).click();
   await nurse.waitForURL(/\/homely-remedies\?done=recorded/);
-  await expect(main(nurse).getByRole("status")).toContainText("Homely remedy recorded");
+  await arrival(nurse, "Homely remedy recorded");
   const doses = main(nurse).getByRole("region", { name: "Doses given" });
   await expect(doses).toContainText(PRODUCT);
   await expect(doses).toContainText("Given for Headache");
@@ -201,7 +204,7 @@ test("hazard HZ-120 hazard HZ-007 homely remedies only within the home's protoco
   await row.getByLabel("Why it was entered in error").fill("Recorded for the wrong time");
   await row.getByRole("button", { name: "Mark as entered in error" }).click();
   await nurse.waitForURL(/\/homely-remedies\?done=marked/);
-  await expect(main(nurse).getByRole("status")).toContainText("Dose marked as entered in error");
+  await arrival(nurse, "Dose marked as entered in error");
   const marked = main(nurse)
     .getByRole("region", { name: "Doses given" })
     .getByRole("listitem")
