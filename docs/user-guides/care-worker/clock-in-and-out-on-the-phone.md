@@ -43,7 +43,7 @@ catering, housekeeping and maintenance staff, and agency or bank workers.
   the person in charge of your shift.**, nothing was recorded. This happens when there is no shift
   now and you work at more than one location. Tell the person in charge your times.
 - If it says **Not saved on this phone. Try again.**, nothing was saved. Try again.
-- **Agency and bank workers**: your access ends a set time after your shift. Connect before then
+- **Agency or bank workers**: your access ends a set time after your shift. Connect before then
   so your clock events are sent. Events sent too long after the shift are refused.
 
 ## If it was not accepted
