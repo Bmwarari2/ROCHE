@@ -1189,3 +1189,15 @@ Logged by slice 76 (SCHED-008, [scheduling.md](../specs/scheduling.md) section 1
 | H-1194 | Decide whether the auto-enrolment flags should also go to a pension provider (none is integrated) and whether the export needs the pension scheme's own reference | Brian with the employer's pension adviser | scheduling.md section 19 rule 4 | Pension integration | open |
 | H-1195 | Build the export screens: choose a format, confirm a re-export, download the file, connect and disconnect Xero, and add each member's payroll reference on the pay profile | Brian | scheduling.md section 19 | Export screens | open |
 
+
+## Product rename to Thapsus Care (ADR-0127)
+
+Logged by the rename plan ([rename-thapsus-care.md](rename-thapsus-care.md)) on 7 November 2026. The
+demo names ("Harbour House" and the rest) were decided by the lead on that day (kept) and are not an
+action.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1511 | Confirm the name "Thapsus Care" after a UK trade mark register search and the App Store and Google Play name checks (master prompt Appendix "Product name and domain") | Brian | ADR-0127; the plan, section 5 | The first external release under the name | open |
+| H-1512 | Choose the production domain and the email sender display name (`Thapsus Care <…>`); the passkey relying party id follows the domain chosen before any passkey is registered in production | Brian | ADR-0127; the plan, section 5 | Production email and passkeys | open |
+| H-1513 | Update the app store listings and screenshots, the privacy notice, the DPIA wording and the sub-processor notices that name the product, and tell any pilot tenant before the rename release (existing authenticator entries keep the old label until re-enrolled) | Brian with the DPO | ADR-0127; the plan, sections 4 and 5 | The rename release | open |

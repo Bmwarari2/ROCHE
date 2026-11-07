@@ -59,7 +59,7 @@ Done by hand (the script leaves them):
 | Cloud and infrastructure | Terraform `harbour_stack`, resource names, Artifact Registry, PowerSync, Docker | Renames recreate resources; operators only |
 | Code comments | `// Harbour never …` | Not read by users; the codebase keeps its codename |
 | Frozen history | Accepted ADRs (other than 0127), `docs/changelog-dev/*`, `docs/CHANGELOG-DEV.md` | They record what was true when written |
-| Demo and fixture names | "Harbour House", "Harbour Lodge", "Harbour Mews", "Harbour Demo Care", "Harbour Quay", "Harbour Field", "Harbour Cottage", "Harbour Example Care" | Invented places and organisations in seeds, fixtures, Storybook and journeys (about 275 uses); renaming them churns every e2e selector. **Owner to confirm** (H action below); the script has them in one pattern if they should change |
+| Demo and fixture names | "Harbour House", "Harbour Lodge", "Harbour Mews", "Harbour Demo Care", "Harbour Quay", "Harbour Field", "Harbour Cottage", "Harbour Example Care" | Invented places and organisations in seeds, fixtures, Storybook and journeys (about 275 uses); renaming them churns every e2e selector. **Decided 07/11/2026 (lead): kept**; the script skips them by one pattern |
 
 ## 2. Stored data that carries the name
 
@@ -71,24 +71,27 @@ Words in the code change with the release; rows already stored do not. On a data
 | `audit_starter_template.source` | 7 | Migration 0081 ("Harbour starter template …") | A forward data migration in the rename release |
 | `rate_table.source` | 86 | Seeded from `docs/specs/rates.md` ("Harbour default …") | Re-seeding reference data after the docs change, or the same migration |
 | `retention_class.source`, `.notes` | 7, 3 | Seeded from `docs/specs/retention.md` | As `rate_table` |
-| `tenant.name`, `.legal_name`, `.brand_name`; `location.name`; `service.name` | Demo only | The demo seed ("Harbour Demo Care", "Harbour House") | Only if the demo names change |
+| `tenant.name`, `.legal_name`, `.brand_name`; `location.name`; `service.name` | Demo only | The demo seed ("Harbour Demo Care", "Harbour House") | Not changed (demo names are kept) |
 
 Run the query again after batch 4 (new tables may seed words) and before writing the migration. A
 tenant's own copies (for example audit templates adopted from a starter) keep the tenant's words.
 
 ## 3. The procedure (one pass, after batch 4 merges)
 
-1. Branch `chore/platform-rename-thapsus-care` from `main` after the last batch 4 PR merges, and
-   freeze user-facing word changes on other branches until it merges.
+1. When batch 4 is on `main` (and before user guides 81 and 82), merge `main` into
+   `docs/rename-plan-thapsus-care` and freeze user-facing word changes on other branches until the
+   rename merges. One PR carries the plan, the rename, the migration and the CI step.
 2. `node scripts/rename-product.mjs` (dry run) and compare with this inventory; investigate any area
    that grew.
 3. `node scripts/rename-product.mjs --apply`.
 4. The hand edits in section 1 (master prompt line 19 and the Appendix row).
 5. `pnpm --filter @harbour/api openapi && pnpm --filter @harbour/contracts generate:client`.
 6. `pnpm exec biome check --write apps packages`, then `pnpm lint` and `pnpm typecheck`.
-7. The data migration (section 2), with a database test, and re-seed reference data in each
-   environment.
-8. Every suite, Playwright with axe, the Maestro flows; fix what the trial run below found.
+7. The forward data migration (section 2, the next free migration number at the time, asked of the
+   lead) for `audit_starter_template.source`, and `rate_table` and `retention_class` sources by the
+   same migration or a re-seed, with a database test on a private Postgres.
+8. Every suite, the database suites included (on a private Postgres), Playwright with axe, the
+   Maestro flows; fix `smtp.test.ts` as section 7 says (decode the body, keep the full wording).
 9. Add `node scripts/rename-product.mjs --check` as a CI step so the old name cannot come back.
 10. Reviews: accessibility (words, lengths, screen-reader names) and clinical safety (the safety
     case and hazard log read correctly; no control's meaning changed). A changelog fragment and a
@@ -112,15 +115,18 @@ images in `docs/`), so nothing in the repository needs a baseline refresh. Outsi
 - Printed or saved PDFs (downtime packs, transfer packs, evidence packs) already issued keep the old
   name; new ones use the new name.
 
-## 5. Human actions (numbers from the lead)
+## 5. Human actions
 
-- Confirm the name "Thapsus Care" after a UK trade mark register search and app store name checks
-  (master prompt Appendix "Product name and domain").
-- Choose the production domain and the email sender display name (`Thapsus Care <…>`).
-- Confirm whether the demo names change (section 1).
-- Update the app store listings, privacy notice, DPIA wording and sub-processor notices that name the
-  product, and tell any pilot tenant before the release (existing authenticator entries keep the old
-  label until re-enrolled).
+In [human-actions.md](human-actions.md); numbers from the lead.
+
+- H-1511: confirm the name "Thapsus Care" after a UK trade mark register search and app store name
+  checks (master prompt Appendix "Product name and domain").
+- H-1512: choose the production domain and the email sender display name (`Thapsus Care <…>`).
+- H-1513: update the app store listings, privacy notice, DPIA wording and sub-processor notices that
+  name the product, and tell any pilot tenant before the release (existing authenticator entries keep
+  the old label until re-enrolled).
+
+The demo names were decided by the lead on 07/11/2026 (kept), so they are not a human action.
 
 ## 6. Finding stored rows with the name
 

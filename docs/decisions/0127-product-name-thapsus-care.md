@@ -1,7 +1,7 @@
 ---
-status: "proposed"
+status: "accepted"
 date: 2026-11-07
-decision-makers: Brian (owner)
+decision-makers: Brian (owner, the rename, R1); the lead engineering session (keeping identifiers)
 consulted: engineering (Claude Code sessions)
 informed: clinical safety officer (when appointed, H-20), data protection lead
 ---
@@ -56,8 +56,8 @@ change. Stored rows that carry the old name (for example `audit_starter_template
 rate-table sources seeded from `rates.md`) change by a forward data migration in the same release.
 
 The invented demo and fixture names ("Harbour House", "Harbour Lodge", "Harbour Demo Care" and the
-rest) are fictional places and organisations, not the product, and stay unless the owner decides
-otherwise (the plan lists them).
+rest) are fictional places and organisations, not the product, and stay (decided 07/11/2026):
+renaming them would churn the end-to-end selectors for no user benefit.
 
 ### Consequences
 
@@ -65,7 +65,9 @@ otherwise (the plan lists them).
   infrastructure; a diff that is mostly words and is checked by `--check` in CI.
 - Bad: the codebase and infrastructure keep a codename people may notice in URLs of developer
   tools, logs and package names; recorded here so nobody renames them by accident.
-- The domain, trade mark search, app store name and email sender name are human actions in the plan.
+- The trade mark search and app store name checks (H-1511), the domain and email sender name
+  (H-1512), and the listings, privacy notice, DPIA wording and pilot notice (H-1513) are human
+  actions.
 
 ### Confirmation
 

@@ -1,6 +1,6 @@
 # The plan for the Thapsus Care rename (ADR-0127)
 
-- ADR-0127 (proposed): the product is called Thapsus Care wherever people read it; "Harbour" stays in
+- ADR-0127 (accepted): the product is called Thapsus Care wherever people read it; "Harbour" stays in
   technical identifiers (packages, environment variables, database roles, the tenant header, the
   deep link scheme, bundle ids, the passkey relying party id, cloud resources and Terraform), code
   comments, migrations and frozen history.
@@ -12,4 +12,6 @@
 - `scripts/rename-product.mjs`: a dry run by default, `--apply` to rename and `--check` for CI. It
   touches only the capitalised whole word, and skips demo names, host names and URLs, comments and
   the lines left for a hand edit.
-- No user-facing words change in this branch.
+- Decided by the lead: the demo names are kept; human actions H-1511 to H-1513. The rename itself
+  lands as one PR on this branch after merge batch 4.
+- No user-facing words change in this branch yet.

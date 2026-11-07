@@ -34,8 +34,9 @@ Pushed on `docs/rename-plan-thapsus-care`, not merged, no PR: ADR-0127 (proposed
 [rename-thapsus-care.md](rename-thapsus-care.md) and `scripts/rename-product.mjs` (dry run,
 `--apply`, `--check`). About 2,800 user-visible "Harbour" in 356 files change in one pass after merge
 batch 4; identifiers (`@harbour/*`, `HARBOUR_*`, roles, the tenant header, bundle ids, the deep
-link scheme, the passkey rpID, cloud and Terraform) stay. No strings are changed yet. Open: the demo
-names, the human actions' numbers, and the SMTP test fix in the rename PR.
+link scheme, the passkey rpID, cloud and Terraform) stay. No strings are changed yet. ADR-0127
+accepted; demo names kept; H-1511 to H-1513. The rename itself (with the `smtp.test.ts` fix, the
+stored-row migration and the `--check` CI step) is one PR on this branch once batch 4 is on `main`.
 
 ## Merge batch 3c (06/11/2026)
 
