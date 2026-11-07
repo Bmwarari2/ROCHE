@@ -1,6 +1,7 @@
 # User guides: Registered Manager
 
-For Registered Managers and deputy managers. A deputy can do these tasks except recording a statutory notification as submitted or not required, which needs an acting-up grant (no screen yet).
+For Registered Managers and deputy managers. A deputy manager can do these tasks except recording a
+statutory notification as submitted or not required, which needs an acting-up grant (no screen yet).
 
 ## Your guides
 

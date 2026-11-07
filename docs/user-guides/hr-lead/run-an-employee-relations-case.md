@@ -6,7 +6,7 @@ hearing, arrange meetings, handle suspension, record referral decisions and clos
 **Who can do this**: the people named on the case as **Case manager**. Naming new people needs the
 employee relations caseworker role as well.
 
-**Register rows**: WORK-010.
+**Register row**: WORK-010.
 
 ## Steps
 

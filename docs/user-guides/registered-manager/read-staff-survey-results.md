@@ -17,8 +17,8 @@ See what staff said in a closed survey, without anyone being picked out.
 
 ## Important
 
-- Results show only once the survey has closed and enough people answered. The smallest number
-  comes from the rate table; your organisation may raise it but never lower it.
+- Results show only once the survey has closed and enough people answered. The smallest number is
+  set by Thapsus Care for every organisation; yours may raise it but never lower it.
 - A question is shown only when enough people answered it. If any number on a 1 to 5 question was
   chosen by too few people, every count for that question is hidden.
 - There is no breakdown, filter or export, so no one can be picked out. A home that wants its own

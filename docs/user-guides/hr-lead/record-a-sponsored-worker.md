@@ -4,8 +4,8 @@ Keep the records your sponsor licence asks for: the certificate of sponsorship, 
 English language evidence and the Appendix D records you hold. Thapsus Care keeps the records and
 the reporting dates; it never decides anyone's immigration status.
 
-**Who can do this**: owner and HR, recruitment or training lead only. Registered Managers and
-deputies do not see sponsor records. Nobody sees or keeps their own sponsor record.
+**Who can do this**: owner and HR, recruitment or training lead only. Registered Managers and deputy
+managers do not see sponsor records. Nobody sees or keeps their own sponsor record.
 
 **Register rows**: WORK-003, WORK-011.
 

@@ -3,9 +3,9 @@
 Once every record is decided, Thapsus Care builds the response from your decisions. You check it,
 download it, send it to the requester yourself, and record that you have.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
-data protection for the whole organisation. Checking and recording the response need you to confirm
-it is you with your passkey or authenticator app (step-up).
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers data
+protection for the whole organisation. Checking and recording the response need you to confirm it is
+you with your passkey or authenticator app.
 
 **Register rows**: PLAT-022, WORK-011 (requests from members of staff).
 

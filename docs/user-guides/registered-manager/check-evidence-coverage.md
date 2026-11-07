@@ -4,7 +4,8 @@ Evidence coverage shows how many records evidence each quality statement, and wh
 have none. Use it to find gaps before an inspection.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner and the quality and
-compliance lead. Care workers, senior carers, nurses and the group executive cannot.
+compliance lead. Care and support workers, team leaders or senior carers, nurses and the group
+executive cannot.
 
 **Register row**: QUAL-002.
 

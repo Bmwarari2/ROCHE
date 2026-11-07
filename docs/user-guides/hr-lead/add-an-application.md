@@ -5,7 +5,7 @@ offer.
 
 **Who can do this**: owner, Registered Manager, deputy manager, HR, recruitment or training lead.
 
-**Register rows**: WORK-001.
+**Register row**: WORK-001.
 
 ## Steps
 

@@ -6,7 +6,7 @@ discussed. Thapsus Care then shows when the next supervision and appraisal are d
 **Who can do this**: owner, group executive, Registered Manager, deputy manager, HR, recruitment
 or training lead. It is recorded in your name as the person who held it. Nobody records their own.
 
-**Register rows**: WORK-009.
+**Register row**: WORK-009.
 
 ## Steps
 

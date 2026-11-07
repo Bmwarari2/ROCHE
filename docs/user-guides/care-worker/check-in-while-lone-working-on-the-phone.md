@@ -1,7 +1,7 @@
 # How to check in while lone working on the phone
 
-Check in to tell Thapsus Care you are safe. If a check-in is missed, the people on call are
-alerted until someone acts on it.
+Check in to tell Thapsus Care you are safe. If a check-in is missed, the people on call are alerted
+until someone acknowledges the alarm.
 
 **Who can do this**: anyone in a lone-working session (see
 [How to start and finish lone working on the phone](start-and-finish-lone-working-on-the-phone.md)).

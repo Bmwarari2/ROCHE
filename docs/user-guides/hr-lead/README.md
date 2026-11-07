@@ -1,7 +1,7 @@
 # User guides: HR lead
 
-For the HR, recruitment or training lead, and the employee relations lead. You see staff files,
-recruitment, training and casework; you do not see care notes.
+For the HR, recruitment or training lead, and the employee relations caseworker. You see staff
+files, recruitment, training and casework; you do not see care notes.
 
 ## Your guides
 

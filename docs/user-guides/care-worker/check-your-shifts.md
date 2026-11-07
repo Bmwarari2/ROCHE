@@ -2,8 +2,8 @@
 
 See the shifts you are on in published rotas for the next six weeks.
 
-**Who can do this**: any member of staff who clocks in for shifts, including care workers, senior
-carers, nurses and agency workers.
+**Who can do this**: any member of staff who clocks in for shifts, including care and support
+workers, team leaders or senior carers, nurses, and agency and bank workers.
 
 **Register row**: SCHED-002.
 

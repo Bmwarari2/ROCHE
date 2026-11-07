@@ -6,7 +6,7 @@ date. You can also correct a training record.
 **Who can do this**: owner, group executive, Registered Manager, deputy manager, HR, recruitment
 or training lead. Nobody records their own training.
 
-**Register rows**: WORK-005.
+**Register row**: WORK-005.
 
 ## Steps
 

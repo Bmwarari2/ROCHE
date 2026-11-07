@@ -18,7 +18,7 @@ rule, then publish it so staff see their shifts.
    - which scale and version it came from, any skill your scale asks for that the rota lacks, open
      shifts not counted and any warnings;
    - **How this was worked out**, which opens the method step by step.
-3. Under **Working time**, read the advice for each member of staff, for example over the limit on
+3. Under **Working time**, read the warnings for each member of staff, for example over the limit on
    average weekly hours or daily rest.
 4. Under **Rostering rule**, check anyone shown as **Blocked: publishing is refused**. Go back to
    the rota with **Back to the rota** and take them off or override first.
@@ -32,11 +32,11 @@ rule, then publish it so staff see their shifts.
 - The staffing figures come from your organisation's own dependency scale. They are not a Thapsus
   Care score and do not say whether staffing is safe: that is your judgement. A person with no
   dependency category is not counted.
-- Working time results are advice for planning, not legal advice. They never stop you
-  publishing. Check any breach with the member of staff and your working time policy.
+- Working time results are warnings for planning, not legal advice. They never stop you publishing.
+  Check any breach with the member of staff and your working time policy.
 - Only someone the rostering rule blocks, with no override, stops publishing. A shortfall does not,
   but you must acknowledge each short, incomplete or unscaled period by name.
 - If the rota changes after you checked it, publishing is refused and you check again. You must
   have read the check yourself within the hour.
-- Opening the check is audited as a care-record view. Publishing records what you were shown and
-  the notice given.
+- Opening the check is recorded as a look at care records, with who looked. Publishing records what
+  you were shown and the notice given.

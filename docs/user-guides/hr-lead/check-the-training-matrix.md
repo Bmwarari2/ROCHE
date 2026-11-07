@@ -5,7 +5,7 @@ See every member of staff's required training as it stands today, and find who n
 **Who can do this**: owner, group executive, Registered Manager, deputy manager, HR, recruitment
 or training lead, clinical leads and nurses, and team leaders or senior carers.
 
-**Register rows**: WORK-005.
+**Register row**: WORK-005.
 
 ## Steps
 

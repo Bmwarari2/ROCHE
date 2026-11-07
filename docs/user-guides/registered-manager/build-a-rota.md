@@ -36,6 +36,6 @@ owner). Everyone else on the rota can read it.
   shift, and the rota says to check it and publish again so staff see the change.
 - If staff data from the HR platform may be out of date, the page says so. Check the HR platform
   before you rely on who is available.
-- Every shift added, cancelled, assigned or taken off is audited with who did it.
+- Every shift added, cancelled, assigned or taken off is recorded, with who did it.
 - Swapping shifts between staff, offering open shifts to staff and booking agency workers are not
   on the web yet.

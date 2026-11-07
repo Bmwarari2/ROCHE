@@ -6,7 +6,7 @@ staff. You become its first case manager, and only the people you name on it can
 **Who can do this**: the employee relations caseworker. No other role can open a case or see one,
 not even the owner or Registered Manager, unless they are named on it.
 
-**Register rows**: WORK-010.
+**Register row**: WORK-010.
 
 ## Steps
 
@@ -23,5 +23,6 @@ not even the owner or Registered Manager, unless they are named on it.
 - The member of staff the case is about is never named on it and does not see it in Thapsus Care.
   Tell them in writing, as your procedure says.
 - You need a second sign-in step (passkey or authenticator app) to use cases. What is done on a case
-  is recorded, with the case and codes only, never what was written.
-- Next, name the people who will take part. See "How to run an employee relations case".
+  is recorded, but only which case and what kind of action, never what was written.
+- Next, name the people who will take part. See [How to run an employee relations
+  case](run-an-employee-relations-case.md).

@@ -2,8 +2,8 @@
 
 Ask your manager for annual leave or another kind of leave, and see whether it is approved.
 
-**Who can do this**: any member of staff who clocks in for shifts, including care workers, senior
-carers and nurses.
+**Who can do this**: any member of staff who clocks in for shifts, including care and support
+workers, team leaders or senior carers, and nurses.
 
 **Register row**: SCHED-010.
 

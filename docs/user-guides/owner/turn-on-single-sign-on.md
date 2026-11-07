@@ -5,8 +5,8 @@ OpenID Connect identity provider). It is off for every organisation, and there i
 yet.
 
 **Who can do this**: only the owner can see or change your organisation's single sign-on settings,
-and every change needs you to confirm it is you with your passkey or authenticator app (step-up).
-Turning the feature on for your organisation is done by Thapsus, not by you.
+and every change needs you to confirm it is you with your passkey or authenticator app. Turning the
+feature on for your organisation is done by Thapsus, not by you.
 
 **Register row**: PLAT-005.
 
@@ -24,10 +24,10 @@ sign-in button for it.
 
 ## Good to know
 
-- **Single sign-on never stands in for Thapsus Care's second factor.** It replaces your password only.
-  Before anyone opens care records, or does anything that needs step-up, Thapsus Care still asks for
-  their passkey or authenticator code. Thapsus Care ignores what your identity provider says about its
-  own second factor.
+- **Single sign-on never stands in for Thapsus Care's second factor.** It replaces your password
+  only. Before anyone opens care records, or does anything that asks them to confirm it is them,
+  Thapsus Care still asks for their passkey or authenticator code. Thapsus Care ignores what your
+  identity provider says about its own second factor.
 - **It never creates anyone.** Only people already invited to, or already working in, your
   organisation can use it, at an email domain you have proved. Invite people first, as in
   [How to invite a team member](../registered-manager/invite-a-team-member.md).

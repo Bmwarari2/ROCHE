@@ -2,9 +2,9 @@
 
 Record an accident, near miss or anything else that went wrong, as soon as you can.
 
-**Who can do this**: anyone who works with people we support (care workers, senior carers, nurses,
-managers, agency workers) and most other staff. You need to have signed in with your passkey or
-authenticator app.
+**Who can do this**: anyone who works with people we support (care and support workers, team leaders
+or senior carers, nurses, managers, agency and bank workers) and most other staff. You need to have
+signed in with your passkey or authenticator app.
 
 **Register row**: SAFE-001. On the web only; recording with no signal is a mobile app feature that
 is still being built.

@@ -3,10 +3,10 @@
 The Thapsus Care phone app shows your own published shifts for the coming week, even with no
 connection.
 
-**Who can do this**: anyone who clocks their own time or works alone: care workers, team leaders,
-nurses and clinical leads, Registered Managers, deputies, owners, activities, catering,
-housekeeping and maintenance staff, and agency workers. If you do not see **Shifts**, your role
-does not include it: ask your manager.
+**Who can do this**: anyone who clocks their own time or works alone: care and support workers, team
+leaders or senior carers, nurses and clinical leads, Registered Managers, deputy managers, owners,
+activities, catering, housekeeping and maintenance staff, and agency and bank workers. If you do not
+see **Shifts**, your role does not include it: ask your manager.
 
 **Register rows**: SCHED-002, MOB-007.
 

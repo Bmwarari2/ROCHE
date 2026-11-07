@@ -3,8 +3,8 @@
 A data protection complaint is someone unhappy with how your organisation uses personal data.
 Thapsus Care keeps the acknowledgement clock and reminds you when the next update is due.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
-data protection for the whole organisation. A Registered Manager or deputy whose role covers one
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers data
+protection for the whole organisation. A Registered Manager or deputy manager whose role covers one
 home does not see these complaints. Other complaints about care go in **Complaints**, not here.
 
 **Register row**: PLAT-022.

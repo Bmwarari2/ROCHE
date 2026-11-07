@@ -6,7 +6,7 @@ one stands today. Start one for each new member of staff before you record their
 **Who can do this**: owner, Registered Manager, deputy manager, HR, recruitment or training lead.
 Nobody can start or change their own staff file.
 
-**Register rows**: WORK-002.
+**Register row**: WORK-002.
 
 ## Steps
 
@@ -34,7 +34,7 @@ Nobody can start or change their own staff file.
   **Change the profile**, then **Save the profile**.
 - Staff files hold health and criminal records information. You need a second sign-in step
   (passkey or authenticator app) to use them. Every change is recorded with who made it.
-- On the file, holders of the staff file permissions also see whether the member has acknowledged
-  the staff privacy notice and their answers about photos.
+- On the file, anyone who can see staff files also sees whether the member of staff has confirmed
+  they read the staff privacy notice, and their answers about photos.
 - A member of staff who opens their own file sees "This is your own staff file. Someone else
   records your checks."

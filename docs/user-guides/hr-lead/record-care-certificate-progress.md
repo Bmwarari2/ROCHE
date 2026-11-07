@@ -3,11 +3,10 @@
 Record each of the Care Certificate's 16 standards for a new member of staff: first that their
 knowledge was assessed, then that they were observed competent in practice.
 
-**Who can do this**: knowledge assessed: owner, Registered Manager, deputy manager, HR, recruitment
-or training lead. Observed competent: the same people, as they also observe competence. Never on
-your own induction.
+**Who can do this**: owner, Registered Manager, deputy manager, HR, recruitment or training lead,
+for both steps. Never on your own induction.
 
-**Register rows**: WORK-004.
+**Register row**: WORK-004.
 
 ## Steps
 
@@ -15,10 +14,12 @@ your own induction.
    example **Induction for Ada Example**.
 2. Go to **Care Certificate**. It shows how many of the 16 standards are competent, and each
    standard as **Not started**, **Knowledge assessed** or **Competent**.
-3. For a standard not started, open the form named for it, which starts "Record knowledge
-   assessed:", enter the **Date assessed** and choose the button of the same name.
-4. When you have watched them do it, open the form named for the standard, which starts "Record
-   observed competent:", enter the **Date observed** and choose the button of the same name.
+3. For a standard not started, open the form named for it, for example **Record knowledge assessed:
+   Understand your role**. Enter the **Date assessed** and choose **Record knowledge assessed:
+   Understand your role** again.
+4. When you have watched them do it, open the form named for the standard, for example **Record
+   observed competent: Understand your role**. Enter the **Date observed** and choose **Record
+   observed competent: Understand your role** again.
 
 ## Good to know
 

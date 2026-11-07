@@ -21,4 +21,4 @@ a home.
 - A check-in is never a referral, a score or a judgement. If you are worried about someone, talk
   with them.
 - Thanks are never part of a performance record.
-- Each time you open this page it is audited.
+- Each time you open this page, it is recorded, with who looked.

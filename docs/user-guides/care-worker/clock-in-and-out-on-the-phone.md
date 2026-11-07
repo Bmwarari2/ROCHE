@@ -3,9 +3,9 @@
 Clock in at the start of your shift, record your breaks and clock out at the end. It works with no
 connection: the phone keeps what you did and sends it when it connects.
 
-**Who can do this**: anyone who clocks their own time: care workers, team leaders, nurses and
-clinical leads, Registered Managers, deputies, owners, activities, catering, housekeeping and
-maintenance staff, and agency workers.
+**Who can do this**: anyone who clocks their own time: care and support workers, team leaders or
+senior carers, clinical leads or nurses, Registered Managers, deputy managers, owners, activities,
+catering, housekeeping and maintenance staff, and agency or bank workers.
 
 **Register rows**: SCHED-004, MOB-007.
 

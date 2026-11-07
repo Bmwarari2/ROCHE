@@ -6,7 +6,7 @@ you sent it or declined.
 **Who can do this**: owner, Registered Manager, deputy manager, HR, recruitment or training lead.
 Never about yourself.
 
-**Register rows**: WORK-013.
+**Register row**: WORK-013.
 
 ## Steps
 
@@ -21,7 +21,8 @@ Never about yourself.
 4. Choose **Record request**.
 5. When you have answered, under **References** open the form named for the organisation, for
    example **Answer Example Care Homes Ltd**. Choose the **Answer**: **Sent**, with the **Date
-   sent**, or **Declined**, with the **Reason for declining**. Choose the button of the same name.
+   sent**, or **Declined**, with the **Reason for declining**. Choose **Answer Example Care Homes
+   Ltd** to save it.
 
 ## Good to know
 

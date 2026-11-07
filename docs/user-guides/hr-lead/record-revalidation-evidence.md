@@ -6,7 +6,7 @@ records it from the nurse's evidence; the nurse revalidates with the NMC themsel
 **Who can do this**: owner, group executive, Registered Manager, deputy manager, HR, recruitment
 or training lead. Nobody records their own.
 
-**Register rows**: WORK-012.
+**Register row**: WORK-012.
 
 ## Steps
 

@@ -6,7 +6,7 @@ then mark it as reported.
 
 **Who can do this**: owner and HR, recruitment or training lead.
 
-**Register rows**: WORK-003.
+**Register row**: WORK-003.
 
 ## Steps
 
@@ -19,9 +19,9 @@ then mark it as reported.
    choose **Record the change**. It shows under **Reportable changes** with the date to report it
    by.
 5. Report it on the sponsor management system.
-6. Under **Reportable changes**, choose the button that names the change, for example **Mark
-   change of hours as reported**. Enter the **Date reported** and the **Sponsor management system
-   reference**, then choose the button of the same name.
+6. Under **Reportable changes**, choose the button that names the change, for example **Mark change
+   of hours as reported**. Enter the **Date reported** and the **Sponsor management system
+   reference**, then choose **Mark change of hours as reported** again.
 
 ## Important
 

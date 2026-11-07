@@ -5,7 +5,7 @@ it, in **My privacy**.
 
 **Who can do this**: the owner.
 
-**Register rows**: WORK-011.
+**Register row**: WORK-011.
 
 ## Steps
 

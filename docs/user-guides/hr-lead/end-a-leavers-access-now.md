@@ -4,9 +4,10 @@ End a leaving member of staff's access at once, for example after a dismissal, i
 for the end of their last day.
 
 **Who can do this**: owner, Registered Manager, deputy manager, HR, recruitment or training lead,
-once a leaving is recorded. You confirm it is you first (step-up). Never your own access.
+once a leaving is recorded. Thapsus Care asks you to confirm it is you first, with your passkey or
+authenticator app. You cannot end your own access.
 
-**Register rows**: WORK-013.
+**Register row**: WORK-013.
 
 ## Steps
 
@@ -20,8 +21,9 @@ once a leaving is recorded. You confirm it is you first (step-up). Never your ow
 
 ## Important
 
-- They are signed out of everything at once, and their roles and grants end.
+- They are signed out of everything at once, and all their roles and any extra access they were
+  given end.
 - Their access cannot be given back on this page.
-- Someone who manages users, roles or grants, or holds the employee relations caseworker or
-  Freedom to Speak Up lead role, can have their access ended now only by someone who manages
-  users. The organisation's last active member who manages users keeps their access.
+- If the leaver can manage users, roles or extra access, or is an employee relations caseworker or
+  Freedom to Speak Up lead, only someone who manages users can end their access now. The last person
+  in the organisation who manages users always keeps their access.

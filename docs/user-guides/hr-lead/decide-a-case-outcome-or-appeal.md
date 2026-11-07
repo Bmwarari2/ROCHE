@@ -7,7 +7,7 @@ outcome, which closes the case.
 chair** (the appeal). They may be any colleague, such as a Registered Manager, named by the case
 manager.
 
-**Register rows**: WORK-010.
+**Register row**: WORK-010.
 
 ## Steps
 

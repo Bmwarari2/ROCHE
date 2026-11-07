@@ -6,7 +6,7 @@ probation reviews.
 **Who can do this**: owner, Registered Manager, deputy manager, HR, recruitment or training lead.
 Nobody records on their own induction.
 
-**Register rows**: WORK-004.
+**Register row**: WORK-004.
 
 ## Steps
 
@@ -15,7 +15,7 @@ Nobody records on their own induction.
 2. Under **Induction checklist**, check each item's status: **Done**, **To do**, **Overdue** or
    **Not needed**.
 3. For an item you tick by hand, open it, for example **Mark as done: Contract issued**, enter the
-   **Date done** and choose the button of the same name.
+   **Date done** and choose **Mark as done: Contract issued** again.
 4. Under **Induction plan**, enter the **Probation end date**. Tick **They already hold the Care
    Certificate** if they do. Choose **Save plan**.
 5. After each shadow shift, under **Record a shadow shift**, enter the **Shift date**, choose the

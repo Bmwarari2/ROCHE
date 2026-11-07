@@ -6,7 +6,7 @@ training record.
 **Who can do this**: owner, group executive, Registered Manager, deputy manager, HR, recruitment
 or training lead.
 
-**Register rows**: WORK-006.
+**Register row**: WORK-006.
 
 ## Steps
 

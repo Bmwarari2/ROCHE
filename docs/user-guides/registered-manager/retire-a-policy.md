@@ -7,7 +7,7 @@ These screens arrive with the next merge; until then they are on the `feat/quali
 branch.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner and the quality and
-compliance lead. Care workers, senior carers and nurses cannot.
+compliance lead. Care and support workers, team leaders or senior carers, and nurses cannot.
 
 **Register row**: QUAL-008.
 

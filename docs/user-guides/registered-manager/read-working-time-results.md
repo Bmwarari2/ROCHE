@@ -1,7 +1,7 @@
 # How to read working time results
 
 See whether a member of staff's approved hours go over the Working Time Regulations limits, as
-advice for planning the rota.
+warnings for planning the rota, not legal advice.
 
 **Who can do this**: people who approve rotas and timesheets (Registered Manager, deputy manager,
 owner).
@@ -26,5 +26,5 @@ owner).
   timesheet.
 - A check runs each time one of the person's timesheet entries is approved, using their approved
   hours, any opt-out on file and your organisation's setting.
-- The limits come from the rate table, not from Thapsus Care's code.
-- The rota check shows the same kind of advice for planned shifts before you publish.
+- The limits are national figures, kept apart from your organisation's own settings.
+- The rota check shows the same kind of warnings for planned shifts before you publish.

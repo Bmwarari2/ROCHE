@@ -2,7 +2,8 @@
 
 Download a whole case to keep with your organisation's records, for example when it closes.
 
-**Who can do this**: the case's case managers only. You confirm it is you first (step-up).
+**Who can do this**: the case's case managers only. Thapsus Care asks you to confirm it is you
+first, with your passkey or authenticator app.
 
 **Register rows**: WORK-010, WORK-011.
 

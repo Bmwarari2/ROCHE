@@ -2,8 +2,9 @@
 
 Record when you start and finish a shift and take a break, and check your timesheet.
 
-**Who can do this**: any member of staff who clocks in for shifts, including care workers, senior
-carers, nurses and agency workers.
+**Who can do this**: anyone who clocks their own time: care and support workers, team leaders or
+senior carers, clinical leads or nurses, Registered Managers, deputy managers, owners, activities,
+catering, housekeeping and maintenance staff, and agency or bank workers.
 
 **Register row**: SCHED-004.
 

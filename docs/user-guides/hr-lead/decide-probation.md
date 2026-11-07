@@ -5,7 +5,7 @@ Record whether a new member of staff has passed probation, or extend it.
 **Who can do this**: owner, Registered Manager, deputy manager, HR, recruitment or training lead.
 Never on your own induction.
 
-**Register rows**: WORK-004.
+**Register row**: WORK-004.
 
 ## Steps
 

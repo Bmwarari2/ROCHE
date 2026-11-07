@@ -3,10 +3,11 @@
 Start a lone-working session before you work alone, check in at the times you choose, and ask for
 help if you need it.
 
-**Who can do this**: any member of staff who works alone, including care workers, senior carers,
-nurses, agency workers and housekeeping, catering, activities and maintenance staff.
+**Who can do this**: any member of staff who works alone, including care and support workers, team
+leaders or senior carers, nurses, agency and bank workers, and housekeeping, catering, activities
+and maintenance staff.
 
-**Register row**: SCHED-012. Duress is raised only from the mobile app, never on the web.
+**Register row**: SCHED-012. A silent alarm can be raised only from the phone app, not on the web.
 
 ## Steps
 
@@ -30,9 +31,9 @@ nurses, agency workers and housekeeping, catering, activities and maintenance st
   acknowledges it. Checking in or finishing ends the alarm.
 - **Ask for help now** tells the on-call person straight away. It does not mean help is on its way.
   If you are in danger, call 999.
-- If the page says your request for help may not have been sent, call 999 if you are in danger, and
-  press the button again.
+- If the page says **Your request for help may not have been sent.**, call 999 if you are in danger,
+  and press the button again.
 - After you finish, no one is told if you stop checking in.
 - The page checks again every 60 seconds while it is open. If it says **Not updated since**, check
   your connection, then check in again.
-- Your check-ins are kept with the time they were made and audited.
+- Your check-ins are kept, with the time you made each one.

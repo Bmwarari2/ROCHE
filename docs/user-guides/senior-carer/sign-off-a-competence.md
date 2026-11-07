@@ -3,10 +3,10 @@
 Sign off, in your own name, that you watched a member of staff do a task competently, such as
 giving medicines. Medicines rounds check these sign-offs.
 
-**Who can do this**: team leaders and senior carers, clinical leads and nurses, Registered
-Managers, deputy managers, owners, and HR, recruitment or training leads. Never for yourself.
+**Who can do this**: team leaders or senior carers, clinical leads and nurses, Registered Managers,
+deputy managers, owners, and HR, recruitment or training leads. Never for yourself.
 
-**Register rows**: WORK-008.
+**Register row**: WORK-008.
 
 ## Steps
 
@@ -25,5 +25,5 @@ Managers, deputy managers, owners, and HR, recruitment or training leads. Never 
   and they need observing again.
 - A member of staff without a valid sign-off is stopped at the task the competence covers, for
   example on a medicines round.
-- If you have doubts about someone's competence, withdraw the sign-off. See "How to withdraw a
-  competence sign-off".
+- If you have doubts about someone's competence, withdraw the sign-off. See [How to withdraw a
+  competence sign-off](withdraw-a-competence-sign-off.md).

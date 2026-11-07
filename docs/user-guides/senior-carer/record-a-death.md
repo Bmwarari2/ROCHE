@@ -3,8 +3,8 @@
 Record that a person we support has died, so the checklist starts and the notifications are
 drafted for a manager.
 
-**Who can do this**: senior carers and team leaders, nurses, managers and the owner. Care workers
-cannot: tell the person in charge.
+**Who can do this**: team leaders or senior carers, nurses, managers and the owner. Care and support
+workers cannot: tell the person in charge.
 
 **Register rows**: PEOP-010, SAFE-014.
 

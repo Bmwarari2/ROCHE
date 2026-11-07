@@ -3,11 +3,11 @@
 Take a course your organisation offers. When you finish or pass it, it is added to your training
 record.
 
-**Who can do this**: care and support workers, team leaders and senior carers, clinical leads and
+**Who can do this**: care and support workers, team leaders or senior carers, clinical leads and
 nurses, agency and bank workers, activities, catering, housekeeping and maintenance staff,
 Registered Managers, deputy managers and owners.
 
-**Register rows**: WORK-006.
+**Register row**: WORK-006.
 
 ## Steps
 
@@ -19,8 +19,8 @@ Registered Managers, deputy managers and owners.
 
 ## Good to know
 
-- When you finish, it says the course is completed or passed and added to your training record.
-  If you did not pass, you can try again.
+- When you finish, it says the course is completed or passed and added to your training record. If
+  you did not pass, you can take it again: choose **Start the course**.
 - You can leave and come back. Your place is kept.
 - If it says "Courses cannot be opened just now", ask your manager to contact Thapsus Care
   support.

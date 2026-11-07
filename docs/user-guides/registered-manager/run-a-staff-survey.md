@@ -1,6 +1,6 @@
 # How to run a staff survey
 
-Write an anonymous pulse survey for staff at a home or across the organisation, open it, and close
+Write a short anonymous survey for staff at a home or across the organisation, open it, and close
 it.
 
 **Who can do this**: people who run staff wellbeing (Registered Manager, deputy manager, owner).

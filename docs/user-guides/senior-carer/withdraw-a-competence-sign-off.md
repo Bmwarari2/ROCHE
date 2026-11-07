@@ -3,11 +3,11 @@
 Withdraw a sign-off when a member of staff should no longer do a task, for example after a
 medicines error. It stops counting from today.
 
-**Who can do this**: team leaders and senior carers, clinical leads and nurses, Registered
-Managers, deputy managers, owners, and HR, recruitment or training leads. Group executives can too.
-Never on your own record.
+**Who can do this**: team leaders or senior carers, clinical leads and nurses, Registered Managers,
+deputy managers, owners, and HR, recruitment or training leads. Group executives can too. Never on
+your own record.
 
-**Register rows**: WORK-008.
+**Register row**: WORK-008.
 
 ## Steps
 
@@ -21,6 +21,6 @@ Never on your own record.
 
 ## Important
 
-- Medicines rounds stop the competence at once.
+- From today they cannot do this task on a medicines round.
 - It cannot be undone. A new observation signs it off again.
 - The withdrawal shows on the record with who withdrew it, when and why.

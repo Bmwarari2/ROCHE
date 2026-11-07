@@ -3,9 +3,9 @@
 Calculate pay for a period from approved timesheets, check each line's working, clear the
 exceptions and lock the run for payroll.
 
-**Who can do this**: people who run pay for the whole organisation (owner, Finance). One person
-starts and calculates the run; someone else checks and locks it. You need to have signed in with
-your passkey or authenticator app.
+**Who can do this**: people who run pay for the whole organisation (owner, finance staff). One
+person starts and calculates the run; someone else checks and locks it. You need to have signed in
+with your passkey or authenticator app.
 
 **Register rows**: SCHED-005, SCHED-006, SCHED-007.
 
@@ -21,8 +21,8 @@ your passkey or authenticator app.
    pay and Statutory Sick Pay.
 4. Under **Exceptions**, put each cause right where it is, for example approve the missing
    timesheet, then choose **Calculate pay run** again.
-5. If an exception is right as it stands, a pay approver writes a **Reason for overriding** and
-   chooses **Override exception**.
+5. If an exception is right as it stands, someone who approves pay writes a **Reason for
+   overriding** and chooses **Override exception**.
 6. When no exception is open, someone other than whoever started or last calculated the run
    chooses **Lock pay run**, then **Lock pay run** again to confirm.
 7. To change a locked run, choose **Start a correction run** and confirm. A new run is made for the
@@ -30,17 +30,18 @@ your passkey or authenticator app.
 
 ## Important
 
-- Every figure shows its working. The minimum wage, holiday and sick pay rates come from the rate
-  table, at the rate in force on each day.
+- Every figure shows its working. The minimum wage, holiday and sick pay rates are national figures,
+  kept apart from your organisation's own settings, and the rate in force on each day is used.
 - A shortfall against the minimum wage is added as its own top-up line and raised as an exception,
   so the run is looked at before anyone is paid.
 - A run counts only approved timesheet entries. A draft entry in the period is an exception.
 - A locked run never changes. Override reasons are kept with the run and shown to auditors.
-  Starting, calculating, overriding and locking are all audited.
+  Starting, calculating, overriding and locking are all recorded, with who did it.
 - You cannot override an exception on your own pay line.
-- If the period is set to be paid through the HR platform and the link is off, you are asked to
-  wait or choose **Pay this period through the payroll export**. Only someone who approves pay can,
-  after confirming it is them. See [how to pay staff through the HR
+- If the period is set to be paid through the HR platform and the connection to it is switched off,
+  you are asked to wait or choose **Pay this period through the payroll export**. Only someone who
+  approves pay can choose this, and Thapsus Care asks them to confirm it is them with their passkey
+  or authenticator app first. See [how to pay staff through the HR
   platform](../registered-manager/set-the-route-to-payroll.md).
 - Staff see their own locked lines under **My pay**.
 - Setting a member's pay profile, and sending a locked run to payroll, are not on the web yet. A

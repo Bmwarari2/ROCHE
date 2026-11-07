@@ -25,7 +25,7 @@ coordinator can build rotas but cannot override.
   active, no DBS or no professional registration. Choose someone else.
 - You cannot override for your own shift.
 - If the problems change before you send the override, it is refused and you check again.
-- Your name, your reason and each problem the override covers are recorded with the shift and
-  audited. The rota check shows the override, and publishing asks you to confirm you have read it.
+- Your name, your reason and each problem the override covers are recorded with the shift. The rota
+  check shows the override, and publishing asks you to confirm you have read it.
 - The rule is checked again when the person clocks in. If something new blocks them by then, the
   clock-in is refused and the person in charge gets an urgent task that the shift may be short.

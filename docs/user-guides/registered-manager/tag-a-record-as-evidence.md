@@ -4,7 +4,8 @@ Tagging adds a record to your evidence library against one or more quality state
 show it to an inspector. You can also remove a tag with a reason.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner and the quality and
-compliance lead. Care workers, senior carers, nurses and the group executive cannot.
+compliance lead. Care and support workers, team leaders or senior carers, nurses and the group
+executive cannot.
 
 **Register row**: QUAL-002.
 

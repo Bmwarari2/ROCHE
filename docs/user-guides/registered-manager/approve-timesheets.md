@@ -5,7 +5,7 @@ Check the time staff clocked at your home and approve each entry so it can be pa
 **Who can do this**: people who approve rotas and timesheets (Registered Manager, deputy manager,
 owner). A care coordinator can see the timesheets but not approve them.
 
-**Register rows**: SCHED-004, SCHED-003.
+**Register rows**: SCHED-003, SCHED-004.
 
 ## Steps
 
@@ -25,6 +25,6 @@ owner). A care coordinator can see the timesheets but not approve them.
   Someone else must.
 - An entry can only be approved once it has ended. An approved entry never changes: a correction
   is a new entry, and the original is shown struck through as **Corrected** and no longer counts.
-- The working time check is advice. It never stops an approval. A breach raises a task for the
-  Registered Manager.
+- The working time check gives warnings for planning, not legal advice. It never stops an approval.
+  A breach raises a task for the Registered Manager.
 - Only approved entries are paid. A draft left in a pay period stops that pay run being locked.

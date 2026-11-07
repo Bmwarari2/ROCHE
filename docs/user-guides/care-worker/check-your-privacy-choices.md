@@ -3,17 +3,17 @@
 Confirm you have read your organisation's staff privacy notice, and say whether a photo of you may
 be used in the newsletter, on the website, on social media or in family updates.
 
-**Who can do this**: care and support workers, team leaders and senior carers, clinical leads and
+**Who can do this**: care and support workers, team leaders or senior carers, clinical leads and
 nurses, agency and bank workers, activities, catering, housekeeping and maintenance staff,
 Registered Managers, deputy managers and owners, each for themselves.
 
-**Register rows**: WORK-011.
+**Register row**: WORK-011.
 
 ## Steps
 
 1. Open **My privacy** from your account menu.
 2. Under **Staff privacy notice**, open the notice and read it.
-3. Choose the button that names it, which starts "I have read", to confirm.
+3. Choose **I have read** followed by the notice's name, to confirm.
 4. Under **Photos and images of you**, read each question.
 5. The first time, choose **Yes** or **No** and choose **Save my answer**.
 6. To change an answer later, choose **Give consent** or **Withdraw consent** under it.

@@ -3,8 +3,8 @@
 Set your organisation's own hourly rates and allowances, from a date, so pay runs can be
 calculated.
 
-**Who can do this**: people who run pay for the whole organisation (owner, Finance). One person
-writes the draft; someone else approves it. You need to have signed in with your passkey or
+**Who can do this**: people who run pay for the whole organisation (owner, finance staff). One
+person writes the draft; someone else approves it. You need to have signed in with your passkey or
 authenticator app.
 
 **Register row**: SCHED-005.
@@ -23,8 +23,8 @@ authenticator app.
 
 ## Important
 
-- Statutory figures such as the minimum wage are not set here: they come from the rate table. A
-  rate below the minimum wage is caught when a pay run is calculated.
+- National figures such as the minimum wage are not set here: they are kept apart from your
+  organisation's own settings. A rate below the minimum wage is caught when a pay run is calculated.
 - Whoever wrote or last changed a draft cannot approve it. An approved rule set is fixed; a change
   is a new version.
 - A pay run uses the approved rule set in force on the first day of its period. A run cannot start

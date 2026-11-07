@@ -1,6 +1,8 @@
 # User guides: nurse
 
-For nurses and clinical leads. You can do everything a senior carer does, and the tasks below. You manage incidents but cannot record a statutory notification as submitted: the Registered Manager does that.
+For nurses and clinical leads. You can do everything a team leader or senior carer does, and the
+tasks below. You manage incidents but cannot record a statutory notification as submitted: the
+Registered Manager does that.
 
 ## Your guides
 

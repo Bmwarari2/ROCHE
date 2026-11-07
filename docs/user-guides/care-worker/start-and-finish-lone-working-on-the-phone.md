@@ -3,9 +3,10 @@
 When you work alone, for example on a home visit or a night shift, start a lone-working session.
 You then check in on a schedule. If you miss a check-in, the people on call are alerted.
 
-**Who can do this**: anyone who may work alone: care workers, team leaders, nurses and clinical
-leads, Registered Managers, deputies, owners, activities, catering, housekeeping and maintenance
-staff, and agency workers. Your organisation must have switched lone working on.
+**Who can do this**: anyone who may work alone: care and support workers, team leaders or senior
+carers, nurses and clinical leads, Registered Managers, deputy managers, owners, activities,
+catering, housekeeping and maintenance staff, and agency and bank workers. Your organisation must
+have switched lone working on.
 
 **Register rows**: SCHED-012, MOB-007.
 
@@ -45,5 +46,5 @@ staff, and agency workers. Your organisation must have switched lone working on.
   session. Agree another way to keep in touch with the person in charge.
 - At the end of the session time, finish or check in to stay on. If you do neither, the people on
   call are alerted.
-- Only one session at a time. Thapsus Care keeps no address or place name, only the location. The
-  phone does not track where you are.
+- Only one session at a time. Thapsus Care keeps no address or place name, only your work location.
+  The phone never sends where you are, so the people on call see no location for you.

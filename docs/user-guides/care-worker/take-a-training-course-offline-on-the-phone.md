@@ -26,8 +26,9 @@ phone and sent to Thapsus Care when it connects.
   finished on the phone only and is not on your training record. Connect as soon as you can.
 - The training list says how much is waiting, for example "2 pieces of work are waiting to send to
   Thapsus Care". Courses with work waiting are at the top of the list.
-- A pass or completion adds the course to your training record. A fail does not. To try again, ask
-  your training lead: a finished course cannot be opened again on the phone.
+- A pass or completion adds the course to your training record. A fail does not. A finished course
+  cannot be opened again on the phone. To take it again, use **E-learning** on the web: see [How to
+  take an e-learning course](take-an-e-learning-course.md).
 - If Thapsus Care does not accept your work, for example because the course was withdrawn or
   changed after you downloaded it, the reason shows under **Not saved: needs attention**. Tell your
   training lead.

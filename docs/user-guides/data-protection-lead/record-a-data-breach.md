@@ -3,8 +3,8 @@
 Every personal data breach goes in the breach register, whether or not it must be reported to the
 ICO. Thapsus Care keeps the ICO clock and suggests what to consider. The decision is yours.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
-data protection for the whole organisation. A Registered Manager or deputy whose role covers one
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers data
+protection for the whole organisation. A Registered Manager or deputy manager whose role covers one
 home does not see the register.
 
 **Register row**: PLAT-022.

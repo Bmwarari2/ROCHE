@@ -2,8 +2,8 @@
 
 See your pay for each locked pay period, with how each figure was worked out.
 
-**Who can do this**: any member of staff who clocks in for shifts, including care workers, senior
-carers and nurses.
+**Who can do this**: any member of staff who clocks in for shifts, including care and support
+workers, team leaders or senior carers, and nurses.
 
 **Register rows**: SCHED-005, SCHED-006, SCHED-007.
 
@@ -21,6 +21,6 @@ carers and nurses.
 
 - This is not a payslip. Your payslip comes from payroll.
 - Only locked pay runs show here. A run is locked once someone has checked it.
-- Statutory figures, such as the minimum wage and Statutory Sick Pay, come from the rate table,
-  kept apart from your organisation's own rates.
+- The minimum wage and Statutory Sick Pay are national figures. They are kept apart from your
+  organisation's own rates.
 - If a run is corrected, the correction shows as its own period with the difference.

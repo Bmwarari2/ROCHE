@@ -3,8 +3,8 @@
 The checklist shows what must be done before your organisation goes live. Each item is worked out
 from your records, so it shows as done only when it is.
 
-**Who can do this**: the owner, Registered Manager, deputy and quality lead can read it. Only the
-owner can record decisions.
+**Who can do this**: the owner, Registered Manager, deputy manager and quality lead can read it.
+Only the owner can record decisions.
 
 **Register row**: PLAT-018.
 

@@ -6,7 +6,7 @@ member's training record follow these requirements.
 **Who can do this**: owner, group executive, Registered Manager, deputy manager, HR, recruitment
 or training lead.
 
-**Register rows**: WORK-005.
+**Register row**: WORK-005.
 
 ## Steps
 

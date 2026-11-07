@@ -3,7 +3,7 @@
 Record which category of your organisation's dependency scale a person is in, so their care hours
 count in the rota check.
 
-**Who can do this**: senior carers and team leaders, nurses, managers and the owner. Anyone who can
+**Who can do this**: team leaders or senior carers, nurses, managers and the owner. Anyone who can
 read care plans can see a person's category.
 
 **Register row**: CARE-004.

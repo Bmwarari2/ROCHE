@@ -1,6 +1,7 @@
 # User guides: senior carer or team leader
 
-For team leaders and senior carers. You can do everything a care worker does for everyone at your home, and the tasks below.
+For team leaders or senior carers. You can do everything a care or support worker does for everyone
+at your home, and the tasks below.
 
 ## Your guides
 

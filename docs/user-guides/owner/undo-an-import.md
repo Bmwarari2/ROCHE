@@ -4,8 +4,7 @@ If you added people from the wrong file, or to the wrong home, you can undo the 
 after adding them. Undo removes only the people that import added.
 
 **Who can do this**: the owner, or anyone your organisation has given the import wizard across the
-whole organisation. Undoing needs you to confirm it is you with your passkey or authenticator app
-(step-up).
+whole organisation. Undoing needs you to confirm it is you with your passkey or authenticator app.
 
 **Register row**: PLAT-014.
 
