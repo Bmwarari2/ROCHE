@@ -231,6 +231,30 @@ and pay read (K5) switched on; at the pinned commit both answer `planned`, so no
   through the delivery log; a refusal, a member no longer matched and pay left unsent on
   disconnecting go to pay approvers.
 
+How slice 90 finishes the link (screens and guide; HZ-133, HZ-140):
+- **One settings page** (`/settings/hr-link`, menu "HR platform link", shown with the flag on to
+  holders of the link's permissions): status and sync health with the staleness note, check and
+  sync now; connect (step-up); owners and the out-of-date limit; disconnect after a confirmation;
+  location mapping; the match review queue (confirm or reject, for `.review`); what was sent; pay
+  (route to payroll, a change from a later period, pay codes for pay approvers); and absence copies
+  to release.
+- **Held copies are listed before release**: `GET /v1/integrations/hr-link/absences/held` (manage)
+  reads Thapsus-HR's list again while linked and returns the current copies it no longer lists, or
+  every copy in force once disconnected; it changes nothing. The release then sends exactly those
+  ids.
+- **"Managed in the HR platform"** (icon and words) on absences copied from Thapsus-HR and pay runs
+  paid through it (`AbsenceItem.source`, `PayRunItem.payRoute`); the API's refusal of a change says
+  the same. The staff file has no web screen yet; the label and the leaving-date withdrawal come with
+  it.
+- **Follow-ups from slices 88 and 89**: a shift cancellation Thapsus-HR answers not found is done,
+  not retried; a pay run for a period set for Thapsus-HR is not drafted while the link is down
+  unless a person confirms the export (`confirmExport`, audited); pay approvers are told when the
+  flag is off with locked pay unsent; a changed employee's rate is read on `employee.changed`; a rate
+  Thapsus-HR stops listing for an employee is retired (only when the whole read was clean), as is a
+  pay period no pay run uses.
+- User guides: [registered-manager](../user-guides/registered-manager/link-to-the-hr-platform.md)
+  (link, pay, releasing absence copies).
+
 ### 11.6 API and events
 
 Harbour routes (OpenAPI):

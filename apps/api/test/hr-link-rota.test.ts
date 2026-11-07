@@ -157,7 +157,7 @@ describe("hazard HZ-133 shifts go out with their listed fields only, once, and a
     ]);
   });
 
-  it("takes a cancellation Thapsus-HR answers not found as done, never retried every run", async () => {
+  it("hazard HZ-133 takes a cancellation Thapsus-HR answers not found as done, never retried every run", async () => {
     const cancel = mock.cancelShift.bind(mock);
     let calls = 0;
     mock.cancelShift = async () => {
