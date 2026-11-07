@@ -234,6 +234,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/me/device-keys": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Enrol your signing key for this phone
+     * @description For holders of medicines.cd.administer or medicines.cd.witness, with a fresh step-up, from a phone bound to them (x-harbour-device) and not revoked. Stores the public key; the newest key for the member and phone signs from its enrolment. Audited as medicines.device_key.enrolled.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["EnrolDeviceKey"];
+        };
+      };
+      responses: {
+        /** @description The key enrolled */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeviceKey"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/branding": {
     parameters: {
       query?: never;
@@ -64135,6 +64205,17 @@ export interface components {
       respondBy: string;
       routedToManager: boolean;
     };
+    DeviceKey: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      deviceId: string;
+      /** Format: date-time */
+      enrolledAt: string;
+    };
+    EnrolDeviceKey: {
+      publicKey: string;
+    };
     Branding: {
       registeredName: string;
       displayName: string | null;
@@ -76424,7 +76505,7 @@ export interface components {
       timingReason: string | null;
       /** @default null */
       intervalOverrideReason: string | null;
-      controlledDrug?: components["schemas"]["CdWitness"];
+      controlledDrug?: components["schemas"]["DoseCdWitness"];
       /** @default false */
       covert: boolean;
       /**
@@ -76444,9 +76525,14 @@ export interface components {
        */
       givenBy: string | null;
       pointOfCare?: components["schemas"]["PointOfCare"];
+      /**
+       * Format: date-time
+       * @default null
+       */
+      deviceRecordedAt: string | null;
     };
     /** @default null */
-    CdWitness:
+    DoseCdWitness:
       | {
           /** Format: uuid */
           witnessAssertionId: string;
@@ -76454,7 +76540,28 @@ export interface components {
       | {
           noWitnessReason: string;
         }
+      | {
+          deviceSignatures: {
+            recorder: components["schemas"]["DeviceSignature"];
+            witness: {
+              /** Format: uuid */
+              keyId: string;
+              signature: string;
+              /** Format: date-time */
+              signedAt: string;
+              /** Format: uuid */
+              witnessId: string;
+            };
+          };
+        }
       | null;
+    DeviceSignature: {
+      /** Format: uuid */
+      keyId: string;
+      signature: string;
+      /** Format: date-time */
+      signedAt: string;
+    };
     /** @default null */
     PointOfCare: {
       /** @enum {string|null} */
@@ -76515,7 +76622,7 @@ export interface components {
       timingReason: string | null;
       /** @default null */
       intervalOverrideReason: string | null;
-      controlledDrug?: components["schemas"]["CdWitness"];
+      controlledDrug?: components["schemas"]["DoseCdWitness"];
       covert?: boolean;
       correctionReason: string;
       /** Format: date-time */
@@ -76821,6 +76928,14 @@ export interface components {
       reason: string | null;
       witness: components["schemas"]["CdWitness"];
     };
+    CdWitness:
+      | {
+          /** Format: uuid */
+          witnessAssertionId: string;
+        }
+      | {
+          noWitnessReason: string;
+        };
     StockCheckRecorded: {
       stockCheck: components["schemas"]["StockCheck"];
       incidentRaised: boolean;

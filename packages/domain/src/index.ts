@@ -48,6 +48,7 @@ export * from "./medicines/barcodes";
 export * from "./medicines/competence";
 export * from "./medicines/controlled-drugs";
 export * from "./medicines/covert";
+export * from "./medicines/device-signature";
 export * from "./medicines/dmd";
 export * from "./medicines/dmd-release";
 export * from "./medicines/dmd-subset";

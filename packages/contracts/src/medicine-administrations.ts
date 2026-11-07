@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CdWitness } from "./controlled-drugs";
+import { DoseCdWitness } from "./controlled-drugs";
 import { Dose, MarSourceKind } from "./medicines";
 
 /**
@@ -50,7 +50,7 @@ const RecordFields = {
    * administration, or where policy allows why there was none. The register entry is written with
    * the record.
    */
-  controlledDrug: CdWitness.nullable().default(null),
+  controlledDrug: DoseCdWitness.nullable().default(null),
   /** Given covertly, under the person's covert record for the medicine (slice 38). */
   covert: z.boolean().default(false),
 };

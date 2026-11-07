@@ -65,6 +65,11 @@ import {
   witnessPolicyFor,
   writeCdEntry,
 } from "../services/controlled-drugs";
+import {
+  type DeviceSignaturesInput,
+  deviceSignatureProblems,
+  deviceWitnessAssertion,
+} from "../services/device-signatures";
 import { dmdGtinMatches } from "../services/dmd";
 
 /** The time in a UUIDv7 (its first 48 bits, in milliseconds), or null for another version. */
@@ -110,6 +115,7 @@ import {
 } from "../services/medicines";
 import { authorityMarks } from "../services/medicines-authority";
 import { loadPerson } from "../services/people";
+import { rateNumber } from "../services/rates";
 import {
   conflictResponse,
   createRouter,
@@ -547,7 +553,14 @@ export const medicineAdministrationsRouter = createRouter()
           if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
           const cd = isCd && body.outcome === "given" ? { cdEntryId: randomUUID() } : null;
           if (cd) {
-            requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
+            requireCdSignatures(
+              access,
+              body.controlledDrug,
+              body.id,
+              personId,
+              deny,
+              Boolean(c.req.header(DEVICE_HEADER)),
+            );
             // The giver records a controlled drug themselves, so the witness is a second person
             // to both (security review H2).
             if (body.givenBy && body.givenBy !== access.tenantUserId) {
@@ -761,6 +774,7 @@ export const medicineAdministrationsRouter = createRouter()
               administrationId: body.id,
               givenBy: giverId,
               now,
+              toleranceMs: facts.rates.clockDriftMinutes * 60_000,
             });
           }
           return {
@@ -913,7 +927,14 @@ export const medicineAdministrationsRouter = createRouter()
           if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
           const cdMove = isCd ? registerMoveForCorrection(original, body, at) : null;
           if (cdMove) {
-            requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
+            requireCdSignatures(
+              access,
+              body.controlledDrug,
+              body.id,
+              personId,
+              deny,
+              Boolean(c.req.header(DEVICE_HEADER)),
+            );
             // The witness is never the giver or the recorder: the signature check and the
             // register trigger compare both (security review H2).
           }
@@ -1422,10 +1443,11 @@ function refuseUnheldCdOutcome(outcome: string, deny: Deny) {
 /** A controlled drug's stock moves only with a fresh step-up and a second signature (ADR-0084). */
 function requireCdSignatures(
   access: TenantAccess,
-  witness: CdWitnessInput | null,
+  witness: CdWitnessInput | { readonly deviceSignatures: DeviceSignaturesInput } | null,
   recordId: string,
   personId: string,
   deny: Deny,
+  fromDevice = false,
 ) {
   // Moving controlled drug stock needs medicines.cd.administer (security review H1).
   if (!can(access.effective, "medicines.cd.administer")) {
@@ -1437,7 +1459,18 @@ function requireCdSignatures(
       scope: { personId, problems: ["missing_permission"] },
     });
   }
-  if (!stepUpFresh(access)) {
+  // On a phone offline the recorder's own signature, verified with the witness's when the record
+  // arrives, stands for the step-up (ADR-0084; slice 70); it is accepted only from a device.
+  const deviceSigned = witness !== null && "deviceSignatures" in witness;
+  if (deviceSigned && !fromDevice) {
+    throw deny([
+      {
+        problem: "device_signatures_from_device",
+        message: "Signatures made on a phone are sent by that phone.",
+      },
+    ]);
+  }
+  if (!deviceSigned && !stepUpFresh(access)) {
     throw new AuditedRefusal(problems.stepUp(), {
       action: "medicines.cd.entry_recorded",
       outcome: "denied",
@@ -1516,13 +1549,66 @@ async function writeRegisterEntry(
     readonly corrects: "quantity" | "detail" | null;
     readonly reason: string | null;
     readonly occurredAt: Date;
-    readonly witness: CdWitnessInput;
+    readonly witness: CdWitnessInput | { readonly deviceSignatures: DeviceSignaturesInput };
     readonly administrationId: string;
     readonly givenBy: string;
     readonly now: Date;
+    /** The clock-drift figure, for signatures made on a phone (slice 70). */
+    readonly toleranceMs?: number;
   },
 ) {
   const { page, opened } = await pageFor(tx, e.entry, access.tenantUserId);
+  // Offline on one phone (ADR-0084; slice 70): both signatures are verified here, and the
+  // witness's becomes the register's own assertion, used at once by the entry below.
+  let witness: CdWitnessInput;
+  if ("deviceSignatures" in e.witness) {
+    const deviceId = c.req.header(DEVICE_HEADER)?.toLowerCase() ?? "";
+    const person = await loadPerson(tx, e.entry.personId);
+    const minutes = await rateNumber(
+      tx,
+      access.tenantId,
+      "medicines.cd.witness_assertion_minutes",
+      person.nation,
+    );
+    const port = c.get("services").medicines.competence;
+    const witnessId = e.witness.deviceSignatures.witness.witnessId;
+    const problems = await deviceSignatureProblems(
+      tx,
+      {
+        tenantId: access.tenantId,
+        deviceId,
+        recorderId: access.tenantUserId,
+        personId: e.entry.personId,
+        entryId: e.entry.id,
+        administrationId: e.administrationId,
+        quantity: e.quantity,
+        unitCode: e.unitCode ?? page.unitCode,
+        locationId: e.locationId,
+      },
+      e.witness.deviceSignatures,
+      {
+        now: e.now,
+        toleranceMs: e.toleranceMs ?? 0,
+        apartMs: minutes * 60_000,
+        witnessCompetent: async (at) =>
+          (await port.forMember(access.tenantId, witnessId, at)) === "current",
+      },
+    );
+    if (problems.length > 0) throw deny(problems);
+    witness = {
+      witnessAssertionId: await deviceWitnessAssertion(tx, {
+        personId: e.entry.personId,
+        pageId: page.id,
+        quantity: e.quantity,
+        administrationId: e.administrationId,
+        recorderId: access.tenantUserId,
+        witness: e.witness.deviceSignatures.witness,
+        expiresAt: new Date(e.now.getTime() + minutes * 60_000),
+      }),
+    };
+  } else {
+    witness = e.witness;
+  }
   if (opened) {
     await audit(c, tx, access, {
       action: "medicines.cd.page_opened",
@@ -1557,7 +1643,7 @@ async function writeRegisterEntry(
     reference: late
       ? "Recorded after it was given: the time given is on the administration record"
       : null,
-    witness: e.witness,
+    witness,
     administrationId: e.administrationId,
     recordedBy: access.tenantUserId,
     givenBy: e.givenBy,

@@ -17,9 +17,50 @@ export const CdMovement = z
   .meta({ id: "CdMovement" });
 
 /** How the second signature is given: a witness's assertion, or (where policy allows) why none. */
+/** One signature made on a phone with a member's own PIN-unlocked key (ADR-0084; slice 70). */
+export const DeviceSignature = z
+  .object({
+    /** The member_device_key that signed. */
+    keyId: uuid,
+    /** ECDSA P-256 over the dose statement (`cdDoseStatementText`), r||s, base64. */
+    signature: z.string().regex(/^[A-Za-z0-9+/]{86}==$/),
+    /** When they signed, by the phone's clock. */
+    signedAt: isoDateTime,
+  })
+  .meta({ id: "DeviceSignature" });
+
 export const CdWitness = z
   .union([z.object({ witnessAssertionId: uuid }), z.object({ noWitnessReason: reason })])
   .meta({ id: "CdWitness" });
+
+/**
+ * A dose's second signature: as the register's, or, offline on one phone, the recorder's own
+ * signature standing for their step-up and the witness's on the same phone; the server verifies
+ * both (ADR-0084; slice 70).
+ */
+export const DoseCdWitness = z
+  .union([
+    z.object({ witnessAssertionId: uuid }),
+    z.object({ noWitnessReason: reason }),
+    z.object({
+      deviceSignatures: z.object({
+        recorder: DeviceSignature,
+        witness: DeviceSignature.extend({ witnessId: uuid }),
+      }),
+    }),
+  ])
+  .meta({ id: "DoseCdWitness" });
+
+export const EnrolDeviceKey = z
+  .object({
+    /** The uncompressed P-256 public key (65 bytes), base64. */
+    publicKey: z.string().regex(/^[A-Za-z0-9+/]{86}[AEIMQUYcgkosw048]=$/),
+  })
+  .meta({ id: "EnrolDeviceKey" });
+
+export const DeviceKeyOut = z
+  .object({ id: uuid, deviceId: uuid, enrolledAt: isoDateTime })
+  .meta({ id: "DeviceKey" });
 
 export const OpenCdPage = z
   .object({ /** The MAR entry whose dm+d product is a controlled drug. */ entryId: uuid })
