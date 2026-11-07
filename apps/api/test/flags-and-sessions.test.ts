@@ -151,7 +151,10 @@ describe("hazard HZ-115 hazard HZ-008 controlled drug recording is released loca
   });
 
   it("answers only for a location the member works at", async () => {
+    // Another organisation's home (row-level security) and a home of the same organisation the
+    // member does not work at (the work-location check) answer alike.
     expect((await flagsAt("owner", OTHER.locationId)).status).toBe(404);
+    expect((await flagsAt("carer", LODGE.locationId)).status).toBe(404);
   });
 });
 

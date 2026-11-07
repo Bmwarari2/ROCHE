@@ -112,7 +112,7 @@ async function ControlledDrugsTab({ params }: { readonly params: Params }) {
           </ul>
         )}
       </Card>
-      {recorder && toOpen.length > 0 ? (
+      {recorder && recordingOn && toOpen.length > 0 ? (
         <Card as="section" title={t("cd.open.title")} headingLevel={3}>
           <OpenPageForm personId={id} entries={toOpen} />
         </Card>

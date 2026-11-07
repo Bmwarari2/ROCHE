@@ -1656,10 +1656,13 @@ above the register.
 **Which register is the record** (H-1517, HZ-115): Harbour's register is the record at a home only
 once controlled drug recording is released there on both the web and the phone (the per-location
 flag `medicines.cd_recording`, off by default). Until then the tab and every page say at the top,
-in words with a warning icon, that the paper controlled drugs register is the record, and the web
-round's record page tells staff to record a controlled drug in the paper register and on the
-paper MAR. A flag the web cannot read counts as off. The API does not yet refuse entries where it
-is off (open control in HZ-115).
+in words with a warning icon, that the paper controlled drugs register is the record and not to
+record controlled drugs there; the web offers none of the register's forms (open a page, record,
+witness, correct, count); the printed page and the person's stock say the paper register is the
+record; and the web round's record page tells staff to record a controlled drug in the paper
+register and on the paper MAR. A flag the web cannot read counts as off. The demo seed releases
+recording at the demo home only. The API does not yet refuse entries where it is off (open
+control in HZ-115, for the CSO).
 
 **Rules**
 

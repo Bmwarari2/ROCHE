@@ -143,7 +143,8 @@ async function RegisterPage({
       <Card as="section" title={t("cd.page.checks")} headingLevel={3}>
         <StockChecks page={page} />
       </Card>
-      {witness ? (
+      {/* Nothing is recorded here until recording is released at the home (H-1517): the paper register is the record. */}
+      {witness && recordingOn ? (
         <Card as="section" title={t("cd.witness.title")} headingLevel={3}>
           {(recorders?.data?.recorders ?? []).length === 0 ? (
             <p className="m-0">{t("cd.witness.noRecorders")}</p>
@@ -157,7 +158,7 @@ async function RegisterPage({
           )}
         </Card>
       ) : null}
-      {recorder ? (
+      {recorder && recordingOn ? (
         <Card as="section" title={t("cd.form.title")} headingLevel={3}>
           <EntryForm
             personId={id}
@@ -168,7 +169,7 @@ async function RegisterPage({
           />
         </Card>
       ) : null}
-      {recorder && page.entries.length > 0 ? (
+      {recorder && recordingOn && page.entries.length > 0 ? (
         <Card as="section" title={t("cd.correct.title")} headingLevel={3}>
           <CorrectionForm
             personId={id}
@@ -180,7 +181,7 @@ async function RegisterPage({
           />
         </Card>
       ) : null}
-      {counter ? (
+      {counter && recordingOn ? (
         <Card as="section" title={t("cd.check.title")} headingLevel={3}>
           <StockCheckForm
             personId={id}

@@ -10,5 +10,8 @@ round's controlled drugs notice told staff to record in Harbour's register, whic
   for this home" at the top, saying the paper register is the record, until the flag is on there.
 - The round's record page tells staff to record a controlled drug in the paper register while the
   flag is off, and in the person's controlled drugs register once it is on.
-- Hazard log: HZ-115 and HZ-008 controls and tests. The API does not yet refuse register entries
+- While it is off the web offers none of the register's forms, and the printed page and the
+  person's stock say the paper register is the record (clinical review). The demo seed releases
+  recording at the demo home, so the journeys still record.
+- Hazard log: HZ-115 (partly built, CSO decision pending) and HZ-008 controls and tests. The API does not yet refuse register entries
   where the flag is off (an open control under HZ-115, for the phone release, H-1518).
