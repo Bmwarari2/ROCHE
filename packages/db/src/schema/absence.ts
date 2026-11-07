@@ -102,10 +102,28 @@ export const absence = pgTable(
      */
     source: text("source").notNull().default("harbour"),
     hrId: text("hr_id"),
+    /**
+     * For leave an approver gave on new dates when postponing a request (H-970; migration 0153):
+     * the request it replaces, which stays `postponed` with the reason.
+     */
+    postponedFromId: uuid("postponed_from_id"),
     ...mutableColumns(),
   },
   (t) => [
     unique("absence_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "absence_postponed_from_fk",
+      columns: [t.tenantId, t.postponedFromId],
+      foreignColumns: [t.tenantId, t.id],
+    }),
+    // One postponement per request.
+    uniqueIndex("absence_postponed_from_key")
+      .on(t.tenantId, t.postponedFromId)
+      .where(sql`postponed_from_id IS NOT NULL`),
+    check(
+      "absence_postponed_from",
+      sql`postponed_from_id IS NULL OR (kind IN (${sqlList(POSTPONABLE_LEAVE_CODES)}) AND source = 'harbour')`,
+    ),
     staffRef("absence_member_fk", t, t.memberId),
     staffRef("absence_decided_by_fk", t, t.decidedBy),
     locationRef("absence_location_fk", t),

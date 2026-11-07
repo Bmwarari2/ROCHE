@@ -967,6 +967,13 @@
       "when": 1794033640694,
       "tag": "0152_product_name_stored_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1794042582097,
+      "tag": "0153_absence_postponed_dates",
+      "breakpoints": true
     }
   ]
 }

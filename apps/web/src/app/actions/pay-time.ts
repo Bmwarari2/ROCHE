@@ -95,13 +95,24 @@ export async function requestLeave(body: {
 
 export async function decideAbsence(
   id: string,
-  body: { version: number; decision: "approve" | "decline"; reason?: string },
+  body: {
+    version: number;
+    decision: "approve" | "decline" | "postpone";
+    reason?: string;
+    startsOn?: string;
+    endsOn?: string;
+    confirmsPostponable?: boolean;
+  },
 ): Promise<ActionResult<unknown>> {
   if (!isUuid(id)) return bad();
+  const postpone = body.decision === "postpone";
   if (
     !isVersion(body.version) ||
-    (body.decision !== "approve" && body.decision !== "decline") ||
-    (body.reason !== undefined && !isText(body.reason, 3, 500))
+    (body.decision !== "approve" && body.decision !== "decline" && !postpone) ||
+    (body.reason !== undefined && !isText(body.reason, 3, 500)) ||
+    // New dates only with a postponement (H-970), and then both of them.
+    (postpone ? !isDate(body.startsOn) || !isDate(body.endsOn) : body.startsOn || body.endsOn) ||
+    (body.confirmsPostponable !== undefined && body.confirmsPostponable !== true)
   ) {
     return invalid();
   }
@@ -109,7 +120,13 @@ export async function decideAbsence(
   return sendAndRevalidate(["/absences"], (api) =>
     api.POST("/v1/absences/{id}/decision", {
       params: { path: { id } },
-      body: { version, decision, ...(reason !== undefined ? { reason } : {}) },
+      body: {
+        version,
+        decision,
+        ...(reason !== undefined ? { reason } : {}),
+        ...(postpone ? { startsOn: body.startsOn, endsOn: body.endsOn } : {}),
+        ...(postpone && body.confirmsPostponable ? { confirmsPostponable: true } : {}),
+      },
     }),
   );
 }

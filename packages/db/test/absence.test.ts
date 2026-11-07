@@ -178,6 +178,84 @@ describe("migration 0107 an absence is its member's and their home's managers'",
   });
 });
 
+describe("H-970 migration 0153 postponing carer's or parental leave to new dates", () => {
+  const ASK_CARERS = `INSERT INTO absence (member_id, location_id, kind, starts_on, ends_on, state)
+    VALUES ($1, $2, $3, '2026-12-07', '2026-12-08', 'requested') RETURNING id`;
+  const GIVE = `INSERT INTO absence (member_id, location_id, kind, starts_on, ends_on, state,
+      decided_by, decided_at, postponed_from_id)
+    VALUES ($1, $2, $3, '2026-12-14', '2026-12-15', 'approved', $4, now(), $5) RETURNING id`;
+
+  it("lets the approver who postponed it give the same member the leave on new dates, once", async () => {
+    const asked = await asCarer((c) =>
+      c.query<{ id: string }>(ASK_CARERS, [a.carer, a.locationNorth, "carers_leave"]),
+    );
+    const id = asked.rows[0]?.id as string;
+    // Not before it is postponed.
+    await expect(
+      asNorth((c) => c.query(GIVE, [a.carer, a.locationNorth, "carers_leave", a.northManager, id])),
+    ).rejects.toThrow(/row-level security/);
+    const given = await asNorth(async (c) => {
+      await decide(c, id, "postponed", a.northManager, "Two others away that week");
+      return c.query<{ id: string }>(GIVE, [
+        a.carer,
+        a.locationNorth,
+        "carers_leave",
+        a.northManager,
+        id,
+      ]);
+    });
+    expect(given.rows).toHaveLength(1);
+    // Once only.
+    await expect(
+      asNorth((c) => c.query(GIVE, [a.carer, a.locationNorth, "carers_leave", a.northManager, id])),
+    ).rejects.toThrow(/absence_postponed_from_key/);
+    // The link never changes.
+    await expect(
+      asNorth((c) =>
+        c.query("UPDATE absence SET postponed_from_id = NULL WHERE id = $1", [given.rows[0]?.id]),
+      ),
+    ).rejects.toThrow(/absence_postponed_from_fixed/);
+  });
+
+  it("refuses another member, kind or decider, the member themselves, and kinds never postponed", async () => {
+    const asked = await asCarer((c) =>
+      c.query<{ id: string }>(ASK_CARERS, [a.carer, a.locationNorth, "parental_leave"]),
+    );
+    const id = asked.rows[0]?.id as string;
+    await asNorth((c) => decide(c, id, "postponed", a.northManager, "Two others away that week"));
+    // Another kind than the request's.
+    await expect(
+      asNorth((c) => c.query(GIVE, [a.carer, a.locationNorth, "carers_leave", a.northManager, id])),
+    ).rejects.toThrow(/row-level security/);
+    // Another member than the request's.
+    await expect(
+      asNorth((c) =>
+        c.query(GIVE, [a.manager, a.locationNorth, "parental_leave", a.northManager, id]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    // A planner who approves nothing, in someone else's name or their own.
+    await expect(
+      asPlanner((c) =>
+        c.query(GIVE, [a.carer, a.locationNorth, "parental_leave", a.northManager, id]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    // The member, for themselves.
+    await expect(
+      asCarer((c) => c.query(GIVE, [a.carer, a.locationNorth, "parental_leave", a.carer, id])),
+    ).rejects.toThrow(/row-level security|absence_decider_is_member/);
+    // Annual leave is never postponed, so never given on new dates this way.
+    await expect(
+      asNorth((c) => c.query(GIVE, [a.carer, a.locationNorth, "annual_leave", a.northManager, id])),
+    ).rejects.toThrow(/absence_postponed_from|row-level security/);
+    // The other tenant sees none of it.
+    expect(
+      await asOtherTenant((c) =>
+        count(c, "SELECT count(*) AS n FROM absence WHERE postponed_from_id IS NOT NULL"),
+      ),
+    ).toBe(0);
+  });
+});
+
 describe("migration 0107 fit notes and return to work are health data", () => {
   it("are added and read only by holders of workforce.hr_document.read, and by the member", async () => {
     const recorded = await asPlanner((c) =>
