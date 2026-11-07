@@ -17,6 +17,7 @@ import {
   type ConflictView,
   decidableOnPhone,
   fetchConflicts,
+  notOnPhoneReason,
   type ResolveOutcome,
   resolveConflict,
   sameDose,
@@ -119,7 +120,8 @@ export default function MedicinesConflictsScreen() {
             const medicine = meds.find((m) => m.id === c.entryId)?.product_name ?? null;
             const unit = times.find((x) => x.medication_id === c.entryId)?.unit_name ?? null;
             const asking = confirming?.id === c.id ? confirming.outcome : null;
-            const decidable = decidableOnPhone(meds.find((m) => m.id === c.entryId));
+            const held = meds.find((m) => m.id === c.entryId);
+            const decidable = decidableOnPhone(held);
             return (
               <Card
                 key={c.id}
@@ -154,16 +156,19 @@ export default function MedicinesConflictsScreen() {
                       ? t("mobile.meds.conflictSameRecorder")
                       : t("mobile.meds.conflictTwoRecorders")}
                   </Text>
-                  <TextField
-                    label={t("mobile.meds.conflictNote")}
-                    hint={t("mobile.meds.conflictNoteHint")}
-                    value={notes[c.id] ?? ""}
-                    onChangeText={(v) => setNotes((n) => ({ ...n, [c.id]: v }))}
-                    maxLength={2000}
-                  />
+                  {/* No note field where nothing could send it (slice 70 reviews). */}
+                  {decidable ? (
+                    <TextField
+                      label={t("mobile.meds.conflictNote")}
+                      hint={t("mobile.meds.conflictNoteHint")}
+                      value={notes[c.id] ?? ""}
+                      onChangeText={(v) => setNotes((n) => ({ ...n, [c.id]: v }))}
+                      maxLength={2000}
+                    />
+                  ) : null}
                   {!decidable ? (
                     <StatusLine tone="warning" testID={`conflict-${c.id}-on-web`}>
-                      {t("mobile.meds.conflictCdOnWeb")}
+                      {t("mobile.meds.conflictCdOnWeb", { reason: notOnPhoneReason(held) })}
                     </StatusLine>
                   ) : asking ? (
                     // One more step before a decision is sent: what it does, in words (WCAG 3.3.4).

@@ -28,6 +28,7 @@ const base: DoseRecordInput = {
   at: new Date("2026-11-03T08:05:00Z"),
   deviceOffsetMs: null,
   mayGive: true,
+  mayRecordCd: true,
   controlledDrug: false,
 };
 
@@ -51,7 +52,19 @@ describe("hazards HZ-001 and HZ-116 a dose recorded on the phone needs identity,
     [
       "a controlled drug from someone who may not record controlled drugs",
       { controlledDrug: true, mayRecordCd: false },
-      ["cd_not_permitted", "cd_signatures_required"],
+      ["cd_not_permitted"],
+    ],
+    [
+      "a controlled drug refused by someone who may not record controlled drugs",
+      {
+        controlledDrug: true,
+        mayRecordCd: false,
+        outcome: "refused",
+        reason: { code: "other", note: "Said no thank you" },
+        identity: null,
+        pack: null,
+      },
+      [],
     ],
     [
       "a controlled drug signed by two people",

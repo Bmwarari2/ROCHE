@@ -135,7 +135,8 @@ export default function PersonMedicinesScreen() {
       ampId: row?.amp_id ?? null,
       ...unit,
       mayGive,
-      controlledDrug: round?.controlledDrugIds.has(entryId) ?? false,
+      // Not yet known counts as a controlled drug (slice 70 clinical review, L5).
+      controlledDrug: round ? round.controlledDrugIds.has(entryId) : true,
       allergyWords: allergy.words,
       nextAllowedAt: prn?.nextAllowedAt ? new Date(prn.nextAllowedAt) : null,
       lastDoseNotOnDevice: prn?.lastDoseNotOnDevice ?? false,
@@ -187,7 +188,7 @@ export default function PersonMedicinesScreen() {
                 unitName={
                   times.find((x) => x.medication_id === rec.medication_id)?.unit_name ?? null
                 }
-                controlledDrug={Boolean(med?.cd_schedule)}
+                controlledDrug={med ? med.cd_schedule != null : true}
                 onDone={(ok) => {
                   setCorrecting(null);
                   setSaved(ok);

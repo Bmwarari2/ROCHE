@@ -232,8 +232,8 @@ FROM (SELECT u.id, u.tenant_id, u.record_table, u.http_status, u.code, u.message
     END) AS person_id
   FROM upload_issue u) i
 LEFT JOIN person p ON p.id = i.person_id AND p.tenant_id = i.tenant_id
-LEFT JOIN medication m ON i.record_table = 'medication_administration' AND json_valid(i.payload)
-  AND m.id = json_extract(i.payload, '$.medication_id')
+LEFT JOIN medication m ON m.tenant_id = i.tenant_id AND i.record_table = 'medication_administration'
+  AND m.id = CASE WHEN json_valid(i.payload) THEN json_extract(i.payload, '$.medication_id') END
 WHERE (i.tenant_id = ? OR i.tenant_id IS NULL)
 ORDER BY i.rejected_at DESC, i.id`;
 

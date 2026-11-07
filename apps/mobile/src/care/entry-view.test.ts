@@ -157,6 +157,7 @@ describe("hazard HZ-006 refused entries stay readable", () => {
       content: "What was recorded: Invented note",
       when: "11/10/2026 at 10:00",
       copy: null,
+      advice: null,
     });
   });
 
@@ -306,5 +307,8 @@ describe("hazard HZ-115 a refused dose names its medicine in needs attention (sl
       "Invented tablets 10mg: given, for the dose due 11/10/2026 at 08:00",
     );
     expect(item.when).toBe("11/10/2026 at 08:05");
+    expect(item.advice).toBe(
+      "Ask the nurse in charge what happened at this dose. If Thapsus Care does not have it, record it on the web.",
+    );
   });
 });

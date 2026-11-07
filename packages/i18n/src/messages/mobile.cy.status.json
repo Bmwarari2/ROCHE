@@ -739,6 +739,7 @@
     "mobile.meds.correctAction",
     "mobile.meds.saveFailed",
     "mobile.meds.issueContent",
+    "mobile.meds.issueAdvice",
     "mobile.meds.cdNotPermitted",
     "mobile.meds.conflictCdOnWeb"
   ]

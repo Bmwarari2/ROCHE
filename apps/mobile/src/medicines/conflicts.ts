@@ -160,5 +160,13 @@ export async function resolveConflict(
 export function decidableOnPhone(
   medicine: { readonly cd_schedule: string | null } | undefined,
 ): boolean {
-  return medicine !== undefined && !medicine.cd_schedule;
+  // Any schedule, even an empty one, counts as a controlled drug (slice 70 clinical review, L6).
+  return medicine !== undefined && medicine.cd_schedule == null;
+}
+
+/** Why a conflict waits for the web, in the words the screen chooses between. */
+export function notOnPhoneReason(
+  medicine: { readonly cd_schedule: string | null } | undefined,
+): "cd" | "missing" {
+  return medicine === undefined ? "missing" : "cd";
 }

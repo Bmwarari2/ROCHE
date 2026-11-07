@@ -124,6 +124,11 @@ export function DoseRecordPanel({
   const [lone, setLone] = useState(false);
   // Whether this member may record a controlled drug: checked before the dose, never after.
   const mayRecordCd = (me?.permissions ?? []).includes("medicines.cd.administer");
+  const cdBlocked = dose.controlledDrug && !mayRecordCd;
+  // Said as the panel opens, before any check or outcome is chosen (slice 70 reviews; WCAG 4.1.3).
+  useEffect(() => {
+    if (cdBlocked) announce(t("mobile.meds.cdNotPermitted"));
+  }, [cdBlocked]);
 
   const cdFields = async (
     id: string,
@@ -266,8 +271,8 @@ export function DoseRecordPanel({
 
   const save = async () => {
     if (!outcome || saving) return;
-    if (dose.controlledDrug && outcome === "given" && !mayRecordCd) {
-      setProblems(["cd_not_permitted"]);
+    // The line at the top already says why; it is not repeated in the problems list.
+    if (cdBlocked && outcome === "given") {
       announce(t("mobile.meds.cdNotPermitted"));
       return;
     }
@@ -375,6 +380,11 @@ export function DoseRecordPanel({
       <StatusLine tone="warning" testID="dose-allergies">
         {dose.allergyWords}
       </StatusLine>
+      {cdBlocked ? (
+        <StatusLine tone="danger" testID="cd-not-permitted">
+          {t("mobile.meds.cdNotPermitted")}
+        </StatusLine>
+      ) : null}
 
       <Text variant="callout" accessibilityRole="header">
         {t("mobile.meds.outcome")}
@@ -486,11 +496,7 @@ export function DoseRecordPanel({
             onChangeText={setAmount}
             keyboardType="decimal-pad"
           />
-          {dose.controlledDrug && !mayRecordCd ? (
-            <StatusLine tone="danger" testID="cd-not-permitted">
-              {t("mobile.meds.cdNotPermitted")}
-            </StatusLine>
-          ) : dose.controlledDrug ? (
+          {dose.controlledDrug && !cdBlocked ? (
             <View style={{ gap: theme.space[1] }} testID="cd-signatures">
               <Text variant="callout" accessibilityRole="header">
                 {t("mobile.meds.cdTitle")}

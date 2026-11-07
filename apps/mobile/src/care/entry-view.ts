@@ -223,6 +223,8 @@ export interface IssueItem {
   readonly when: string;
   /** Whether Harbour has a copy, in words, when it is known (Device integrity part 5). */
   readonly copy: string | null;
+  /** What to do about it, kept apart from what was recorded (slice 70 accessibility review). */
+  readonly advice: string | null;
 }
 
 /** A refused upload, with enough of its content for someone to record it again. */
@@ -262,7 +264,8 @@ export function issueItem(row: UploadIssueRow): IssueItem {
     content = t("mobile.meds.issueContent", {
       medicine: row.medicine_name ?? t("mobile.meds.medicineNotOnPhone"),
       outcome: typeof payload.outcome === "string" ? payload.outcome : "other",
-      due: due ? when(due) : "none",
+      hasDue: due ? "yes" : "no",
+      due: due ? when(due) : "",
       correction: typeof payload.supersedes_id === "string" && payload.supersedes_id ? "yes" : "no",
     });
   }
@@ -323,5 +326,6 @@ export function issueItem(row: UploadIssueRow): IssueItem {
         : row.server_copy === "refused"
           ? t("mobile.issues.copyRefused")
           : null,
+    advice: table === "medication_administration" ? t("mobile.meds.issueAdvice") : null,
   };
 }

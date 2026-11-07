@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { decidableOnPhone, parseConflicts, resolveConflict, sameDose } from "./conflicts";
+import {
+  decidableOnPhone,
+  notOnPhoneReason,
+  parseConflicts,
+  resolveConflict,
+  sameDose,
+} from "./conflicts";
 
 const conflict = (overrides: Record<string, unknown> = {}) => ({
   id: "c1",
@@ -64,8 +70,14 @@ describe("hazard HZ-116 a controlled drug's conflict is decided on the web, with
   it.each([
     ["an ordinary medicine", { cd_schedule: null }, true],
     ["a controlled drug", { cd_schedule: "2" }, false],
+    ["a controlled drug with an empty schedule", { cd_schedule: "" }, false],
     ["a medicine not on the phone", undefined, false],
   ] as const)("%s", (_case, medicine, decidable) => {
     expect(decidableOnPhone(medicine)).toBe(decidable);
+  });
+
+  it("says why: a controlled drug, or a medicine the phone does not hold", () => {
+    expect(notOnPhoneReason({ cd_schedule: "2" })).toBe("cd");
+    expect(notOnPhoneReason(undefined)).toBe("missing");
   });
 });
