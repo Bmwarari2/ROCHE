@@ -292,7 +292,7 @@ describe("hazard HZ-120 homely remedies in the database (migration 0140)", () =>
     expect(await attempt(carer, doseSql, [fresh(), a.personAda, PROTOCOL, 2, a.carer])).toMatch(
       /outside_protocol/,
     );
-    // Allergies not checked (HZ-007), or the current medicines not compared (HZ-120, 0155).
+    // Allergies not checked (HZ-007), or the current medicines not compared (HZ-120, 0150).
     for (const [allergies, compared] of [
       ["false", "true"],
       ["true", "false"],
