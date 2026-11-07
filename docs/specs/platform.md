@@ -337,8 +337,10 @@ shows it; upload and remove a logo; axe in light and dark).
     (H-1469; a wrong leaving date withdrawn, HZ-133), active with its sign-in or invited without
     one, never while a leaving is still recorded (409 `leaving_still_recorded`: withdraw it first,
     in the staff file or through the HR link's withdraw), never once the sign-in has been erased
-    or while the member's deletion request stands; its
-    roles and grants stay ended. `tenant_user_membership_guard` (replaced in place) allows this one
+    or while the member's deletion request stands, or once its
+    sign-in has been deleted from another organisation. Roles and grants ended by the leaver
+    process stay ended; any still in force come back only where the manager holds them
+    (`app.may_invite`). `tenant_user_membership_guard` (replaced in place) allows this one
     transition for `harbour_member_owner` only. `mayReinstate` on the status tells the page.
   - Suspending counts and hurries only the member's own held entries (the device report names the
     owner), never a colleague's on a shared device. Ending waits for entries of theirs held on a

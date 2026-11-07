@@ -19,6 +19,11 @@ GRANT SELECT (tenant_id, staff_profile_id, leaving_on, access_removed_at, delete
 --> statement-breakpoint
 GRANT SELECT (tenant_id, id, tenant_user_id) ON public.staff_profile TO harbour_member_owner;
 --> statement-breakpoint
+-- Whether a sign-in still exists, before an ended membership is reinstated with it.
+GRANT USAGE ON SCHEMA auth TO harbour_member_owner;
+--> statement-breakpoint
+GRANT SELECT (id) ON auth."user" TO harbour_member_owner;
+--> statement-breakpoint
 CREATE POLICY member_owner_tenant_status ON public.tenant AS PERMISSIVE FOR SELECT
   TO harbour_member_owner USING (true);
 --> statement-breakpoint
@@ -174,7 +179,9 @@ BEGIN
          OR EXISTS (SELECT 1 FROM public.tenant_user tu
                     WHERE tu.tenant_id = v_tenant AND tu.id = p_member
                       AND (tu.sign_in_erased_at IS NOT NULL
-                           OR tu.sign_in_erasure_requested_at IS NOT NULL))) THEN
+                           OR tu.sign_in_erasure_requested_at IS NOT NULL))
+         -- Its sign-in may have been erased from another organisation (security re-check N1).
+         OR (v_auth IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth."user" au WHERE au.id = v_auth))) THEN
       RAISE EXCEPTION 'membership_ended' USING ERRCODE = 'check_violation';
     END IF;
     IF v_status NOT IN ('suspended', 'left') THEN

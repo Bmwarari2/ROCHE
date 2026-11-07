@@ -443,6 +443,25 @@ describe("H-1469 reinstating an ended membership (a wrong leaving date withdrawn
     });
     await setState(a.manager, "active");
     await setState(a.northManager, "active");
+    // The sign-ins the members below keep (only an existing one is brought back).
+    await db.pool("harbour_auth").query(
+      `INSERT INTO auth."user" (id, name, email) VALUES
+           ('auth-sam', 'Sam Example', 'sam@example.invalid'),
+           ('auth-tom', 'Tom Example', 'tom@example.invalid')`,
+    );
+  });
+
+  it("never once the sign-in has been deleted from another organisation (security re-check N1)", async () => {
+    const UNA = "0199f000-0000-7000-8000-000000000754";
+    await owner((c) =>
+      c.query(
+        `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status)
+         VALUES ($1, 'auth-gone', 'Una Example', 'una@example.invalid', 'left')`,
+        [UNA],
+      ),
+    );
+    await expect(as(a.manager)(change(UNA, "reinstate"))).rejects.toThrow(/membership_ended/);
+    expect((await stateOf(UNA))?.status).toBe("left");
   });
 
   it("refuses a manager whose permission is only at a home", async () => {
