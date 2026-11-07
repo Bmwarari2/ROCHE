@@ -57,7 +57,7 @@ export default async function MedicineOrderPage({
   if (problemCode(read.error) === "not_found") notFound();
   // Only an order of the home in the address, never another home's under this one's name
   // (security review m1).
-  if (here.data && !here.data.items.some((o) => o.id === orderId)) notFound();
+  if (!here.data?.items.some((o) => o.id === orderId)) notFound();
   if (problemCode(read.error) === "missing_permission") return <SafetyForbidden title={title} />;
   if (!read.data) failWith(read.error, read.response, orderHref(locationId, orderId));
   const order = read.data;
