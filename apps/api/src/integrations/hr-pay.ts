@@ -24,7 +24,7 @@ import {
   payUnitsToHrAllowed,
   type ThapsusHrPort,
 } from "@harbour/domain";
-import { and, desc, eq, isNull, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, notInArray, sql } from "drizzle-orm";
 import {
   type HrConnection,
   type HrLinkSettings,
@@ -237,7 +237,8 @@ export async function pullPay(
   const { linked } = await members(tx);
   const employees = [...linked.keys()];
   if (employees.length > 0) {
-    const read = await applyRates(tx, port, employees, linked, now);
+    // Rates are retired only when the whole read, periods included, was clean.
+    const read = await applyRates(tx, port, employees, linked, now, out.failed === 0);
     if (read.error) {
       await recordSync(tx, "rates", now, read.error);
       return { ...out, error: read.error };
@@ -285,7 +286,8 @@ export async function pullPay(
  * Rates for the given Thapsus-HR employees, checked at the boundary and written by the sync alone.
  * Thapsus-HR owns each employee's rate history: a rate it no longer lists for an employee it did
  * answer for is retired (soft-deleted, its history kept), but only when nothing in the answer was
- * unreadable.
+ * unreadable, and only when it takes effect after every period a pay run covers (a correction of a
+ * past period keeps the rates that were in force then).
  */
 async function applyRates(
   tx: Transaction,
@@ -293,6 +295,8 @@ async function applyRates(
   employees: readonly string[],
   linked: ReadonlyMap<string, { readonly staffProfileId: string }>,
   now: Date,
+  /** Whether everything read alongside (the pay periods) was clean. */
+  othersClean = true,
 ): Promise<{
   readonly rates: number;
   readonly failedIds: string[];
@@ -332,7 +336,13 @@ async function applyRates(
       });
     n += 1;
   }
-  if (failedIds.length === 0) {
+  if (failedIds.length === 0 && othersClean) {
+    // A rate a pay run may still need (a correction of a past period) is never retired: only
+    // rates taking effect after the end of every pay period with a run (HZ-140).
+    const [last] = await tx
+      .select({ end: sql<string | null>`max(${payRun.periodEnd})::text` })
+      .from(payRun);
+    const after = last?.end ?? "1970-01-01";
     for (const [profile, dates] of listed) {
       await tx
         .update(hrPayRate)
@@ -342,6 +352,7 @@ async function applyRates(
             eq(hrPayRate.staffProfileId, profile),
             isNull(hrPayRate.deletedAt),
             notInArray(hrPayRate.effectiveFrom, [...dates]),
+            gt(hrPayRate.effectiveFrom, after),
           ),
         );
     }
@@ -382,9 +393,12 @@ export async function pullRatesFor(
   tx: Transaction,
   port: ThapsusHrPort,
   hrEmployeeId: string,
+  settings: HrLinkSettings,
   now: Date,
 ): Promise<void> {
   if (port.capabilities().pay_rates_read !== "available") return;
+  // Only while Thapsus-HR owns pay rates (rule 2).
+  if (settings.owners.pay_rates_and_periods !== "thapsus_hr") return;
   const { linked } = await members(tx);
   if (!linked.has(hrEmployeeId)) return;
   await applyRates(tx, port, [hrEmployeeId], linked, now);

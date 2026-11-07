@@ -3,6 +3,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { auditInTx } from "../http/audit";
 import { requirePermission, stepUpRefusal, withTenant } from "../http/context";
 import { HttpProblem } from "../http/problem";
+import { RateLimiter, requireWithinLimit } from "../http/rate-limit";
 import { hrConnection, hrLinkEnabled, ukRefusal } from "../integrations/hr-link";
 import { heldHrCopies, hrCopiesInForce, lockRota, releaseHrCopies } from "../integrations/hr-rota";
 import { publish } from "../outbox";
@@ -49,6 +50,7 @@ const Held = z
     items: z.array(
       z.object({
         hrId: z.string(),
+        memberId: z.uuid(),
         kind: z.string(),
         startsOn: z.iso.date(),
         endsOn: z.iso.date().nullable(),
@@ -58,6 +60,9 @@ const Held = z
     error: z.string().nullable(),
   })
   .meta({ id: "HrCopiesHeld" });
+
+/** Reading the held list calls Thapsus-HR: at most a few times a minute per person. */
+const heldLimiter = new RateLimiter("hr_link_held", 6, 60_000);
 
 export const hrLinkAbsencesRouter = createRouter()
   .openapi(
@@ -73,8 +78,17 @@ export const hrLinkAbsencesRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, "integrations.hr_link.manage");
+      // Absence dates and types, and a read of Thapsus-HR's whole list: a fresh step-up, a few a
+      // minute, and audited (slice 90 security review).
+      if (!access.stepUpFresh) throw stepUpRefusal(access);
       const services = c.get("services");
+      await requireWithinLimit(services.db, access, heldLimiter);
       const out = await withTenant(c, async (tx) => {
+        await auditInTx(tx, access, {
+          action: "integrations.hr_link.held_viewed",
+          resourceType: "integration_connection",
+          resourceId: HR_LINK_PORT,
+        });
         const connection = await hrConnection(tx);
         const enabled = await hrLinkEnabled(tx);
         const linked = connection?.status === "connected";

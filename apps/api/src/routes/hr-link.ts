@@ -1388,7 +1388,7 @@ export const hrLinkInboundRouter = createRouter().openapi(
       await endLeaversAccess(tx, tenantId, now);
       // A changed employee's rate is read now, not at the next daily read (slice 90).
       if (received.data.type === "employee.changed") {
-        await pullRatesFor(tx, port, received.data.employeeId, now);
+        await pullRatesFor(tx, port, received.data.employeeId, link.settings, now);
       }
       return "accepted" as const;
     });

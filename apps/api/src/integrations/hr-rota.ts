@@ -692,9 +692,14 @@ export async function deliverRota(
       // A shift Thapsus-HR does not have is already gone: done, never retried every run.
       const cancel = async (key: string): Promise<HrResult<{ readonly id: string }>> => {
         const r = await port.cancelShift(a.id, key);
-        return !r.ok && r.error === "not_found"
-          ? { ok: true, value: { id: sent.hrId ?? "absent" } }
-          : r;
+        // Done only when Thapsus-HR had acknowledged the shift: a create whose answer was lost
+        // may still land, so that one is raised for review (as a refusal) instead.
+        if (!r.ok && r.error === "not_found") {
+          return sent.hrId
+            ? { ok: true, value: { id: sent.hrId } }
+            : { ok: false, error: "refused" };
+        }
+        return r;
       };
       if (await once("shift", a.id, CANCELLED, cancel, true)) {
         return { ...out, error: "rate_limited" };
@@ -867,6 +872,8 @@ export async function releaseHrCopies(
 /** One Thapsus-HR absence copy a person may release: its identifiers, dates and type only. */
 export interface HrCopyToRelease {
   readonly hrId: string;
+  /** Whose absence it is (tenant_user.id), so the person releasing sees who, not just an id. */
+  readonly memberId: string;
   readonly kind: string;
   readonly startsOn: string;
   readonly endsOn: string | null;
@@ -874,11 +881,13 @@ export interface HrCopyToRelease {
 
 const copyOut = (c: {
   hrId: string | null;
+  memberId: string;
   kind: string;
   startsOn: string;
   endsOn: string | null;
 }): HrCopyToRelease => ({
   hrId: c.hrId ?? "",
+  memberId: c.memberId,
   kind: c.kind,
   startsOn: c.startsOn,
   endsOn: c.endsOn,
@@ -889,6 +898,7 @@ export async function hrCopiesInForce(tx: Transaction): Promise<HrCopyToRelease[
   const rows = await tx
     .select({
       hrId: absence.hrId,
+      memberId: absence.memberId,
       kind: absence.kind,
       startsOn: absence.startsOn,
       endsOn: absence.endsOn,

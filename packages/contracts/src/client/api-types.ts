@@ -62260,6 +62260,8 @@ export interface components {
       mode: "drift" | "disconnected" | "none";
       items: {
         hrId: string;
+        /** Format: uuid */
+        memberId: string;
         kind: string;
         /** Format: date */
         startsOn: string;

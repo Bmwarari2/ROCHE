@@ -45,6 +45,7 @@ import {
   type AppEnv,
   requireAnyPermission,
   requirePermission,
+  stepUpRefusal,
   type TenantAccess,
   withTenant,
 } from "../http/context";
@@ -801,7 +802,14 @@ export const payRouter = createRouter()
           if (path.route === null) throw routeUnknown();
           // The link is down for a period its settings send to Thapsus-HR: only on a person's
           // say-so does it go to Harbour's export instead (HZ-140).
-          if (path.link === null && path.intended !== "harbour_export" && !body.confirmExport) {
+          const overriding = path.link === null && path.intended !== "harbour_export";
+          if (overriding && body.confirmExport) {
+            // Fixing a period for the HR platform to the export is a pay route decision: a pay
+            // approver, with a fresh step-up (slice 90 security review).
+            if (!access.stepUpFresh) throw stepUpRefusal(access);
+            await requirePay(c, [APPROVE]);
+          }
+          if (overriding && !body.confirmExport) {
             throw new HttpProblem(
               409,
               "hr_link_down_for_pay",
@@ -835,7 +843,9 @@ export const payRouter = createRouter()
             action: A.runCreated,
             resourceType: "pay_run",
             resourceId: made.id,
-            ...(body.confirmExport ? { scope: { exportConfirmedWhileHrLinkDown: true } } : {}),
+            ...(overriding && body.confirmExport
+              ? { scope: { exportConfirmedWhileHrLinkDown: true, intended: path.intended } }
+              : {}),
           });
           return runItem(tx, made);
         },

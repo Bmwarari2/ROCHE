@@ -413,6 +413,7 @@ describe("hazard HZ-133 many copies dropping out at once are held until a person
     expect(body.items.map((i) => i.hrId)).toEqual(ids(7));
     expect(body.items[0]).toEqual({
       hrId: "held_1",
+      memberId: CARER,
       kind: "annual_leave",
       startsOn: inDays(23),
       endsOn: inDays(24),

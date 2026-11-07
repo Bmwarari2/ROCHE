@@ -430,22 +430,35 @@ describe("hazard HZ-140 a refusal of locked pay goes to pay approvers (rule 11)"
 });
 
 describe("hazard HZ-140 what Thapsus-HR stops listing stops being used (slice 90)", () => {
-  it("retires a rate Thapsus-HR no longer lists for that employee, keeping the one it does", async () => {
+  it("hazard HZ-140 retires a future rate Thapsus-HR withdrew, never one a past period's correction needs", async () => {
+    mock.ratesList.push({
+      employeeId: "emp_carer",
+      hourlyPence: 1_400,
+      effectiveFrom: "2027-04-01",
+    });
+    await sync();
+    // Thapsus-HR now lists only a new rate: the April 2026 rate and the withdrawn 2027 one drop out.
+    const before = mock.ratesList.splice(0);
     mock.ratesList.push({
       employeeId: "emp_carer",
       hourlyPence: 1_310,
-      effectiveFrom: "2026-10-01",
+      effectiveFrom: "2026-12-01",
     });
-    await sync();
-    const old = mock.ratesList.shift();
     try {
       await sync();
-      const live = await sql<{ hourly_pence: number }>(
-        "SELECT hourly_pence FROM hr_pay_rate WHERE deleted_at IS NULL",
+      const live = await sql<{ hourly_pence: number; effective_from: string }>(
+        "SELECT hourly_pence, effective_from::text FROM hr_pay_rate WHERE deleted_at IS NULL ORDER BY effective_from",
       );
-      expect(live.map((r) => r.hourly_pence)).toEqual([1_310]);
+      expect(live).toEqual([
+        { hourly_pence: 1_300, effective_from: "2026-04-01" },
+        { hourly_pence: 1_310, effective_from: "2026-12-01" },
+      ]);
     } finally {
-      if (old) mock.ratesList.unshift(old);
+      mock.ratesList.splice(
+        0,
+        mock.ratesList.length,
+        ...before.filter((r) => r.effectiveFrom !== "2027-04-01"),
+      );
       await sync();
     }
   });

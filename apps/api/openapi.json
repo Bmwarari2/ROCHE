@@ -35676,6 +35676,10 @@
                 "hrId": {
                   "type": "string"
                 },
+                "memberId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
                 "kind": {
                   "type": "string"
                 },
@@ -35693,6 +35697,7 @@
               },
               "required": [
                 "hrId",
+                "memberId",
                 "kind",
                 "startsOn",
                 "endsOn"
