@@ -173,7 +173,6 @@ H-1411 provisional. Follow-ups:
 - Security: an API to list the staff who may witness a disposal (the web reads the location's
   members today); show the witness link only to the named witness; per-resident reads on the order
   pages, so a reader who may not see a resident does not see their lines.
-- HZ-120: store the current-medicines confirmation on the homely remedy dose (an API field; H-1410).
 - Accessibility (minor): unit plurals ("56 tablet"), page titles unique per record, corrections
   shown struck through, keyboard-only steps in the three journeys, the period error summary linked
   to its fields, the flag words for homely remedy doses taken from the API, a warning on the PRN

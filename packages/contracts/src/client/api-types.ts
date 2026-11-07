@@ -77568,6 +77568,7 @@ export interface components {
       /** Format: uuid */
       givenBy: string;
       allergiesChecked: boolean;
+      medicinesCompared: boolean;
       alreadyGivenReason: string | null;
       flags: string[];
       /** Format: date-time */
@@ -77598,6 +77599,8 @@ export interface components {
       reason: string;
       /** @enum {boolean} */
       allergiesChecked: true;
+      /** @enum {boolean} */
+      medicinesCompared: true;
       /** @default null */
       alreadyGiven: {
         /** Format: date-time */

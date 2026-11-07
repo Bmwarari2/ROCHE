@@ -50541,6 +50541,9 @@
           "allergiesChecked": {
             "type": "boolean"
           },
+          "medicinesCompared": {
+            "type": "boolean"
+          },
           "alreadyGivenReason": {
             "type": [
               "string",
@@ -50591,6 +50594,7 @@
           "givenAt",
           "givenBy",
           "allergiesChecked",
+          "medicinesCompared",
           "alreadyGivenReason",
           "flags",
           "recordedAt",
@@ -50671,6 +50675,12 @@
               true
             ]
           },
+          "medicinesCompared": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
           "alreadyGiven": {
             "type": [
               "object",
@@ -50700,7 +50710,8 @@
           "protocolId",
           "quantity",
           "reason",
-          "allergiesChecked"
+          "allergiesChecked",
+          "medicinesCompared"
         ],
         "additionalProperties": false
       },

@@ -202,6 +202,11 @@ export const RecordHomelyDose = z
     /** The giver checked the person's allergies against the remedy (HZ-007). */
     allergiesChecked: z.literal(true),
     /**
+     * The giver compared the remedy with the person's current medicines (HZ-120): the API matches
+     * only the same dm+d product, never an ingredient, so the comparison is the giver's.
+     */
+    medicinesCompared: z.literal(true),
+    /**
      * A dose already given, recorded afterwards: when it was given and why it is recorded only
      * now. Problems the check finds are then recorded as flags and escalated, never refused.
      */
@@ -241,6 +246,8 @@ export const HomelyDoseOut = z
     givenAt: isoDateTime,
     givenBy: uuid,
     allergiesChecked: z.boolean(),
+    /** False on doses recorded before the comparison was asked for (HZ-120). */
+    medicinesCompared: z.boolean(),
     alreadyGivenReason: z.string().nullable(),
     /** What the protocol check found, for a dose recorded after it was given. */
     flags: z.array(z.string()),

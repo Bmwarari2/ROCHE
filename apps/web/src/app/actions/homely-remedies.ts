@@ -168,6 +168,7 @@ export async function recordHomelyDose(
     quantity: body.quantity,
     reason: body.reason,
     allergiesChecked: body.allergiesChecked,
+    medicinesCompared: body.medicinesCompared,
     alreadyGiven: null,
   });
   if (!parsed.success) return refused(t("errors.generic"), "invalid");

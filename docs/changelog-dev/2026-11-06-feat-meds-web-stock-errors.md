@@ -46,3 +46,9 @@ MEDS-008, MEDS-012, MEDS-013. No migration and no API change.
   communication needs beside each person on orders, medication errors and the review tracker.
 - Security: the witness form shows only for a disposal found on the person; permissions come from
   what reaches the person; an order must belong to the home in the address.
+
+## The comparison stored (2026-11-07)
+
+- A homely remedy dose now needs `medicinesCompared: true` from every client. The API stores it on
+  the dose (`medicines_compared`, migration 0155, with a database check on doses given from then on)
+  and audits it with the allergy confirmation (HZ-120, H-1410). It is also in the export.

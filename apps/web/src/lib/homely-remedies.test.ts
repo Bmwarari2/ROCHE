@@ -117,6 +117,7 @@ const dose = (over: Partial<HomelyDose> = {}): HomelyDose => ({
   givenAt: "2026-11-06T10:00:00.000Z",
   givenBy: MEMBER,
   allergiesChecked: true,
+  medicinesCompared: true,
   alreadyGivenReason: null,
   flags: [],
   recordedAt: "2026-11-06T10:00:00.000Z",
@@ -324,6 +325,7 @@ describe("hazard HZ-120 hazard HZ-007 checking and recording a dose", () => {
         quantity: 2,
         reason: "Headache",
         allergiesChecked: true,
+        medicinesCompared: true,
         alreadyGiven: null,
       },
     });

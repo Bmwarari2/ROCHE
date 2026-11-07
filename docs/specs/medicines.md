@@ -1938,8 +1938,10 @@ cannot check it against the MAR), and the amount (the protocol's dose filled in)
 (`POST .../homely-remedy-doses/check`) and shows its answer in its words; only a dose the check found
 within the protocol, for the same protocol and amount, offers why it is given, the allergy
 confirmation, the confirmation that the remedy was compared with the current medicines (HZ-120: the
-API matches only the same product, never an ingredient) and "Record the dose". The second
-confirmation is checked on the web only and not yet stored with the dose (H-1410).
+API matches only the same product, never an ingredient) and "Record the dose". The API requires the
+second confirmation too (`medicinesCompared: true` in `RecordHomelyDose`), stores it on the dose
+(`medicines_compared`, migration 0155, a database check on every dose given from then on) and puts
+it in the audit event's scope with the allergy confirmation.
 
 #### Rules
 
