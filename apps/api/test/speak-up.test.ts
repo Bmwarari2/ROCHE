@@ -348,7 +348,9 @@ describe("SAFE-012 anonymous concerns (ADR-0089)", () => {
       await c.query("SELECT set_config('app.speak_up', 'true', true)");
       return (await c.query<{ bucket: string }>("SELECT bucket FROM speak_up_intake")).rows;
     });
-    expect(JSON.stringify(buckets)).not.toMatch(/2001|db8/);
+    // The address's own text never appears. Hex digests can contain "db8" or "2001" by chance (the HMAC
+    // includes the UK date, so it changes daily), so look for the address form, which a digest cannot hold.
+    expect(JSON.stringify(buckets)).not.toMatch(/2001:db8/i);
     expect(buckets.some((b) => /^net:[0-9a-f]{64}$/.test(b.bucket))).toBe(true);
   });
 
