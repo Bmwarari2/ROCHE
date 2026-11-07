@@ -20,4 +20,4 @@ function is added.
 
 ## Decisions for people
 
-H-1439 (CSO) and H-1440 (security and DPO).
+H-1439 (CSO) and H-1440 (security and DPO), with the two pilot risks split out as H-1521 (offline PIN guessing on a copied database) and H-1522 (a watched witness PIN), both fixed by hardware-backed keys with H-1432, and the follow-ups H-1523 to H-1525.

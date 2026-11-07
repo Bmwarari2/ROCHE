@@ -236,7 +236,7 @@ private key stays on the phone, sealed by the member's PIN in the encrypted data
 that database. A witness signs in on another member's phone once to set their PIN; that sign-in
 ends straight away and nothing of it is kept but the key. Corrections and conflict decisions made
 on the phone are the records they already were on the web. No new recipient or sub-processor
-(H-1440).
+(H-1440; the accepted risks H-1521 and H-1522, follow-ups H-1523 to H-1525).
 
 Rounds and conflict review (Phase 2 slice 48, migration 0134): B1 now also covers a second record
 of a dose uploaded from a device after one was held (the record as the device sent it, who sent
