@@ -44,8 +44,9 @@ other staff cannot see the line list: tell the nurse in charge who is unwell.
 
 - Each resident is on the line list once. To change anything, update their row. Thapsus Care
   refuses a second row for the same person, so the report counts each person once.
-- Nothing on the line list is deleted. A correction keeps the earlier row, struck through, with
-  the reason.
+- Nothing on the line list is deleted. An update or a correction keeps the earlier row, struck
+  through and marked **Superseded by a later entry**. The reason for a correction is kept with the
+  row but is not shown on this page yet.
 - Nothing can be dated in the future, and a test cannot be dated before symptoms started.
 - Only residents living at the home can be added. Members of staff cannot be added on this screen
   yet: tell the Registered Manager about staff who are unwell, and add staff figures to the report

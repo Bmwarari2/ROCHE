@@ -4,8 +4,8 @@ When you move to Thapsus Care, you can bring the people you support across from 
 home at a time, from a CSV file (a spreadsheet saved as plain text). Nobody is added until you have
 checked the file and confirmed it.
 
-**Who can do this**: the owner. Another role can do it only if your organisation gives it the import
-wizard, and the right to add and see people, across the whole organisation; someone whose role
+**Who can do this**: the owner. Another role can do it only if your organisation lets that role
+import records for the whole organisation, with the right to add and see people; someone whose role
 covers some homes only is refused. Adding the people needs you to confirm it is you with your
 passkey or authenticator app.
 
@@ -60,7 +60,7 @@ passkey or authenticator app.
 - The uploaded rows are deleted at the time shown under **Where it stands**, unless the people are
   added first. You can upload again.
 - You cannot import while sample data is in place. Remove it first from
-  [getting started](work-through-getting-started.md).
+  [How to work through the getting started checklist](work-through-getting-started.md).
 - Medicines, care plans and staff file checks are imported the same way, once the people are in
   Thapsus Care: see
   [How to import medicines, care plans or staff file checks](import-medicines-care-plans-or-staff-file-checks.md).

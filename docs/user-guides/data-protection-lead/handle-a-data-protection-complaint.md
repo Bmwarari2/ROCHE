@@ -24,8 +24,10 @@ home does not see these complaints. Other complaints about care go in **Complain
 
 Open complaints are listed under **Complaints recorded**. Each shows, in words with an icon, when
 to acknowledge it, for example "Acknowledge by 14/11/2026" or "Acknowledgement overdue since
-14/11/2026", and when the next update is due, for example "Next update due by 14/01/2027". Your
-organisation's own target for acknowledging it is shown alongside.
+14/11/2026". This is the legal deadline for complaints received from 19/06/2026. Your
+organisation's own target for acknowledging it is shown alongside. Each also shows when the next
+update is due, for example "Next update due by 14/01/2027". This comes from your organisation's
+settings, not the law.
 
 ### Work through it
 
@@ -43,8 +45,9 @@ organisation's own target for acknowledging it is shown alongside.
 ## Good to know
 
 - **Thapsus Care does not contact the complainant.** You write to them; Thapsus Care records the dates.
-- The days come from your organisation's settings and the bank holidays. Complaints received
-  before 19/06/2026 have no statutory acknowledgement clock.
+- The legal deadline for acknowledging is counted in calendar days. Your organisation's target is
+  counted in working days, so it skips bank holidays. Complaints received before 19/06/2026 have
+  no legal acknowledgement deadline.
 - Dates cannot be in the future, or before the complaint was received.
 - A closed complaint cannot change.
 - Linking a complaint to a person you support, or to a breach, is not on this screen yet.

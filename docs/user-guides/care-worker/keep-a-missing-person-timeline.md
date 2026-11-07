@@ -6,8 +6,9 @@ the person is found.
 **Who can do this**: care and support workers, agency or bank workers, team leaders or senior
 carers, care coordinators, nurses and clinical leads, deputy managers, the Registered Manager and
 the owner, for people they can see in Thapsus Care. The quality and compliance lead can read the
-timeline but not add to it. Staff in activities, catering, housekeeping, maintenance and
-administration can record the incident but cannot open these pages: tell the person in charge.
+timeline but not add to it. Staff in activities, catering, housekeeping and maintenance, and
+administrators or receptionists, can record the incident but cannot open these pages: tell the
+person in charge.
 
 **Register row**: SAFE-015.
 
@@ -77,17 +78,21 @@ When you have called them:
 - Opening the episode gives the Registered Manager an urgent task to make sure the police are
   called by the target. If the risk assessment says call at once, every nurse, clinical lead, team
   leader and senior carer at the home is also told straight away in Thapsus Care.
-- If the person is found after the police call was due and nobody called, the notice says the
-  call was missed. You cannot record a police call after they are found: write a **Note** saying
-  why the police were not called, and tell the Registered Manager.
+- Record **Police called** as soon as you have called them, before you record **Found**. Once
+  they are found you cannot add it. If the police were called but it was not recorded before
+  **Found**, write a **Note** with the time of the call and the police reference, then tell the
+  Registered Manager straight away. They must answer the incident's police question so that the
+  Care Quality Commission notification is drafted. If nobody called the police, write a **Note**
+  saying why, and tell the Registered Manager.
 - Each of **Last seen**, **Noticed missing**, **Search started**, **Police called** and **Found**
   goes on the timeline once. After that, add a **Note**. Nothing on the timeline can be changed or
   removed.
 - Under **Notifications**, the episode links to what the incident needs in the notification
   centre, for example the Herbert Protocol profile to the police. When the police were involved,
   or the person is under a Deprivation of Liberty Safeguards (DoLS) authorisation or the Mental
-  Health Act, the page says a notification to the Care Quality Commission is needed. A manager
-  completes it. Thapsus Care never sends anything itself.
+  Health Act, the page says "A notification to the Care Quality Commission is needed". The
+  Registered Manager or the owner checks it, decides and submits it. Thapsus Care never sends
+  anything itself.
 - Under **Herbert Protocol profile**, the page says whether the person's profile is up to date.
   Choose **Open the Herbert Protocol profile** to read what the police need: what they look like,
   places they may go, and more.

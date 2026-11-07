@@ -1,8 +1,9 @@
 # How to acknowledge a breach notice from Thapsus
 
-Thapsus runs Thapsus Care for you as your processor. If Thapsus finds a breach that affects your data,
-it sends you a notice. Thapsus Care opens a breach in your register from it, so you can decide what to
-do.
+Thapsus Cargo Ltd, which runs Thapsus Care for your organisation, is your processor: it handles
+your data only on your organisation's instructions. If Thapsus Cargo Ltd finds a breach that
+affects your data, it sends you a notice. Thapsus Care opens a breach in your register from it, so
+you can decide what to do.
 
 **Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
 data protection for the whole organisation. The named data protection lead and the owners are told

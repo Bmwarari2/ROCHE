@@ -34,7 +34,8 @@ other staff cannot see outbreaks: tell the nurse or manager in charge when peopl
 ## What happens next
 
 - Thapsus Care drafts the outbreak's own report, "Outbreak report to the health protection team",
-  in the notification centre. It is due without delay (see
+  in the notification centre. Its time is Thapsus Care's target, not a legal deadline: report it as
+  soon as possible all the same (see
   [How to fill in the outbreak report](fill-in-the-outbreak-report.md)).
 - Add each resident who is unwell to the line list (see
   [How to keep an outbreak line list](keep-an-outbreak-line-list.md)).
@@ -45,7 +46,7 @@ other staff cannot see outbreaks: tell the nurse or manager in charge when peopl
 
 - Only one outbreak of each illness can be open at a home at a time.
 - Outbreaks can be declared for homes in England only. Wales, Scotland and Northern Ireland follow
-  later.
+  later. Homes outside England report to their own health protection body in the usual way.
 - Thapsus Care never reports the outbreak to UKHSA or the health protection team. People do.
 - Only nurses, clinical leads, deputy managers, the Registered Manager and the owner at the home
   see the outbreak and its line list.

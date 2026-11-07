@@ -16,7 +16,7 @@ owner. Staff who can read death records see the review once it is saved, or "Not
 
 ## Steps
 
-1. Choose **Deaths** in the menu and open the record. The chip at the top says **Mortality review
+1. Choose **Deaths** in the menu and open the record. The record's status says **Mortality review
    due**, **Mortality review overdue** or **Mortality review done**.
 2. Go to **Mortality review**. It says when the review is due.
 3. Under **What the review found**, write what happened in the person's care before they died, in

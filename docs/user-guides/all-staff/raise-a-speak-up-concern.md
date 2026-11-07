@@ -3,7 +3,7 @@
 Tell the Freedom to Speak Up lead about something that worries you: care, safety, how someone
 behaves, bullying, or fraud.
 
-**Who can do this**: every member of staff, including agency and bank workers. Family members
+**Who can do this**: every member of staff, including agency or bank workers. Family members
 using the family portal cannot. To speak up without signing in, see
 [How to speak up anonymously](speak-up-anonymously.md).
 
@@ -43,5 +43,5 @@ using the family portal cannot. To speak up without signing in, see
 - You can also speak up outside the organisation. The Care Quality Commission is the prescribed
   person for care services, and Protect, a charity, gives free, confidential advice about speaking
   up.
-- The rules: [safety specification, Phase 2 rule 3](../../specs/safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012)
+- The rules: [safety specification, speaking up](../../specs/safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012)
   and [ADR-0089](../../decisions/0089-restricted-silos-whistleblowing.md).

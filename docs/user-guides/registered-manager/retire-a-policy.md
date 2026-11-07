@@ -10,7 +10,7 @@ compliance lead. Care and support workers, team leaders or senior carers, and nu
 
 ## Steps
 
-1. In the side bar, choose **Policies** and open the policy.
+1. In the menu, choose **Policies** and open the policy.
 2. Go to **Retire this policy**.
 3. Write **Why retire it**: at least 10 characters, for example "replaced by the new safeguarding
    policy".

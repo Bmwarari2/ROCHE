@@ -11,7 +11,7 @@ executive cannot.
 
 ## Steps
 
-1. In the side bar, choose **Framework and evidence**, then open the version marked **In force**.
+1. In the menu, choose **Framework and evidence**, then open the version marked **In force**.
 2. Choose **View evidence coverage**.
 3. Read the summary at the top, for example "3 of 34 statements have no evidence." If every
    statement has some, it says "Every statement has evidence."

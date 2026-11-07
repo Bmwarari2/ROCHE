@@ -13,7 +13,7 @@ leaders or senior carers, and nurses cannot.
 
 ## Steps
 
-1. In the side bar, choose **Framework and evidence**. The page **Compliance framework** lists
+1. In the menu, choose **Framework and evidence**. The page **Compliance framework** lists
    every version under **Versions**. The version in force today is marked **In force**; others
    show **Published**, **Draft** or **Retired**, with the date each took effect.
 2. Choose a version, for example **CQC single assessment framework, version 1**.

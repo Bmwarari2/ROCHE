@@ -2,9 +2,10 @@
 
 If you added people from the wrong file, or to the wrong home, you can undo the import once, soon
 after adding them. Undo removes only the people that import added. Medicines, care plans and staff
-file checks can be undone too: see below.
+file checks can be undone too: see
+[Undo an import of medicines, care plans or staff file checks](#undo-an-import-of-medicines-care-plans-or-staff-file-checks).
 
-**Who can do this**: the owner, or anyone your organisation has given the import wizard across the
+**Who can do this**: the owner, or anyone in a role your organisation lets import records for the
 whole organisation. Undoing needs you to confirm it is you with your passkey or authenticator app.
 
 **Register row**: PLAT-014.
@@ -62,7 +63,8 @@ or staff file import, it is the medicines, plans or checks that are taken back.
 - If phones are in use in your organisation, treat every import as one that cannot be undone.
   Thapsus Care asks you to accept this before you add the people.
 - When undo is not available, the page says "This import can no longer be undone. Correct any
-  record imported by mistake on the person's record." See below.
+  record imported by mistake on the person's record." See
+  [If a person was imported by mistake](#if-a-person-was-imported-by-mistake).
 - Undo also removes the allergy status checks the import raised that are still open.
 - What was imported and undone is recorded, with who did it and when.
 - The rules are in the

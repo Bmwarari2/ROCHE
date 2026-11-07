@@ -11,7 +11,7 @@ publish it. Care and support workers, team leaders or senior carers, and nurses 
 
 ## Add a new policy
 
-1. In the side bar, choose **Policies**, then **New policy**.
+1. In the menu, choose **Policies**, then **New policy**.
 2. Under **Policy and first draft**, fill in:
    - **Title**;
    - **Short name**: lower-case letters, numbers and underscores, starting with a letter, for

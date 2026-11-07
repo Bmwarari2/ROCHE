@@ -3,15 +3,15 @@
 Keep a record of your Cyber Essentials and Cyber Essentials Plus certificates and your
 registration with the Information Commissioner's Office (ICO), so Thapsus Care can tell you when each is due for renewal.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone given data
-protection for the whole organisation. A Registered Manager or deputy manager, who works for one
-location, cannot.
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
+data protection for the whole organisation. A Registered Manager or deputy manager whose role
+covers one home cannot.
 
 **Register row**: QUAL-012.
 
 ## Steps
 
-1. In the side bar, choose **Data security**, then **View the records**.
+1. In the menu, choose **Data security**, then **View the records**.
 2. Under **Add a record**, in **Certificate or registration**, choose **What it is**: **Cyber
    Essentials**, **Cyber Essentials Plus** or **ICO registration**.
 3. Enter the **Certificate or registration number** as it appears on the certificate or the ICO

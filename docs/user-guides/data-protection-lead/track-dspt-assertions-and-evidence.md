@@ -4,16 +4,16 @@ Track where your Data Security and Protection Toolkit (DSPT) assertions stand fo
 link your organisation's documents to each as evidence. The **Data security** page shows the
 toolkit, your certificates and your registers together.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone given data
-protection for the whole organisation. A Registered Manager or deputy manager, who works for one
-location, cannot: the page says data security is for people who handle data protection for the
-whole organisation.
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
+data protection for the whole organisation. A Registered Manager or deputy manager whose role
+covers one home cannot: the page says data security is for people who handle data protection for
+the whole organisation.
 
 **Register row**: QUAL-012.
 
 ## See where things stand
 
-1. In the side bar, choose **Data security**.
+1. In the menu, choose **Data security**.
 2. Under **Data Security and Protection Toolkit** (the year), read the status: **Submitted**,
    **Due by**, **Due soon: by** or **Overdue: was due**, with the deadline.
 3. Read how many assertions are tracked and how many are **Not started**, **In progress**, **Met**,

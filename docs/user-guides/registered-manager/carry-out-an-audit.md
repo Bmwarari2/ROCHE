@@ -1,17 +1,17 @@
 # How to carry out an audit or mock inspection
 
-An audit asks a set of scored questions at one location. You answer each one, add an action for
+An audit asks a set of scored questions at one home. You answer each one, add an action for
 each shortfall and give your own self-rating. A mock inspection works the same way.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner, the group executive and
-the quality and compliance lead, at the locations where they run audits. Care and support workers,
+the quality and compliance lead, at the homes where they run audits. Care and support workers,
 team leaders or senior carers, and nurses cannot.
 
 **Register row**: QUAL-004.
 
 ## Start the audit
 
-1. In the side bar, choose **Quality audits**, then **Start an audit**.
+1. In the menu, choose **Quality audits**, then **Start an audit**.
 2. Under **Audit details**, choose the **Template**. Each says whether it is an audit or a mock
    inspection.
 3. Choose the **Location**.
@@ -48,7 +48,7 @@ team leaders or senior carers, and nurses cannot.
   question can be scored, it says "No score: no question could be scored", never 0. The
   self-rating is always a person's choice, recorded with who gave it.
 - A completed audit cannot be changed.
-- Each action owner gets a task. Owners must run audits at the location. If you cannot list the
+- Each action owner gets a task. Owners must run audits at the home. If you cannot list the
   organisation's members, you can only choose yourself.
 - A mock inspection can only start against the framework version in force. An older audit keeps
   the version it was scored against and says "Scored against an earlier framework version".

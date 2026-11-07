@@ -73,7 +73,8 @@ or "submitted" (see
   coroner, LeDeR or the police. People do, then record it.
 - A step cannot be changed or removed once recorded, and once it is **Done** or **Not needed** its
   form goes from the page. Check the time and note before you choose **Record step**. If one was
-  recorded wrongly, tell the Registered Manager and write the correction in your usual records.
+  recorded wrongly, write a note on the person's record naming the step and what was wrong, and
+  tell the Registered Manager.
 - Closing is final: the death record cannot be reopened.
 - If a death was recorded in error and corrected on the person's record, the death record is
   withdrawn, never deleted, and says why.

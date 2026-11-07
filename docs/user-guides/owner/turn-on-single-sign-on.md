@@ -1,12 +1,14 @@
 # How to turn on single sign-on
 
 Single sign-on (SSO) lets your staff sign in to Thapsus Care with your organisation's own work
-account, from an identity provider that uses OpenID Connect. It is off for every organisation,
+account, from an identity provider that uses OpenID Connect (a common standard for signing in
+with one account). It is off for every organisation,
 and there is no screen for it yet.
 
 **Who can do this**: only the owner can see or change your organisation's single sign-on settings,
 and every change needs you to confirm it is you with your passkey or authenticator app. Turning the
-feature on for your organisation is done by Thapsus, not by you.
+feature on for your organisation is done by Thapsus Cargo Ltd, which runs Thapsus Care, not by
+you.
 
 **Register row**: PLAT-005.
 
@@ -16,11 +18,12 @@ There are no steps in Thapsus Care yet: there is no settings screen for single s
 sign-in button for it. Thapsus Care support sets it up with you.
 
 1. Ask Thapsus Care support whether single sign-on can be turned on for your organisation. It stays off
-   until Thapsus has finished its security review.
-2. Have ready, from whoever runs your identity provider: its issuer and discovery address (https),
-   the client id Thapsus Care is registered under, and which Thapsus Care roles may use single sign-on.
-3. Thapsus Care support tells you how to prove that you own your email domain, with a DNS record. A
-   domain counts only once it is proved.
+   until Thapsus Cargo Ltd has finished its security review.
+2. Have ready, from whoever runs your identity provider: its issuer (the web address that names
+   your identity provider) and discovery address (https), the client id (the name your identity
+   provider gives Thapsus Care) and which Thapsus Care roles may use single sign-on.
+3. Thapsus Care support tells you how to prove that you own your email domain, with a DNS record (a
+   setting you add where your domain name is managed). A domain counts only once it is proved.
 
 ## Good to know
 
@@ -31,7 +34,7 @@ sign-in button for it. Thapsus Care support sets it up with you.
 - **It never creates anyone.** Only people already invited to, or already working in, your
   organisation can use it, at an email domain you have proved. Invite people first, as in
   [How to invite a team member](../registered-manager/invite-a-team-member.md).
-- Family members and Thapsus staff never sign in with it.
+- Family members and Thapsus Cargo Ltd staff never sign in with it.
 - People whose role is not on your allowed list sign in with Thapsus Care's own methods, as now.
 - No password or secret for your identity provider is ever kept in Thapsus Care; only the name of a key
   held in a secure store.

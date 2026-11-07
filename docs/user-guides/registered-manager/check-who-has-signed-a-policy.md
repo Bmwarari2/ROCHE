@@ -9,7 +9,7 @@ compliance lead. Other staff see only whether they have signed themselves.
 
 ## Steps
 
-1. In the side bar, choose **Policies**.
+1. In the menu, choose **Policies**.
 2. Choose the policy in the **Policy library**.
 3. Go to **Who has read and signed**. The summary says how many of the people asked have signed,
    for example "12 of 15 people asked have signed."

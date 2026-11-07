@@ -3,16 +3,16 @@
 Once you have submitted your Data Security and Protection Toolkit (DSPT) for the year, record the
 submission in Thapsus Care with its outcome. You can correct it later.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone given data
-protection for the whole organisation. A Registered Manager or deputy manager, who works for one
-location, cannot.
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
+data protection for the whole organisation. A Registered Manager or deputy manager whose role
+covers one home cannot.
 
 **Register row**: QUAL-012.
 
 ## Steps
 
 1. Submit the toolkit on the DSPT website first.
-2. In the side bar, choose **Data security**, then **View the submissions**.
+2. In the menu, choose **Data security**, then **View the submissions**.
 3. Under **Record this year's submission**, in **Submission for** (the year), enter **Date
    submitted** as day, month and year. It cannot be in the future.
 4. Choose the **Outcome**: **Standards exceeded**, **Standards met**, **Approaching standards** or

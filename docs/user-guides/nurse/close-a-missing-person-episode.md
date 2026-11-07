@@ -3,7 +3,7 @@
 Record the welfare check and the debrief after a missing person is found, then close the episode.
 
 **Who can do this**: nurses and clinical leads, deputy managers, the Registered Manager and the
-owner. Care and support workers, team leaders and senior carers can add to the timeline but cannot
+owner. Care and support workers, team leaders or senior carers can add to the timeline but cannot
 record the welfare check or the debrief, or close the episode.
 
 **Register row**: SAFE-015.
@@ -32,8 +32,12 @@ record the welfare check or the debrief, or close the episode.
   episode from a new incident.
 - A person can have a new episode opened while a found one is still waiting for its welfare check
   and debrief.
-- If the police were never called before the person was found, write a **Note** saying why, and
-  tell the Registered Manager, before you close.
+- Record **Police called** as soon as you have called them, before you record **Found**. Once
+  they are found you cannot add it. If the police were called but it was not recorded before
+  **Found**, write a **Note** with the time of the call and the police reference, then tell the
+  Registered Manager straight away. They must answer the incident's police question so that the
+  Care Quality Commission notification is drafted. If nobody called the police, write a **Note**
+  saying why, and tell the Registered Manager.
 - Check under **Notifications** that what the incident needs is done in the notification centre.
   Closing the episode does not close any notification.
 - After an episode, review the person's Herbert Protocol profile and risk assessment with them or

@@ -1,7 +1,8 @@
 # How to follow up after a death
 
 Deal with the notifications after a person we support dies: the regulator's death notification,
-the medical examiner information pack and LeDeR.
+the medical examiner information pack and LeDeR (the NHS programme that learns from the lives and
+deaths of people with a learning disability and autistic people).
 
 **Who can do this**: people who manage incidents (the Registered Manager, the deputy manager, the
 nurse or clinical lead, and the owner) prepare the notifications. Only the Registered Manager and
@@ -31,6 +32,7 @@ the owner record them as submitted or not required.
 
 ## Good to know
 
+- The Care Quality Commission death notification is due without delay.
 - Thapsus Care does not put the medical examiner pack together yet. You gather it.
 - Thapsus Care never sends anything to the Care Quality Commission, the medical examiner or LeDeR, and
   never judges whether a death was expected. That is the clinician's recorded judgement.

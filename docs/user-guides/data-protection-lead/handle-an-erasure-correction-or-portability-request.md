@@ -41,9 +41,9 @@ what they are asking for under **What they are asking for**.
 
 ## Good to know
 
-- **Thapsus Care deletes nothing itself.** Records are removed by retention when their time comes. A
-  record under a legal hold, or still within its retention period, is kept.
-- **Corrections are never made by the workbench.** The original stays in the record's history,
+- **Thapsus Care deletes nothing itself.** A record is deleted when its keeping period ends. A
+  record under a legal hold, or still within its keeping period, is kept.
+- **Corrections are never made from the request.** The original stays in the record's history,
   with the correction after it.
 - Each of these requests still goes through finding and reviewing the records, and closes when
   you record the response: see

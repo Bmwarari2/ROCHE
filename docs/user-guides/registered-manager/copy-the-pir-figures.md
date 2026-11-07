@@ -1,19 +1,19 @@
 # How to copy the PIR figures
 
 Thapsus Care gathers figures for your Provider Information Return (PIR) to the Care Quality
-Commission (CQC) for one location over the last 12 whole months. You check them and copy them into the return yourself.
+Commission (CQC) for one home over the last 12 whole months. You check them and copy them into the return yourself.
 
-**Who can do this**: the Registered Manager and the deputy manager for their own locations; the
-owner, the group executive and the quality and compliance lead for every location. Care and support
+**Who can do this**: the Registered Manager and the deputy manager for their own homes; the
+owner, the group executive and the quality and compliance lead for every home. Care and support
 workers, team leaders or senior carers, and nurses cannot.
 
 **Register row**: QUAL-006.
 
 ## Steps
 
-1. In the side bar, choose **PIR figures**.
+1. In the menu, choose **PIR figures**.
 2. Choose the **Location** and choose **Show figures**.
-3. The heading names the location and the dates of the last 12 whole months.
+3. The heading names the home and the dates of the last 12 whole months.
 4. Each key question (**Safe**, **Effective**, **Caring**, **Responsive**, **Well-led**) has a table
    with:
    - **Data point**;
@@ -22,7 +22,7 @@ workers, team leaders or senior carers, and nurses cannot.
    - **Where it comes from**, or why it is to complete.
 5. Check each prefilled figure against your own records.
 6. Under **Figures to copy**, choose **Copy figures**. It says **Figures copied**. Or select the
-   text in the box below it.
+   text in **The prefilled figures, one per line, then the data points to complete**.
 7. Paste the figures into the return on the CQC portal, and complete the data points marked **To
    complete** from your own records.
 

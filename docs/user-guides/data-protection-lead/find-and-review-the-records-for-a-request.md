@@ -43,8 +43,8 @@ When every record is decided, [send the response](send-the-response-to-a-data-ri
 
 ## Good to know
 
-- **Redaction is your decision.** Thapsus Care highlights names but never takes anything out, and never
-  decides for you whether a record is sent.
+- **Taking parts out is your decision.** Thapsus Care highlights names but never takes anything
+  out, and never decides for you whether a record is sent.
 - If someone changes a record after you opened it, Thapsus Care refuses your decision and asks you to
   open it again and review what it says now. A record that changes after you decided goes back to
   **To review**, so what is sent is always what you reviewed.

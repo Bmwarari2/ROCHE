@@ -5,9 +5,9 @@ your staff files across from your old system, from a CSV file (a spreadsheet sav
 Nothing is used until a person has checked it: medicines arrive not yet checked, care plans arrive
 as drafts and staff file checks arrive not verified.
 
-**Who can do this**: the owner. Another role can do it only if your organisation gives it the import
-wizard across the whole organisation, with the right to add and see people and the right to manage
-what it imports: medicines records, care plans or staff files. Adding the records needs you to
+**Who can do this**: the owner. Another role can do it only if your organisation lets that role
+import records for the whole organisation, with the right to add and see people and the right to
+manage what it imports: medicines records, care plans or staff files. Adding the records needs you to
 confirm it is you with your passkey or authenticator app.
 
 **Register row**: PLAT-014.
@@ -60,15 +60,15 @@ confirm it is you with your passkey or authenticator app.
 
 - **Imported medicines are "Imported, not yet checked" until a second person checks them.** No
   dose can be given from them until a second person competent in medicines has checked each one
-  against its source document, whatever your organisation's policy for other medicines (HZ-005).
+  against its source document, whatever your organisation's policy for other medicines.
   Each person gets an urgent task to have their medicines checked before their next round. See
   [How to second-check a medicine](../nurse/second-check-a-medicine.md).
 - **A typed name never becomes a medicine.** Each medicine is the product its code names in the
   NHS medicines list (dm+d, the Dictionary of medicines and devices), with dm+d's own name, route
   and dose unit. Thapsus Care checks the codes and the medicines rules, but never decides a dose:
   the person who checks it compares it with the source.
-- A regular medicine imported from a file is given at the same times every day. Any other pattern
-  is added by hand.
+- A regular medicine imported from a file is scheduled at the same times every day once checked.
+  Any other pattern is added by hand.
 - **Care plans arrive as drafts.** Nothing is published. Someone reviews each draft, adds the
   actions and sign-off, and publishes it, as in
   [How to write and publish a care plan](../nurse/write-and-publish-a-care-plan.md). A person who
@@ -91,4 +91,5 @@ confirm it is you with your passkey or authenticator app.
 - The rules are in the
   [platform specification](../../specs/platform.md#importing-medicines-care-plans-and-staff-files-slice-51)
   and the hazard log,
-  [HZ-130](../../clinical-safety/hazard-log.md#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person).
+  [HZ-130](../../clinical-safety/hazard-log.md#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person)
+  and [HZ-005](../../clinical-safety/hazard-log.md#hz-005-unit-or-dose-transcription-error).

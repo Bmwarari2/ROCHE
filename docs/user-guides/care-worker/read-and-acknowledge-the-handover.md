@@ -3,7 +3,7 @@
 Thapsus Care builds the handover from the record: falls, NEWS2 scores needing a response, incidents,
 alerts, body map marks, overdue or missed tasks, refused care and notes for handover.
 
-**Who can do this**: care and support workers, agency and bank workers, team leaders or senior
+**Who can do this**: care and support workers, agency or bank workers, team leaders or senior
 carers, nurses and managers. You see only the items about the people you may see.
 
 **Register rows**: CARE-013, COMMS-006. On the web only for now.

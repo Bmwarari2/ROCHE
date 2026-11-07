@@ -12,11 +12,13 @@ required.
 ## Steps
 
 1. Choose **Outbreaks** in the menu and open the outbreak.
-2. Under **UKHSA report**, read the report's clock, in words. The report is due without delay.
-3. If the page shows **The report still needs:**, it lists what is missing, for example the
-   organism or the first symptoms. Add what you can: the organism under **Organism and
-   reference**, and residents on the line list (see
-   [How to keep an outbreak line list](keep-an-outbreak-line-list.md)).
+2. Under **UKHSA report**, read when the report is due. The report's page in the notification
+   centre says this time is Thapsus Care's target, not a legal deadline. Report the outbreak as
+   soon as you can all the same.
+3. If the page shows **The report still needs:**, do not wait for those details. Report to the
+   health protection team now with what you have, and give them the rest when you know it. Add
+   the organism under **Organism and reference** and residents to the line list as they become
+   known (see [How to keep an outbreak line list](keep-an-outbreak-line-list.md)).
 4. Copy the figures into the health protection team's report form: **Setting**, **Organism**,
    **Declared on**, **Resident cases**, **Staff cases**, **First symptoms**, **Latest symptoms**,
    **Tested**, **Positive**, **Waiting for results**, **In hospital** and **Died**. A field with no
@@ -32,8 +34,9 @@ required.
 
 ## Important
 
-- The report is a duty to tell the health protection team without delay. Its clock shows in the
-  notification centre with every other notification, and the managers are alerted if it is late.
+- The report time is Thapsus Care's target, not a legal deadline. The health protection team asks
+  to be told without delay. The report shows in the notification centre with every other
+  notification, and the managers are alerted if it is late.
 - Thapsus Care counts the figures from every row on the line list, including residents you cannot
   see. It never guesses a missing figure and never sends the report. What goes in the report is
   yours.

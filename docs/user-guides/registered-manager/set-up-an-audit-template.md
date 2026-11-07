@@ -1,7 +1,7 @@
 # How to add, schedule and retire an audit template
 
 An audit template holds the scored questions for one kind of audit, mapped to the quality
-statements. Add one from Thapsus Care's starter templates, schedule it at each location, and retire it
+statements. Add one from Thapsus Care's starter templates, schedule it at each home, and retire it
 when you no longer use it.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner, the group executive and
@@ -12,7 +12,7 @@ cannot.
 
 ## Add a template
 
-1. In the side bar, choose **Quality audits**, then **Audit templates**.
+1. In the menu, choose **Quality audits**, then **Audit templates**.
 2. Under **Add a template**, in **Add from a starter template**, choose a **Starter template**, for
    example a medication, care plans, infection prevention and control, environment, dignity, night
    visit or mock inspection template.
@@ -23,7 +23,7 @@ cannot.
 5. Read **Questions**: each question's weight, whether "A no or partly needs an action", and the
    statements it is **Evidence for**.
 
-## Schedule it at a location
+## Schedule it at a home
 
 1. Open the template from **Your templates**.
 2. Under **Schedules**, in **Schedule at a location**, choose the **Location**.

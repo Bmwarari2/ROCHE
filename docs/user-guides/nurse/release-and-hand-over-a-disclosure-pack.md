@@ -21,9 +21,9 @@ authenticator app to release and to download.
 
 ## Hand it over
 
-1. Under **Handing the pack over**, choose **Download the pack (PDF)**. If the page asks you to
-   confirm your second factor, confirm it is you with your passkey or authenticator app, then
-   choose it again. Each page of the PDF carries the fingerprint.
+1. Under **Handing the pack over**, choose **Download the pack (PDF)**. If the page asks, confirm
+   it is you with your passkey or authenticator app, then choose **Download the pack (PDF)** again.
+   Each page of the PDF carries the fingerprint.
 2. Give the PDF to the requester through a secure route. Never send it by ordinary email.
 3. Back on the request, under **How it was handed over**, choose the route, for example **The
    recipient's secure portal or upload service** or **Encrypted media, with the password sent
@@ -37,7 +37,8 @@ authenticator app to release and to download.
 - You can download the pack once. After that, only the data protection lead can fetch it again.
   Keep the PDF safe until it is handed over, then delete your copy as your procedure says.
 - If a record changed after it was reviewed, the release is refused. Withdraw the request and log
-  it again, so the records are reviewed again.
+  it again, so the records are reviewed again. When you log it again, enter the date the original
+  request was received, so the due date does not move.
 - Thapsus Care never sends the pack to anyone. You hand it over and record it.
 - Releasing, downloading and handing over are each recorded, with who did it.
 - The rules: [safety specification, disclosure requests](../../specs/safety.md#12-disclosure-requests-slice-41-safe-016).

@@ -3,14 +3,14 @@
 Your organisation asks you to read and sign the policies that apply to your role. Signing says you
 have read the version in force and will follow it.
 
-**Who can do this**: everyone on the staff whose role the policy names, including agency and bank
+**Who can do this**: everyone on the staff whose role the policy names, including agency or bank
 workers. Managers sign their own policies in the same way.
 
 **Register row**: QUAL-008.
 
 ## Steps
 
-1. In the side bar, choose **Policies**.
+1. In the menu, choose **Policies**.
 2. Under **To read and sign** you see each policy asked of you, with its version and "Asked of you
    since" the date. If there is nothing, it says "You have nothing to read and sign."
 3. Choose a policy. The page opens at **Version in force**.
