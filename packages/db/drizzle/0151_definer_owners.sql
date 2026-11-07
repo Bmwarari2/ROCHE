@@ -383,6 +383,12 @@ $$;
 --> statement-breakpoint
 -- Batch 4: the definers migrations 0146 and 0149 added (ADR-0133: from here on each migration
 -- sets its own definers' owner).
+-- Execute rights before the owner changes (the add-migration skill's order): 0146 left PUBLIC on
+-- two of the trigger functions, which nothing calls directly.
+REVOKE ALL ON FUNCTION app.set_sync_location() FROM PUBLIC;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.set_handover_sync() FROM PUBLIC;
+--> statement-breakpoint
 ALTER FUNCTION app.sync_person(uuid,uuid) OWNER TO harbour_platform_definer;
 --> statement-breakpoint
 ALTER FUNCTION app.set_sync_location() OWNER TO harbour_platform_definer;

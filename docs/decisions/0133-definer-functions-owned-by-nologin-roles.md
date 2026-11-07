@@ -84,9 +84,13 @@ its context's definer role (or a narrower NOLOGIN owner it already uses), with o
 function needs, before any execute rights change (the add-migration skill's order). Migration 0151
 also took over the definers batch 4 had added: the sync routing functions of 0146 went to
 `harbour_platform_definer` with column grants on the routing columns only (and
-`app.is_sync_location_move` now names that role, so a move is let through only inside
-`app.move_sync_location`), and `app.request_sign_in_erasure` of 0149 to `harbour_member_owner`,
+`app.is_sync_location_move` now names that role; with its UPDATE grants limited to the routing
+columns, a move is let through only inside `app.move_sync_location`, though `harbour_owner` may
+still act as the role), and `app.request_sign_in_erasure` of 0149 to `harbour_member_owner`,
 which owns the rest of the member lifecycle.
+A later backfill of the routing columns cannot follow 0146's pattern (`harbour_owner` with row-level
+security not forced): it runs as `harbour_platform_definer` under a tenant context, since forced
+row-level security applies to that role.
 
 ### Consequences
 

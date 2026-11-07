@@ -32,6 +32,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Merge batch 4 (07/11/2026)
+
+`integration/phase-2-batch-4`, from `main` e1524309 (with #177, #178 and #179): mobile medicines
+sync (slice 68, 0149 renumbered 0147), the Thapsus-HR link's pay and screens (slices 89 and 90,
+0151 to 0148), the member lifecycle v2 (H-566, 0153 to 0149), web stock, homely remedies and
+errors (slice 55, 0155 to 0150), the web medicines round (slice 53), the printable MAR (slice 50),
+and definer owners last (ADR-0133, 0154 to 0151, extended to the definers 0146 and 0149 added).
+Slices 69 and 70 wait for a later batch. See
+`docs/changelog-dev/2026-11-07-integration-phase-2-batch-4.md`.
+
 ## No SMS at launch (07/11/2026)
 
 `fix/comms-no-sms-at-launch` (ADR-0132): nothing relies on a channel that cannot reach people. No
