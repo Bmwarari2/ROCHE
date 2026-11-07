@@ -106,3 +106,26 @@ export function ukInstantWords(iso: string): string {
   const parts = ukDateTimeParts(parsed);
   return `${parts.date} ${parts.time}`;
 }
+
+/**
+ * hazard HZ-113: when the medicines data a scan is matched against reached this phone, and when a
+ * request for it last failed, so an unknown pack is read against how old the data is.
+ */
+export function dmdSubsetLine(fetchedAt: string | null, failedAt: string | null): string {
+  const fetched = fetchedAt
+    ? t("mobile.meds.dmdFetched", { at: ukInstantWords(fetchedAt) })
+    : t("mobile.meds.dmdNever");
+  return failedAt
+    ? `${fetched} ${t("mobile.meds.dmdFailed", { at: ukInstantWords(failedAt) })}`
+    : fetched;
+}
+
+/** How many communication needs the person's synced row lists (the Accessible Information Standard flag). */
+export function communicationNeedsCount(json: string | null): number {
+  try {
+    const parsed: unknown = JSON.parse(json ?? "[]");
+    return Array.isArray(parsed) ? parsed.length : 0;
+  } catch {
+    return 0;
+  }
+}

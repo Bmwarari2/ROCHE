@@ -652,6 +652,15 @@
     "mobile.meds.uploadUnreadable",
     "mobile.meds.reminderChannel",
     "mobile.meds.reminderTitle",
-    "mobile.meds.reminderBody"
+    "mobile.meds.reminderBody",
+    "mobile.meds.dmdFetched",
+    "mobile.meds.dmdNever",
+    "mobile.meds.dmdFailed",
+    "mobile.meds.stop",
+    "mobile.meds.stopHint",
+    "mobile.meds.personNotOnPhone",
+    "mobile.meds.personTitleFor",
+    "mobile.meds.scheduledHeading",
+    "mobile.meds.whenRequiredHeading"
   ]
 }

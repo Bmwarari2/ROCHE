@@ -67,7 +67,7 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       NSFaceIDUsageDescription: FACE_ID_REASON,
       NSCameraUsageDescription:
-        "Harbour uses the camera to take photos for care records and to scan medicine barcodes.",
+        "Harbour uses the camera only to read medicine pack barcodes. No picture is saved.",
       NSLocationWhenInUseUsageDescription:
         "Harbour uses your location only while the app is open, to confirm you have arrived at a home care visit.",
       NSMicrophoneUsageDescription:
@@ -184,7 +184,7 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
       "expo-camera",
       {
         cameraPermission:
-          "Harbour uses the camera to take photos for care records and to scan medicine barcodes.",
+          "Harbour uses the camera only to read medicine pack barcodes. No picture is saved.",
         recordAudioAndroid: false,
       },
     ],

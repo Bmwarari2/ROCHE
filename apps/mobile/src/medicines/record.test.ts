@@ -49,6 +49,17 @@ describe("hazard HZ-001 a dose recorded on the phone needs identity and the pack
     ["a dose given without an amount", { amount: null }, ["amount_required"]],
     ["a controlled drug", { controlledDrug: true }, ["controlled_drug_on_phone"]],
     ["an entry that may not be given from now", { mayGive: false }, ["may_not_give"]],
+    [
+      "a dose inside the minimum interval",
+      { nextAllowedAt: new Date("2026-11-03T09:00:00Z") },
+      ["inside_interval"],
+    ],
+    [
+      "a dose whose last dose may be older than the phone's records",
+      { lastDoseNotOnDevice: true },
+      ["last_dose_unknown"],
+    ],
+    ["a dose after a scan of another medicine", { packRefused: true }, ["pack_mismatch"]],
   ] as const)("%s", (_case, overrides, problems) => {
     expect(recordProblems({ ...base, ...overrides } as DoseRecordInput)).toEqual(problems);
   });
@@ -67,6 +78,7 @@ describe("a dose recorded on the phone is sent to the administrations route (HZ-
     const queued = JSON.parse(row.request as string);
     expect(queued.body).toMatchObject({
       id: ID,
+      deviceRecordedAt: "2026-11-03T08:05:00.000Z",
       entryId: ENTRY,
       pointOfCare: { identity: "photo", pack: { method: "scanned", gtin: "05000000000012" } },
     });

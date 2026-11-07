@@ -115,6 +115,13 @@ export const RecordAdministration = z
     givenBy: uuid.nullable().default(null),
     /** Identity and pack checks, sent by the phone (ADR-0081). */
     pointOfCare: PointOfCare.nullable().default(null),
+    /**
+     * When the phone recorded it, by its clock: a phone's upload only (it names its device), within
+     * the clock-drift figure of the time in its UUIDv7 id. The rules judge the record at this time,
+     * so a dose recorded offline and sent later is judged as recorded on the round, never as
+     * "recorded after a delay" (clinical review of slice 69, B1).
+     */
+    deviceRecordedAt: isoDateTime.nullable().default(null),
   })
   .meta({ id: "RecordAdministration" });
 

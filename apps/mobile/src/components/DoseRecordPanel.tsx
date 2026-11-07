@@ -9,8 +9,8 @@ import {
 } from "@harbour/domain";
 import { Button, Text, useTheme } from "@harbour/ui-native";
 import { usePowerSync } from "@powersync/react";
-import { useState } from "react";
-import { View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, findNodeHandle, View } from "react-native";
 import { useSession } from "../app-state/session";
 import { useTenantId } from "../care/hooks";
 import { t } from "../i18n/t";
@@ -25,7 +25,9 @@ import {
 import { ukToday } from "../medicines/round";
 import { packCheckWords } from "../medicines/view";
 import { newEntryId } from "../platform/ids";
+import { CarePersonHeader } from "./CarePersonHeader";
 import { PackScanner } from "./PackScanner";
+import { StatusLine } from "./StatusLine";
 import { TextField } from "./TextField";
 
 export interface DoseChoice {
@@ -46,18 +48,31 @@ export interface DoseChoice {
   readonly controlledDrug: boolean;
   /** The allergy line, shown beside the medicine (HZ-007). */
   readonly allergyWords: string;
+  /** A when-required dose's next allowed time (HZ-004). */
+  readonly nextAllowedAt: Date | null;
+  readonly lastDoseNotOnDevice: boolean;
+}
+
+function announce(words: string) {
+  // Android reads live regions; iOS needs the announcement (WCAG 4.1.3).
+  AccessibilityInfo.announceForAccessibility(words);
 }
 
 /**
- * Recording one dose on the round (slice 69; ADR-0081; HZ-001, HZ-004): the allergy line beside
- * the medicine, positive identification by photo, the pack scanned and matched (or why not), the
- * outcome and its reason. What stops the record is said in words before Save does anything.
+ * Recording one dose on the round (slice 69; ADR-0081; HZ-001, HZ-004, HZ-113): the person's photo,
+ * name and date of birth beside the identity check, the allergy line beside the medicine, the pack
+ * scanned and matched (or why it could not be, never after a scan of another medicine or an
+ * expired pack), the outcome and its reason. What stops the record is said, and announced, before
+ * anything is saved.
  */
 export function DoseRecordPanel({
   dose,
+  dmdLine,
   onDone,
 }: {
   readonly dose: DoseChoice;
+  /** When the medicines data a scan is matched against arrived (HZ-113). */
+  readonly dmdLine: string;
   readonly onDone: (saved: boolean) => void;
 }) {
   const theme = useTheme();
@@ -65,12 +80,14 @@ export function DoseRecordPanel({
   const tenantId = useTenantId();
   const { me } = useSession();
   const record = useRecordDose();
+  const titleRef = useRef<View>(null);
   const [outcome, setOutcome] = useState<AdministrationOutcome | null>(null);
   const [reasonCode, setReasonCode] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [identity, setIdentity] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [pack, setPack] = useState<PackEvidence | null>(null);
+  const [packRefused, setPackRefused] = useState(false);
   const [scanWords, setScanWords] = useState<string | null>(null);
   const [overrideCode, setOverrideCode] = useState<PackOverrideReason | null>(null);
   const [overrideNote, setOverrideNote] = useState("");
@@ -78,11 +95,20 @@ export function DoseRecordPanel({
   const [problems, setProblems] = useState<readonly RecordProblem[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Focus moves to the panel's title when it opens (WCAG 2.4.3).
+  useEffect(() => {
+    const node = titleRef.current ? findNodeHandle(titleRef.current) : null;
+    if (node) AccessibilityInfo.setAccessibilityFocus(node);
+  }, []);
+
   const scanned = async (raw: string) => {
     setScanning(false);
     const scan = parsePackBarcode(raw);
     if (!scan) {
-      setScanWords(packCheckWords("unreadable").words);
+      const words = packCheckWords("unreadable").words;
+      setScanWords(words);
+      setPack(null);
+      announce(words);
       return;
     }
     const gtins = await db.getAll<{
@@ -118,9 +144,12 @@ export function DoseRecordPanel({
     );
     const words = packCheckWords(check);
     setScanWords(words.words);
-    // A pack that does not match is never accepted by scanning: the carer stops, or says why.
+    announce(words.words);
+    // Another medicine or an expired pack stops the dose until a matching pack is scanned: no
+    // override reason clears it (clinical review of slice 69, M5).
+    setPackRefused(check.result === "different_product" || check.result === "expired");
     setPack(
-      words.matches && check.result === "matches"
+      check.result === "matches"
         ? {
             method: "scanned",
             gtin: scan.gtin,
@@ -169,13 +198,20 @@ export function DoseRecordPanel({
       deviceOffsetMs: null,
       mayGive: dose.mayGive,
       controlledDrug: dose.controlledDrug,
+      nextAllowedAt: dose.nextAllowedAt,
+      lastDoseNotOnDevice: dose.lastDoseNotOnDevice,
+      packRefused,
     };
     const found = recordProblems(input);
     setProblems(found);
-    if (found.length > 0) return;
+    if (found.length > 0) {
+      announce(found.map((p) => t("mobile.meds.problem", { problem: p })).join(" "));
+      return;
+    }
     setSaving(true);
     try {
       await record(input);
+      announce(t("mobile.meds.saved"));
       onDone(true);
     } finally {
       setSaving(false);
@@ -186,24 +222,25 @@ export function DoseRecordPanel({
   const gives = outcome === "given";
   return (
     <View style={{ gap: theme.space[1.5] }} testID="dose-record-panel">
-      <Text variant="title" accessibilityRole="header">
-        {t("mobile.meds.recordTitle", { medicine: dose.productName, person: dose.personName })}
-      </Text>
-      <Text>{dose.doseInWords}</Text>
-      <Text tone="warning" testID="dose-allergies">
+      <View ref={titleRef} accessible accessibilityRole="header">
+        <Text variant="title">
+          {t("mobile.meds.recordTitle", { medicine: dose.productName, person: dose.personName })}
+        </Text>
+      </View>
+      {dose.doseInWords ? <Text>{dose.doseInWords}</Text> : null}
+      <StatusLine tone="warning" testID="dose-allergies">
         {dose.allergyWords}
-      </Text>
+      </StatusLine>
 
       <Text variant="callout" accessibilityRole="header">
         {t("mobile.meds.outcome")}
       </Text>
-      <View style={{ gap: theme.space[1] }}>
+      <View accessibilityRole="radiogroup" style={{ gap: theme.space[1] }}>
         {PHONE_OUTCOMES.map((o) => (
           <Button
             key={o}
             label={t("mobile.meds.outcomeName", { outcome: o })}
-            variant={outcome === o ? "primary" : "secondary"}
-            accessibilityHint={outcome === o ? t("mobile.common.selected") : undefined}
+            selection={{ kind: "radio", selected: outcome === o }}
             onPress={() => {
               setOutcome(o);
               setReasonCode(null);
@@ -217,15 +254,16 @@ export function DoseRecordPanel({
           <Text variant="callout" accessibilityRole="header">
             {t("mobile.meds.reason")}
           </Text>
-          {reasons.map((code) => (
-            <Button
-              key={code}
-              label={t("mobile.meds.reasonName", { reason: code })}
-              variant={reasonCode === code ? "primary" : "secondary"}
-              accessibilityHint={reasonCode === code ? t("mobile.common.selected") : undefined}
-              onPress={() => setReasonCode(code)}
-            />
-          ))}
+          <View accessibilityRole="radiogroup" style={{ gap: theme.space[1] }}>
+            {reasons.map((code) => (
+              <Button
+                key={code}
+                label={t("mobile.meds.reasonName", { reason: code })}
+                selection={{ kind: "radio", selected: reasonCode === code }}
+                onPress={() => setReasonCode(code)}
+              />
+            ))}
+          </View>
           <TextField
             label={t("mobile.meds.note")}
             hint={t("mobile.meds.noteHint")}
@@ -241,11 +279,13 @@ export function DoseRecordPanel({
           <Text variant="callout" accessibilityRole="header">
             {t("mobile.meds.checks")}
           </Text>
+          {/* The photo, name and date of birth beside the check they are for (HZ-001). */}
+          <CarePersonHeader personId={dose.personId} />
           <Button
-            label={identity ? t("mobile.meds.identityConfirmed") : t("mobile.meds.confirmIdentity")}
-            variant={identity ? "primary" : "secondary"}
+            label={t("mobile.meds.confirmIdentity")}
+            selection={{ kind: "checkbox", selected: identity }}
             accessibilityHint={t("mobile.meds.confirmIdentityHint", { person: dose.personName })}
-            onPress={() => setIdentity(true)}
+            onPress={() => setIdentity((v) => !v)}
             testID="confirm-identity"
           />
           {scanning ? (
@@ -264,29 +304,27 @@ export function DoseRecordPanel({
               testID="scan-pack"
             />
           )}
+          <Text variant="bodyDense" tone="secondary" testID="dmd-subset-line">
+            {dmdLine}
+          </Text>
           {scanWords ? (
-            <Text
-              tone={pack ? "success" : "danger"}
-              testID="scan-result"
-              accessibilityLiveRegion="polite"
-            >
+            <StatusLine tone={pack ? "success" : "danger"} testID="scan-result">
               {scanWords}
-            </Text>
+            </StatusLine>
           ) : null}
-          {!pack ? (
+          {!pack && !packRefused ? (
             <View style={{ gap: theme.space[1] }}>
               <Text>{t("mobile.meds.overrideTitle")}</Text>
-              {PACK_OVERRIDE_REASONS.map((code) => (
-                <Button
-                  key={code}
-                  label={t("mobile.meds.overrideName", { reason: code })}
-                  variant={overrideCode === code ? "primary" : "secondary"}
-                  accessibilityHint={
-                    overrideCode === code ? t("mobile.common.selected") : undefined
-                  }
-                  onPress={() => setOverrideCode(code)}
-                />
-              ))}
+              <View accessibilityRole="radiogroup" style={{ gap: theme.space[1] }}>
+                {PACK_OVERRIDE_REASONS.map((code) => (
+                  <Button
+                    key={code}
+                    label={t("mobile.meds.overrideName", { reason: code })}
+                    selection={{ kind: "radio", selected: overrideCode === code }}
+                    onPress={() => setOverrideCode(code)}
+                  />
+                ))}
+              </View>
               {overrideCode === "other" ? (
                 <TextField
                   label={t("mobile.meds.overrideNote")}
@@ -298,7 +336,7 @@ export function DoseRecordPanel({
             </View>
           ) : null}
           <TextField
-            label={t("mobile.meds.amount", { unit: dose.unitName ?? "" })}
+            label={t("mobile.meds.amount", { unit: dose.unitName ?? "none" })}
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
@@ -307,11 +345,11 @@ export function DoseRecordPanel({
       ) : null}
 
       {problems.length > 0 ? (
-        <View accessibilityLiveRegion="assertive" testID="dose-problems">
+        <View testID="dose-problems" style={{ gap: theme.space[0.5] }}>
           {problems.map((p) => (
-            <Text key={p} tone="danger">
+            <StatusLine key={p} tone="danger">
               {t("mobile.meds.problem", { problem: p })}
-            </Text>
+            </StatusLine>
           ))}
         </View>
       ) : null}
@@ -322,7 +360,12 @@ export function DoseRecordPanel({
         loading={saving}
         testID="save-dose"
       />
-      <Button label={t("mobile.round.cancel")} variant="secondary" onPress={() => onDone(false)} />
+      <Button
+        label={t("mobile.meds.stop")}
+        accessibilityHint={t("mobile.meds.stopHint")}
+        variant="secondary"
+        onPress={() => onDone(false)}
+      />
     </View>
   );
 }

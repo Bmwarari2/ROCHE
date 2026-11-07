@@ -46,7 +46,11 @@ import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
 import { refreshMedicinesRates } from "../medicines/rates";
 import { clearPhotoCache } from "../people/use-person-photo";
-import { cancelHeldNotifications, scheduleHeldNotifications } from "../platform/notifications";
+import {
+  cancelHeldNotifications,
+  scheduleHeldNotifications,
+  scheduleMedicineReminders,
+} from "../platform/notifications";
 import {
   DEVICE_ID_ITEM,
   keyOptions,
@@ -693,6 +697,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         if (complete) {
           await session.clearHeld().catch(() => undefined);
           void cancelHeldNotifications();
+          void scheduleMedicineReminders([]);
         }
         const connector = new HarbourConnector({
           apiUrl: appEnv.apiUrl,
@@ -803,6 +808,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         await destroyDatabaseKey(secretStore, keyOptions);
         await session.clearHeld();
         void cancelHeldNotifications();
+        void scheduleMedicineReminders([]);
         clearPhotoCache();
         // Downloaded courses go with everything else (security review of slice 72, L8).
         removeAllCourseFiles();
@@ -1093,6 +1099,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         });
         await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);
         void cancelHeldNotifications();
+        void scheduleMedicineReminders([]);
         clearPhotoCache();
         // Downloaded courses go with everything else (security review of slice 72, L8).
         removeAllCourseFiles();
@@ -1186,6 +1193,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           await destroyDatabaseKey(secretStore, keyOptions);
           await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);
           void cancelHeldNotifications();
+          void scheduleMedicineReminders([]);
           clearPhotoCache();
           // Downloaded courses go with everything else (security review of slice 72, L8).
           removeAllCourseFiles();

@@ -6,6 +6,7 @@ import {
   CheckDosingRecord,
   ConflictRaised,
   CorrectAdministration,
+  DEVICE_HEADER,
   DosingRecordList,
   DosingRecordOut,
   MedicineRound,
@@ -37,6 +38,7 @@ import {
   type MedicinesCompetence,
   marEntryDoses,
   POINT_OF_CARE_WORDS,
+  type PointOfCareIssue,
   pointOfCareIssues,
   recordDosingRecord,
   ukIsoDate,
@@ -63,6 +65,15 @@ import {
   witnessPolicyFor,
   writeCdEntry,
 } from "../services/controlled-drugs";
+import { dmdGtinMatches } from "../services/dmd";
+
+/** The time in a UUIDv7 (its first 48 bits, in milliseconds), or null for another version. */
+function uuidV7Time(id: string): Date | null {
+  const hex = id.replace(/-/g, "");
+  if (hex.length !== 32 || hex[12] !== "7") return null;
+  return new Date(Number.parseInt(hex.slice(0, 12), 16));
+}
+
 import {
   type AdministrationRow,
   administrationOut,
@@ -488,16 +499,42 @@ export const medicineAdministrationsRouter = createRouter()
           if (kept) return { status: 202 as const, conflict: kept };
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
-          // The phone's identity and pack checks (ADR-0081; HZ-001): a dose given needs both.
-          const pointOfCareProblems = body.pointOfCare
+          // The phone's identity and pack checks (ADR-0081; HZ-001): a dose given needs both. A
+          // phone's upload (it names its device) must carry them; a web record carries none yet,
+          // and its empty scan_evidence reads "not checked at the point of care" (security review
+          // of slice 69, H1).
+          const fromDevice = Boolean(c.req.header(DEVICE_HEADER));
+          const pointOfCare =
+            body.pointOfCare ?? (fromDevice ? { identity: null, pack: null } : null);
+          const pointOfCareProblems: PointOfCareIssue[] = pointOfCare
             ? pointOfCareIssues(body.outcome === "given", {
-                identity: body.pointOfCare.identity,
-                pack: body.pointOfCare.pack?.method ?? null,
-                packOverride: body.pointOfCare.pack?.override ?? null,
+                identity: pointOfCare.identity,
+                pack: pointOfCare.pack?.method ?? null,
+                packOverride: pointOfCare.pack?.override ?? null,
               })
             : [];
-          if (body.pointOfCare?.pack?.method === "scanned" && !body.pointOfCare.pack.gtin) {
-            pointOfCareProblems.push("pack_not_checked");
+          const scanned = pointOfCare?.pack?.method === "scanned" ? pointOfCare.pack : null;
+          if (scanned && !scanned.gtin) pointOfCareProblems.push("pack_not_checked");
+          // A scanned pack is matched here too, through dm+d, never on the phone's word alone
+          // (security review of slice 69, M3): its GTIN in force today names a pack of the entry's
+          // product (its AMP, or for a generic entry its VMP), and the AMPP the phone sent.
+          if (scanned?.gtin && body.outcome === "given") {
+            const packs = await dmdGtinMatches(tx, scanned.gtin, ukIsoDate(now));
+            const product = entry.product;
+            const fits = packs.some(
+              (p) =>
+                (product.ampId ? p.amp.id === product.ampId : p.vmp.id === product.vmpId) &&
+                (scanned.amppId === null || p.pack.id === scanned.amppId),
+            );
+            if (!fits) {
+              throw deny([
+                {
+                  problem: "pack_mismatch",
+                  message:
+                    "The pack scanned is not this medicine in the medicines data. Do not give it: check the pack with the nurse in charge.",
+                },
+              ]);
+            }
           }
           if (pointOfCareProblems.length > 0) {
             throw deny(
@@ -558,6 +595,36 @@ export const medicineAdministrationsRouter = createRouter()
               { problem: "given_at_in_future", message: "Record what has happened, at its time." },
             ]);
           }
+          // A phone's record is judged at the time the phone recorded it (drift-corrected), not when
+          // it arrived: a dose given offline is a round record, not one made after a delay. The time
+          // must agree with the record's own UUIDv7 time and not be in the future (clinical review
+          // of slice 69, B1); the server's time is still stored as recorded_at.
+          let judgedAt = now;
+          if (body.deviceRecordedAt) {
+            const driftMs = facts.rates.clockDriftMinutes * 60_000;
+            const deviceRecorded = driftCorrectedTime(
+              new Date(body.deviceRecordedAt),
+              body.deviceOffsetMs,
+              facts.rates,
+            ).at;
+            const idTime = uuidV7Time(body.id);
+            if (
+              !c.req.header(DEVICE_HEADER) ||
+              !idTime ||
+              Math.abs(idTime.getTime() - new Date(body.deviceRecordedAt).getTime()) > driftMs ||
+              deviceRecorded.getTime() > now.getTime() + driftMs ||
+              deviceRecorded.getTime() < at.getTime()
+            ) {
+              throw deny([
+                {
+                  problem: "device_recorded_at_invalid",
+                  message:
+                    "The time this phone recorded the dose cannot be used. Check the phone's clock.",
+                },
+              ]);
+            }
+            judgedAt = deviceRecorded.getTime() > now.getTime() ? now : deviceRecorded;
+          }
           // Who gave it: the recorder, or (recorded after giving) the member named, whose
           // competence then the rules check; the recorder's competence now is checked too.
           const giverId = gbr ? (body.givenBy ?? access.tenantUserId) : access.tenantUserId;
@@ -573,7 +640,7 @@ export const medicineAdministrationsRouter = createRouter()
             entries: facts.entries,
             body,
             at,
-            recordedAt: now,
+            recordedAt: judgedAt,
             administrator: giver,
             competenceAtRecording:
               giverId === access.tenantUserId

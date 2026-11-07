@@ -90,7 +90,7 @@ describe("the phone reads the synced MAR as the API does (slice 69)", () => {
     expect(round?.unreadable).toEqual(["Invented tablets 10mg"]);
   });
 
-  it("hazard HZ-003 a replaced version and its replacement never both give a dose", () => {
+  it("hazard HZ-003 a change from tomorrow shows today's dose once and never both versions", () => {
     const old = med({
       id: "m1",
       state: "replaced",

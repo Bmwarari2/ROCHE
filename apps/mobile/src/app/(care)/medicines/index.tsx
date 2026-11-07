@@ -1,12 +1,20 @@
-import { ListItem, StatusChip, Text, useTheme } from "@harbour/ui-native";
+import { ListItem, PersonFlags, StatusChip, Text, useTheme } from "@harbour/ui-native";
 import { useRouter } from "expo-router";
-import { FlatList, View } from "react-native";
+import { useEffect } from "react";
+import { AccessibilityInfo, FlatList, View } from "react-native";
 import { Screen } from "../../../components/Screen";
+import { StatusLine } from "../../../components/StatusLine";
 import { UploadIssues } from "../../../components/UploadIssues";
 import { t } from "../../../i18n/t";
 import { useMedicinesRound } from "../../../medicines/hooks";
 import { doseSlots } from "../../../medicines/round";
-import { DOSE_STATUS, gateWords, personName, ukDateWords } from "../../../medicines/view";
+import {
+  communicationNeedsCount,
+  DOSE_STATUS,
+  gateWords,
+  personName,
+  ukDateWords,
+} from "../../../medicines/view";
 import { useRecordScreenProtection } from "../../../security/use-record-protection";
 
 /**
@@ -24,14 +32,23 @@ export default function MedicinesRoundScreen() {
   const blocked = gateWords(gate);
   const slots = doseSlots(rounds);
   const unreadable = rounds.flatMap((r) => r.unreadable);
+  const unreadableWords =
+    unreadable.length > 0 ? t("mobile.meds.unreadable", { list: unreadable.join(", ") }) : null;
+  // Announced when it changes, on iOS too (WCAG 4.1.3).
+  useEffect(() => {
+    if (blocked) AccessibilityInfo.announceForAccessibility(blocked);
+  }, [blocked]);
+  useEffect(() => {
+    if (unreadableWords) AccessibilityInfo.announceForAccessibility(unreadableWords);
+  }, [unreadableWords]);
   return (
     <Screen testID="medicines-round">
       <UploadIssues />
       {blocked ? (
         <View style={{ padding: theme.space[2] }}>
-          <Text testID="medicines-blocked" accessibilityLiveRegion="polite">
+          <StatusLine tone="warning" testID="medicines-blocked">
             {blocked}
-          </Text>
+          </StatusLine>
         </View>
       ) : (
         <FlatList
@@ -39,9 +56,11 @@ export default function MedicinesRoundScreen() {
           keyExtractor={(s) => `${s.date} ${s.time}`}
           ListHeaderComponent={
             unreadable.length > 0 ? (
-              <Text tone="danger" testID="medicines-unreadable" style={{ padding: theme.space[2] }}>
-                {t("mobile.meds.unreadable", { list: unreadable.join(", ") })}
-              </Text>
+              <View style={{ padding: theme.space[2] }}>
+                <StatusLine tone="danger" testID="medicines-unreadable">
+                  {t("mobile.meds.unreadable", { list: unreadable.join(", ") })}
+                </StatusLine>
+              </View>
             ) : null
           }
           ListEmptyComponent={
@@ -60,7 +79,7 @@ export default function MedicinesRoundScreen() {
               </Text>
               {slot.doses.map((d) => {
                 const person = people.get(d.personId);
-                const name = person ? personName(person) : t("mobile.round.personUnknown");
+                const name = person ? personName(person) : t("mobile.meds.personNotOnPhone");
                 return (
                   <ListItem
                     key={`${d.entryId}:${d.dueAt}`}
@@ -69,7 +88,20 @@ export default function MedicinesRoundScreen() {
                       .filter(Boolean)
                       .join(". ")}
                     accessories={
-                      <StatusChip status={DOSE_STATUS[d.state]} label={d.stateInWords} />
+                      <View style={{ gap: theme.space[0.5], alignItems: "flex-end" }}>
+                        <StatusChip status={DOSE_STATUS[d.state]} label={d.stateInWords} />
+                        {person ? (
+                          <PersonFlags
+                            allergyStatus={person.allergy_status}
+                            allergyCount={person.allergy_count}
+                            communicationNeedsCount={communicationNeedsCount(
+                              person.communication_needs,
+                            )}
+                            context="list"
+                            testID={`dose-${d.entryId}-flags`}
+                          />
+                        ) : null}
+                      </View>
                     }
                     onPress={() =>
                       router.push({

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseMedicinesRates } from "./rates";
 import { planTimeCriticalReminders } from "./reminders";
 import type { PersonRound } from "./round";
-import { allergyLine, gateWords, packCheckWords, ukDateWords } from "./view";
+import { allergyLine, dmdSubsetLine, gateWords, packCheckWords, ukDateWords } from "./view";
 
 describe("hazard HZ-007 allergies beside the medicine never read 'not recorded' as 'none'", () => {
   it.each([
@@ -101,5 +101,15 @@ describe("hazard HZ-003 reminders for time-critical doses name no one", () => {
     );
     expect(plan.map((p) => p.at.toISOString())).toEqual(["2026-11-03T07:30:00.000Z"]);
     expect(plan[0]?.identifier).not.toContain("p");
+  });
+});
+
+describe("hazard HZ-113 the round says when the dm+d subset was fetched and when a request for it failed", () => {
+  it.each([
+    [null, null, /not reached this phone/],
+    ["2026-11-03T08:00:00.000Z", null, /03\/11\/2026/],
+    ["2026-11-03T08:00:00.000Z", "2026-11-04T09:00:00.000Z", /04\/11\/2026/],
+  ] as const)("%s, %s", (fetched, failed, words) => {
+    expect(dmdSubsetLine(fetched, failed)).toMatch(words);
   });
 });

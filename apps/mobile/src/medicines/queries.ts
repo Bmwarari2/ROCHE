@@ -20,10 +20,6 @@ export const ROUND_ADMINISTRATIONS_SQL = `SELECT id, person_id, medication_id, d
   quantity, unit_code, given_at, administered_by, supersedes_id, request
 FROM medication_administration WHERE tenant_id = ?`;
 
-export const ROUND_PEOPLE_SQL = `SELECT id, preferred_name, given_name, family_name, room_label,
-  allergy_status
-FROM person WHERE tenant_id = ?`;
-
 export const MEDICINES_RATES_SQL = "SELECT value FROM sync_meta WHERE id = ?";
 export const medicinesRatesParams = [MEDICINES_RATES_META_ID];
 

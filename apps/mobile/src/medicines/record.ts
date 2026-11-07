@@ -25,7 +25,10 @@ export type RecordProblem =
   | "note_required"
   | "amount_required"
   | "controlled_drug_on_phone"
-  | "may_not_give";
+  | "may_not_give"
+  | "inside_interval"
+  | "last_dose_unknown"
+  | "pack_mismatch";
 
 export interface PackEvidence {
   readonly method: "scanned" | "override";
@@ -58,6 +61,12 @@ export interface DoseRecordInput {
   /** Whether the round allows giving from this entry now (`entryStatus.mayGive`). */
   readonly mayGive: boolean;
   readonly controlledDrug: boolean;
+  /** A when-required dose's next allowed time, when later than now (HZ-004). */
+  readonly nextAllowedAt?: Date | null;
+  /** Its interval reaches before the records this phone holds, with none inside it (HZ-004). */
+  readonly lastDoseNotOnDevice?: boolean;
+  /** The last scan was another medicine or an expired pack: no override clears it (HZ-113). */
+  readonly packRefused?: boolean;
 }
 
 const GIVES = new Set<AdministrationOutcome>(["given"]);
@@ -68,6 +77,14 @@ export function recordProblems(input: DoseRecordInput): RecordProblem[] {
   const gives = GIVES.has(input.outcome);
   if (gives && input.controlledDrug) problems.push("controlled_drug_on_phone");
   if (gives && !input.mayGive) problems.push("may_not_give");
+  // The phone never records a dose inside the minimum interval, or when the last dose may be older
+  // than its records: the nurse in charge decides, on the web with an override reason (clinical
+  // review of slice 69, H4).
+  if (gives && input.nextAllowedAt && input.nextAllowedAt.getTime() > input.at.getTime()) {
+    problems.push("inside_interval");
+  }
+  if (gives && input.lastDoseNotOnDevice) problems.push("last_dose_unknown");
+  if (gives && input.packRefused) problems.push("pack_mismatch");
   const codes = OUTCOME_REASONS[input.outcome];
   if (codes.length > 0 && (!input.reason || !codes.includes(input.reason.code))) {
     problems.push("reason_required");
@@ -102,9 +119,11 @@ export function recordRequestBody(input: DoseRecordInput): Record<string, unknow
     amount: input.amount,
     timingReason: input.timingReason?.trim() || null,
     givenAt: input.at.toISOString(),
+    // Judged at the time the phone recorded it, so a dose sent later is still a round record.
+    deviceRecordedAt: input.at.toISOString(),
     deviceOffsetMs: input.deviceOffsetMs,
-    pointOfCare:
-      input.identity || input.pack ? { identity: input.identity, pack: input.pack } : null,
+    // Always sent from the phone: the API requires it on a phone's upload (ADR-0081).
+    pointOfCare: { identity: input.identity, pack: input.pack },
   };
 }
 

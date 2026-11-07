@@ -9,13 +9,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useVault } from "../app-state/vault";
 import { useTenantId } from "../care/hooks";
 import { appEnv } from "../config/app-env";
+import { PEOPLE_LIST_SQL, type PersonRow, peopleListParams } from "../people/queries";
 import { scheduleMedicineReminders } from "../platform/notifications";
 import {
   MEDICINES_RATES_SQL,
   medicinesRatesParams,
   ROUND_ADMINISTRATIONS_SQL,
   ROUND_MEDICATION_SQL,
-  ROUND_PEOPLE_SQL,
   ROUND_SCHEDULE_SQL,
 } from "./queries";
 import { parseMedicinesRates } from "./rates";
@@ -31,14 +31,8 @@ import {
   type ScheduleLocalRow,
 } from "./round";
 
-export interface RoundPersonRow {
-  readonly id: string;
-  readonly preferred_name: string | null;
-  readonly given_name: string | null;
-  readonly family_name: string | null;
-  readonly room_label: string | null;
-  readonly allergy_status: string | null;
-}
+/** The person as the people list reads them: name, allergies and communication needs. */
+export type RoundPersonRow = PersonRow;
 
 /** The time, again each minute, so a dose becomes due or late on the screen as it does. */
 export function useMinute(): Date {
@@ -73,7 +67,8 @@ export function useMedicinesRound(): {
   const meds = useQuery<MedicationLocalRow>(ROUND_MEDICATION_SQL, params);
   const times = useQuery<ScheduleLocalRow>(ROUND_SCHEDULE_SQL, params);
   const given = useQuery<AdministrationLocalRow>(ROUND_ADMINISTRATIONS_SQL, params);
-  const persons = useQuery<RoundPersonRow>(ROUND_PEOPLE_SQL, params);
+  const peopleParams = useMemo(() => peopleListParams(tenantId), [tenantId]);
+  const persons = useQuery<RoundPersonRow>(PEOPLE_LIST_SQL, peopleParams);
   const rateRows = useQuery<{ value: string }>(MEDICINES_RATES_SQL, medicinesRatesParams);
   const rates = useMemo(() => parseMedicinesRates(rateRows.data[0]?.value), [rateRows.data]);
   const gate = roundGate({

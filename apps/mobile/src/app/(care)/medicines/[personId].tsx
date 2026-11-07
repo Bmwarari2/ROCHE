@@ -1,19 +1,22 @@
 import { ListItem, StatusChip, Text, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
-import { useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useTenantId } from "../../../care/hooks";
 import { CarePersonHeader } from "../../../components/CarePersonHeader";
 import { type DoseChoice, DoseRecordPanel } from "../../../components/DoseRecordPanel";
 import { Screen } from "../../../components/Screen";
+import { StatusLine } from "../../../components/StatusLine";
 import { t } from "../../../i18n/t";
+import { DMD_SUBSET_FAILED_META_ID, DMD_SUBSET_META_ID } from "../../../medicines/dmd-subset";
 import { useMedicinesRound } from "../../../medicines/hooks";
 import { ROUND_MEDICATION_SQL, ROUND_SCHEDULE_SQL } from "../../../medicines/queries";
 import type { MedicationLocalRow, ScheduleLocalRow } from "../../../medicines/round";
 import {
   allergyLine,
   DOSE_STATUS,
+  dmdSubsetLine,
   gateWords,
   personName,
   ukDateWords,
@@ -67,10 +70,19 @@ export default function PersonMedicinesScreen() {
     [tenantId, personId],
   );
   const { data: allergies } = useQuery<AllergyRow>(PERSON_ALLERGIES_SQL, allergyParams);
+  const metaParams = useMemo(() => [DMD_SUBSET_META_ID, DMD_SUBSET_FAILED_META_ID], []);
+  const { data: dmdMeta } = useQuery<{ id: string; value: string }>(
+    "SELECT id, value FROM sync_meta WHERE id IN (?, ?)",
+    metaParams,
+  );
+  const dmdLine = dmdSubsetLine(
+    dmdMeta.find((m) => m.id === DMD_SUBSET_META_ID)?.value ?? null,
+    dmdMeta.find((m) => m.id === DMD_SUBSET_FAILED_META_ID)?.value ?? null,
+  );
   const [choice, setChoice] = useState<DoseChoice | null>(null);
   const [saved, setSaved] = useState(false);
   const person = personId ? people.get(personId) : undefined;
-  const name = person ? personName(person) : t("mobile.round.personUnknown");
+  const name = person ? personName(person) : t("mobile.meds.personNotOnPhone");
   const allergy = allergyLine(person?.allergy_status ?? null, allergies);
   const round = rounds.find((r) => r.personId === personId);
   const blocked = gateWords(gate);
@@ -82,6 +94,7 @@ export default function PersonMedicinesScreen() {
     dueAt: string | null,
     mayGive: boolean,
     time: string | null,
+    prn: { nextAllowedAt: string | null; lastDoseNotOnDevice: boolean } | null = null,
   ) => {
     const row = meds.find((m) => m.id === entryId);
     const slot = time
@@ -108,26 +121,38 @@ export default function PersonMedicinesScreen() {
       mayGive,
       controlledDrug: round?.controlledDrugIds.has(entryId) ?? false,
       allergyWords: allergy.words,
+      nextAllowedAt: prn?.nextAllowedAt ? new Date(prn.nextAllowedAt) : null,
+      lastDoseNotOnDevice: prn?.lastDoseNotOnDevice ?? false,
     });
   };
 
   return (
     <Screen testID="medicines-person">
+      <Stack.Screen options={{ title: t("mobile.meds.personTitleFor", { person: name }) }} />
       <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[1.5] }}>
         {personId ? <CarePersonHeader personId={personId} /> : null}
-        <Text tone={allergy.warning ? "warning" : "secondary"} testID="person-allergy-line">
-          {allergy.words}
-        </Text>
-        {saved ? (
-          <Text tone="success" accessibilityLiveRegion="polite" testID="dose-saved">
-            {t("mobile.meds.saved")}
+        {allergy.warning ? (
+          <StatusLine tone="warning" testID="person-allergy-line">
+            {allergy.words}
+          </StatusLine>
+        ) : (
+          <Text tone="secondary" testID="person-allergy-line">
+            {allergy.words}
           </Text>
+        )}
+        {saved ? (
+          <StatusLine tone="success" testID="dose-saved">
+            {t("mobile.meds.saved")}
+          </StatusLine>
         ) : null}
         {blocked ? (
-          <Text testID="medicines-blocked">{blocked}</Text>
+          <StatusLine tone="warning" testID="medicines-blocked">
+            {blocked}
+          </StatusLine>
         ) : choice ? (
           <DoseRecordPanel
             dose={choice}
+            dmdLine={dmdLine}
             onDone={(ok) => {
               setChoice(null);
               setSaved(ok);
@@ -135,6 +160,11 @@ export default function PersonMedicinesScreen() {
           />
         ) : (
           <View style={{ gap: theme.space[1] }}>
+            {(round?.doses.length ?? 0) > 0 ? (
+              <Text variant="callout" accessibilityRole="header">
+                {t("mobile.meds.scheduledHeading")}
+              </Text>
+            ) : null}
             {(round?.doses ?? []).map((d) => (
               <ListItem
                 key={`${d.entryId}:${d.dueAt}`}
@@ -166,6 +196,11 @@ export default function PersonMedicinesScreen() {
                 testID={`person-dose-${d.entryId}`}
               />
             ))}
+            {(round?.whenRequired.length ?? 0) > 0 ? (
+              <Text variant="callout" accessibilityRole="header">
+                {t("mobile.meds.whenRequiredHeading")}
+              </Text>
+            ) : null}
             {(round?.whenRequired ?? []).map((w) => (
               <ListItem
                 key={w.entryId}
@@ -173,7 +208,7 @@ export default function PersonMedicinesScreen() {
                 subtitle={[
                   w.lastGiven
                     ? t("mobile.meds.lastGiven", {
-                        at: w.lastGiven.at,
+                        at: ukInstantWords(w.lastGiven.at),
                         synced: String(w.lastGiven.synced),
                       })
                     : t("mobile.meds.notGivenOnPhone"),
@@ -191,7 +226,12 @@ export default function PersonMedicinesScreen() {
                 ]
                   .filter(Boolean)
                   .join(". ")}
-                onPress={() => choose(w.entryId, w.productName, "", null, w.remaining !== 0, null)}
+                onPress={() =>
+                  choose(w.entryId, w.productName, "", null, w.remaining !== 0, null, {
+                    nextAllowedAt: w.nextAllowedAt,
+                    lastDoseNotOnDevice: w.lastDoseNotOnDevice,
+                  })
+                }
                 testID={`person-prn-${w.entryId}`}
               />
             ))}
