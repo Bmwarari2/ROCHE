@@ -1403,6 +1403,9 @@ stored. Exported in the full tenant export with these names.
 | `hr_delivery.kind`, `state` | Harbour | `starter`, `shift`, `clock_event`, `pay_units`; `pending`, `sent`, `failed`, `refused` | The idempotency key is a UUID; sent only with Thapsus-HR's identifier |
 | `hr_delivery.payload_sha256` | Harbour | 64 lower-case hex characters | Digest of what was last sent (slice 88, migration 0142) |
 | `absence.source`, `absence.hr_id` | Harbour; Thapsus-HR | `harbour` or `thapsus_hr`; `^[A-Za-z0-9_-]{1,64}$` | A Thapsus-HR copy is annual leave, sickness or other, recorded or cancelled, with no decider (slice 88, migration 0142) |
+| `hr_pay_period.hr_id`, `frequency`, `starts_on`, `ends_on` | Thapsus-HR (pay periods, K5) | `^[A-Za-z0-9_-]{1,64}$`; `weekly` or `monthly`; `YYYY-MM-DD`, at most 31 days | The pay reference period for a period paid through Thapsus-HR; dates never move once stored (slice 89, migration 0151) |
+| `hr_pay_rate.hourly_pence`, `effective_from` | Thapsus-HR (pay rates, K5) | Whole pence, 1 to 100,000; `YYYY-MM-DD` | For the minimum wage check only; the latest rate in force on the period's first day (slice 89) |
+| `hr_pay_unit.unit_kind`, `quantity` | Harbour (pay units, K4) | `hours` or `hours_` with any of `bank_holiday`, `night`, `overtime`, `weekend`; `sleep_in`, `on_call`, `mileage`; decimal, 2 places, above 0 | Units, never money; mapped to the tenant's pay codes (`^[A-Za-z0-9_.-]{1,32}$`) when sent (slice 89) |
 
 ## PRN protocols and outcomes (Phase 2, slice 28)
 

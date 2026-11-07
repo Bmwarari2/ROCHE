@@ -42,6 +42,7 @@ export * from "./integrations/dmd-release-source";
 export * from "./integrations/esign-ocr";
 export * from "./integrations/ports";
 export * from "./integrations/thapsus-hr";
+export * from "./integrations/thapsus-hr-pay";
 export * from "./integrations/trud";
 export * from "./medicines/administration";
 export * from "./medicines/competence";

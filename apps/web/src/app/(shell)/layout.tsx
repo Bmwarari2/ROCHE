@@ -20,6 +20,7 @@ import { evidencePacksShown } from "@/lib/evidence-packs";
 import { exportShown } from "@/lib/exports";
 import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
 import { handoverShown } from "@/lib/handover";
+import { hrLinkNavShown } from "@/lib/hr-link";
 import { peopleLabel, t } from "@/lib/i18n";
 import { importShown } from "@/lib/imports";
 import { incidentsNavLabel } from "@/lib/incidents";
@@ -158,6 +159,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         pir: dashboardShown(me.permissions) ? t("shell.nav.pir") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
+        hrLink: hrLinkNavShown(me) ? t("shell.nav.hrLink") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
         dataImport: importShown(me.permissions) ? t("shell.nav.import") : undefined,
         dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,

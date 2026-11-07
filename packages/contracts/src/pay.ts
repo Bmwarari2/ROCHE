@@ -134,7 +134,16 @@ export const PayProfileItem = z
   .meta({ id: "PayProfileItem" });
 
 export const CreatePayRun = z
-  .object({ frequency: PayFrequency, periodStart: isoDate, periodEnd: isoDate })
+  .object({
+    frequency: PayFrequency,
+    periodStart: isoDate,
+    periodEnd: isoDate,
+    /**
+     * The HR platform link is down for a period its settings send there: pay this period through
+     * the payroll export instead (slice 90; HZ-140). Audited.
+     */
+    confirmExport: z.boolean().optional(),
+  })
   .meta({ id: "CreatePayRun" });
 export const PayRunVersion = z.object({ version }).meta({ id: "PayRunVersion" });
 export const OverridePayException = z
@@ -214,6 +223,11 @@ export const PayRunItem = z
     createdBy: uuid.nullable(),
     /** Open exceptions in the latest calculation: locking waits until none. */
     openExceptions: z.number().int(),
+    /**
+     * The route to payroll fixed when the run was drafted (integrations.md section 11.5 rule 12):
+     * `thapsus_hr` when the HR platform pays it; null for a run drafted before the link existed.
+     */
+    payRoute: z.enum(["harbour_export", "thapsus_hr"]).nullable(),
   })
   .meta({ id: "PayRunItem" });
 

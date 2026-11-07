@@ -8,6 +8,8 @@
 
 // why: money units, not statutory figures (those come from the rate table).
 export const PENCE_PER_POUND = 100;
+/** Hundredths: pay units (hours) go to 2 decimal places. */
+export const HUNDREDTHS = 100;
 /** Mileage on a timesheet is in whole tenths of a mile (slice 30). */
 export const TENTHS_PER_MILE = 10;
 /** A percentage in basis points (12.07% is 1207) avoids binary fractions. */

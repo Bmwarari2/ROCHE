@@ -9,6 +9,7 @@ import {
   paidPieces,
   payLineInputFromJson,
   payRunLine,
+  payUnits,
   runBlocked,
   withOvertime,
 } from "./pay-run";
@@ -412,5 +413,77 @@ describe("open exceptions block locking (rule 9)", () => {
     [[{ status: "overridden" }, { status: "open" }], true],
   ] as const)("%j", (exceptions, blocked) => {
     expect(runBlocked(exceptions)).toBe(blocked);
+  });
+});
+
+describe("hazard HZ-140 pay units split hours exactly as the pay line does (integrations.md rule 11)", () => {
+  it.each([
+    ["a weekday day", [entry("d", "2026-11-02 08:00", "2026-11-02 16:00")], [["hours", 8]]],
+    [
+      "a weekday night",
+      [entry("n", "2026-11-02 20:00", "2026-11-03 08:00")],
+      [
+        ["hours", 4],
+        ["hours_night", 8],
+      ],
+    ],
+    [
+      "a Saturday with a 30-minute break",
+      [
+        entry("s", "2026-11-07 09:00", "2026-11-07 17:00", {
+          breaks: [{ start: uk("2026-11-07 12:00"), end: uk("2026-11-07 12:30") }],
+        }),
+      ],
+      [["hours_weekend", 7.5]],
+    ],
+    [
+      "a sleep-in, an on-call away and 12.5 miles",
+      [
+        entry("si", "2026-11-03 22:00", "2026-11-04 07:00", { kind: "sleep_in" }),
+        entry("oc", "2026-11-05 18:00", "2026-11-05 23:00", { kind: "on_call_away" }),
+        entry("m", "2026-11-04 09:00", "2026-11-04 10:00", { mileageTenths: 125 }),
+      ],
+      [
+        ["hours", 1],
+        ["mileage", 12.5],
+        ["on_call", 1],
+        ["sleep_in", 1],
+      ],
+    ],
+  ] as const)("%s", (_name, entries, expected) => {
+    expect(payUnits(input({ entries: [...entries] })).map((u) => [u.kind, u.quantity])).toEqual(
+      expected,
+    );
+  });
+
+  it("puts hours past the overtime threshold under overtime", () => {
+    const units = payUnits(
+      input({
+        ruleSet: { ...SET, overtimeAfterMinutes: 6 * 60 },
+        entries: [entry("d", "2026-11-02 08:00", "2026-11-02 16:00")],
+      }),
+    );
+    expect(units).toEqual([
+      { kind: "hours", quantity: 6 },
+      { kind: "hours_overtime", quantity: 2 },
+    ]);
+  });
+
+  it("gives none for an agency worker, paid by their agency, or a member with no pay profile", () => {
+    expect(payUnits(input({ profile: { ...PROFILE, employment: "agency" } }))).toEqual([]);
+    expect(payUnits(input({ profile: null }))).toEqual([]);
+  });
+
+  it("counts the same paid minutes as the pay line", () => {
+    const i = input({
+      entries: [
+        entry("n", "2026-11-06 20:00", "2026-11-07 08:00"),
+        entry("d", "2026-11-03 07:15", "2026-11-03 15:40"),
+      ],
+    });
+    const hours = payUnits(i)
+      .filter((u) => u.kind.startsWith("hours"))
+      .reduce((n, u) => n + u.quantity, 0);
+    expect(Math.round(hours * 60)).toBe(payRunLine(i, rates).paidMinutes);
   });
 });

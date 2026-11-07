@@ -283,6 +283,7 @@ async function itemsOf(tx: Tx, access: TenantAccess, rows: readonly AbsenceRow[]
       bradfordExcluded: r.bradfordExcludedReason !== null,
       coverNeeded: cover.get(r.id) ?? 0,
       fitNoteUncoveredDays: uncovered,
+      source: r.source === "thapsus_hr" ? ("thapsus_hr" as const) : ("harbour" as const),
     };
   });
 }
