@@ -15,6 +15,7 @@ feature-register row, and a user guide per role (section 19, definition of compl
 | [Nurse](nurse/README.md) | Clinical lead or nurse |
 | [Registered Manager](registered-manager/README.md) | Registered Manager, deputy manager |
 | [Owner](owner/README.md) | Owner (founder, director or Nominated Individual) |
+| [HR lead](hr-lead/README.md) | HR, recruitment or training lead; employee relations lead |
 | [Data protection lead](data-protection-lead/README.md) | Quality and compliance lead, or the person named as data protection lead |
 | [Family member](family-member/README.md) | Family or representative |
 | [Inspector](inspector/README.md) | Inspector or auditor |
@@ -40,7 +41,7 @@ links the care worker's incident guide.
 
 ## Register rows and their guides
 
-Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 safety, quality and platform rows (slice 83), that have a guide. Rows marked "screens with the next merge" describe screens on the `feat/quality-dashboard-pir` branch. The register's user
+Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 safety, quality and platform rows (slice 83) and workforce and scheduling rows (slice 82), that have a guide. Rows marked "screens with the next merge" describe screens on the `feat/quality-dashboard-pir` branch. The register's user
 docs column links the same guides.
 
 | Row | Guides |
@@ -92,11 +93,34 @@ docs column links the same guides.
 | QUAL-006 | [Copy the PIR figures](registered-manager/copy-the-pir-figures.md) (screens with the next merge) |
 | QUAL-008 | [Read and sign a policy](all-staff/read-and-sign-a-policy.md), [Write and publish a policy](registered-manager/write-and-publish-a-policy.md), [Check who has read and signed a policy](registered-manager/check-who-has-signed-a-policy.md), [Retire a policy](registered-manager/retire-a-policy.md) (screens with the next merge) |
 | QUAL-012 | [Track DSPT assertions and their evidence](data-protection-lead/track-dspt-assertions-and-evidence.md), [Record a DSPT submission](data-protection-lead/record-a-dspt-submission.md), [Record a Cyber Essentials certificate or ICO registration](data-protection-lead/record-a-certificate-or-registration.md) (screens with the next merge) |
-| WORK-011 | [Handle a data rights request](data-protection-lead/handle-a-data-rights-request.md), [Find and review the records for a data rights request](data-protection-lead/find-and-review-the-records-for-a-request.md) |
+| WORK-011 | [Handle a data rights request](data-protection-lead/handle-a-data-rights-request.md), [Find and review the records for a data rights request](data-protection-lead/find-and-review-the-records-for-a-request.md), [Export an employee relations case](hr-lead/export-an-employee-relations-case.md), [Read the staff privacy notice and choose how your photo is used](care-worker/check-your-privacy-choices.md), [Record a sponsored worker](hr-lead/record-a-sponsored-worker.md), [Set the staff privacy notice](owner/set-the-staff-privacy-notice.md) |
 | OPS-028 | [Print the downtime pack](senior-carer/print-the-downtime-pack.md), [Declare and close an outage](senior-carer/declare-and-close-an-outage.md), [Enter paper records](care-worker/enter-paper-records-after-an-outage.md), [Reconcile an outage](registered-manager/reconcile-an-outage.md) |
 | COMMS-001 | [Publish a family update](senior-carer/publish-a-family-update.md), [Read updates from the home](family-member/read-updates.md) |
 | COMMS-006 | [Read and acknowledge the handover](care-worker/read-and-acknowledge-the-handover.md) |
 | COMMS-007 | [Write a letter template](registered-manager/write-a-letter-template.md), [Make a letter](registered-manager/make-a-letter.md) |
+| CARE-004 | [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Record a dependency category](senior-carer/record-a-dependency-category.md), [Set up a dependency scale](registered-manager/set-up-a-dependency-scale.md) |
+| MOB-007 | [Ask for help while lone working on the phone](care-worker/ask-for-help-while-lone-working-on-the-phone.md), [Check in while lone working on the phone](care-worker/check-in-while-lone-working-on-the-phone.md), [Clock in and out on the phone](care-worker/clock-in-and-out-on-the-phone.md), [Download a training course to the phone](care-worker/download-a-training-course-to-the-phone.md), [See your shifts on the phone](care-worker/see-your-shifts-on-the-phone.md), [Start and finish lone working on the phone](care-worker/start-and-finish-lone-working-on-the-phone.md), [Take a training course offline on the phone](care-worker/take-a-training-course-offline-on-the-phone.md) |
+| SCHED-001 | [Build a rota](registered-manager/build-a-rota.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Set up a dependency scale](registered-manager/set-up-a-dependency-scale.md) |
+| SCHED-002 | [Build a rota](registered-manager/build-a-rota.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Check your shifts](care-worker/check-your-shifts.md), [Override the rostering rule](registered-manager/override-the-rostering-rule.md), [See your shifts on the phone](care-worker/see-your-shifts-on-the-phone.md), [Set up shift templates and patterns](registered-manager/set-up-shift-templates-and-patterns.md) |
+| SCHED-003 | [Approve timesheets](registered-manager/approve-timesheets.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Read working time results](registered-manager/read-working-time-results.md) |
+| SCHED-004 | [Approve timesheets](registered-manager/approve-timesheets.md), [Clock in and out on the phone](care-worker/clock-in-and-out-on-the-phone.md), [Clock in and out on the web](care-worker/clock-in-and-out.md) |
+| SCHED-005 | [Check your pay](care-worker/check-your-pay.md), [Run and lock a pay run](owner/run-and-lock-a-pay-run.md), [Write and approve a pay rule set](owner/write-and-approve-a-pay-rule-set.md) |
+| SCHED-006 | [Check your pay](care-worker/check-your-pay.md), [Run and lock a pay run](owner/run-and-lock-a-pay-run.md) |
+| SCHED-007 | [Check your pay](care-worker/check-your-pay.md), [Run and lock a pay run](owner/run-and-lock-a-pay-run.md) |
+| SCHED-010 | [Ask for leave](care-worker/ask-for-leave.md), [Decide a leave request](registered-manager/decide-a-leave-request.md) |
+| SCHED-011 | [Answer a staff survey](care-worker/answer-a-staff-survey.md), [Keep a wellbeing check-in](care-worker/keep-a-wellbeing-check-in.md), [Read staff survey results](registered-manager/read-staff-survey-results.md), [Run a staff survey](registered-manager/run-a-staff-survey.md), [See what your team shares](registered-manager/see-what-your-team-shares.md), [Thank a colleague](care-worker/thank-a-colleague.md) |
+| SCHED-012 | [Ask for help while lone working on the phone](care-worker/ask-for-help-while-lone-working-on-the-phone.md), [Check in while lone working on the phone](care-worker/check-in-while-lone-working-on-the-phone.md), [Check in while working alone on the web](care-worker/check-in-while-working-alone-on-the-web.md), [Name the lone-working on-call route](registered-manager/name-the-lone-working-on-call-route.md), [Respond to a lone-working alarm](senior-carer/respond-to-a-lone-working-alarm.md), [Start and finish lone working on the phone](care-worker/start-and-finish-lone-working-on-the-phone.md) |
+| WORK-001 | [Add a job template](hr-lead/add-a-job-template.md), [Add a vacancy](hr-lead/add-a-vacancy.md), [Add an application](hr-lead/add-an-application.md), [Close an application](hr-lead/close-an-application.md), [Make a conditional job offer](hr-lead/make-a-job-offer.md), [Record an interview](hr-lead/record-an-interview.md), [Shortlist an application](hr-lead/shortlist-an-application.md) |
+| WORK-002 | [Make a conditional job offer](hr-lead/make-a-job-offer.md), [Record a pre-employment check](hr-lead/record-a-pre-employment-check.md), [Start a staff file](hr-lead/start-a-staff-file.md) |
+| WORK-003 | [Record a sponsored worker](hr-lead/record-a-sponsored-worker.md), [Record absences and report changes for a sponsored worker](hr-lead/report-a-change-for-a-sponsored-worker.md) |
+| WORK-004 | [Record Care Certificate progress](hr-lead/record-care-certificate-progress.md), [Record a probation decision](hr-lead/decide-probation.md), [Run a new starter's induction](hr-lead/run-a-new-starters-induction.md) |
+| WORK-005 | [Check the training matrix](hr-lead/check-the-training-matrix.md), [Record training](hr-lead/record-training.md), [Set the training each role needs](hr-lead/set-training-requirements.md) |
+| WORK-006 | [Add an e-learning course](hr-lead/add-an-e-learning-course.md), [Download a training course to the phone](care-worker/download-a-training-course-to-the-phone.md), [Take a training course offline on the phone](care-worker/take-a-training-course-offline-on-the-phone.md), [Take an e-learning course](care-worker/take-an-e-learning-course.md) |
+| WORK-008 | [Sign off a competence you observed](senior-carer/sign-off-a-competence.md), [Withdraw a competence sign-off](senior-carer/withdraw-a-competence-sign-off.md) |
+| WORK-009 | [Record a supervision, appraisal or spot check](hr-lead/record-a-supervision.md) |
+| WORK-010 | [Decide an employee relations case outcome or appeal](hr-lead/decide-a-case-outcome-or-appeal.md), [Export an employee relations case](hr-lead/export-an-employee-relations-case.md), [Open an employee relations case](hr-lead/open-an-employee-relations-case.md), [Run an employee relations case](hr-lead/run-an-employee-relations-case.md) |
+| WORK-012 | [Record a nurse's revalidation evidence](hr-lead/record-revalidation-evidence.md), [Record a pre-employment check](hr-lead/record-a-pre-employment-check.md) |
+| WORK-013 | [End a leaver's access now](hr-lead/end-a-leavers-access-now.md), [Record a member of staff leaving](hr-lead/record-a-leaver.md), [Record and answer a reference request](hr-lead/answer-a-reference-request.md) |
 
 **Phase 1 rows with no guide yet**, because they have no web screen on `main` (or are paused with
 mobile): PLAT-002, PLAT-009, PLAT-011, PLAT-012, PEOP-003, PEOP-005, PEOP-007, PEOP-013,

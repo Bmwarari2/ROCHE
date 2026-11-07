@@ -32,6 +32,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## User guides: workforce and scheduling (07/11/2026)
+
+`docs/guides-workforce-scheduling` (Phase 2 slice 82), from `main` at b65e7b61: 63 guides for the
+HR lead (new role folder), Registered Manager, senior carer, care worker (web and phone) and owner,
+linked from the role indexes, the guides README and the register's user docs column. Rows with no
+screen yet, and what the guides found in the screens, are in
+`docs/changelog-dev/2026-11-07-docs-guides-workforce-scheduling.md`.
+
 ## Product rename: Thapsus Care (07/11/2026)
 
 `docs/rename-plan-thapsus-care`, from `main` at 17a5dbbe (after batch 4, #180): ADR-0127 (accepted)
