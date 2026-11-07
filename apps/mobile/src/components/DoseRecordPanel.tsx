@@ -14,7 +14,7 @@ import { AccessibilityInfo, findNodeHandle, View } from "react-native";
 import { useSession } from "../app-state/session";
 import { useTenantId } from "../care/hooks";
 import { t } from "../i18n/t";
-import { signCdDose } from "../medicines/cd-sign";
+import { type CdDoseFields, type MadeSignature, signAs } from "../medicines/cd-sign";
 import {
   DEVICE_KEYS_SQL,
   deviceKeysParams,
@@ -113,6 +113,74 @@ export function DoseRecordPanel({
   const [recorderPin, setRecorderPin] = useState("");
   const [witnessPin, setWitnessPin] = useState("");
   const [signWords, setSignWords] = useState<string | null>(null);
+  const [witnessSigned, setWitnessSigned] = useState<{
+    id: string;
+    givenAt: string;
+    quantity: number;
+    witnessId: string;
+    signature: MadeSignature;
+  } | null>(null);
+  const [noWitnessReason, setNoWitnessReason] = useState("");
+  const [lone, setLone] = useState(false);
+
+  const cdFields = async (
+    id: string,
+    givenAt: string,
+    quantity: number,
+  ): Promise<CdDoseFields> => ({
+    tenantId,
+    deviceId: await db.getClientId(),
+    recorderId: me?.tenantUserId ?? "",
+    personId: dose.personId,
+    entryId: dose.entryId,
+    administrationId: id,
+    vmpId: dose.vmpId,
+    givenAt,
+    quantity,
+    unitCode: dose.unitCode ?? "",
+  });
+
+  /** The witness signs when they see the dose given: this fixes the record's id and time. */
+  const witnessSigns = async () => {
+    const quantity = Number(amount);
+    const witnessKey =
+      keys.find((k) => k.memberId === witnessId && k.memberId !== me?.tenantUserId) ?? null;
+    if (!Number.isFinite(quantity) || !amount.trim()) {
+      const words = t("mobile.meds.problem", { problem: "amount_required" });
+      setSignWords(words);
+      announce(words);
+      return;
+    }
+    const id = newEntryId();
+    const now = new Date();
+    const signed = signAs(
+      "witness",
+      witnessKey,
+      witnessPin,
+      await cdFields(id, now.toISOString(), quantity),
+      now,
+    );
+    if (signed.key) await saveWrappedKey(db, signed.key);
+    setWitnessPin("");
+    if (signed.kind === "refused") {
+      const words = t("mobile.meds.signProblem", {
+        problem: signed.problem.kind,
+        who: signed.problem.who,
+      });
+      setSignWords(words);
+      announce(words);
+      return;
+    }
+    setSignWords(null);
+    setWitnessSigned({
+      id,
+      givenAt: now.toISOString(),
+      quantity,
+      witnessId: signed.key.memberId,
+      signature: signed.signature,
+    });
+    announce(t("mobile.meds.cdWitnessSigned", { person: signed.key.name ?? "" }));
+  };
 
   // Focus moves to the panel's title when it opens (WCAG 2.4.3).
   useEffect(() => {
@@ -197,30 +265,36 @@ export function DoseRecordPanel({
   const save = async () => {
     if (!outcome || saving) return;
     const quantity = Number(amount);
-    const id = newEntryId();
-    const at = new Date();
+    // A controlled drug's record is made when the witness signs, which fixes its id, amount and
+    // time given; otherwise now.
+    const id = witnessSigned?.id ?? newEntryId();
+    const at = witnessSigned ? new Date(witnessSigned.givenAt) : new Date();
     let cdSignatures: CdDeviceSignatures | null = null;
     if (dose.controlledDrug && outcome === "given" && dose.unitCode && Number.isFinite(quantity)) {
-      const myId = me?.tenantUserId ?? "";
-      const signed = signCdDose({
-        recorderKey: keys.find((k) => k.memberId === myId) ?? null,
+      if (!witnessSigned && !noWitnessReason.trim()) {
+        const words = t("mobile.meds.problem", { problem: "cd_signatures_required" });
+        setSignWords(words);
+        announce(words);
+        return;
+      }
+      if (witnessSigned && witnessSigned.quantity !== quantity) {
+        // The amount changed after the witness signed: they sign again for what is given.
+        setWitnessSigned(null);
+        const words = t("mobile.meds.cdAmountChanged");
+        setSignWords(words);
+        announce(words);
+        return;
+      }
+      const myKey = keys.find((k) => k.memberId === me?.tenantUserId) ?? null;
+      const signed = signAs(
+        "recorder",
+        myKey,
         recorderPin,
-        witnessKey: keys.find((k) => k.memberId === witnessId && k.memberId !== myId) ?? null,
-        witnessPin,
-        dose: {
-          tenantId,
-          deviceId: await db.getClientId(),
-          personId: dose.personId,
-          entryId: dose.entryId,
-          administrationId: id,
-          quantity,
-          unitCode: dose.unitCode,
-        },
-        now: at,
-      });
-      for (const k of signed.keys) await saveWrappedKey(db, k);
+        await cdFields(id, at.toISOString(), quantity),
+        new Date(),
+      );
+      if (signed.key) await saveWrappedKey(db, signed.key);
       setRecorderPin("");
-      setWitnessPin("");
       if (signed.kind === "refused") {
         const words = t("mobile.meds.signProblem", {
           problem: signed.problem.kind,
@@ -231,7 +305,13 @@ export function DoseRecordPanel({
         return;
       }
       setSignWords(null);
-      cdSignatures = signed.signatures;
+      cdSignatures = {
+        recorder: signed.signature,
+        witness: witnessSigned
+          ? { ...witnessSigned.signature, witnessId: witnessSigned.witnessId }
+          : null,
+        noWitnessReason: witnessSigned ? null : noWitnessReason.trim(),
+      };
     }
     const input = {
       id,
@@ -300,6 +380,7 @@ export function DoseRecordPanel({
             onPress={() => {
               setOutcome(o);
               setReasonCode(null);
+              setWitnessSigned(null);
             }}
           />
         ))}
@@ -420,20 +501,61 @@ export function DoseRecordPanel({
               {keys.every((k) => k.memberId === me?.tenantUserId) ? (
                 <StatusLine tone="warning">{t("mobile.meds.cdNoWitness")}</StatusLine>
               ) : null}
-              <TextField
-                label={t("mobile.meds.cdWitnessPin")}
-                value={witnessPin}
-                onChangeText={setWitnessPin}
-                secureTextEntry
-                keyboardType="number-pad"
-                testID="witness-pin"
-              />
+              {witnessSigned ? (
+                <StatusLine tone="success" testID="witness-signed">
+                  {t("mobile.meds.cdWitnessSignedLine", {
+                    person: keys.find((k) => k.memberId === witnessSigned.witnessId)?.name ?? "",
+                  })}
+                </StatusLine>
+              ) : lone ? (
+                <TextField
+                  label={t("mobile.meds.cdNoWitnessReason")}
+                  hint={t("mobile.meds.cdNoWitnessHint")}
+                  value={noWitnessReason}
+                  onChangeText={setNoWitnessReason}
+                  maxLength={2000}
+                  testID="no-witness-reason"
+                />
+              ) : (
+                <>
+                  <TextField
+                    label={t("mobile.meds.cdWitnessPin")}
+                    value={witnessPin}
+                    onChangeText={setWitnessPin}
+                    secureTextEntry
+                    keyboardType="number-pad"
+                    autoComplete="off"
+                    importantForAutofill="no"
+                    testID="witness-pin"
+                  />
+                  <Button
+                    label={t("mobile.meds.cdWitnessSigns")}
+                    accessibilityHint={t("mobile.meds.cdWitnessSignsHint")}
+                    onPress={() => void witnessSigns()}
+                    disabled={!witnessId}
+                    testID="witness-signs"
+                  />
+                </>
+              )}
+              {!witnessSigned ? (
+                <Button
+                  label={lone ? t("mobile.meds.cdHaveWitness") : t("mobile.meds.cdNoWitnessHere")}
+                  variant="secondary"
+                  onPress={() => setLone((v) => !v)}
+                  testID="toggle-lone"
+                />
+              ) : null}
+              {!keys.some((k) => k.memberId === me?.tenantUserId) ? (
+                <StatusLine tone="warning">{t("mobile.meds.cdNoOwnPin")}</StatusLine>
+              ) : null}
               <TextField
                 label={t("mobile.meds.cdRecorderPin")}
                 value={recorderPin}
                 onChangeText={setRecorderPin}
                 secureTextEntry
                 keyboardType="number-pad"
+                autoComplete="off"
+                importantForAutofill="no"
                 testID="recorder-pin"
               />
               {signWords ? <StatusLine tone="danger">{signWords}</StatusLine> : null}

@@ -44,11 +44,12 @@ export default function MedicinesPinsScreen() {
   const [pin, setPin] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ tone: "success" | "danger"; words: string } | null>(
-    null,
-  );
+  const [message, setMessage] = useState<{
+    tone: "success" | "danger" | "info";
+    words: string;
+  } | null>(null);
 
-  const say = (tone: "success" | "danger", words: string) => {
+  const say = (tone: "success" | "danger" | "info", words: string) => {
     setMessage({ tone, words });
     AccessibilityInfo.announceForAccessibility(words);
   };
@@ -68,7 +69,7 @@ export default function MedicinesPinsScreen() {
         const result = await authClient.signInWithEmail(email.trim(), password);
         if (result.kind === "two_factor_required") {
           setChallenge(result.challenge);
-          say("success", t("mobile.meds.pinCodeNeeded"));
+          say("info", t("mobile.meds.pinCodeNeeded"));
           return;
         }
         token = result.token;
@@ -87,9 +88,7 @@ export default function MedicinesPinsScreen() {
       if (enrolled.kind !== "enrolled") {
         say(
           "danger",
-          enrolled.kind === "offline"
-            ? t("mobile.meds.pinOffline")
-            : t("mobile.meds.pinRefused", { code: enrolled.code ?? String(enrolled.status) }),
+          enrolled.kind === "offline" ? t("mobile.meds.pinOffline") : t("mobile.meds.pinRefused"),
         );
         return;
       }
@@ -140,7 +139,9 @@ export default function MedicinesPinsScreen() {
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
-                autoComplete="email"
+                autoComplete="off"
+                importantForAutofill="no"
+                textContentType="none"
                 keyboardType="email-address"
               />
               <TextField
@@ -148,7 +149,9 @@ export default function MedicinesPinsScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                autoComplete="current-password"
+                autoComplete="off"
+                importantForAutofill="no"
+                textContentType="none"
               />
             </>
           )}
@@ -168,7 +171,13 @@ export default function MedicinesPinsScreen() {
             keyboardType="number-pad"
           />
         </View>
-        {message ? <StatusLine tone={message.tone}>{message.words}</StatusLine> : null}
+        {message ? (
+          message.tone === "info" ? (
+            <Text accessibilityLiveRegion="polite">{message.words}</Text>
+          ) : (
+            <StatusLine tone={message.tone}>{message.words}</StatusLine>
+          )
+        ) : null}
         <Button
           label={t("mobile.meds.pinSave")}
           onPress={() => void submit()}

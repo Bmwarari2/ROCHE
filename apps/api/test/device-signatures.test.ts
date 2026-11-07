@@ -19,7 +19,6 @@ const ADA = "0194d000-0000-7000-8600-000000000001";
 const MORPHINE = "90000081000001109";
 const TABLET = "428673006";
 const DEVICE = "0194d000-0000-7000-8600-0000000000e7";
-const MINUTE = 60_000;
 const json = async <T>(r: Response) => (await r.json()) as T;
 const send = (
   user: string,
@@ -103,6 +102,7 @@ function signed(
   quantity: number,
   at: Date,
   privateKey: KeyObject = keys[signer].privateKey,
+  givenAt: Date = at,
 ) {
   const text = cdDoseStatementText({
     tenantId: DEMO.tenantId,
@@ -113,6 +113,9 @@ function signed(
     personId: ADA,
     entryId,
     administrationId,
+    movement: "administration",
+    vmpId: MORPHINE,
+    givenAt: givenAt.toISOString(),
     quantity,
     unitCode: TABLET,
     signedAt: at.toISOString(),
@@ -190,13 +193,13 @@ describe("hazard HZ-116 a controlled drug witnessed on one phone offline (ADR-00
 
   it("records the dose with its register entry when both signatures stand", async () => {
     // After the keys were enrolled: a signature older than its key is refused.
-    const at = new Date(Date.now() - MINUTE);
+    const at = new Date();
     const id = uuidV7At(at);
     const r = await dose(id, at, {
       deviceSignatures: {
         recorder: signed("recorder", "manager", id, 1, at),
         witness: {
-          ...signed("witness", "carer", id, 1, new Date(at.getTime() + MINUTE)),
+          ...signed("witness", "carer", id, 1, new Date(at.getTime() - 200), undefined, at),
           witnessId: DEMO.users.carer.id,
         },
       },
@@ -220,7 +223,7 @@ describe("hazard HZ-116 a controlled drug witnessed on one phone offline (ADR-00
     ["the recorder witnessing themselves", "witness_key_not_for_signer", "self"],
     ["a witness key from another member", "witness_key_not_for_signer", "wrong_key"],
   ] as const)("refuses %s", async (_case, code, kind) => {
-    const at = new Date(Date.now() - MINUTE);
+    const at = new Date();
     const id = uuidV7At(at);
     const recorder = signed("recorder", "manager", id, kind === "amount" ? 2 : 1, at);
     const witness =
@@ -240,6 +243,35 @@ describe("hazard HZ-116 a controlled drug witnessed on one phone offline (ADR-00
     const r = await dose(id, at, { deviceSignatures: { recorder, witness } });
     expect(r.status).toBe(422);
     expect((await json<{ code: string }>(r)).code).toBe(`administration_${code}`);
+  });
+
+  it("refuses a witness who signed after the dose was recorded", async () => {
+    const at = new Date();
+    const id = uuidV7At(at);
+    const r = await dose(id, at, {
+      deviceSignatures: {
+        recorder: signed("recorder", "manager", id, 1, at),
+        witness: {
+          ...signed("witness", "carer", id, 1, new Date(at.getTime() + 200), undefined, at),
+          witnessId: DEMO.users.carer.id,
+        },
+      },
+    });
+    expect((await json<{ code: string }>(r)).code).toBe("administration_pair_witness_signed_after");
+  });
+
+  it("takes the recorder's signature with why there was no witness only where the policy allows", async () => {
+    const at = new Date();
+    const id = uuidV7At(at);
+    const r = await dose(id, at, {
+      deviceSignatures: {
+        recorder: signed("recorder", "manager", id, 1, at),
+        noWitnessReason: "Working alone at the person's home",
+      },
+    });
+    // The demo home is residential: its policy requires a witness, so the register refuses it.
+    expect(r.status).toBe(422);
+    expect((await json<{ code: string }>(r)).code).not.toMatch(/signature/);
   });
 
   it("refuses signatures made on a phone that are sent without it", async () => {
@@ -263,6 +295,36 @@ describe("hazard HZ-116 a controlled drug witnessed on one phone offline (ADR-00
     expect((await json<{ code: string }>(r)).code).toBe(
       "administration_device_signatures_from_device",
     );
+  });
+
+  it("hazard HZ-115 keeps a copy of a dose the API refused, with an urgent review, never only on the phone", async () => {
+    const at = new Date();
+    const id = uuidV7At(at);
+    const r = await send("manager", "/v1/sync/refused-entries", {
+      method: "POST",
+      headers: onPhone,
+      body: {
+        entryId: id,
+        table: "medication_administration",
+        personId: ADA,
+        httpStatus: 422,
+        code: "administration_witness_key_replaced",
+        message: "A signature was made with a PIN that had been replaced on this phone.",
+        refusedAt: at.toISOString(),
+        payload: {
+          kind: "record",
+          body: {
+            id,
+            entryId,
+            outcome: "given",
+            amount: { quantity: 1, unitCode: TABLET },
+            givenAt: at.toISOString(),
+          },
+        },
+      },
+    });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await json<{ taskId: string | null }>(r)).taskId).not.toBeNull();
   });
 
   // Last: revoking a phone also ends the sessions bound to it.

@@ -60,6 +60,7 @@ describe("hazard HZ-001 a dose recorded on the phone needs identity and the pack
             signedAt: "2026-11-03T08:05:30Z",
             witnessId: "member-2",
           },
+          noWitnessReason: null,
         },
       },
       [],
@@ -76,9 +77,22 @@ describe("hazard HZ-001 a dose recorded on the phone needs identity and the pack
             signedAt: "2026-11-03T08:05:00Z",
             witnessId: "member-1",
           },
+          noWitnessReason: null,
         },
       },
       ["witness_is_recorder"],
+    ],
+    [
+      "a controlled drug with why there was no witness",
+      {
+        controlledDrug: true,
+        cdSignatures: {
+          recorder: { keyId: "k1", signature: "s", signedAt: "2026-11-03T08:05:00Z" },
+          witness: null,
+          noWitnessReason: "Working alone at the person's home",
+        },
+      },
+      [],
     ],
     ["an entry that may not be given from now", { mayGive: false }, ["may_not_give"]],
     [
@@ -143,5 +157,30 @@ describe("a dose recorded on the phone is sent to the administrations route (HZ-
       ...change,
     } as Parameters<typeof toMedicinesUpload>[0]);
     expect(request.kind).toBe("refused");
+  });
+});
+
+describe("hazard HZ-115 a dose refused on upload is copied to the server, never only on one phone (slice 70)", () => {
+  it("builds the copy from the request the phone would have sent", async () => {
+    const { toRefusedCopy } = await import("../sync/refused-copies");
+    const row = localAdministrationRow(base);
+    const copy = toRefusedCopy(
+      {
+        id: ID,
+        tenant_id: "tenant-1",
+        person_id: PERSON,
+        record_table: "medication_administration",
+        http_status: 422,
+        code: "administration_witness_key_replaced",
+        message: "A signature was made with a PIN that had been replaced on this phone.",
+        payload: JSON.stringify(row),
+        rejected_at: "2026-11-03T09:00:00Z",
+      },
+      new Date("2026-11-03T09:01:00Z"),
+    );
+    expect(copy).toMatchObject({
+      kind: "copy",
+      body: { table: "medication_administration", payload: { kind: "record", body: { id: ID } } },
+    });
   });
 });

@@ -41,13 +41,17 @@ Option 3.
   (`POST /v1/me/device-keys`, migration 0153, `member_device_key`, append-only). A key belongs to
   one member and one phone database; the newest one for them signs.
 - A controlled drug given offline carries two signatures over one fixed statement
-  (`cdDoseStatementText`: organisation, phone, role, signer, recorder, person, medicine, record id,
-  amount, unit, time). The recorder's own signature stands for their step-up; the witness signs on
-  the same phone with theirs. On upload the API verifies both, that each key is the signer's newest
-  for that phone and the phone not revoked, the times against the clock-drift figure, that they
-  signed within `medicines.cd.witness_assertion_minutes` of each other, that the witness reached
-  the person with `medicines.cd.witness` and was competent when they signed, and that the witness
-  is not the recorder. The witness's signature then becomes the register's own assertion, used at
+  (`cdDoseStatementText`, `harbour-cd-dose-v2`: organisation, phone, role, signer, recorder, person,
+  chart entry, record id, movement, medicine (VMP), time given, amount, unit, time signed). The
+  witness signs first, at their own step, as they see the dose given; that fixes the record's id,
+  amount and time. Where the policy allows it, a lone worker gives why no one could witness with
+  their own signature instead. The recorder's own signature stands for their step-up; the witness signs on
+  the same phone with theirs. On upload the API verifies both; judges the phone and the key on arrival, never by the phone's
+  clock; takes no signature older than the offline window; checks the witness signed before the
+  recorder and within `medicines.cd.witness_assertion_minutes`, the recorder's time against the
+  record's own UUIDv7 time, the witness's reach (`medicines.cd.witness`) and competence both when
+  they signed and on arrival, and that the witness is not the recorder. A refused dose is copied to
+  the server with an urgent review (HZ-115). The witness's signature then becomes the register's own assertion, used at
   once by the entry, so the register's rules are the web's.
 - Wrong PINs are throttled (doubling waits after five), never a lockout (NCSC).
 - Corrections of a controlled drug's record, and stock checks, stay on the web.

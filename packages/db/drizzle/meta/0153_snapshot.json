@@ -59351,7 +59351,7 @@
       "checkConstraints": {
         "refused_entry_table": {
           "name": "refused_entry_table",
-          "value": "record_table IN ('care_note', 'observation', 'body_map_mark', 'activity_record', 'visit_log')"
+          "value": "record_table IN ('care_note', 'observation', 'body_map_mark', 'activity_record', 'visit_log', 'medication_administration')"
         },
         "refused_entry_payload": {
           "name": "refused_entry_payload",

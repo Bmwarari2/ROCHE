@@ -716,6 +716,27 @@
     "mobile.meds.conflictBothGivenHint",
     "mobile.meds.conflictCorrectOnWeb",
     "mobile.meds.conflictResolved",
-    "mobile.meds.conflictFailed"
+    "mobile.meds.conflictFailed",
+    "mobile.meds.cdWitnessSigns",
+    "mobile.meds.cdWitnessSignsHint",
+    "mobile.meds.cdWitnessSigned",
+    "mobile.meds.cdWitnessSignedLine",
+    "mobile.meds.cdAmountChanged",
+    "mobile.meds.cdNoWitnessHere",
+    "mobile.meds.cdHaveWitness",
+    "mobile.meds.cdNoWitnessReason",
+    "mobile.meds.cdNoWitnessHint",
+    "mobile.meds.cdNoOwnPin",
+    "mobile.meds.conflictCardTitle",
+    "mobile.meds.medicineNotOnPhone",
+    "mobile.meds.conflictRecord",
+    "mobile.meds.conflictSameRecorder",
+    "mobile.meds.conflictTwoRecorders",
+    "mobile.meds.conflictNoteHint",
+    "mobile.meds.conflictConfirm",
+    "mobile.meds.conflictConfirmButton",
+    "mobile.meds.conflictKeepReviewing",
+    "mobile.meds.correctAction",
+    "mobile.meds.saveFailed"
   ]
 }

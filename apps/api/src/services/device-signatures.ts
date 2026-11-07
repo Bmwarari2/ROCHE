@@ -32,7 +32,8 @@ export interface DeviceSignatureInput {
 
 export interface DeviceSignaturesInput {
   readonly recorder: DeviceSignatureInput;
-  readonly witness: DeviceSignatureInput & { readonly witnessId: string };
+  readonly witness: (DeviceSignatureInput & { readonly witnessId: string }) | null;
+  readonly noWitnessReason: string | null;
 }
 
 /** Verifies an ECDSA P-256 signature (r||s) with an uncompressed public key, both base64. */
@@ -113,6 +114,11 @@ export interface DeviceDose {
   readonly quantity: number;
   readonly unitCode: string;
   readonly locationId: string;
+  readonly vmpId: string;
+  /** When the dose was given, by the phone's clock, as the phone sent it. */
+  readonly givenAt: string;
+  /** The time in the record's own UUIDv7 id: the recorder signs as they record. */
+  readonly recordTime: Date | null;
 }
 
 export type DeviceProblem = { readonly problem: string; readonly message: string };
@@ -133,6 +139,7 @@ export async function deviceSignatureProblems(
     readonly now: Date;
     readonly toleranceMs: number;
     readonly apartMs: number;
+    readonly windowMs: number;
     readonly witnessCompetent: (at: Date) => Promise<boolean>;
   },
 ): Promise<DeviceProblem[]> {
@@ -143,7 +150,22 @@ export async function deviceSignatureProblems(
     s: DeviceSignatureInput,
   ): Promise<DeviceSignatureIssue[]> => {
     const key = await keyFacts(tx, s.keyId);
-    const text = cdDoseStatementText({ ...dose, role, signerId, signedAt: s.signedAt });
+    const text = cdDoseStatementText({
+      tenantId: dose.tenantId,
+      deviceId: dose.deviceId,
+      role,
+      signerId,
+      recorderId: dose.recorderId,
+      personId: dose.personId,
+      entryId: dose.entryId,
+      administrationId: dose.administrationId,
+      movement: "administration",
+      vmpId: dose.vmpId,
+      givenAt: dose.givenAt,
+      quantity: dose.quantity,
+      unitCode: dose.unitCode,
+      signedAt: s.signedAt,
+    });
     return deviceSignatureIssues({
       signerId,
       deviceId: dose.deviceId,
@@ -153,11 +175,28 @@ export async function deviceSignatureProblems(
       verified: key ? verifyP256(key.publicKey, text, s.signature) : false,
       now: rules.now,
       toleranceMs: rules.toleranceMs,
+      windowMs: rules.windowMs,
     });
   };
   const { recorder, witness } = signatures;
-  const problems = [
-    ...asProblems(await check("recorder", dose.recorderId, recorder), "recorder"),
+  const problems = [...asProblems(await check("recorder", dose.recorderId, recorder), "recorder")];
+  // The record is made when the dose is signed for (the witness first, where there is one): the
+  // recorder signs from then until the witness window ends (security review of slice 70, H1).
+  const recorderAt = new Date(recorder.signedAt).getTime();
+  const idAt = dose.recordTime?.getTime() ?? Number.NaN;
+  if (
+    !Number.isFinite(idAt) ||
+    recorderAt < idAt - rules.toleranceMs ||
+    recorderAt > idAt + rules.apartMs + rules.toleranceMs
+  ) {
+    problems.push({
+      problem: "recorder_signed_at_record",
+      message:
+        "The recorder's signature is not from when the dose was recorded. Check the phone's clock.",
+    });
+  }
+  if (!witness) return problems;
+  problems.push(
     ...asProblems(await check("witness", witness.witnessId, witness), "witness"),
     ...asProblems(
       pairIssues({
@@ -169,29 +208,29 @@ export async function deviceSignatureProblems(
       }),
       "pair",
     ),
-  ];
-  if (problems.length > 0) return problems;
-  const signedAt = new Date(witness.signedAt);
-  const mayWitness = await withSystemRights(tx, () =>
-    personReachedBy(
-      tx,
-      witness.witnessId,
-      dose.personId,
-      signedAt,
-      signedAt,
-      "medicines.cd.witness",
-    ),
   );
-  if (!mayWitness) {
-    problems.push({
-      problem: "witness_not_permitted",
-      message: "The witness could not witness controlled drugs here when they signed.",
-    });
-  } else if (!(await rules.witnessCompetent(signedAt))) {
-    problems.push({
-      problem: "witness_not_competent",
-      message: "Only someone whose medicines competence is current can witness.",
-    });
+  if (problems.length > 0) return problems;
+  // The witness's standing when they signed and when the record arrives: a witness who has left,
+  // or whose competence lapsed, signs nothing that arrives afterwards (security review H1).
+  const signedAt = new Date(witness.signedAt);
+  for (const at of [signedAt, rules.now]) {
+    const mayWitness = await withSystemRights(tx, () =>
+      personReachedBy(tx, witness.witnessId, dose.personId, at, at, "medicines.cd.witness"),
+    );
+    if (!mayWitness) {
+      problems.push({
+        problem: "witness_not_permitted",
+        message: "The witness could not witness controlled drugs for this person.",
+      });
+      return problems;
+    }
+    if (!(await rules.witnessCompetent(at))) {
+      problems.push({
+        problem: "witness_not_competent",
+        message: "Only someone whose medicines competence is current can witness.",
+      });
+      return problems;
+    }
   }
   return problems;
 }

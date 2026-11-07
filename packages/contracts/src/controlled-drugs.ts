@@ -43,10 +43,20 @@ export const DoseCdWitness = z
     z.object({ witnessAssertionId: uuid }),
     z.object({ noWitnessReason: reason }),
     z.object({
-      deviceSignatures: z.object({
-        recorder: DeviceSignature,
-        witness: DeviceSignature.extend({ witnessId: uuid }),
-      }),
+      deviceSignatures: z
+        .object({
+          recorder: DeviceSignature,
+          /** The witness's signature, made on the same phone when they saw the dose given. */
+          witness: DeviceSignature.extend({ witnessId: uuid }).nullable().default(null),
+          /**
+           * Where the location's policy allows it (`where_available`), why there was no witness;
+           * flagged for manager review. Refused where a witness is required.
+           */
+          noWitnessReason: reason.nullable().default(null),
+        })
+        .refine((d) => (d.witness === null) !== (d.noWitnessReason === null), {
+          message: "Give the witness's signature, or why there was none, not both.",
+        }),
     }),
   ])
   .meta({ id: "DoseCdWitness" });

@@ -50,3 +50,8 @@ CREATE TRIGGER append_only_truncate BEFORE TRUNCATE ON public.member_device_key
 GRANT SELECT, INSERT ON public.member_device_key TO harbour_app;
 --> statement-breakpoint
 REVOKE UPDATE, DELETE, TRUNCATE ON public.member_device_key FROM harbour_app;
+
+--> statement-breakpoint
+-- A dose recorded on a phone and refused gets a server copy too (slice 70; HZ-115, HZ-004).
+ALTER TABLE "refused_entry" DROP CONSTRAINT "refused_entry_table";--> statement-breakpoint
+ALTER TABLE "refused_entry" ADD CONSTRAINT "refused_entry_table" CHECK (record_table IN ('care_note', 'observation', 'body_map_mark', 'activity_record', 'visit_log', 'medication_administration'));

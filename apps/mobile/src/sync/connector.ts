@@ -642,8 +642,8 @@ export class HarbourConnector implements PowerSyncBackendConnector {
         httpStatus: status,
         code,
         message,
-        // The record without the queued request: what was recorded, never the evidence twice.
-        payload: { ...(entry.opData ?? {}), request: null },
+        // With the request it would have sent: its server copy carries it (slice 70; HZ-115).
+        payload: { ...(entry.opData ?? {}) },
         rejectedAt: this.now(),
       });
     if (request.kind === "refused") {

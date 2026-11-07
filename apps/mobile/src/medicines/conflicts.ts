@@ -11,6 +11,8 @@ import type { FetchLike } from "../auth/http";
 import { DEVICE_HEADER, TENANT_HEADER } from "../sync/connector";
 
 export interface ConflictRecord {
+  /** Who recorded it (the member's id). */
+  readonly by: string | null;
   readonly outcome: string;
   readonly quantity: number | null;
   readonly unitCode: string | null;
@@ -32,7 +34,14 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 function recordOf(v: unknown): ConflictRecord | null {
   if (!isRecord(v) || typeof v.outcome !== "string") return null;
   const amount = isRecord(v.amount) ? v.amount : null;
+  const by =
+    typeof v.uploadedBy === "string"
+      ? v.uploadedBy
+      : isRecord(v.recorded) && typeof v.recorded.id === "string"
+        ? v.recorded.id
+        : null;
   return {
+    by,
     outcome: v.outcome,
     quantity: typeof amount?.quantity === "number" ? amount.quantity : null,
     unitCode: typeof amount?.unitCode === "string" ? amount.unitCode : null,
@@ -73,9 +82,17 @@ export function parseConflicts(body: unknown): { conflicts: ConflictView[]; unre
   return { conflicts, unreadable };
 }
 
-/** Whether the two records say the same thing: then it was most likely one dose sent twice. */
+/**
+ * Whether the two records say the same thing. A resend from one phone is never a conflict (it
+ * keeps its id), so even matching records may be two doses: the screen says what matches and who
+ * recorded each, never which is likely (clinical review of slice 70, H3).
+ */
 export function sameDose(c: ConflictView): boolean {
   return c.standing.outcome === c.uploaded.outcome && c.standing.quantity === c.uploaded.quantity;
+}
+
+export function sameRecorder(c: ConflictView): boolean {
+  return c.standing.by !== null && c.standing.by === c.uploaded.by;
 }
 
 export interface ApiOptions {

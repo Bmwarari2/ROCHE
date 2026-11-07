@@ -24,6 +24,7 @@ const base = {
   verified: true,
   now: NOW,
   toleranceMs: 5 * MIN,
+  windowMs: 31 * 24 * 60 * MIN,
 };
 
 describe("hazard HZ-116 a controlled drug signed on one phone offline needs two people's own keys (ADR-0084)", () => {
@@ -37,12 +38,15 @@ describe("hazard HZ-116 a controlled drug signed on one phone offline needs two 
       personId: "p",
       entryId: "e",
       administrationId: "a",
+      movement: "administration",
+      vmpId: "1000001",
+      givenAt: "2026-11-07T08:59:00Z",
       quantity: 2.5,
       unitCode: "u",
       signedAt: "2026-11-07T09:00:00Z",
     });
     expect(text).toBe(
-      "harbour-cd-dose-v1\nt\nd\nwitness\nw\nr\np\ne\na\n2.5\nu\n2026-11-07T09:00:00.000Z",
+      "harbour-cd-dose-v2\nt\nd\nwitness\nw\nr\np\ne\na\nadministration\n1000001\n2026-11-07T08:59:00.000Z\n2.5\nu\n2026-11-07T09:00:00.000Z",
     );
   });
 
@@ -84,9 +88,10 @@ describe("hazard HZ-116 a controlled drug signed on one phone offline needs two 
   });
 
   it.each([
-    ["two people close together", "r", "w", 2, []],
-    ["one person signing twice", "r", "r", 2, ["witness_is_recorder"]],
-    ["signatures far apart", "r", "w", 90, ["signed_too_long_apart"]],
+    ["two people close together, the witness first", "r", "w", -2, []],
+    ["one person signing twice", "r", "r", -2, ["witness_is_recorder"]],
+    ["signatures far apart", "r", "w", -90, ["signed_too_long_apart"]],
+    ["a witness signing after the recorder", "r", "w", 2, ["witness_signed_after"]],
   ] as const)("%s", (_case, recorderId, witnessId, minutesApart, issues) => {
     expect(
       pairIssues({

@@ -5,7 +5,7 @@
  * fixed text, so the phone and the server sign and verify exactly the same bytes. Pure.
  */
 
-export const CD_STATEMENT_VERSION = "harbour-cd-dose-v1";
+export const CD_STATEMENT_VERSION = "harbour-cd-dose-v2";
 
 export interface CdDoseStatement {
   readonly tenantId: string;
@@ -19,6 +19,12 @@ export interface CdDoseStatement {
   readonly entryId: string;
   /** The administration's client id. */
   readonly administrationId: string;
+  /** What moved: an administration (the only movement signed on a phone today). */
+  readonly movement: "administration";
+  /** The medicine (its dm+d VMP). */
+  readonly vmpId: string;
+  /** When the dose was given, by the phone's clock (ISO). */
+  readonly givenAt: string;
   /** The amount given, in the page's unit. */
   readonly quantity: number;
   readonly unitCode: string;
@@ -38,6 +44,9 @@ export function cdDoseStatementText(s: CdDoseStatement): string {
     s.personId,
     s.entryId,
     s.administrationId,
+    s.movement,
+    s.vmpId,
+    new Date(s.givenAt).toISOString(),
     String(Number(s.quantity)),
     s.unitCode,
     new Date(s.signedAt).toISOString(),
@@ -52,6 +61,8 @@ export type DeviceSignatureIssue =
   | "signed_before_enrolment"
   | "signed_in_future"
   | "signed_too_long_apart"
+  | "signed_too_long_ago"
+  | "witness_signed_after"
   | "signature_invalid";
 
 export const DEVICE_SIGNATURE_WORDS: Readonly<Record<DeviceSignatureIssue, string>> = {
@@ -67,6 +78,10 @@ export const DEVICE_SIGNATURE_WORDS: Readonly<Record<DeviceSignatureIssue, strin
   signed_in_future: "A signature is dated in the future. Check the phone's clock.",
   signed_too_long_apart:
     "The witness and the recorder signed too far apart. The witness signs when they see the dose given.",
+  witness_signed_after:
+    "The witness signed after the dose was recorded. The witness signs when they see it given.",
+  signed_too_long_ago:
+    "A signature is older than this phone may keep records. Record the dose in Harbour on the web.",
   signature_invalid:
     "A signature does not match what was recorded. Record it again with both PINs.",
 };
@@ -94,6 +109,8 @@ export function deviceSignatureIssues(input: {
   readonly verified: boolean;
   readonly now: Date;
   readonly toleranceMs: number;
+  /** The offline window from the rate table: no signature older than it is taken. */
+  readonly windowMs: number;
 }): DeviceSignatureIssue[] {
   const issues: DeviceSignatureIssue[] = [];
   const { key } = input;
@@ -123,11 +140,11 @@ export function pairIssues(input: {
   readonly apartMs: number;
 }): DeviceSignatureIssue[] {
   const issues: DeviceSignatureIssue[] = [];
+  // The witness signs when they see the dose, before the recorder records it (clinical review of
+  // slice 70, H1): a witness signature after the recorder's is not one for a dose they saw.
   if (input.recorderId === input.witnessId) issues.push("witness_is_recorder");
-  if (
-    Math.abs(input.recorderSignedAt.getTime() - input.witnessSignedAt.getTime()) > input.apartMs
-  ) {
-    issues.push("signed_too_long_apart");
-  }
+  const apart = input.recorderSignedAt.getTime() - input.witnessSignedAt.getTime();
+  if (apart < 0) issues.push("witness_signed_after");
+  if (Math.abs(apart) > input.apartMs) issues.push("signed_too_long_apart");
   return issues;
 }

@@ -81,12 +81,15 @@ export interface CdDeviceSignatures {
     readonly signature: string;
     readonly signedAt: string;
   };
+  /** The witness's, made first when they saw the dose; null with why there was none. */
   readonly witness: {
     readonly keyId: string;
     readonly signature: string;
     readonly signedAt: string;
     readonly witnessId: string;
-  };
+  } | null;
+  /** Where the policy allows no witness, why (the register refuses it where one is required). */
+  readonly noWitnessReason: string | null;
 }
 
 const GIVES = new Set<AdministrationOutcome>(["given"]);
@@ -97,7 +100,7 @@ export function recordProblems(input: DoseRecordInput): RecordProblem[] {
   const gives = GIVES.has(input.outcome);
   // A controlled drug given needs the recorder's and a witness's signatures on this phone.
   if (gives && input.controlledDrug && !input.cdSignatures) problems.push("cd_signatures_required");
-  if (input.cdSignatures && input.cdSignatures.witness.witnessId === input.memberId) {
+  if (input.cdSignatures?.witness && input.cdSignatures.witness.witnessId === input.memberId) {
     problems.push("witness_is_recorder");
   }
   if (gives && !input.mayGive) problems.push("may_not_give");

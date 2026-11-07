@@ -1,4 +1,4 @@
-import { ListItem, StatusChip, Text, useTheme } from "@harbour/ui-native";
+import { Button, ListItem, StatusChip, Text, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
@@ -193,7 +193,13 @@ export default function PersonMedicinesScreen() {
                   setSaved(ok);
                 }}
               />
-            ) : null;
+            ) : (
+              <Button
+                label={t("mobile.meds.stop")}
+                variant="secondary"
+                onPress={() => setCorrecting(null)}
+              />
+            );
           })()
         ) : choice ? (
           <DoseRecordPanel
@@ -286,22 +292,33 @@ export default function PersonMedicinesScreen() {
                 {t("mobile.meds.recentHeading")}
               </Text>
             ) : null}
-            {recent.map((r) => (
-              <ListItem
-                key={r.id}
-                title={meds.find((m) => m.id === r.medication_id)?.product_name ?? ""}
-                subtitle={[
-                  t("mobile.meds.outcomeName", { outcome: r.outcome ?? "other" }),
-                  r.given_at ? ukInstantWords(r.given_at) : null,
-                  r.request === null ? null : t("mobile.meds.notSyncedYet"),
-                ]
-                  .filter(Boolean)
-                  .join(". ")}
-                onPress={() => setCorrecting(r.id)}
-                accessibilityHint={t("mobile.meds.correctHint")}
-                testID={`recent-${r.id}`}
-              />
-            ))}
+            {recent.map((r) => {
+              const med = meds.find((m) => m.id === r.medication_id);
+              // Said before anyone starts: what cannot be corrected here, and why (WCAG 3.3.4).
+              const blockedWhy =
+                r.request !== null
+                  ? t("mobile.meds.correctionProblem", { problem: "not_synced" })
+                  : med?.cd_schedule
+                    ? t("mobile.meds.correctionProblem", { problem: "controlled_drug_on_web" })
+                    : null;
+              return (
+                <ListItem
+                  key={r.id}
+                  title={med?.product_name ?? t("mobile.meds.medicineNotOnPhone")}
+                  subtitle={[
+                    t("mobile.meds.outcomeName", { outcome: r.outcome ?? "other" }),
+                    r.given_at ? ukInstantWords(r.given_at) : null,
+                    r.request === null ? null : t("mobile.meds.notSyncedYet"),
+                    blockedWhy ?? t("mobile.meds.correctAction"),
+                  ]
+                    .filter(Boolean)
+                    .join(". ")}
+                  onPress={blockedWhy ? undefined : () => setCorrecting(r.id)}
+                  accessibilityHint={blockedWhy ? undefined : t("mobile.meds.correctHint")}
+                  testID={`recent-${r.id}`}
+                />
+              );
+            })}
             {round && round.doses.length === 0 && round.whenRequired.length === 0 ? (
               <Text tone="secondary">{t("mobile.meds.noneForPerson")}</Text>
             ) : null}

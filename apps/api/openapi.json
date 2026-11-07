@@ -36958,6 +36958,9 @@
           },
           {
             "$ref": "#/components/schemas/SyncRefusedVisit"
+          },
+          {
+            "$ref": "#/components/schemas/SyncRefusedAdministration"
           }
         ],
         "discriminator": {
@@ -36967,7 +36970,8 @@
             "observation": "#/components/schemas/SyncRefusedObservation",
             "body_map_mark": "#/components/schemas/SyncRefusedBodyMapMark",
             "activity_record": "#/components/schemas/SyncRefusedActivityRecord",
-            "visit_log": "#/components/schemas/SyncRefusedVisit"
+            "visit_log": "#/components/schemas/SyncRefusedVisit",
+            "medication_administration": "#/components/schemas/SyncRefusedAdministration"
           }
         }
       },
@@ -37642,6 +37646,636 @@
           "payload"
         ],
         "additionalProperties": false
+      },
+      "SyncRefusedAdministration": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "medication_administration"
+            ]
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "record"
+                    ]
+                  },
+                  "body": {
+                    "$ref": "#/components/schemas/RecordAdministration"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "body"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "correction"
+                    ]
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "body": {
+                    "$ref": "#/components/schemas/CorrectAdministration"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "supersedesId",
+                  "body"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "RecordAdministration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AdministrationOutcome"
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 2000,
+                "default": null
+              }
+            },
+            "default": null,
+            "required": [
+              "code"
+            ]
+          },
+          "amount": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "quantity": {
+                "type": "number",
+                "minimum": 0.001,
+                "maximum": 10000000
+              },
+              "unitCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "default": null,
+            "required": [
+              "quantity",
+              "unitCode"
+            ]
+          },
+          "amountDifferenceReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "timingReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "intervalOverrideReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "controlledDrug": {
+            "$ref": "#/components/schemas/DoseCdWitness"
+          },
+          "covert": {
+            "type": "boolean",
+            "default": false
+          },
+          "givenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          },
+          "deviceOffsetMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -86400000,
+            "maximum": 86400000,
+            "default": null
+          },
+          "givenBeforeRecorded": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "default": null,
+            "required": [
+              "reason"
+            ]
+          },
+          "givenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "pointOfCare": {
+            "$ref": "#/components/schemas/PointOfCare"
+          },
+          "deviceRecordedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "entryId",
+          "outcome"
+        ]
+      },
+      "AdministrationOutcome": {
+        "type": "string",
+        "enum": [
+          "given",
+          "refused",
+          "omitted",
+          "not_available",
+          "self_administered",
+          "given_by_family",
+          "withheld"
+        ]
+      },
+      "DoseCdWitness": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "witnessAssertionId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "witnessAssertionId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "noWitnessReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "noWitnessReason"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "deviceSignatures": {
+                "type": "object",
+                "properties": {
+                  "recorder": {
+                    "$ref": "#/components/schemas/DeviceSignature"
+                  },
+                  "witness": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "keyId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "signature": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9+/]{86}==$"
+                      },
+                      "signedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "witnessId": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    },
+                    "default": null,
+                    "required": [
+                      "keyId",
+                      "signature",
+                      "signedAt",
+                      "witnessId"
+                    ]
+                  },
+                  "noWitnessReason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "default": null
+                  }
+                },
+                "required": [
+                  "recorder"
+                ]
+              }
+            },
+            "required": [
+              "deviceSignatures"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "DeviceSignature": {
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]{86}==$"
+          },
+          "signedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "keyId",
+          "signature",
+          "signedAt"
+        ]
+      },
+      "PointOfCare": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "identity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "photo",
+              "wristband",
+              null
+            ]
+          },
+          "pack": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "scanned",
+                  "override"
+                ]
+              },
+              "gtin": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{14}$",
+                "default": null
+              },
+              "batch": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 20,
+                "default": null
+              },
+              "expiry": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "default": null
+              },
+              "amppId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[1-9]\\d{5,17}$",
+                "default": null
+              },
+              "override": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "no_barcode_on_pack",
+                      "barcode_unreadable",
+                      "pack_not_in_reference_data",
+                      "patient_own_supply",
+                      "other"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "default": null
+                  }
+                },
+                "default": null,
+                "required": [
+                  "code"
+                ]
+              }
+            },
+            "required": [
+              "method"
+            ]
+          }
+        },
+        "default": null,
+        "required": [
+          "identity",
+          "pack"
+        ]
+      },
+      "CorrectAdministration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AdministrationOutcome"
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 2000,
+                "default": null
+              }
+            },
+            "default": null,
+            "required": [
+              "code"
+            ]
+          },
+          "amount": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "quantity": {
+                "type": "number",
+                "minimum": 0.001,
+                "maximum": 10000000
+              },
+              "unitCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "default": null,
+            "required": [
+              "quantity",
+              "unitCode"
+            ]
+          },
+          "amountDifferenceReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "timingReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "intervalOverrideReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "controlledDrug": {
+            "$ref": "#/components/schemas/DoseCdWitness"
+          },
+          "covert": {
+            "type": "boolean"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "givenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "givenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "entryId",
+          "outcome",
+          "correctionReason",
+          "givenAt"
+        ]
       },
       "RefusedEntryList": {
         "type": "object",
@@ -45765,18 +46399,6 @@
           "witness"
         ]
       },
-      "AdministrationOutcome": {
-        "type": "string",
-        "enum": [
-          "given",
-          "refused",
-          "omitted",
-          "not_available",
-          "self_administered",
-          "given_by_family",
-          "withheld"
-        ]
-      },
       "AdministrationConflictRaised": {
         "type": "object",
         "properties": {
@@ -45796,509 +46418,6 @@
           "conflictId",
           "standingId",
           "message"
-        ]
-      },
-      "RecordAdministration": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "entryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "dueAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "default": null
-          },
-          "outcome": {
-            "$ref": "#/components/schemas/AdministrationOutcome"
-          },
-          "reason": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "code": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 60
-              },
-              "note": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "minLength": 1,
-                "maxLength": 2000,
-                "default": null
-              }
-            },
-            "default": null,
-            "required": [
-              "code"
-            ]
-          },
-          "amount": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "quantity": {
-                "type": "number",
-                "minimum": 0.001,
-                "maximum": 10000000
-              },
-              "unitCode": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 40
-              }
-            },
-            "default": null,
-            "required": [
-              "quantity",
-              "unitCode"
-            ]
-          },
-          "amountDifferenceReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "timingReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "intervalOverrideReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "controlledDrug": {
-            "$ref": "#/components/schemas/DoseCdWitness"
-          },
-          "covert": {
-            "type": "boolean",
-            "default": false
-          },
-          "givenAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "default": null
-          },
-          "deviceOffsetMs": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": -86400000,
-            "maximum": 86400000,
-            "default": null
-          },
-          "givenBeforeRecorded": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "reason": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 2000
-              }
-            },
-            "default": null,
-            "required": [
-              "reason"
-            ]
-          },
-          "givenBy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "default": null
-          },
-          "pointOfCare": {
-            "$ref": "#/components/schemas/PointOfCare"
-          },
-          "deviceRecordedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "default": null
-          }
-        },
-        "required": [
-          "id",
-          "entryId",
-          "outcome"
-        ]
-      },
-      "DoseCdWitness": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "witnessAssertionId": {
-                "type": "string",
-                "format": "uuid"
-              }
-            },
-            "required": [
-              "witnessAssertionId"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "noWitnessReason": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 2000
-              }
-            },
-            "required": [
-              "noWitnessReason"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "deviceSignatures": {
-                "type": "object",
-                "properties": {
-                  "recorder": {
-                    "$ref": "#/components/schemas/DeviceSignature"
-                  },
-                  "witness": {
-                    "type": "object",
-                    "properties": {
-                      "keyId": {
-                        "type": "string",
-                        "format": "uuid"
-                      },
-                      "signature": {
-                        "type": "string",
-                        "pattern": "^[A-Za-z0-9+/]{86}==$"
-                      },
-                      "signedAt": {
-                        "type": "string",
-                        "format": "date-time"
-                      },
-                      "witnessId": {
-                        "type": "string",
-                        "format": "uuid"
-                      }
-                    },
-                    "required": [
-                      "keyId",
-                      "signature",
-                      "signedAt",
-                      "witnessId"
-                    ]
-                  }
-                },
-                "required": [
-                  "recorder",
-                  "witness"
-                ]
-              }
-            },
-            "required": [
-              "deviceSignatures"
-            ]
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null
-      },
-      "DeviceSignature": {
-        "type": "object",
-        "properties": {
-          "keyId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "signature": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9+/]{86}==$"
-          },
-          "signedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "keyId",
-          "signature",
-          "signedAt"
-        ]
-      },
-      "PointOfCare": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "identity": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "photo",
-              "wristband",
-              null
-            ]
-          },
-          "pack": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "method": {
-                "type": "string",
-                "enum": [
-                  "scanned",
-                  "override"
-                ]
-              },
-              "gtin": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "pattern": "^\\d{14}$",
-                "default": null
-              },
-              "batch": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "minLength": 1,
-                "maxLength": 20,
-                "default": null
-              },
-              "expiry": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "date",
-                "default": null
-              },
-              "amppId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "pattern": "^[1-9]\\d{5,17}$",
-                "default": null
-              },
-              "override": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "enum": [
-                      "no_barcode_on_pack",
-                      "barcode_unreadable",
-                      "pack_not_in_reference_data",
-                      "patient_own_supply",
-                      "other"
-                    ]
-                  },
-                  "note": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "minLength": 1,
-                    "maxLength": 500,
-                    "default": null
-                  }
-                },
-                "default": null,
-                "required": [
-                  "code"
-                ]
-              }
-            },
-            "required": [
-              "method"
-            ]
-          }
-        },
-        "default": null,
-        "required": [
-          "identity",
-          "pack"
-        ]
-      },
-      "CorrectAdministration": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "entryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "dueAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "default": null
-          },
-          "outcome": {
-            "$ref": "#/components/schemas/AdministrationOutcome"
-          },
-          "reason": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "code": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 60
-              },
-              "note": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "minLength": 1,
-                "maxLength": 2000,
-                "default": null
-              }
-            },
-            "default": null,
-            "required": [
-              "code"
-            ]
-          },
-          "amount": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "quantity": {
-                "type": "number",
-                "minimum": 0.001,
-                "maximum": 10000000
-              },
-              "unitCode": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 40
-              }
-            },
-            "default": null,
-            "required": [
-              "quantity",
-              "unitCode"
-            ]
-          },
-          "amountDifferenceReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "timingReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "intervalOverrideReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "controlledDrug": {
-            "$ref": "#/components/schemas/DoseCdWitness"
-          },
-          "covert": {
-            "type": "boolean"
-          },
-          "correctionReason": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000
-          },
-          "givenAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "givenBy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "default": null
-          }
-        },
-        "required": [
-          "id",
-          "entryId",
-          "outcome",
-          "correctionReason",
-          "givenAt"
         ]
       },
       "WitnessAdministration": {

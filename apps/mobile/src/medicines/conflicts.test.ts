@@ -27,7 +27,7 @@ describe("hazard HZ-004 the nurse in charge reviews a dose recorded on two phone
     expect(out.unreadable).toBe(1);
   });
 
-  it("says when the two records agree, and when they differ", () => {
+  it("says when the two records agree, and when they differ, and who recorded each", () => {
     const [same] = parseConflicts({ conflicts: [conflict()] }).conflicts;
     const [differ] = parseConflicts({
       conflicts: [conflict({ uploaded: { outcome: "refused", amount: null, givenAt: null } })],

@@ -70,6 +70,7 @@ import {
   deviceSignatureProblems,
   deviceWitnessAssertion,
 } from "../services/device-signatures";
+import { offlineWindowDaysOf } from "../services/devices";
 import { dmdGtinMatches } from "../services/dmd";
 
 /** The time in a UUIDv7 (its first 48 bits, in milliseconds), or null for another version. */
@@ -775,6 +776,7 @@ export const medicineAdministrationsRouter = createRouter()
               givenBy: giverId,
               now,
               toleranceMs: facts.rates.clockDriftMinutes * 60_000,
+              deviceGivenAt: body.givenAt,
             });
           }
           return {
@@ -1555,6 +1557,8 @@ async function writeRegisterEntry(
     readonly now: Date;
     /** The clock-drift figure, for signatures made on a phone (slice 70). */
     readonly toleranceMs?: number;
+    /** When the phone says the dose was given, as it sent it (the signed statement's). */
+    readonly deviceGivenAt?: string | null;
   },
 ) {
   const { page, opened } = await pageFor(tx, e.entry, access.tenantUserId);
@@ -1571,7 +1575,9 @@ async function writeRegisterEntry(
       person.nation,
     );
     const port = c.get("services").medicines.competence;
-    const witnessId = e.witness.deviceSignatures.witness.witnessId;
+    const signed = e.witness.deviceSignatures;
+    const witnessId = signed.witness?.witnessId ?? "";
+    const windowDays = await offlineWindowDaysOf(tx, access.tenantId);
     const problems = await deviceSignatureProblems(
       tx,
       {
@@ -1584,28 +1590,39 @@ async function writeRegisterEntry(
         quantity: e.quantity,
         unitCode: e.unitCode ?? page.unitCode,
         locationId: e.locationId,
+        vmpId: e.entry.product.vmpId,
+        givenAt: e.deviceGivenAt ?? "",
+        recordTime: uuidV7Time(e.administrationId),
       },
-      e.witness.deviceSignatures,
+      signed,
       {
         now: e.now,
         toleranceMs: e.toleranceMs ?? 0,
         apartMs: minutes * 60_000,
+        windowMs: windowDays * 86_400_000,
         witnessCompetent: async (at) =>
           (await port.forMember(access.tenantId, witnessId, at)) === "current",
       },
     );
+    if (!e.deviceGivenAt) {
+      problems.push({ problem: "given_at_required", message: "Say when the dose was given." });
+    }
     if (problems.length > 0) throw deny(problems);
-    witness = {
-      witnessAssertionId: await deviceWitnessAssertion(tx, {
-        personId: e.entry.personId,
-        pageId: page.id,
-        quantity: e.quantity,
-        administrationId: e.administrationId,
-        recorderId: access.tenantUserId,
-        witness: e.witness.deviceSignatures.witness,
-        expiresAt: new Date(e.now.getTime() + minutes * 60_000),
-      }),
-    };
+    witness = signed.witness
+      ? {
+          witnessAssertionId: await deviceWitnessAssertion(tx, {
+            personId: e.entry.personId,
+            pageId: page.id,
+            quantity: e.quantity,
+            administrationId: e.administrationId,
+            recorderId: access.tenantUserId,
+            witness: signed.witness,
+            expiresAt: new Date(e.now.getTime() + minutes * 60_000),
+          }),
+        }
+      : // A lone worker where the policy allows it: why there was no witness; the register
+        // refuses it where a witness is required, and flags it for manager review otherwise.
+        { noWitnessReason: signed.noWitnessReason ?? "" };
   } else {
     witness = e.witness;
   }

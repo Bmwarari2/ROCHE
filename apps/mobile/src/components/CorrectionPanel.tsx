@@ -1,8 +1,8 @@
 import { type AdministrationOutcome, OUTCOME_REASONS } from "@harbour/domain";
 import { Button, Text, useTheme } from "@harbour/ui-native";
 import { usePowerSync } from "@powersync/react";
-import { useState } from "react";
-import { AccessibilityInfo, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, findNodeHandle, View } from "react-native";
 import { useSession } from "../app-state/session";
 import { useTenantId } from "../care/hooks";
 import { t } from "../i18n/t";
@@ -50,6 +50,13 @@ export function CorrectionPanel({
   const [why, setWhy] = useState("");
   const [problems, setProblems] = useState<readonly CorrectionProblem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const titleRef = useRef<View>(null);
+  // Focus moves to the panel's title when it opens (WCAG 2.4.3).
+  useEffect(() => {
+    const node = titleRef.current ? findNodeHandle(titleRef.current) : null;
+    if (node) AccessibilityInfo.setAccessibilityFocus(node);
+  }, []);
 
   const save = async () => {
     if (!outcome || saving) return;
@@ -90,6 +97,9 @@ export function CorrectionPanel({
       );
       AccessibilityInfo.announceForAccessibility(t("mobile.meds.correctionSaved"));
       onDone(true);
+    } catch {
+      setFailed(true);
+      AccessibilityInfo.announceForAccessibility(t("mobile.meds.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -98,13 +108,15 @@ export function CorrectionPanel({
   const reasons = outcome ? OUTCOME_REASONS[outcome] : [];
   return (
     <View style={{ gap: theme.space[1.5] }} testID="correction-panel">
-      <Text variant="title" accessibilityRole="header">
-        {t("mobile.meds.correctionTitle", { medicine: productName, person: personName })}
-      </Text>
+      <View ref={titleRef} accessible accessibilityRole="header">
+        <Text variant="title">
+          {t("mobile.meds.correctionTitle", { medicine: productName, person: personName })}
+        </Text>
+      </View>
       <Text>
         {t("mobile.meds.correctionWas", {
           outcome: original.outcome,
-          amount: original.quantity ?? "",
+          amount: original.quantity ?? "none",
           unit: unitName ?? "",
         })}
       </Text>
@@ -164,6 +176,7 @@ export function CorrectionPanel({
           {t("mobile.meds.correctionProblem", { problem: p })}
         </StatusLine>
       ))}
+      {failed ? <StatusLine tone="danger">{t("mobile.meds.saveFailed")}</StatusLine> : null}
       <Button
         label={t("mobile.meds.correctionSave")}
         onPress={() => void save()}

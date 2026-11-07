@@ -1,6 +1,6 @@
-import { Button, Text, useTheme } from "@harbour/ui-native";
-import { usePowerSync } from "@powersync/react";
-import { useCallback, useEffect, useState } from "react";
+import { Button, PersonFlags, Text, useTheme } from "@harbour/ui-native";
+import { usePowerSync, useQuery } from "@powersync/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, ScrollView, View } from "react-native";
 import { useSession } from "../../../app-state/session";
 import { platformFetch } from "../../../auth/clients";
@@ -19,19 +19,21 @@ import {
   type ResolveOutcome,
   resolveConflict,
   sameDose,
+  sameRecorder,
 } from "../../../medicines/conflicts";
 import { useMedicinesRound } from "../../../medicines/hooks";
-import { personName, ukInstantWords } from "../../../medicines/view";
+import { ROUND_MEDICATION_SQL, ROUND_SCHEDULE_SQL } from "../../../medicines/queries";
+import type { MedicationLocalRow, ScheduleLocalRow } from "../../../medicines/round";
+import { communicationNeedsCount, personName, ukInstantWords } from "../../../medicines/view";
 import { useRecordScreenProtection } from "../../../security/use-record-protection";
 
-function recordWords(r: ConflictRecord): string {
-  return [
-    t("mobile.meds.outcomeName", { outcome: r.outcome }),
-    r.quantity === null ? null : String(r.quantity),
-    r.givenAt ? ukInstantWords(r.givenAt) : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
+function recordWords(r: ConflictRecord, unit: string | null): string {
+  return t("mobile.meds.conflictRecord", {
+    outcome: r.outcome,
+    quantity: r.quantity === null ? "none" : String(r.quantity),
+    unit: unit ?? r.unitCode ?? "",
+    at: r.givenAt ? ukInstantWords(r.givenAt) : "none",
+  });
 }
 
 /**
@@ -51,6 +53,12 @@ export default function MedicinesConflictsScreen() {
   const [failed, setFailed] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [words, setWords] = useState<Record<string, string>>({});
+  const [confirming, setConfirming] = useState<{ id: string; outcome: ResolveOutcome } | null>(
+    null,
+  );
+  const medParams = useMemo(() => [tenantId], [tenantId]);
+  const { data: meds } = useQuery<MedicationLocalRow>(ROUND_MEDICATION_SQL, medParams);
+  const { data: times } = useQuery<ScheduleLocalRow>(ROUND_SCHEDULE_SQL, medParams);
 
   const options = useCallback(async (): Promise<ApiOptions | null> => {
     if (!token || !tenantId) return null;
@@ -99,46 +107,95 @@ export default function MedicinesConflictsScreen() {
         <Text>{t("mobile.meds.conflictIntro")}</Text>
         {failed ? <StatusLine tone="warning">{t("mobile.meds.conflictOffline")}</StatusLine> : null}
         {conflicts === null ? (
-          <Text tone="secondary">{t("mobile.round.loading")}</Text>
+          <Text tone="secondary" accessibilityLiveRegion="polite">
+            {t("mobile.round.loading")}
+          </Text>
         ) : conflicts.length === 0 ? (
           <Text tone="secondary">{t("mobile.meds.conflictNone")}</Text>
         ) : (
           conflicts.map((c) => {
             const person = people.get(c.personId);
+            const medicine = meds.find((m) => m.id === c.entryId)?.product_name ?? null;
+            const unit = times.find((x) => x.medication_id === c.entryId)?.unit_name ?? null;
+            const asking = confirming?.id === c.id ? confirming.outcome : null;
             return (
               <Card
                 key={c.id}
-                title={person ? personName(person) : t("mobile.meds.personNotOnPhone")}
+                title={t("mobile.meds.conflictCardTitle", {
+                  person: person ? personName(person) : t("mobile.meds.personNotOnPhone"),
+                  medicine: medicine ?? t("mobile.meds.medicineNotOnPhone"),
+                })}
                 testID={`conflict-${c.id}`}
               >
                 <View style={{ gap: theme.space[1] }}>
+                  {person ? (
+                    <PersonFlags
+                      allergyStatus={person.allergy_status}
+                      allergyCount={person.allergy_count}
+                      communicationNeedsCount={communicationNeedsCount(person.communication_needs)}
+                      context="list"
+                      testID={`conflict-${c.id}-flags`}
+                    />
+                  ) : null}
                   <Text>{t("mobile.meds.conflictDue", { at: ukInstantWords(c.dueAt) })}</Text>
                   <Text>
-                    {t("mobile.meds.conflictStanding", { record: recordWords(c.standing) })}
+                    {t("mobile.meds.conflictStanding", { record: recordWords(c.standing, unit) })}
                   </Text>
                   <Text>
-                    {t("mobile.meds.conflictUploaded", { record: recordWords(c.uploaded) })}
+                    {t("mobile.meds.conflictUploaded", { record: recordWords(c.uploaded, unit) })}
                   </Text>
-                  <StatusLine tone={sameDose(c) ? "success" : "warning"}>
+                  <StatusLine tone="warning">
                     {sameDose(c) ? t("mobile.meds.conflictSame") : t("mobile.meds.conflictDiffer")}
                   </StatusLine>
+                  <Text>
+                    {sameRecorder(c)
+                      ? t("mobile.meds.conflictSameRecorder")
+                      : t("mobile.meds.conflictTwoRecorders")}
+                  </Text>
                   <TextField
                     label={t("mobile.meds.conflictNote")}
+                    hint={t("mobile.meds.conflictNoteHint")}
                     value={notes[c.id] ?? ""}
                     onChangeText={(v) => setNotes((n) => ({ ...n, [c.id]: v }))}
                     maxLength={2000}
                   />
-                  <Button
-                    label={t("mobile.meds.conflictFirstStands")}
-                    variant="secondary"
-                    onPress={() => void resolve(c, "first_stands")}
-                  />
-                  <Button
-                    label={t("mobile.meds.conflictBothGiven")}
-                    accessibilityHint={t("mobile.meds.conflictBothGivenHint")}
-                    variant="destructive"
-                    onPress={() => void resolve(c, "both_given")}
-                  />
+                  {asking ? (
+                    // One more step before a decision is sent: what it does, in words (WCAG 3.3.4).
+                    <View style={{ gap: theme.space[1] }} testID={`conflict-${c.id}-confirm`}>
+                      <StatusLine tone="warning">
+                        {t("mobile.meds.conflictConfirm", { outcome: asking })}
+                      </StatusLine>
+                      <Button
+                        label={t("mobile.meds.conflictConfirmButton", { outcome: asking })}
+                        variant={asking === "both_given" ? "destructive" : "primary"}
+                        onPress={() => {
+                          setConfirming(null);
+                          void resolve(c, asking);
+                        }}
+                      />
+                      <Button
+                        label={t("mobile.meds.conflictKeepReviewing")}
+                        variant="secondary"
+                        onPress={() => setConfirming(null)}
+                      />
+                    </View>
+                  ) : (
+                    <>
+                      <Button
+                        label={t("mobile.meds.conflictFirstStands")}
+                        variant="secondary"
+                        disabled={!(notes[c.id] ?? "").trim()}
+                        onPress={() => setConfirming({ id: c.id, outcome: "first_stands" })}
+                      />
+                      <Button
+                        label={t("mobile.meds.conflictBothGiven")}
+                        accessibilityHint={t("mobile.meds.conflictBothGivenHint")}
+                        variant="destructive"
+                        disabled={!(notes[c.id] ?? "").trim()}
+                        onPress={() => setConfirming({ id: c.id, outcome: "both_given" })}
+                      />
+                    </>
+                  )}
                   <Text tone="secondary">{t("mobile.meds.conflictCorrectOnWeb")}</Text>
                   {words[c.id] ? <Text accessibilityLiveRegion="polite">{words[c.id]}</Text> : null}
                 </View>

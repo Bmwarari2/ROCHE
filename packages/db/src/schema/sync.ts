@@ -347,6 +347,15 @@ export const REFUSED_ENTRY_TABLES = [
 ] as const;
 
 /**
+ * What a refused entry's server copy may be (part 5): a care entry, or a dose recorded on a phone
+ * (slice 70; HZ-115, HZ-004): a dose given offline that the API refused is never only on one phone.
+ */
+export const REFUSED_COPY_RECORD_TABLES = [
+  ...REFUSED_ENTRY_TABLES,
+  "medication_administration",
+] as const;
+
+/**
  * Each held entry a hand-over sent (part 6; security review of #25, H1): the hand-over's id, the
  * device that held the entry, its owner and who sent it, one row per entry, written in the entry's
  * own transaction by `app.admit_handed_over_entry` (#25 review round 3). A hand-over id names one
@@ -447,7 +456,7 @@ export const refusedEntry = pgTable(
       foreignColumns: [task.tenantId, task.id],
     }),
     index("refused_entry_person_idx").on(t.tenantId, t.personId, t.refusedAt),
-    check("refused_entry_table", sql`record_table IN (${sqlList(REFUSED_ENTRY_TABLES)})`),
+    check("refused_entry_table", sql`record_table IN (${sqlList(REFUSED_COPY_RECORD_TABLES)})`),
     check("refused_entry_payload", sql`jsonb_typeof(payload) = 'object'`),
     check("refused_entry_code", sql`refusal_code ~ '^[a-z0-9_]{1,80}$'`),
     check("refused_entry_status", sql`http_status IS NULL OR http_status BETWEEN 100 AND 599`),
