@@ -34,7 +34,9 @@ function scopeOf(path) {
   if (/^packages\/i18n\/src\/messages\/[^/]+\.json$/.test(path) && !path.endsWith(".status.json"))
     return "whole";
   if (path.endsWith(".md")) {
-    if (path.startsWith("docs/decisions/")) return path.includes("0127-") ? "whole" : null;
+    // ADR-0127 records the codename on purpose; the master prompt's two lines about the codename
+    // are rewritten by hand (the plan, section 1), and the rest of it is in scope.
+    if (path.startsWith("docs/decisions/")) return null;
     if (path.startsWith("docs/changelog-dev/") || path === "docs/CHANGELOG-DEV.md") return null;
     if (path === "docs/plans/rename-thapsus-care.md") return null;
     if (path.includes("node_modules/")) return null;
@@ -53,10 +55,17 @@ function scopeOf(path) {
 /** A line that is only a comment: kept (internal; the codebase keeps its codename). */
 const COMMENT = /^\s*(?:\/\/|\*|\/\*|\{\/\*)/;
 
+/** Lines rewritten by hand (the plan, section 1): left for a person, never half-renamed. */
+const BY_HAND = [/is a working codename/, /\| Harbour \(working name\) \|/];
+
 function rename(text, scope) {
   let count = 0;
   const swap = (segment) =>
     segment.replace(/\bHarbour\b/g, (match, offset, whole) => {
+      // Never inside a host name, address or URL ("Family.Harbour.Example", "Harbour@…").
+      const before = whole[offset - 1] ?? "";
+      const after = whole[offset + match.length] ?? "";
+      if (/[./@:]/.test(before) || /[./@:]/.test(after)) return match;
       // Skip the demo names: check whether this occurrence starts one.
       DEMO_NAMES.lastIndex = 0;
       for (const demo of whole.matchAll(DEMO_NAMES)) {
@@ -65,8 +74,14 @@ function rename(text, scope) {
       count += 1;
       return TO;
     });
-  if (scope === "whole") return { text: swap(text), count: () => count };
-  const lines = text.split("\n").map((line) => (COMMENT.test(line) ? line : swap(line)));
+  const keep = (line) => BY_HAND.some((pattern) => pattern.test(line));
+  if (scope === "whole") {
+    const lines = text.split("\n").map((line) => (keep(line) ? line : swap(line)));
+    return { text: lines.join("\n"), count: () => count };
+  }
+  const lines = text
+    .split("\n")
+    .map((line) => (COMMENT.test(line) || keep(line) ? line : swap(line)));
   return { text: lines.join("\n"), count: () => count };
 }
 
