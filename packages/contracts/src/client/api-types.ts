@@ -47121,7 +47121,7 @@ export interface paths {
     get: {
       parameters: {
         query: {
-          /** @description The calendar month, yyyy-mm (UK time). */
+          /** @description The calendar month, yyyy-mm (UK time), from 2000 to next year. */
           month: string;
         };
         header?: never;
@@ -47170,6 +47170,15 @@ export interface paths {
         };
         /** @description The request did not validate */
         422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
           headers: {
             [name: string]: unknown;
           };
@@ -47247,6 +47256,15 @@ export interface paths {
         };
         /** @description The request did not validate */
         422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
           headers: {
             [name: string]: unknown;
           };

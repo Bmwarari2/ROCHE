@@ -113938,10 +113938,10 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
-              "description": "The calendar month, yyyy-mm (UK time)."
+              "description": "The calendar month, yyyy-mm (UK time), from 2000 to next year."
             },
             "required": true,
-            "description": "The calendar month, yyyy-mm (UK time).",
+            "description": "The calendar month, yyyy-mm (UK time), from 2000 to next year.",
             "name": "month",
             "in": "query"
           }
@@ -113990,6 +113990,16 @@
           },
           "422": {
             "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -114071,6 +114081,16 @@
           },
           "422": {
             "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
