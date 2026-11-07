@@ -4,13 +4,14 @@ Evidence coverage shows how many records evidence each quality statement, and wh
 have none. Use it to find gaps before an inspection.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner and the quality and
-compliance lead. Care workers, senior carers, nurses and the group executive cannot.
+compliance lead. Care and support workers, team leaders or senior carers, nurses and the group
+executive cannot.
 
 **Register row**: QUAL-002.
 
 ## Steps
 
-1. In the side bar, choose **Framework and evidence**, then open the version marked **In force**.
+1. In the menu, choose **Framework and evidence**, then open the version marked **In force**.
 2. Choose **View evidence coverage**.
 3. Read the summary at the top, for example "3 of 34 statements have no evidence." If every
    statement has some, it says "Every statement has evidence."
@@ -30,4 +31,4 @@ compliance lead. Care workers, senior carers, nurses and the group executive can
   do not count towards coverage.
 - If a statement has no records, the page says "No records are tagged against this statement".
   Tag records from the record itself (see [How to tag a record as evidence](tag-a-record-as-evidence.md)).
-- The rule: [quality spec section 17, rule 7](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).
+- The rules are in the [quality specification](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).

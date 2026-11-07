@@ -2,8 +2,8 @@
 
 See what you must do to keep a person safe while a safeguarding concern about them is open.
 
-**Who can do this**: anyone who reads care plans: care workers, agency and bank workers, senior
-carers, nurses, managers and the owner.
+**Who can do this**: anyone who reads care plans: care and support workers, agency or bank workers,
+team leaders or senior carers, nurses, managers and the owner.
 
 **Register row**: SAFE-006.
 

@@ -4,9 +4,10 @@ The data protection impact assessment (DPIA) records the risks of using Thapsus 
 and how they are reduced. Someone prepares it, and the named data protection lead signs it.
 Whoever prepared a version cannot sign it.
 
-**Who can do this**: prepare: the owner, Registered Manager or quality lead. Sign: the person named
-as data protection lead, who must be the owner or a quality lead. Signing needs you to confirm it
-is you (step-up).
+**Who can do this**: prepare: the owner, the Registered Manager or the quality and compliance lead.
+Sign: the person named as data protection lead, who must be the owner or the quality and compliance
+lead. Before you sign, Thapsus Care asks you to confirm it is you, with your passkey or
+authenticator app.
 
 **Register row**: PLAT-023.
 

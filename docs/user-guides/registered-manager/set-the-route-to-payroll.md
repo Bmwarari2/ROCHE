@@ -18,7 +18,8 @@ both manages the link and approves pay.
    **Save pay codes**.
 3. Under **Change the route to payroll**, choose the new route and **From the first day of the pay
    period**: a pay period later than any pay run and, to pay through the HR platform, the first day
-   of one of its pay periods. Choose **Save route change**. You confirm it is you first.
+   of one of its pay periods. Choose **Save route change**. Thapsus Care asks you to confirm it is
+   you first, with your passkey or authenticator app.
 
 ## Important
 
@@ -29,7 +30,8 @@ both manages the link and approves pay.
   run; it cannot be overridden.
 - A run cannot be locked until every kind of unit has a pay code and everyone in it is matched. The
   pay codes in force when it is locked are the ones sent.
-- If the link is off when you draft a run for a period set to the HR platform, Thapsus Care asks you to
-  wait or confirm the payroll export instead. Only someone who approves pay can confirm it, after
-  confirming it is them; the run then pays through the export.
+- If the connection to the HR platform is switched off when you draft a run for a period set to the
+  HR platform, Thapsus Care asks you to wait or confirm the payroll export instead. Only someone who
+  approves pay can confirm it, and Thapsus Care asks them to confirm it is them with their passkey
+  or authenticator app first. The run then pays through the export.
 - Pay through the HR platform is not available until the HR platform offers it.

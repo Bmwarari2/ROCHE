@@ -2,8 +2,8 @@
 
 Record bruises, pressure ulcers, skin tears and other marks on the person's skin.
 
-**Who can do this**: care workers (for the people assigned to them), senior carers, nurses and
-managers.
+**Who can do this**: care and support workers (for the people assigned to them), team leaders or
+senior carers, nurses and managers.
 
 **Register rows**: CARE-012, SAFE-009.
 

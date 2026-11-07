@@ -4,8 +4,8 @@ A data rights request is someone asking to see, correct, erase or take their inf
 guide covers recording the request, confirming who is asking and keeping the clock. Finding the
 records, reviewing them and sending the response each have their own guide.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
-data protection for the whole organisation. A Registered Manager or deputy whose role covers one
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers data
+protection for the whole organisation. A Registered Manager or deputy manager whose role covers one
 home does not see **Data rights**, and Thapsus Care refuses them if they try.
 
 **Register rows**: PLAT-022, WORK-011 (requests from members of staff).
@@ -57,7 +57,7 @@ taking information elsewhere, see
 | You see | It means |
 | --- | --- |
 | Clock not started | The clock starts when you confirm who is asking. |
-| Running | Respond by the day shown, for example "Respond by 01/12/2026." |
+| Running | Respond by the day shown, for example "Respond by 01/12/2026." This is the legal deadline: one month from when the clock started, which can be extended. |
 | Due soon | The day is close. |
 | Overdue | The response was due on the day shown. Respond now. |
 | Paused | You are waiting for the requester to clarify. The due date moves on by the days it is paused. |
@@ -77,7 +77,8 @@ holidays and your organisation's settings. Pauses and the extension are listed u
 - A request from a person's contact (such as a relative) about their own information is not on
   this screen yet. Ask Thapsus Care support.
 - Police, solicitor, coroner and other disclosure requests about a person are not data rights
-  requests. They have no screen yet; ask Thapsus Care support.
+  requests. They are recorded under **Disclosure requests** in the menu, by the Registered
+  Manager or someone else who manages incidents.
 - The person's communication needs show on the request, so you can reply in a way they can use.
 - Your procedure is in the [subject access request procedure](../../compliance/dsar-procedure.md).
   The rules Thapsus Care follows are in the
