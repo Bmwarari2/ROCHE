@@ -6,6 +6,7 @@ import {
   deathStep,
   exitRecord,
   herbertProfile,
+  incident,
   location,
   type missingEpisode,
   missingEvent,
@@ -283,7 +284,16 @@ export async function readEpisode(tx: Transaction, tenantId: string, row: Episod
     now,
     rates,
   });
-  return { view, events, notifications, rates };
+  const [inc] = await tx
+    .select({ status: incident.status })
+    .from(incident)
+    .where(eq(incident.id, row.incidentId));
+  // Police involvement recorded once the incident had closed reaches no notification by itself.
+  const policeInvolvementUnnotified =
+    view.policeReference !== null &&
+    inc?.status === "closed" &&
+    !notifications.some((n) => n.kind === "cqc_reg18_police");
+  return { view, events, notifications, rates, policeInvolvementUnnotified };
 }
 
 /** The episode as the API returns it. */
@@ -308,8 +318,10 @@ export function episodeItem(row: EpisodeRow, read: Awaited<ReturnType<typeof rea
       recordedBy: e.recordedBy,
     })),
     policeCallDueAt: view.policeCallDueAt ? view.policeCallDueAt.toISOString() : null,
+    policeCallTargetAt: view.policeCallTargetAt ? view.policeCallTargetAt.toISOString() : null,
     policeCallLate: view.policeCallLate,
     policeReference: view.policeReference,
+    policeInvolvementUnnotified: read.policeInvolvementUnnotified,
     cqcNotificationPrompt: view.cqcNotificationPrompt,
     herbertProfile: view.herbertProfile,
     herbertProfileVersionAtOpening: row.herbertProfileVersion,
@@ -379,6 +391,47 @@ export async function syncPoliceCallTask(
     sourceId: row.id,
     assigneeRoleKey: "registered_manager",
     dueAt,
+    priority: "urgent",
+  });
+}
+
+export const POLICE_AFTER_CLOSE_TASK_KIND = "safety.missing_police_after_close";
+
+/**
+ * A police call recorded on an episode whose incident has already closed answers no classifier
+ * question, so no CQC notification is drafted from it (HZ-127, HZ-013). The call is kept; one
+ * urgent task asks the Registered Manager to reopen the incident and submit the notification. The
+ * incident is never reopened automatically.
+ */
+export async function raisePoliceAfterCloseTask(
+  tx: Transaction,
+  row: EpisodeRow,
+  now: Date,
+): Promise<void> {
+  const [already] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.kind, POLICE_AFTER_CLOSE_TASK_KIND),
+        eq(task.sourceType, "missing_episode"),
+        eq(task.sourceId, row.id),
+        isNull(task.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (already) return;
+  await tx.insert(task).values({
+    kind: POLICE_AFTER_CLOSE_TASK_KIND,
+    title:
+      "Police involvement recorded after the incident closed: reopen the incident and submit the CQC notification",
+    requiredPermission: "safety.incident.manage",
+    locationId: row.locationId,
+    personId: row.personId,
+    sourceType: "missing_episode",
+    sourceId: row.id,
+    assigneeRoleKey: "registered_manager",
+    dueAt: now,
     priority: "urgent",
   });
 }

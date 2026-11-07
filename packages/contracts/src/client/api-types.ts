@@ -70557,8 +70557,11 @@ export interface components {
       }[];
       /** Format: date-time */
       policeCallDueAt: string | null;
+      /** Format: date-time */
+      policeCallTargetAt: string | null;
       policeCallLate: boolean;
       policeReference: string | null;
+      policeInvolvementUnnotified: boolean;
       cqcNotificationPrompt: boolean;
       herbertProfile: components["schemas"]["HerbertProfileState"];
       herbertProfileVersionAtOpening: number | null;

@@ -11,6 +11,7 @@ import {
   readHerbertProfile,
   readOpenEpisode,
   readTimelineEntry,
+  recordedLater,
 } from "./missing";
 
 /** Phase 2 slice 63: the pure parts of the missing person screens and the Herbert profile. */
@@ -66,8 +67,12 @@ describe("missing persons", () => {
     [{ status: "open", policeCallDueAt: "x", policeCallLate: false }, "due"],
     [{ status: "open", policeCallDueAt: null, policeCallLate: false }, "now"],
     [
-      { status: "open", policeCallDueAt: "x", policeCallLate: true, policeReference: "CAD 1" },
+      { status: "open", policeCallDueAt: "x", policeCallLate: false, policeReference: "CAD 1" },
       "called",
+    ],
+    [
+      { status: "open", policeCallDueAt: "x", policeCallLate: true, policeReference: "CAD 1" },
+      "called_late",
     ],
     [{ status: "found", policeCallDueAt: "x", policeCallLate: false }, "not_needed"],
   ] as const)("puts the police call first: %o is %s", (episode, state) => {
@@ -230,5 +235,33 @@ describe("a police call recorded after the person was found", () => {
     [{ status: "closed", policeReference: null }, false],
   ])("hazard HZ-127 says a late call may be recorded for %j: %s", (episode, shown) => {
     expect(latePoliceCallShown(episode)).toBe(shown);
+  });
+});
+
+describe("a late call stays late, and a backdated entry says so", () => {
+  const base = {
+    status: "found",
+    policeCallDueAt: null,
+    policeCallLate: true,
+    policeReference: "CAD 9",
+  } as const;
+
+  it.each([
+    [{ ...base }, "called_late"],
+    [{ ...base, policeCallLate: false }, "called"],
+    [{ ...base, policeReference: null, policeCallDueAt: "2026-10-31T21:30:00Z" }, "missed"],
+  ] as const)("hazard HZ-127 says %j as %s", (episode, state) => {
+    expect(policeCallState(episode, NOW)).toBe(state);
+  });
+
+  it("hazard HZ-127 shows a late call as a warning, never as done", () => {
+    expect(policeCallChip("called_late", "21:30", t).status).toBe("overdue");
+  });
+
+  it.each([
+    [{ at: "2026-10-31T12:00:00Z", recordedAt: "2026-10-31T12:10:00Z" }, false],
+    [{ at: "2026-10-31T12:00:00Z", recordedAt: "2026-10-31T13:00:00Z" }, true],
+  ])("hazard HZ-127 says an entry was recorded later: %j %s", (entry, later) => {
+    expect(recordedLater(entry)).toBe(later);
   });
 });

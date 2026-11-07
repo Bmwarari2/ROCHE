@@ -55,6 +55,7 @@ import {
   herbertPrefillFor,
   openDeathRecord,
   phase2Rates,
+  raisePoliceAfterCloseTask,
   readDeath,
   readEpisode,
   syncPoliceCallTask,
@@ -793,6 +794,15 @@ export const deathsMissingRouter = createRouter()
               actorTenantUserId: access.tenantUserId,
               now,
             });
+          } else if (open) {
+            // The incident has closed: nothing drafts the CQC notification by itself (HZ-127).
+            await raisePoliceAfterCloseTask(tx, row, now);
+            await audit(c, tx, access, {
+              action: "safety.missing.police_after_incident_closed",
+              resourceType: "missing_episode",
+              resourceId: id,
+              scope: { incidentId: row.incidentId },
+            });
           }
         }
         const read = await readEpisode(tx, access.tenantId, row, now);
@@ -801,7 +811,7 @@ export const deathsMissingRouter = createRouter()
           action: "safety.missing.event",
           resourceType: "missing_episode",
           resourceId: id,
-          scope: { eventId: body.id, kind: body.kind },
+          scope: { eventId: body.id, kind: body.kind, at: entry.at.toISOString() },
         });
         return episodeItem(row, read);
       });

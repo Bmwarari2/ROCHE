@@ -20,6 +20,7 @@ import {
   missingShown,
   missingStatusChip,
   policeCallState,
+  recordedLater,
 } from "@/lib/missing";
 import { personNames } from "@/lib/people";
 import { getPerson } from "@/lib/person-record";
@@ -51,7 +52,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
   }
   const { person } = await getPerson(data.personId);
   const police = policeCallState(data);
-  const due = formatDateTime(data.policeCallDueAt) ?? "";
+  const due = formatDateTime(data.policeCallDueAt ?? data.policeCallTargetAt) ?? "";
   const kinds = data.status === "closed" ? [] : kindsFor(me.permissions);
   const timeline = [...data.timeline].sort((a, b) => a.at.localeCompare(b.at));
   return (
@@ -64,7 +65,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       <Notice
         tone={police === "called" || police === "not_needed" ? "info" : "warning"}
         icon={
-          police === "overdue" || police === "missed" ? (
+          police === "overdue" || police === "missed" || police === "called_late" ? (
             <CircleAlert {...noticeIcon} />
           ) : police === "now" ? (
             <TriangleAlert {...noticeIcon} />
@@ -77,7 +78,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         title={t("missing.police.title", { state: police, when: due })}
       >
         <p className="m-0">
-          {police === "called"
+          {police === "called" || police === "called_late"
             ? t("missing.police.reference", { reference: data.policeReference ?? "" })
             : t("missing.police.body", { state: police, when: due })}
         </p>
@@ -120,6 +121,13 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
                   </p>
                 ) : null}
                 {entry.note ? <p className="m-0 whitespace-pre-wrap">{entry.note}</p> : null}
+                {recordedLater(entry) ? (
+                  <p className="m-0 text-body-dense">
+                    {t("missing.timeline.recordedLater", {
+                      when: formatDateTime(entry.recordedAt) ?? "",
+                    })}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ol>
@@ -135,7 +143,15 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       ) : null}
       <Card as="section" headingLevel={2} title={t("missing.notifications.title")}>
         <div className="flex flex-col gap-3">
-          {data.cqcNotificationPrompt ? (
+          {data.policeInvolvementUnnotified ? (
+            <Notice
+              tone="warning"
+              icon={<CircleAlert {...noticeIcon} />}
+              title={t("missing.notifications.afterClosedTitle")}
+            >
+              <p className="m-0">{t("missing.notifications.afterClosedBody")}</p>
+            </Notice>
+          ) : data.cqcNotificationPrompt ? (
             <p className="m-0 font-semibold">{t("missing.notifications.cqcPrompt")}</p>
           ) : null}
           {data.notifications.length === 0 ? (
@@ -182,6 +198,9 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       </Card>
       {data.status !== "closed" && me.permissions.includes(MISSING_MANAGE) ? (
         <Card as="section" headingLevel={2} title={t("missing.close.title")}>
+          {latePoliceCallShown(data) ? (
+            <p className="m-0 mb-3">{t("missing.close.latePoliceCall")}</p>
+          ) : null}
           {data.canClose ? (
             <CloseEpisodeForm episodeId={data.id} version={data.version} />
           ) : (
