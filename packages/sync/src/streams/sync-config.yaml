@@ -129,6 +129,18 @@ streams:
       WHERE tenant_id = auth.parameter('tenant_id')
         AND id IN auth.parameter('location_ids')
 
+  # The services each of the member's homes runs, and nothing about anyone: the phone applies the
+  # same controlled drugs witness policy as the API (medicines.md rule 27; HZ-116), offering "no one
+  # is here to witness" only where every active service allows it.
+  my_location_services:
+    auto_subscribe: true
+    query: >-
+      SELECT id, tenant_id, location_id, service_type, status
+      FROM service AS "location_service"
+      WHERE tenant_id = auth.parameter('tenant_id')
+        AND location_id IN auth.parameter('location_ids')
+        AND deleted_at IS NULL
+
   assigned_people:
     auto_subscribe: true
     query: >-
@@ -890,7 +902,9 @@ streams:
                        medication.indication, medication.special_instructions, medication.starts_at,
                        medication.stops_at, medication.stop_effective_at, medication.cd_schedule,
                        medication.check_outcome, medication.updated_at, medication.prn_max_per_24h,
-               medication.replaced_by_id, medication.replaced_from, medication.stop_at
+               medication.replaced_by_id, medication.replaced_from, medication.stop_at,
+               medication.origin, medication.corrected_part_way_through,
+               medication.earlier_doses_due_on, medication.earlier_doses_due_reason
         FROM medication, person_assignment
         WHERE medication.person_id = person_assignment.person_id
           AND medication.tenant_id = auth.parameter('tenant_id')
@@ -984,7 +998,9 @@ streams:
                        medication.indication, medication.special_instructions, medication.starts_at,
                        medication.stops_at, medication.stop_effective_at, medication.cd_schedule,
                        medication.check_outcome, medication.updated_at, medication.prn_max_per_24h,
-               medication.replaced_by_id, medication.replaced_from, medication.stop_at
+               medication.replaced_by_id, medication.replaced_from, medication.stop_at,
+               medication.origin, medication.corrected_part_way_through,
+               medication.earlier_doses_due_on, medication.earlier_doses_due_reason
         FROM medication, person
         WHERE medication.person_id = person.id
           AND medication.tenant_id = auth.parameter('tenant_id')

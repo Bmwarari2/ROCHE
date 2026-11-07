@@ -23,7 +23,7 @@ const OLD = "2026-09-01T09:00:00.000000Z";
 const RECENT = `${TODAY}T09:00:00.000000Z`;
 
 const CARE_TABLES = [...NEVER_EVICT_TABLES, ...OFFLINE_WINDOW_TABLES].filter(
-  (t) => !["person", "allergy", "location"].includes(t),
+  (t) => !["person", "allergy", "location", "location_service"].includes(t),
 );
 
 interface PersonFixture {

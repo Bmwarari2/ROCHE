@@ -15,10 +15,9 @@ import {
   cdBalanceAfter,
   cdPageKey,
   checkCdEntry,
-  defaultCdWitnessPolicy,
   formatDoseQuantity,
   type MarEntry,
-  type ServiceType,
+  witnessPolicyForServices,
 } from "@harbour/domain";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { problems } from "../http/problem";
@@ -45,11 +44,14 @@ export async function witnessPolicyFor(
   const rows = await tx
     .select({ type: service.serviceType })
     .from(service)
-    .where(and(eq(service.locationId, locationId), eq(service.status, "active")));
-  if (rows.length === 0) return "required";
-  return rows.some((r) => defaultCdWitnessPolicy(r.type as ServiceType) === "required")
-    ? "required"
-    : "where_available";
+    .where(
+      and(
+        eq(service.locationId, locationId),
+        eq(service.status, "active"),
+        isNull(service.deletedAt),
+      ),
+    );
+  return witnessPolicyForServices(rows.map((r) => r.type));
 }
 
 export async function pageEntries(tx: Transaction, pageId: string): Promise<EntryRow[]> {

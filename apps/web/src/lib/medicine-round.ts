@@ -258,6 +258,9 @@ export function readAdministration(
       deviceOffsetMs: null,
       givenBeforeRecorded: null,
       givenBy: null,
+      // The phone's point-of-care checks and recording time (ADR-0081): the web sends none.
+      pointOfCare: null,
+      deviceRecordedAt: null,
     },
   };
 }

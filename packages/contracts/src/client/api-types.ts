@@ -234,6 +234,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/me/device-keys": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Enrol your signing key for this phone
+     * @description For holders of medicines.cd.administer or medicines.cd.witness, with a fresh step-up, from a phone bound to them (x-harbour-device) and not revoked. Stores the public key; the newest key for the member and phone signs from its enrolment. Audited as medicines.device_key.enrolled.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["EnrolDeviceKey"];
+        };
+      };
+      responses: {
+        /** @description The key enrolled */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeviceKey"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/branding": {
     parameters: {
       query?: never;
@@ -64543,6 +64613,17 @@ export interface components {
       respondBy: string;
       routedToManager: boolean;
     };
+    DeviceKey: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      deviceId: string;
+      /** Format: date-time */
+      enrolledAt: string;
+    };
+    EnrolDeviceKey: {
+      publicKey: string;
+    };
     Branding: {
       registeredName: string;
       displayName: string | null;
@@ -74503,7 +74584,8 @@ export interface components {
       | components["schemas"]["SyncRefusedObservation"]
       | components["schemas"]["SyncRefusedBodyMapMark"]
       | components["schemas"]["SyncRefusedActivityRecord"]
-      | components["schemas"]["SyncRefusedVisit"];
+      | components["schemas"]["SyncRefusedVisit"]
+      | components["schemas"]["SyncRefusedAdministration"];
     SyncRefusedCareNote: {
       /** Format: uuid */
       entryId: string;
@@ -74711,6 +74793,203 @@ export interface components {
         restrictionReason?: string;
         notes?: string;
       };
+    };
+    SyncRefusedAdministration: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "medication_administration";
+      payload:
+        | {
+            /** @enum {string} */
+            kind: "record";
+            body: components["schemas"]["RecordAdministration"];
+          }
+        | {
+            /** @enum {string} */
+            kind: "correction";
+            /** Format: uuid */
+            supersedesId: string;
+            body: components["schemas"]["CorrectAdministration"];
+          };
+    };
+    RecordAdministration: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      entryId: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      dueAt: string | null;
+      outcome: components["schemas"]["AdministrationOutcome"];
+      /** @default null */
+      reason: {
+        code: string;
+        /** @default null */
+        note: string | null;
+      } | null;
+      /** @default null */
+      amount: {
+        quantity: number;
+        unitCode: string;
+      } | null;
+      /** @default null */
+      amountDifferenceReason: string | null;
+      /** @default null */
+      timingReason: string | null;
+      /** @default null */
+      intervalOverrideReason: string | null;
+      controlledDrug?: components["schemas"]["DoseCdWitness"];
+      /** @default false */
+      covert: boolean;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      givenAt: string | null;
+      /** @default null */
+      deviceOffsetMs: number | null;
+      /** @default null */
+      givenBeforeRecorded: {
+        reason: string;
+      } | null;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      givenBy: string | null;
+      pointOfCare?: components["schemas"]["PointOfCare"];
+      /**
+       * Format: date-time
+       * @default null
+       */
+      deviceRecordedAt: string | null;
+    };
+    /** @enum {string} */
+    AdministrationOutcome:
+      | "given"
+      | "refused"
+      | "omitted"
+      | "not_available"
+      | "self_administered"
+      | "given_by_family"
+      | "withheld";
+    /** @default null */
+    DoseCdWitness:
+      | {
+          /** Format: uuid */
+          witnessAssertionId: string;
+        }
+      | {
+          noWitnessReason: string;
+        }
+      | {
+          deviceSignatures: {
+            recorder: components["schemas"]["DeviceSignature"];
+            /** @default null */
+            witness: {
+              /** Format: uuid */
+              keyId: string;
+              signature: string;
+              /** Format: date-time */
+              signedAt: string;
+              /** Format: uuid */
+              witnessId: string;
+            } | null;
+            /** @default null */
+            noWitnessReason: string | null;
+          };
+        }
+      | null;
+    DeviceSignature: {
+      /** Format: uuid */
+      keyId: string;
+      signature: string;
+      /** Format: date-time */
+      signedAt: string;
+    };
+    /** @default null */
+    PointOfCare: {
+      /** @enum {string|null} */
+      identity: "photo" | "wristband" | null;
+      pack: {
+        /** @enum {string} */
+        method: "scanned" | "override";
+        /** @default null */
+        gtin: string | null;
+        /** @default null */
+        batch: string | null;
+        /**
+         * Format: date
+         * @default null
+         */
+        expiry: string | null;
+        /** @default null */
+        amppId: string | null;
+        /** @default null */
+        override: {
+          /** @enum {string} */
+          code:
+            | "no_barcode_on_pack"
+            | "barcode_unreadable"
+            | "pack_not_in_reference_data"
+            | "patient_own_supply"
+            | "other";
+          /** @default null */
+          note: string | null;
+        } | null;
+      } | null;
+    } | null;
+    CorrectAdministration: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      entryId: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      dueAt: string | null;
+      outcome: components["schemas"]["AdministrationOutcome"];
+      /** @default null */
+      reason: {
+        code: string;
+        /** @default null */
+        note: string | null;
+      } | null;
+      /** @default null */
+      amount: {
+        quantity: number;
+        unitCode: string;
+      } | null;
+      /** @default null */
+      amountDifferenceReason: string | null;
+      /** @default null */
+      timingReason: string | null;
+      /** @default null */
+      intervalOverrideReason: string | null;
+      controlledDrug?: components["schemas"]["DoseCdWitness"];
+      covert?: boolean;
+      correctionReason: string;
+      /** Format: date-time */
+      givenAt: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      givenBy: string | null;
     };
     RefusedEntryList: {
       items: components["schemas"]["RefusedEntryItem"][];
@@ -76871,118 +77150,12 @@ export interface components {
         method: "step_up" | "device_factor";
       } | null;
     };
-    /** @enum {string} */
-    AdministrationOutcome:
-      | "given"
-      | "refused"
-      | "omitted"
-      | "not_available"
-      | "self_administered"
-      | "given_by_family"
-      | "withheld";
     AdministrationConflictRaised: {
       /** Format: uuid */
       conflictId: string;
       /** Format: uuid */
       standingId: string;
       message: string;
-    };
-    RecordAdministration: {
-      /** Format: uuid */
-      id: string;
-      /** Format: uuid */
-      entryId: string;
-      /**
-       * Format: date-time
-       * @default null
-       */
-      dueAt: string | null;
-      outcome: components["schemas"]["AdministrationOutcome"];
-      /** @default null */
-      reason: {
-        code: string;
-        /** @default null */
-        note: string | null;
-      } | null;
-      /** @default null */
-      amount: {
-        quantity: number;
-        unitCode: string;
-      } | null;
-      /** @default null */
-      amountDifferenceReason: string | null;
-      /** @default null */
-      timingReason: string | null;
-      /** @default null */
-      intervalOverrideReason: string | null;
-      controlledDrug?: components["schemas"]["CdWitness"];
-      /** @default false */
-      covert: boolean;
-      /**
-       * Format: date-time
-       * @default null
-       */
-      givenAt: string | null;
-      /** @default null */
-      deviceOffsetMs: number | null;
-      /** @default null */
-      givenBeforeRecorded: {
-        reason: string;
-      } | null;
-      /**
-       * Format: uuid
-       * @default null
-       */
-      givenBy: string | null;
-    };
-    /** @default null */
-    CdWitness:
-      | {
-          /** Format: uuid */
-          witnessAssertionId: string;
-        }
-      | {
-          noWitnessReason: string;
-        }
-      | null;
-    CorrectAdministration: {
-      /** Format: uuid */
-      id: string;
-      /** Format: uuid */
-      entryId: string;
-      /**
-       * Format: date-time
-       * @default null
-       */
-      dueAt: string | null;
-      outcome: components["schemas"]["AdministrationOutcome"];
-      /** @default null */
-      reason: {
-        code: string;
-        /** @default null */
-        note: string | null;
-      } | null;
-      /** @default null */
-      amount: {
-        quantity: number;
-        unitCode: string;
-      } | null;
-      /** @default null */
-      amountDifferenceReason: string | null;
-      /** @default null */
-      timingReason: string | null;
-      /** @default null */
-      intervalOverrideReason: string | null;
-      controlledDrug?: components["schemas"]["CdWitness"];
-      covert?: boolean;
-      correctionReason: string;
-      /** Format: date-time */
-      givenAt: string;
-      /**
-       * Format: uuid
-       * @default null
-       */
-      givenBy: string | null;
     };
     WitnessAdministration: {
       /** @enum {boolean} */
@@ -77279,6 +77452,14 @@ export interface components {
       reason: string | null;
       witness: components["schemas"]["CdWitness"];
     };
+    CdWitness:
+      | {
+          /** Format: uuid */
+          witnessAssertionId: string;
+        }
+      | {
+          noWitnessReason: string;
+        };
     StockCheckRecorded: {
       stockCheck: components["schemas"]["StockCheck"];
       incidentRaised: boolean;
