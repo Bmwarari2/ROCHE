@@ -42,7 +42,7 @@ import { useSubmit } from "./use-submit";
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
 type Place = { readonly id: string; readonly name: string };
 
-/** Declaring an outbreak of one illness at a home; the UKHSA report and its clock start with it. */
+/** Declaring an outbreak of one illness at a home; the outbreak report and its clock start with it. */
 export function DeclareOutbreakForm({
   locations,
   locationId,

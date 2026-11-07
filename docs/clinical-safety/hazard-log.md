@@ -4082,6 +4082,7 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | Test | See Verification | Phase 2 |
 | Design | A scanned MAR chart (slice 79; ADR-0095) is filed under the person whose record it was uploaded from, and is released only after a member confirms that the name and date of birth on the chart are that person's; who confirmed is kept (`releaseRefusal` `person_not_confirmed`; `ocr_extraction.person_confirmed_by`) | Phase 2 slice 79 |
 | Training and user documentation | Owner guide for the import wizard (slice 67): mapping, reading the dry run, acknowledging possible duplicates, checking a sample, recording allergy statuses, and why undo is only possible before phones sync | Phase 2 slice 67 |
+| Design | Undoing an import says what it removes for its record type, on the button and in the explanation: medicines are withdrawn (kept in the medicines record, marked withdrawn), draft care plans and staff file checks removed, people removed with their open allergy status checks; a medicines undo never says it removes people (slice 83 guides review) | Built (fix/web-guide-copy) |
 | Design | Imported medicines bring their tags, minimum interval and when-required 24-hour maximum from the file, never filled in later or guessed: a when-required row with no 24-hour maximum, or an unknown value, is refused in the dry run in words (batch 3b; HZ-005) | Built (batch 3b) |
 
 **Target residual risk**: severity Major, likelihood Low, **risk 3** (recommended rating, H-543, applied 31/10/2026 by the owner's decision; not yet rated by the CSO, who reviews it at the testing phase).
@@ -4102,6 +4103,7 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | `apps/web/e2e/import-clinical.spec.ts`: `hazard HZ-130 the owner checks a care plans file and reads every row's outcome`, with axe in light and dark (slice 51) | Passing |
 | `apps/api`: `hazard HZ-130 an allergy or contact row is attached only to the person its identifier names, never by name` | Planned, Phase 2 (contacts and allergies import) |
 | `apps/api/test/esign-ocr.test.ts`: `hazard HZ-130 releases a scanned chart only after its person is confirmed`; `packages/domain/src/integrations/esign-ocr.test.ts`: `hazard HZ-005 hazard HZ-130 a scan is released only when the chart is fully accounted for` (the person on the chart not confirmed) | Passing (Phase 2 slice 79) |
+| `apps/web/src/lib/imports.test.ts`: `hazard HZ-130 a %s undo of %i says %s` (each record type) and `hazard HZ-005 says a medicines undo withdraws, never that it removes people` | Passing (fix/web-guide-copy) |
 ---
 ## HZ-132 Medicines stored outside their temperature range used without the pharmacist's advice
 
