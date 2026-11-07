@@ -1139,6 +1139,12 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
   (`refuseCareModeOff`), which the phone reads as access withdrawn, holding unsent entries; a
   manager's hand-over of held entries is not refused. The demo tenant has it on. The organisation
   switches it on only once a clinical safety case covers the app.
+- `medicines.cd_recording` (H-1517): controlled drugs recorded in Harbour's register at a location,
+  off by default and set per location (a location row), never by Flagsmith. Off, the register
+  screens say the paper register is the record and the web round sends staff to the paper register.
+  It is turned on for a home only once controlled drugs are recorded on both the web and the phone
+  there. `GET /v1/me/locations/{id}/flags` gives the web each flag as it applies at a location the
+  member works at (404 elsewhere); `/v1/me` stays organisation-wide.
 - Later: per-role flags, the clinical routes through the provider, billing visibility (Phase 6).
 
 ## Localisation (PLAT-017)

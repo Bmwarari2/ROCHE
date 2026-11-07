@@ -914,6 +914,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | User guides explain the tiers. Deployer control: managers review the monthly alert report | Phase 2 |
 | Design | On the web home page (INSI-001, `feat/web-dashboards`, docs/specs/insights.md): the dashboard is page content, never a notification; each tile says its count in words with its state as an icon and a word; urgent alerts are said apart from warnings; a read that fails is "Could not load", never a zero; a partial read with nothing found is "Not known", never the all-clear; unknown severities and states warn; no scoring or ranking, a fixed tile order | Phase 1 |
+| Design | Controlled drug recording not turned on at a home (H-1517) is one steady notice at the top of the register screens and one line on the round's record page, never a pop-up or a repeated alert, so it is read rather than dismissed | Built (fix/meds-cd-not-turned-on) |
 
 **Target residual risk**: severity Major, likelihood Low, **risk 3**.
 
@@ -943,6 +944,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/web/src/lib/dashboard.test.ts`: `hazard HZ-008` alert cases (warning, urgent apart, unknown severity, a full page said as "at least"), the partial and failed cases and `warns for a state the web does not know`; `apps/web/e2e/dashboard.spec.ts` (axe in light and dark themes, state chips with icons) | Passing (Phase 1, web) |
 | `apps/api/src/services/medicine-administrations.ts` (slice 22): each administration escalation raises one task named for its own reason (over the maximum, no checked dose to compare with, a record to review), urgent only when the rules say; outstanding-dose tasks are raised once per dose and not while a person is in hospital or on leave (H-1161, H-1165). Slice 48 sets the notification chain | Noted (Phase 2 slice 22) |
 | `apps/api/test/medicine-rounds.test.ts`: `hazards HZ-004 and HZ-008 the decision must fit both records, a disagreement is urgent and the round says a review is waiting` (one says taken, the other not: urgent and due at once; a routine duplicate is due within 8 hours; one open conflict per dose and uploader, so repeated uploads raise one task; H-1271) | Passing (Phase 2 slice 48) | Noted (Phase 2 slice 48) |
+| `apps/web/src/lib/controlled-drugs.test.ts`: `hazard HZ-115 hazard HZ-008 the paper register is the record until Harbour's is released at the home (H-1517)` | Passing |
 
 ---
 ## HZ-009 Time-zone and daylight-saving errors on time-critical medicines
@@ -3321,6 +3323,7 @@ person receiving care.
 | Design | Each page shows when its next count is due (`medicines.cd.stock_check_interval_days`, from the last count or the page's opening); an overdue count raises no task yet (H-1206) | Built in Phase 2 slice 34 |
 | Design | The register screens show each balance exactly as the API reports it (nothing is added up in the browser), each correction directly under the entry it corrects with "Corrects entry n" and "Corrected by entry n", nothing struck through or hidden; a count that does not match cannot be sent without what was found, and every later reading of the page and the print shows "Medication incident raised" beside it (from the API's `incidentRaised`); the print view shows every entry, signature, correction and count ([medicines.md](../specs/medicines.md) section 15) | Built in Phase 2 slice 54 |
 | Training and user documentation | Deployer control: counting practice, investigating discrepancies and reporting to the controlled drugs accountable officer (DCB0160 template) | Phase 2 (slice 81) |
+| Design | One register is the record (H-1517): no location uses Harbour's controlled drugs register until controlled drug recording is released there on both the web and the phone (the per-location flag `medicines.cd_recording`, off by default). Until then the register screens say at the top, in words with a warning icon, that the paper register is the record, and the web round tells staff to record a controlled drug in the paper register; an unread flag counts as not released. Open control: the API does not yet refuse register entries where the flag is off, so a home must not record in both (the phone release turns it on, H-1518) | Built (fix/meds-cd-not-turned-on) |
 
 **Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-1207).
 
@@ -3335,6 +3338,7 @@ person receiving care.
 | `apps/api/test/controlled-drugs.test.ts`: `hazards HZ-115 and HZ-116 the register page and its entries` (a dose given writes its entry; a margin correction through a correction that moved no stock; `hazard HZ-115 raises a medication incident through the safety module when a count does not balance`) | Passing (Phase 2 slice 34) |
 | `packages/db/test/controlled-drugs.test.ts`: `hazard HZ-004 an administration and its register entry name each other` | Passing (Phase 2 slice 34) |
 | `apps/web/src/lib/controlled-drugs.test.ts`: `hazard HZ-116 corrections sit beside the entry they correct; nothing is reordered or hidden` (the balance shown is the API's); `apps/web/e2e/controlled-drugs.spec.ts`: `hazard HZ-115 hazard HZ-116 a witnessed receipt, a correction and a count that does not match, then printed` (the incident shown after a reload, the correction under its entry, the print view, axe in light and dark); `apps/api/test/controlled-drugs.test.ts`: `hazard HZ-115 raises a medication incident through the safety module when a count does not balance` (the page detail keeps `incidentRaised`) | Passing (Phase 2 slice 54) |
+| `apps/web/src/lib/controlled-drugs.test.ts`: `hazard HZ-115 hazard HZ-008 the paper register is the record until Harbour's is released at the home (H-1517)` (table-driven: only a flag the API says is on counts); `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-115 hazard HZ-008 controlled drug recording is released location by location (H-1517)`; `apps/web/e2e/controlled-drugs.spec.ts` (the banner at the demo home) | Passing |
 
 ---
 

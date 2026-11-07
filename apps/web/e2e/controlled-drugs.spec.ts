@@ -58,6 +58,11 @@ test("hazard HZ-115 hazard HZ-116 a witnessed receipt, a correction and a count 
   await expect(
     main(manager).getByRole("heading", { level: 2, name: "Controlled drugs register" }),
   ).toBeVisible();
+  // H-1517: the demo home has not released controlled drug recording, so the paper register is
+  // the record and the screen says so in words.
+  await expect(
+    main(manager).getByText("Controlled drug recording is not turned on for this home"),
+  ).toBeVisible();
   // Open Frank's morphine page, or go to it when an earlier run opened it.
   const link = main(manager).getByRole("link", { name: PRODUCT });
   if ((await link.count()) === 0) {

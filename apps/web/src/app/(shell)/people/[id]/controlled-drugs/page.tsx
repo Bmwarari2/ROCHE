@@ -5,8 +5,10 @@ import Link from "next/link";
 import { NoAccess } from "@/components/care/NoAccess";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { OpenPageForm } from "@/components/cd/CdForms";
+import { CdRecordingBanner } from "@/components/cd/CdRecordingBanner";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
+import { cdRecordingAt } from "@/lib/cd-recording";
 import {
   CD_RECORDER,
   cdPageHref,
@@ -43,6 +45,8 @@ async function ControlledDrugsTab({ params }: { readonly params: Params }) {
   );
   if (!data) return <NoAccess />;
   const recorder = can(me.permissions, CD_RECORDER);
+  // Until recording is released at the person's home, the paper register is the record (H-1517).
+  const recordingOn = await cdRecordingAt(person.locationId);
   // The MAR's medicines, to open a page for one; the API refuses one that is not a controlled drug.
   const mar = recorder
     ? await api.GET("/v1/people/{id}/medicines", { params: { path: { id } } }).catch(() => null)
@@ -58,6 +62,7 @@ async function ControlledDrugsTab({ params }: { readonly params: Params }) {
         <h2 className="m-0 text-eyebrow">{t("cd.title")}</h2>
         <p className="m-0 max-w-prose text-text-secondary">{t("cd.intro")}</p>
       </div>
+      <CdRecordingBanner on={recordingOn} />
       <Card as="section" title={t("cd.pagesTitle")} headingLevel={3}>
         {data.pages.length === 0 ? (
           <EmptyState

@@ -234,6 +234,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/me/locations/{id}/flags": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The feature flags at one location you work at
+     * @description Any member, for a location they work at (as /v1/me lists them): each catalogue flag as it applies there (the location's row, then the organisation's, then the remote value where allowed, then the default). The web reads it for settings that are released location by location, such as controlled drug recording (H-1517). Elsewhere 404.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The flags at that location */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LocationFlags"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/branding": {
     parameters: {
       query?: never;
@@ -64542,6 +64619,13 @@ export interface components {
       /** Format: date-time */
       respondBy: string;
       routedToManager: boolean;
+    };
+    LocationFlags: {
+      /** Format: uuid */
+      locationId: string;
+      flags: {
+        [key: string]: boolean;
+      };
     };
     Branding: {
       registeredName: string;

@@ -7,10 +7,12 @@ import { NoAccess } from "@/components/care/NoAccess";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { WarningArrival } from "@/components/care/WarningArrival";
 import { CorrectionForm, EntryForm, StockCheckForm, WitnessForm } from "@/components/cd/CdForms";
+import { CdRecordingBanner } from "@/components/cd/CdRecordingBanner";
 import { RegisterEntries, StockChecks } from "@/components/cd/Register";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can } from "@/lib/care-record";
+import { cdRecordingAt } from "@/lib/cd-recording";
 import { isUuid } from "@/lib/context-cookies";
 import {
   CD_COUNTER,
@@ -72,7 +74,7 @@ async function RegisterPage({
   const recorder = can(me.permissions, CD_RECORDER);
   const counter = recorder || can(me.permissions, CD_COUNTER);
   const witness = can(me.permissions, CD_WITNESS);
-  const [recorders, waiting] = await Promise.all([
+  const [recorders, waiting, recordingOn] = await Promise.all([
     witness
       ? api.GET("/v1/controlled-drugs/pages/{pageId}/recorders", { params: { path: { pageId } } })
       : null,
@@ -81,6 +83,8 @@ async function RegisterPage({
           params: { path: { pageId } },
         })
       : null,
+    // Until recording is released at the person's home, the paper register is the record (H-1517).
+    cdRecordingAt(person.locationId),
   ]);
   const signatures = waiting?.data?.assertions ?? [];
   const loneAllowed = page.witnessPolicy === "where_available";
@@ -107,6 +111,7 @@ async function RegisterPage({
       {done && ARRIVALS.has(done) ? (
         <RecordedArrival message={t("cd.done", { done, until })} param="done" />
       ) : null}
+      <CdRecordingBanner on={recordingOn} />
       <Card as="section" title={page.productName} headingLevel={2}>
         <div className="flex flex-col gap-3">
           <p className="m-0 text-title">{t("cd.balance", { balance: page.balance, unit })}</p>
