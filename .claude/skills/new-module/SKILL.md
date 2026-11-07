@@ -1,6 +1,6 @@
 ---
 name: new-module
-description: Scaffold a Harbour bounded context or feature slice end to end - spec, schema with RLS, domain rules with table-driven tests, API routes with OpenAPI, web and mobile UI, audit events, hazard log and data-protection updates. Use when starting any feature-register row.
+description: Scaffold a Thapsus Care bounded context or feature slice end to end - spec, schema with RLS, domain rules with table-driven tests, API routes with OpenAPI, web and mobile UI, audit events, hazard log and data-protection updates. Use when starting any feature-register row.
 ---
 
 # New module or feature slice

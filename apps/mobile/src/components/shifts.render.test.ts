@@ -53,7 +53,7 @@ describe("the clock card, rendered", () => {
     await view.press("clock-in");
     expect(pressed).toEqual(["in"]);
     expect(view.texts()).toContain(
-      "Saved on this phone. It is sent to Harbour when there is a connection.",
+      "Saved on this phone. It is sent to Thapsus Care when there is a connection.",
     );
   });
 
@@ -75,7 +75,7 @@ describe("the clock card, rendered", () => {
     expect(view.texts()).toEqual(
       expect.arrayContaining([
         "Clocked in at 08:02",
-        "1 clock event is waiting to send. Harbour checks it against your organisation's rules when it arrives.",
+        "1 clock event is waiting to send. Thapsus Care checks it against your organisation's rules when it arrives.",
       ]),
     );
     expect(view.find("clock-break_start")).toBeTruthy();

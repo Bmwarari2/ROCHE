@@ -6,7 +6,7 @@ records, reviewing them and sending the response each have their own guide.
 
 **Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
 data protection for the whole organisation. A Registered Manager or deputy whose role covers one
-home does not see **Data rights**, and Harbour refuses them if they try.
+home does not see **Data rights**, and Thapsus Care refuses them if they try.
 
 **Register rows**: PLAT-022, WORK-011 (requests from members of staff).
 
@@ -42,7 +42,7 @@ Read the words under **Pause or extend the clock** first.
 3. To extend, for a complex request or several from the same person only, enter the **Months to
    extend by**, choose **Why**, write **Explain the extension** (this is what you tell the
    requester, so keep other people's names out of it), enter the **Day you decided**, then choose
-   **Extend the deadline**. Harbour tells you if it is too long or too late.
+   **Extend the deadline**. Thapsus Care tells you if it is too long or too late.
 
 Then [find and review the records](find-and-review-the-records-for-a-request.md) and
 [send the response](send-the-response-to-a-data-rights-request.md). For erasure, correction or
@@ -64,23 +64,23 @@ taking information elsewhere, see
 | Responded | The request is closed, on time. |
 | Responded late | The request is closed, after the due date. |
 
-Harbour works the date out each time you open the page, from the dates you record, the bank
+Thapsus Care works the date out each time you open the page, from the dates you record, the bank
 holidays and your organisation's settings. Pauses and the extension are listed under the clock.
 
 ## Good to know
 
-- **Harbour never sends anything by itself.** It keeps the clock and helps you find and review
+- **Thapsus Care never sends anything by itself.** It keeps the clock and helps you find and review
   the records. You decide what is sent, and you send it.
 - A request is never shown overdue while it is paused, and a late response stays marked late.
 - **Members of staff are listed only for people who manage the team.** If you cannot choose a
   member of staff, ask your owner to record the request.
 - A request from a person's contact (such as a relative) about their own information is not on
-  this screen yet. Ask Harbour support.
+  this screen yet. Ask Thapsus Care support.
 - Police, solicitor, coroner and other disclosure requests about a person are not data rights
-  requests. They have no screen yet; ask Harbour support.
+  requests. They have no screen yet; ask Thapsus Care support.
 - The person's communication needs show on the request, so you can reply in a way they can use.
 - Your procedure is in the [subject access request procedure](../../compliance/dsar-procedure.md).
-  The rules Harbour follows are in the
+  The rules Thapsus Care follows are in the
   [platform specification](../../specs/platform.md#phase-2-the-dsar-workbench-plat-022-work-011)
-  and [ADR-0090](../../decisions/0090-dsar-workbench-and-disclosure-collector.md). Harbour supports
+  and [ADR-0090](../../decisions/0090-dsar-workbench-and-disclosure-collector.md). Thapsus Care supports
   your judgement and never replaces it.

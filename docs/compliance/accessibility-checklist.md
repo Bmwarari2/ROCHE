@@ -23,7 +23,7 @@ Automated tools find only part of WCAG failures, so a criterion marked "manual" 
 
 ### Perceivable
 
-| Criterion | Level | Where it matters in Harbour | Verified by |
+| Criterion | Level | Where it matters in Thapsus Care | Verified by |
 | --- | --- | --- | --- |
 | 1.1.1 Non-text content | A | Person photos (alt text is "Photo of {name}"; decorative icons hidden); body map has a text list of marks; charts have data tables | axe, manual |
 | 1.2.1 to 1.2.5 Time-based media | A, AA | Training videos and e-learning (Phase 2) need captions, transcripts and audio description | manual (later, Phase 2) |
@@ -44,7 +44,7 @@ Automated tools find only part of WCAG failures, so a criterion marked "manual" 
 
 ### Operable
 
-| Criterion | Level | Where it matters in Harbour | Verified by |
+| Criterion | Level | Where it matters in Thapsus Care | Verified by |
 | --- | --- | --- | --- |
 | 2.1.1 Keyboard | A | Every web function, including the rota builder, body map and drag-to-reorder alternatives | manual, Playwright keyboard journeys |
 | 2.1.2 No keyboard trap | A | Dialogs, date pickers, rich-text editor | manual |
@@ -69,7 +69,7 @@ Automated tools find only part of WCAG failures, so a criterion marked "manual" 
 
 ### Understandable
 
-| Criterion | Level | Where it matters in Harbour | Verified by |
+| Criterion | Level | Where it matters in Thapsus Care | Verified by |
 | --- | --- | --- | --- |
 | 3.1.1 Language of page | A | `lang="en-GB"`, or `cy` for Welsh tenants | axe |
 | 3.1.2 Language of parts | AA | Mixed Welsh and English content (Active Offer) marked up | manual (later, Phase 7) |
@@ -87,7 +87,7 @@ Automated tools find only part of WCAG failures, so a criterion marked "manual" 
 
 ### Robust
 
-| Criterion | Level | Where it matters in Harbour | Verified by |
+| Criterion | Level | Where it matters in Thapsus Care | Verified by |
 | --- | --- | --- | --- |
 | 4.1.2 Name, role, value | A | Radix primitives on web; accessible label, role and state on every native control | axe, native component tests |
 | 4.1.3 Status messages | AA | Sync banner state changes, save confirmations and "queued offline" messages are announced politely (`aria-live`, `accessibilityLiveRegion`) without moving focus | manual, component tests |
@@ -102,10 +102,10 @@ Automated tools find only part of WCAG failures, so a criterion marked "manual" 
 
 ## Public sector tenants
 
-Tenants that are public sector bodies may need to publish an accessibility statement under the Public Sector Bodies Accessibility Regulations 2018. Thapsus publishes an accessibility statement for Harbour, with known issues from the manual pass, that tenants can rely on `[human action: publish and keep current]`.
+Tenants that are public sector bodies may need to publish an accessibility statement under the Public Sector Bodies Accessibility Regulations 2018. Thapsus publishes an accessibility statement for Thapsus Care, with known issues from the manual pass, that tenants can rely on `[human action: publish and keep current]`.
 
 ## Manual pass log
 
 | Release | Date | Tester | Assistive technology and platforms | Journeys | Issues found (links) | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| v0.0 Phase 0 | `[date]` | `[name]` | | Sign in, tenant and location switcher, person list and header (web and mobile), sync banner states | | `[pending]` |
+| v0.0 Phase 0 | `[date]` | `[name]` | | Sign in, tenant and location switcher, person list and header (web and mobile), sync banner states (including "This phone cannot sync" for too wide access, ADR-0134: announced once, reason and stale warning both read, legible at the largest text size) | | `[pending]` |

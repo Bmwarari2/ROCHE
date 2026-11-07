@@ -1,7 +1,7 @@
 # How to read the quality dashboard
 
 The quality dashboard shows care indicators for one location over whole months, counted from what
-is recorded in Harbour. Each figure shows how it is worked out and where it stands against your
+is recorded in Thapsus Care. Each figure shows how it is worked out and where it stands against your
 organisation's own target.
 
 These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
@@ -35,15 +35,15 @@ it and shows last month instead.
 ## Important
 
 - **Missing or incomplete data is never rated.** Five indicators (missed visits, training
-  compliance, agency hours, complaints and staff turnover) wait for parts of Harbour that are not
-  built yet. They show "No data: Harbour does not record this yet." and are never rated. A period
-  that is not complete in Harbour, for example before the location started recording here or with
+  compliance, agency hours, complaints and staff turnover) wait for parts of Thapsus Care that are not
+  built yet. They show "No data: Thapsus Care does not record this yet." and are never rated. A period
+  that is not complete in Thapsus Care, for example before the location started recording here or with
   a downtime whose paper records are not yet entered, shows "No data" with that reason, never a
   figure.
 - **A small count is withheld, never shown as 0.** A count too small to share without pointing at
   one person shows "Withheld: fewer than" the number. Its status against your target is still
   shown, so a rising problem is not hidden. A real zero is shown as 0.
-- **Targets are your organisation's own, never a Harbour score.** With no target, a figure says
+- **Targets are your organisation's own, never a Thapsus Care score.** With no target, a figure says
   "No target is set, so this is not rated." To set them, choose **Set targets for** the location
   (see [How to set indicator targets](set-indicator-targets.md)).
 - Records added later, for example from a device that was offline, appear in a later view.

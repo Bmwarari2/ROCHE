@@ -364,7 +364,7 @@ export function importErrorMessage(code: ImportErrorCode, label: string): string
 function message(code: ImportErrorCode, label: string): string {
   switch (code) {
     case "unknown_column":
-      return `The column "${label}" is not one Harbour imports. Remove it or rename it.`;
+      return `The column "${label}" is not one Thapsus Care imports. Remove it or rename it.`;
     case "required":
       return `Fill in ${label.toLowerCase()}.`;
     case "too_long":
@@ -378,7 +378,7 @@ function message(code: ImportErrorCode, label: string): string {
     case "date_too_early":
       return `${label} is too early: check the year has all four digits.`;
     case "invalid_code":
-      return `${label} is not one of the values Harbour accepts.`;
+      return `${label} is not one of the values Thapsus Care accepts.`;
     case "invalid_postcode":
       return `${label} must be a full UK postcode.`;
     case "control_character":
@@ -390,15 +390,15 @@ function message(code: ImportErrorCode, label: string): string {
     case "duplicate":
       return `${label} appears on more than one row.`;
     case "already_in_harbour":
-      return `${label} is already on someone's record in Harbour. Remove the row and make any change on that record.`;
+      return `${label} is already on someone's record in Thapsus Care. Remove the row and make any change on that record.`;
     case "too_many_same_birth_date":
       return `More than ${label} rows share one date of birth. Check the date of birth column is the right one and holds each person's own date, then upload the file again.`;
     case "person_not_found":
-      return `No one in Harbour has this ${label.toLowerCase()}. Import or add the person first; a row is never matched by name.`;
+      return `No one in Thapsus Care has this ${label.toLowerCase()}. Import or add the person first; a row is never matched by name.`;
     case "invalid_dmd_code":
       return `${label} is not a dm+d code: it must be the code's digits, with a valid check digit.`;
     case "dmd_unknown":
-      return `${label} is not in the dm+d reference data Harbour holds, so the medicine cannot be imported. Check the code; a medicine is never imported by its name.`;
+      return `${label} is not in the dm+d reference data Thapsus Care holds, so the medicine cannot be imported. Check the code; a medicine is never imported by its name.`;
     case "medicine_refused":
       return `${label}: the medicine cannot be recorded like this.`;
     case "invalid_dose":
@@ -424,11 +424,11 @@ function message(code: ImportErrorCode, label: string): string {
     case "person_not_current":
       return "This person is not receiving care now (they have left, died or not been admitted), so nothing clinical is imported for them. Remove the row.";
     case "staff_file_ambiguous":
-      return `More than one member of staff has this ${label.toLowerCase()} written differently. Correct their emails in Harbour first; a row is never matched by guess.`;
+      return `More than one member of staff has this ${label.toLowerCase()} written differently. Correct their emails in Thapsus Care first; a row is never matched by guess.`;
     case "invalid_email":
       return `${label} must be an email address.`;
     case "staff_file_not_found":
-      return `No staff file in Harbour belongs to the member with this ${label.toLowerCase()}. Create the staff file first; a row is never matched by name.`;
+      return `No staff file in Thapsus Care belongs to the member with this ${label.toLowerCase()}. Create the staff file first; a row is never matched by name.`;
     case "own_staff_file":
       return "This row is for your own staff file. Someone else imports or records your checks.";
     case "check_already_recorded":
@@ -440,7 +440,7 @@ function message(code: ImportErrorCode, label: string): string {
     case "invalid_number":
       return `${label} must be a whole number.`;
     case "too_many_possible_duplicates":
-      return `More than ${label} rows may be people already in Harbour or each other. The file may repeat people, or a name column may be mapped wrongly: check it and upload it again, a home at a time.`;
+      return `More than ${label} rows may be people already in Thapsus Care or each other. The file may repeat people, or a name column may be mapped wrongly: check it and upload it again, a home at a time.`;
   }
 }
 
@@ -879,7 +879,7 @@ export function mapImportColumns(
       errors.push({
         column,
         code: "unknown_field",
-        message: `Column ${column} is mapped to a field Harbour does not import.`,
+        message: `Column ${column} is mapped to a field Thapsus Care does not import.`,
       });
       chosen.push(null);
       return;
@@ -889,7 +889,7 @@ export function mapImportColumns(
       errors.push({
         column,
         code: "unknown_column",
-        message: `Column ${column} is not one Harbour imports. Map it to a Harbour field, or leave it out.`,
+        message: `Column ${column} is not one Thapsus Care imports. Map it to a Thapsus Care field, or leave it out.`,
       });
       chosen.push(null);
       return;
@@ -1108,7 +1108,7 @@ export function matchExistingPeople(
       message:
         otherRow !== null
           ? `This row and row ${otherRow} have ${MATCH_WORDS[match]}, and one of them has no NHS number. Check they are not the same person.`
-          : `Someone already in Harbour has ${MATCH_WORDS[match]}, and one of them has no NHS number. Open that record and check it is not the same person.`,
+          : `Someone already in Thapsus Care has ${MATCH_WORDS[match]}, and one of them has no NHS number. Open that record and check it is not the same person.`,
     });
   };
   const rowsByBirth = new Map<string, { row: number; nhs: string | null; name: Comparable }[]>();
@@ -1276,7 +1276,7 @@ export function importOutcomeWords(report: {
     );
   }
   words.push(
-    `Committing creates ${people(report.validRows)} at the chosen home as current residents. Nobody already in Harbour is changed.`,
+    `Committing creates ${people(report.validRows)} at the chosen home as current residents. Nobody already in Thapsus Care is changed.`,
     "They appear for staff at once: on the web straight away, and on phones at their next sync.",
     report.phonesInUse
       ? "Phones are in use in this organisation, so treat this import as one that cannot be undone once it is committed: phones can receive the people within minutes, and then it cannot be undone. A person imported by mistake can then only have their details corrected on their record: they cannot be removed. Confirm you accept this before committing."
@@ -1292,7 +1292,7 @@ export function importOutcomeWords(report: {
   }
   if (report.recordMatchesCapped) {
     words.push(
-      "Some rows match more people already in Harbour than are listed: check everyone with that date of birth.",
+      "Some rows match more people already in Thapsus Care than are listed: check everyone with that date of birth.",
     );
   }
   return words;
@@ -1375,7 +1375,7 @@ const COMMIT_MESSAGES: Readonly<Record<CommitProblem, string>> = {
   has_errors:
     "Correct every error in the file first: nothing is imported until all rows are valid.",
   possible_duplicates_unacknowledged:
-    "Some rows may be people already in Harbour or each other. Check each one the dry run lists, then confirm exactly those before committing. Run the dry run again if anything has changed.",
+    "Some rows may be people already in Thapsus Care or each other. Check each one the dry run lists, then confirm exactly those before committing. Run the dry run again if anything has changed.",
   no_undo_not_accepted:
     "Phones are in use in this organisation, so this import cannot be undone once committed. Confirm you accept that before committing.",
 };

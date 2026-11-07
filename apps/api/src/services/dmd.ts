@@ -3,10 +3,14 @@ import type { Transaction } from "@harbour/db";
 import {
   DMD_SEARCH_LIMITS,
   type DmdSearchQuery,
+  type DmdSubsetNeed,
+  type DmdSubsetRows,
   dmdDoseUnitCodes,
+  dmdGtinKey,
   dmdReleaseFreshness,
   dmdSearchQuery,
   resolveRate,
+  selectDmdDeviceSubset,
   ukDateOf,
 } from "@harbour/domain";
 import { sql } from "drizzle-orm";
@@ -451,5 +455,229 @@ export function dmdTablesPort(run: RunRead, now: Date = new Date()): DmdFactsPor
         return hits;
       });
     },
+  };
+}
+
+/**
+ * The dm+d rows a member's phone needs for the MAR entries it holds (integrations.md section 12
+ * rule 9; ADR-0130; slice 68): the products the entries name and the products that replaced them,
+ * their AMPs, packs and barcodes, read by those ids only, then chosen by `selectDmdDeviceSubset`.
+ * Global reference data: no personal data.
+ */
+export async function dmdDeviceRows(
+  tx: Transaction,
+  needs: readonly DmdSubsetNeed[],
+  today: string,
+) {
+  const param = (ids: Iterable<string>) => sql.param([...new Set(ids)]);
+  // The VMPs named and every VMP that replaced them (a short chain, followed to its end).
+  const vmpRows = new Map<string, DmdSubsetRows["vmps"][number]>();
+  let wanted = new Set(needs.map((n) => n.vmpId));
+  for (let step = 0; step < 20 && wanted.size > 0; step += 1) {
+    const found = await rows<{
+      id: string;
+      vtm_id: string | null;
+      name: string;
+      abbreviated_name: string | null;
+      invalid: boolean;
+      previous_id: string | null;
+      superseded_by: string | null;
+      unit_dose_uom_code: string | null;
+      udfs: string | null;
+      udfs_uom_code: string | null;
+      strength_uom_codes: string[] | null;
+      form_code: string | null;
+      route_codes: string[] | null;
+      control_drug_category_code: string | null;
+    }>(
+      tx,
+      sql`SELECT id, vtm_id, name, abbreviated_name, invalid, previous_id, superseded_by,
+                 unit_dose_uom_code, udfs::text AS udfs, udfs_uom_code, strength_uom_codes,
+                 form_code, route_codes, control_drug_category_code
+            FROM dmd_vmp WHERE id = ANY(${param(wanted)}::text[])`,
+    );
+    const next = new Set<string>();
+    for (const r of found) {
+      vmpRows.set(r.id, {
+        id: r.id,
+        vtmId: r.vtm_id,
+        name: r.name,
+        abbreviatedName: r.abbreviated_name,
+        invalid: r.invalid,
+        previousId: r.previous_id,
+        supersededBy: r.superseded_by,
+        unitDoseUomCode: r.unit_dose_uom_code,
+        udfs: r.udfs,
+        udfsUomCode: r.udfs_uom_code,
+        strengthUomCodes: strs(r.strength_uom_codes),
+        formCode: r.form_code,
+        routeCodes: strs(r.route_codes),
+        controlDrugCategoryCode: r.control_drug_category_code,
+      });
+      if (r.superseded_by && !vmpRows.has(r.superseded_by)) next.add(r.superseded_by);
+    }
+    wanted = next;
+  }
+  // A replacement chain longer than the limit is cut short: the products not followed are named
+  // as unresolved, so the phone says so rather than stopping at an old product (security review
+  // of slice 68, finding 5).
+  const beyondChain = [...wanted];
+  const vmpIds = [...vmpRows.keys()];
+  const namedAmps = needs.flatMap((n) => (n.ampId ? [n.ampId] : []));
+  const amps = await rows<{
+    id: string;
+    vmp_id: string;
+    name: string;
+    abbreviated_name: string | null;
+    description: string;
+    invalid: boolean;
+    licensed_route_codes: string[] | null;
+  }>(
+    tx,
+    sql`SELECT id, vmp_id, name, abbreviated_name, description, invalid, licensed_route_codes
+          FROM dmd_amp
+         WHERE vmp_id = ANY(${param(vmpIds)}::text[]) OR id = ANY(${param(namedAmps)}::text[])`,
+  );
+  const ampps = await rows<{
+    id: string;
+    vmpp_id: string;
+    amp_id: string;
+    name: string;
+    abbreviated_name: string | null;
+    legal_category_code: string | null;
+    discontinued: boolean;
+    discontinued_on: string | null;
+    invalid: boolean;
+  }>(
+    tx,
+    sql`SELECT id, vmpp_id, amp_id, name, abbreviated_name, legal_category_code, discontinued,
+               to_char(discontinued_on, 'YYYY-MM-DD') AS discontinued_on, invalid
+          FROM dmd_ampp WHERE amp_id = ANY(${param(amps.map((a) => a.id))}::text[])`,
+  );
+  const vmpps = await rows<{
+    id: string;
+    vmp_id: string;
+    name: string;
+    quantity: string | null;
+    quantity_uom_code: string | null;
+    invalid: boolean;
+  }>(
+    tx,
+    sql`SELECT id, vmp_id, name, quantity::text AS quantity, quantity_uom_code, invalid
+          FROM dmd_vmpp WHERE id = ANY(${param(ampps.map((a) => a.vmpp_id))}::text[])`,
+  );
+  const gtins = await rows<{
+    ampp_id: string;
+    gtin: string;
+    start_date: string;
+    end_date: string | null;
+    withdrawn: boolean;
+  }>(
+    tx,
+    sql`SELECT ampp_id, gtin, to_char(start_date, 'YYYY-MM-DD') AS start_date,
+               to_char(end_date, 'YYYY-MM-DD') AS end_date,
+               withdrawn_release_id IS NOT NULL AS withdrawn
+          FROM dmd_gtin WHERE ampp_id = ANY(${param(ampps.map((a) => a.id))}::text[])`,
+  );
+  const input: DmdSubsetRows = {
+    vmps: [...vmpRows.values()],
+    amps: amps.map((a) => ({
+      id: a.id,
+      vmpId: a.vmp_id,
+      name: a.name,
+      abbreviatedName: a.abbreviated_name,
+      description: a.description,
+      invalid: a.invalid,
+      licensedRouteCodes: strs(a.licensed_route_codes),
+    })),
+    vmpps: vmpps.map((v) => ({
+      id: v.id,
+      vmpId: v.vmp_id,
+      name: v.name,
+      quantity: v.quantity,
+      quantityUomCode: v.quantity_uom_code,
+      invalid: v.invalid,
+    })),
+    ampps: ampps.map((a) => ({
+      id: a.id,
+      vmppId: a.vmpp_id,
+      ampId: a.amp_id,
+      name: a.name,
+      abbreviatedName: a.abbreviated_name,
+      legalCategoryCode: a.legal_category_code,
+      discontinued: a.discontinued,
+      discontinuedOn: a.discontinued_on,
+      invalid: a.invalid,
+    })),
+    gtins: gtins.map((g) => ({
+      amppId: g.ampp_id,
+      gtin: g.gtin,
+      startDate: g.start_date,
+      endDate: g.end_date,
+      withdrawn: g.withdrawn,
+    })),
+  };
+  const subset = selectDmdDeviceSubset(needs, input, today);
+  const keep = (ids: readonly string[]) => new Set(ids);
+  const vmpKept = keep(subset.vmpIds);
+  const ampKept = keep(subset.ampIds);
+  const vmppKept = keep(subset.vmppIds);
+  const amppKept = keep(subset.amppIds);
+  const gtinKept = keep(subset.gtinKeys);
+  return {
+    products: [
+      ...input.vmps
+        .filter((v) => vmpKept.has(v.id))
+        .map((v) => ({
+          kind: "vmp" as const,
+          id: v.id,
+          name: v.name,
+          vmpId: v.id,
+          ampId: null,
+          vmppId: null,
+          invalid: v.invalid,
+          supersededBy: v.supersededBy,
+        })),
+      ...input.amps
+        .filter((a) => ampKept.has(a.id))
+        .map((a) => ({
+          kind: "amp" as const,
+          id: a.id,
+          name: a.description,
+          vmpId: a.vmpId,
+          ampId: a.id,
+          vmppId: null,
+          invalid: a.invalid,
+          supersededBy: null,
+        })),
+      ...input.vmpps
+        .filter((v) => vmppKept.has(v.id))
+        .map((v) => ({
+          kind: "vmpp" as const,
+          id: v.id,
+          name: v.name,
+          vmpId: v.vmpId,
+          ampId: null,
+          vmppId: v.id,
+          invalid: v.invalid,
+          supersededBy: null,
+        })),
+      ...input.ampps
+        .filter((a) => amppKept.has(a.id))
+        .map((a) => ({
+          kind: "ampp" as const,
+          id: a.id,
+          name: a.name,
+          vmpId: input.amps.find((m) => m.id === a.ampId)?.vmpId ?? null,
+          ampId: a.ampId,
+          vmppId: a.vmppId,
+          invalid: a.invalid,
+          supersededBy: null,
+        })),
+    ],
+    gtins: input.gtins
+      .filter((g) => gtinKept.has(dmdGtinKey(g)))
+      .map((g) => ({ gtin: g.gtin, amppId: g.amppId, startDate: g.startDate, endDate: g.endDate })),
+    unresolved: [...new Set([...subset.unresolved, ...beyondChain])].sort(),
   };
 }

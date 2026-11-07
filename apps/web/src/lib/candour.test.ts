@@ -258,7 +258,7 @@ describe("candourForms and who is offered them", () => {
     );
   });
 
-  it("hazard HZ-013 says whether Harbour found the duty may apply", () => {
+  it("hazard HZ-013 says whether Thapsus Care found the duty may apply", () => {
     const view = (over: object) =>
       ({ outputs: [], notifications: [], pending: [], tasks: [], ...over }) as never;
     expect(candourFinding(null)).toBe("none");
@@ -666,7 +666,7 @@ describe("review round 1 (HZ-013, HZ-091)", () => {
     ).toMatchObject({ indicated: true, notifiable: true, personId: "ada" });
   });
 
-  it("hazard HZ-013 sets Harbour's finding beside the question until a decision is recorded (review M4)", () => {
+  it("hazard HZ-013 sets Thapsus Care's finding beside the question until a decision is recorded (review M4)", () => {
     const view = (over: object) =>
       ({
         outputs: [],
@@ -700,7 +700,7 @@ describe("review round 1 (HZ-013, HZ-091)", () => {
     },
   );
 
-  it("hazard HZ-091 asks a reason of a sentence and a tick when the decision differs from Harbour's (review M4)", () => {
+  it("hazard HZ-091 asks a reason of a sentence and a tick when the decision differs from Thapsus Care's (review M4)", () => {
     const base = {
       personId: PERSON,
       notifiable: "no",
@@ -741,7 +741,7 @@ describe("review round 1 (HZ-013, HZ-091)", () => {
     expect(agrees).toMatchObject({ ok: true, input: { reason: null } });
   });
 
-  it("hazard HZ-091 makes not notifiable strict once Harbour drafted a candour notification", () => {
+  it("hazard HZ-091 makes not notifiable strict once Thapsus Care drafted a candour notification", () => {
     const decided = record({ threshold: { ...notifiable, notifiable: false } });
     expect(candourSteps(decided, MANAGER, t, true)[0]).toMatchObject({
       to: "not_notifiable",

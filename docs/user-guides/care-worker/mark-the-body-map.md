@@ -14,7 +14,7 @@ managers.
 3. Tap the place on the drawing, or choose it under **Body area, as marked on the drawing**. On the
    front view the person faces you: **their right is on your left**.
 4. Under **Confirm the side in words**, choose **Left**, **Right** or **Midline**. It must agree
-   with the drawing, or Harbour will not save it.
+   with the drawing, or Thapsus Care will not save it.
 5. Choose the **Type of mark**, for example "Bruise" or "Pressure ulcer".
 6. For a pressure ulcer, choose the **Pressure ulcer category** and answer whether it is caused by
    a medical device.
@@ -26,7 +26,7 @@ managers.
 
 - A pressure ulcer of category 2 or worse, or a bruise whose cause is not known, sets a task for a
   manager to report an incident and work through the safeguarding decision guide. **Tell the person
-  in charge straight away as well.** After saving, Harbour says "Mark saved. Any follow-up tasks
+  in charge straight away as well.** After saving, Thapsus Care says "Mark saved. Any follow-up tasks
   will appear on the task list."; a mark recorded as healed sets no task.
 - The category, the medical device question and the bruise question must be answered before the
   mark is saved.

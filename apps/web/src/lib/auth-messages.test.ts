@@ -54,7 +54,7 @@ describe("authMessages", () => {
 
   it("keeps the English wording people and the journeys know", () => {
     expect(authMessages.unreachable).toBe(
-      "Harbour could not reach the server. Check your connection and try again.",
+      "Thapsus Care could not reach the server. Check your connection and try again.",
     );
     expect(authMessages.codeMismatch).toBe(
       "That code did not match. Codes change every 30 seconds, so enter the latest one.",

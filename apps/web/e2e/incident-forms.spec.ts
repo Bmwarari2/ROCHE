@@ -162,7 +162,7 @@ test("hazard HZ-013 the nurse answers a question on the incident's page", async 
   await expect(
     page
       .getByRole("status")
-      .getByText("Answers saved. Harbour has checked again which notifications are needed."),
+      .getByText("Answers saved. Thapsus Care has checked again which notifications are needed."),
   ).toBeVisible();
   await expectAccessible(page, "the questions, saved");
 });

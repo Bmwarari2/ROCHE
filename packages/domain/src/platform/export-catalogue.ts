@@ -358,7 +358,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       token_hash: {
         class: "secret",
         description:
-          "SHA-256 of the link token; never leaves Harbour, so an export cannot open a link.",
+          "SHA-256 of the link token; never leaves Thapsus Care, so an export cannot open a link.",
       },
       expires_at: { description: "When the link stops working (instant, UTC)." },
       revoked_at: {
@@ -855,12 +855,12 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   },
   "public.audit_starter_template": {
     context: "quality",
-    description: "Harbour's starter audit templates mapped to the compliance framework.",
+    description: "Thapsus Care's starter audit templates mapped to the compliance framework.",
     treatment: "not_exported",
     retention: "operational",
     personal: false,
     reasonNotExported:
-      "Global reference data with no organisation rows: Harbour's starter audit templates (migration 0081); an organisation's own templates are exported.",
+      "Global reference data with no organisation rows: Thapsus Care's starter audit templates (migration 0081); an organisation's own templates are exported.",
     columns: {},
   },
   "public.audit_template": {
@@ -881,7 +881,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "The questions: key, text, weight, quality statements and whether a shortfall needs an action.",
       },
-      starter_key: { description: "The Harbour starter template it was copied from, if any." },
+      starter_key: { description: "The Thapsus Care starter template it was copied from, if any." },
       state: { description: "Active or retired." },
       created_at: "exported",
       created_by: "exported",
@@ -1289,7 +1289,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.signature_request": {
     context: "platform",
     description:
-      "Requests for a member to sign an organisation document, in Harbour or through DocuSign (ADR-0095), with the evidence of how it was signed.",
+      "Requests for a member to sign an organisation document, in Thapsus Care or through DocuSign (ADR-0095), with the evidence of how it was signed.",
     treatment: "tenant_rows",
     retention: "as_subject",
     personal: true,
@@ -1299,17 +1299,19 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       document_id: "exported",
       document_sha256: { description: "SHA-256 of the version the member is asked to sign." },
       signer_tenant_user_id: { description: "The member asked to sign (tenant_user.id)." },
-      provider: { description: "in_app (Harbour) or docusign." },
+      provider: { description: "in_app (Thapsus Care) or docusign." },
       state: { description: "requested, sent, signed, declined, cancelled or failed." },
-      envelope_id: { description: "DocuSign's envelope id; empty in Harbour." },
+      envelope_id: { description: "DocuSign's envelope id; empty in Thapsus Care." },
       requested_by: { description: "The member who asked (tenant_user.id)." },
-      signature_id: { description: "In Harbour: the signature recorded (document_signature.id)." },
+      signature_id: {
+        description: "In Thapsus Care: the signature recorded (document_signature.id).",
+      },
       signed_document_id: {
         description: "Through DocuSign: the signed document returned, stored as a new version.",
       },
       step_up_method: {
         description:
-          "In Harbour: the second factor the signer used just before signing (passkey or totp).",
+          "In Thapsus Care: the second factor the signer used just before signing (passkey or totp).",
       },
       signed_at: "exported",
       closed_reason: { description: "Why it was cancelled, declined or failed." },
@@ -1324,7 +1326,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.lms_course_map": {
     context: "workforce",
     description:
-      "A learning platform's course code mapped to a Harbour training topic (workforce.md section 13 rule 4).",
+      "A learning platform's course code mapped to a Thapsus Care training topic (workforce.md section 13 rule 4).",
     treatment: "tenant_rows",
     retention: "tenant_configuration",
     personal: false,
@@ -1832,7 +1834,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       kinds: {
         description:
-          "What went wrong, from the NRLS medication incident error categories as Harbour adapts them (MEDICATION_ERROR_KINDS).",
+          "What went wrong, from the NRLS medication incident error categories as Thapsus Care adapts them (MEDICATION_ERROR_KINDS).",
       },
       stage: { description: "The stage of the medication process (MEDICATION_ERROR_STAGES)." },
       reached_person: {
@@ -2052,14 +2054,16 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       given_at: { description: "When the dose was given or the outcome happened (instant, UTC)." },
       device_at: { description: "The device's own clock when it sent the record, when one did." },
       device_offset_ms: {
-        description: "The device's offset from Harbour's clock at its last sync.",
+        description: "The device's offset from Thapsus Care's clock at its last sync.",
         unit: "milliseconds",
       },
       administered_by: {
         description: "Who gave the dose or saw the outcome (tenant_user.id).",
       },
       recorded_by: { description: "Who recorded it (tenant_user.id)." },
-      recorded_at: { description: "When Harbour stored it (instant, UTC); the record locks then." },
+      recorded_at: {
+        description: "When Thapsus Care stored it (instant, UTC); the record locks then.",
+      },
       competence_override: {
         description: "The competence override it was recorded under, as JSON, when one was.",
       },
@@ -2311,6 +2315,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "Whether the giver confirmed they checked the person's allergies (true or false).",
       },
+      medicines_compared: {
+        description:
+          "Whether the giver confirmed they compared the remedy with the person's current medicines (true or false; false before it was asked).",
+      },
       already_given_reason: { description: "Why a dose already given was recorded only later." },
       flags: { description: "What the protocol check found, for a dose already given outside it." },
       recorded_at: { description: "When it was stored (instant, UTC)." },
@@ -2343,15 +2351,15 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       uploaded: { description: "The uploaded record as the device sent it, as JSON." },
       problems: {
-        description: "What Harbour found wrong with the upload when it arrived (codes).",
+        description: "What Thapsus Care found wrong with the upload when it arrived (codes).",
       },
       device_at: { description: "The device's clock when it was recorded." },
       device_offset_ms: {
-        description: "The device's offset from Harbour's clock at its last sync.",
+        description: "The device's offset from Thapsus Care's clock at its last sync.",
         unit: "milliseconds",
       },
       uploaded_by: { description: "Who recorded it on the device (tenant_user.id)." },
-      received_at: { description: "When Harbour received it (instant, UTC)." },
+      received_at: { description: "When Thapsus Care received it (instant, UTC)." },
       resolved_by: { description: "Who resolved it (tenant_user.id)." },
       resolved_at: { description: "When it was resolved (instant, UTC)." },
       resolution: { description: "first_stands, corrected or both_given (a dose given twice)." },
@@ -2413,7 +2421,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       reference: { description: "The delivery note, returns or destruction reference." },
       occurred_at: { description: "When it happened (instant, UTC)." },
       recorded_by: { description: "Who recorded it (tenant_user.id)." },
-      recorded_at: { description: "When Harbour stored it (instant, UTC)." },
+      recorded_at: { description: "When Thapsus Care stored it (instant, UTC)." },
       witness_id: { description: "Who witnessed it (tenant_user.id)." },
       witness_assertion_id: {
         description: "The witness's signed assertion (controlled_drug_witness_assertion.id).",
@@ -3291,7 +3299,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.dcb0160_record": {
     context: "platform",
     description:
-      "The organisation's DCB0160 clinical safety assessments as recorded for onboarding (platform-completions.md rules 26 and 27; append-only): which Harbour safety case each covers, who recorded it and when.",
+      "The organisation's DCB0160 clinical safety assessments as recorded for onboarding (platform-completions.md rules 26 and 27; append-only): which Thapsus Care safety case each covers, who recorded it and when.",
     treatment: "tenant_rows",
     retention: "audit_event",
     personal: false,
@@ -3299,7 +3307,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       safety_case_version: {
-        description: "The Harbour safety case version the assessment covers.",
+        description: "The Thapsus Care safety case version the assessment covers.",
       },
       recorded_by: "exported",
       recorded_at: "exported",
@@ -3310,7 +3318,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.death_record": {
     context: "safety",
     description:
-      "One record per death recorded on a person's exit (safety.md slice 37; SAFE-014): the clinician's judgement (expected or not, whether the cause may be unnatural), the steps the death needs and the mortality review. The notification steps are the notification centre's (statutory_notification). Harbour never decides the cause.",
+      "One record per death recorded on a person's exit (safety.md slice 37; SAFE-014): the clinician's judgement (expected or not, whether the cause may be unnatural), the steps the death needs and the mortality review. The notification steps are the notification centre's (statutory_notification). Thapsus Care never decides the cause.",
     treatment: "tenant_rows",
     retention: "serious_incident",
     personal: true,
@@ -3426,7 +3434,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       method: { description: "How: key destruction, row purge, object version deletion." },
       executed_at: "exported",
       body_sha256: { description: "SHA-256 (hex) of the certificate's canonical body (ADR-0109)." },
-      signature: { description: "Harbour's certificate key's signature over the body, base64." },
+      signature: {
+        description: "Thapsus Care's certificate key's signature over the body, base64.",
+      },
       signature_key: { description: "The certificate signing key version that signed it." },
       signature_algorithm: { description: "The signature algorithm (ECDSA P-256 or Ed25519)." },
       key_versions: {
@@ -3474,7 +3484,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           staff_left: "The member of staff using it has left.",
           access_withdrawn: "The member of staff's access to Care mode was withdrawn.",
           replaced: "The device was replaced or reset.",
-          other: "Another reason, recorded outside Harbour.",
+          other: "Another reason, recorded outside Thapsus Care.",
         },
       },
       created_at: "exported",
@@ -3484,12 +3494,12 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.device_session": {
     context: "platform",
     description:
-      "The Harbour sign-in sessions bound to each Care mode device, so a revocation ends them (care.md section 6, Device integrity part 2).",
+      "The Thapsus Care sign-in sessions bound to each Care mode device, so a revocation ends them (care.md section 6, Device integrity part 2).",
     treatment: "not_exported",
     retention: "audit_event",
     personal: true,
     reasonNotExported:
-      "Security records of sign-in sessions: the session ids are Harbour's own credentials' identifiers and mean nothing outside it; which member used which device is exported in device_binding.",
+      "Security records of sign-in sessions: the session ids are Thapsus Care's own credentials' identifiers and mean nothing outside it; which member used which device is exported in device_binding.",
     columns: {},
   },
   "public.device_discard_entry": {
@@ -3941,7 +3951,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.dpia": {
     context: "platform",
     description:
-      "The organisation's DPIA, one row per version (platform-completions.md rules 17 to 22): Harbour's prefill, the organisation's answers and residual risk ratings, who prepared it, and its signature by the data protection lead. A signed version never changes.",
+      "The organisation's DPIA, one row per version (platform-completions.md rules 17 to 22): Thapsus Care's prefill, the organisation's answers and residual risk ratings, who prepared it, and its signature by the data protection lead. A signed version never changes.",
     treatment: "tenant_rows",
     retention: "dpia",
     personal: false,
@@ -3958,7 +3968,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           superseded: "Signed, then replaced by a later version.",
         },
       },
-      prefill: { description: "What Harbour filled in from the configuration (JSON)." },
+      prefill: { description: "What Thapsus Care filled in from the configuration (JSON)." },
       answers: { description: "The organisation's answers, by section and field (JSON)." },
       residual_risk: { description: "The residual risk rated for each risk (JSON)." },
       ico_reference: { description: "ICO prior consultation reference (Article 36), if any." },
@@ -4328,7 +4338,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       bundle_issued_at: "exported",
       bundle_storage_key: {
         class: "internal",
-        description: "Where the issued bundle is kept in Harbour's storage (an opaque key).",
+        description: "Where the issued bundle is kept in Thapsus Care's storage (an opaque key).",
       },
       created_at: "exported",
       created_by: "exported",
@@ -4506,7 +4516,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.entry_device_deletion_flag": {
     context: "care",
     description:
-      "The server's flag on a care entry its author's device recorded deleting: uploaded after the deletion, or deleted after it reached Harbour, with the deletion record and the review task (append-only, one per entry; care.md section 6).",
+      "The server's flag on a care entry its author's device recorded deleting: uploaded after the deletion, or deleted after it reached Thapsus Care, with the deletion record and the review task (append-only, one per entry; care.md section 6).",
     treatment: "tenant_rows",
     retention: "care_record",
     personal: true,
@@ -4531,9 +4541,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "Why the entry is flagged.",
         codes: {
           uploaded_after_deletion:
-            "It reached Harbour after its author's device recorded deleting it: it may be a duplicate, or an entry its author meant to withdraw.",
+            "It reached Thapsus Care after its author's device recorded deleting it: it may be a duplicate, or an entry its author meant to withdraw.",
           deleted_after_upload:
-            "It had already reached Harbour when its author's device recorded deleting it (a reply lost on the way back).",
+            "It had already reached Thapsus Care when its author's device recorded deleting it (a reply lost on the way back).",
         },
       },
       discard_id: { description: "The deletion record that counted (device_discard_record)." },
@@ -4662,7 +4672,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       record_type: { description: "The kind of record (incident, care_note and so on)." },
       record_id: { description: "The record's id in its own table." },
       record_version: { description: "The version of the record disclosed.", unit: "version" },
-      title: { description: "The generic label Harbour built for the record (never free text)." },
+      title: {
+        description: "The generic label Thapsus Care built for the record (never free text).",
+      },
       occurred_at: "exported",
       quality_statement_ids: { description: "The quality statements it is evidence for." },
       exclusion_reason: {
@@ -4900,7 +4912,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       workflow_instance_id: {
         class: "internal",
         description:
-          "Harbour's workflow engine record behind state; state carries the same information.",
+          "Thapsus Care's workflow engine record behind state; state carries the same information.",
       },
       left_at: {
         description: "When the person left or died (instant, UTC). The date is left_at_uk_date.",
@@ -5147,7 +5159,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.form_template": {
     context: "platform",
     description:
-      "The organisation's own form templates (Harbour's locked templates are cited by key and version).",
+      "The organisation's own form templates (Thapsus Care's locked templates are cited by key and version).",
     treatment: "tenant_overrides_only",
     retention: "tenant_configuration",
     personal: false,
@@ -5158,7 +5170,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       template_version: { description: "Template version.", unit: "version number" },
       title: "exported",
       kind: { description: "form or assessment." },
-      locked: { description: "True for Harbour's locked validated templates." },
+      locked: { description: "True for Thapsus Care's locked validated templates." },
       definition: { description: "Fields, scoring and branching, JSON." },
       review_cadence_days: "exported",
       published_at: "exported",
@@ -5668,6 +5680,76 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.hr_pay_period": {
+    context: "integrations",
+    description:
+      "Thapsus-HR's pay periods, the pay reference periods for a linked organisation (integrations.md section 11.5 rule 11; slice 89). Written by the link's sync.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      hr_id: { description: "Thapsus-HR's identifier for the pay period." },
+      frequency: { description: "weekly or monthly." },
+      starts_on: "exported",
+      ends_on: "exported",
+      last_seen_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.hr_pay_rate": {
+    context: "integrations",
+    description:
+      "A staff member's hourly rate from Thapsus-HR, read only for the minimum wage check (integrations.md section 11.5 rule 11; slice 89; HZ-140). Pay holders only.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      staff_profile_id: { description: "The staff file (staff_profile.id)." },
+      hourly_pence: { description: "Pence an hour.", unit: "pence" },
+      effective_from: { description: "The day the rate took effect." },
+      last_seen_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.hr_pay_unit": {
+    context: "integrations",
+    description:
+      "The units by kind worked out when a pay run was locked, as sent to Thapsus-HR's payroll (integrations.md section 11.5 rule 11; slice 89; append-only). Units, never money.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      run_id: { description: "The locked pay run (pay_run.id)." },
+      hr_pay_period_id: { description: "Thapsus-HR's pay period (hr_pay_period.id)." },
+      member_id: { description: "The member (tenant_user.id)." },
+      unit_kind: {
+        description:
+          "hours (by night, weekend, bank holiday and overtime), sleep_in, on_call or mileage.",
+      },
+      quantity: { description: "Hours to 2 places, miles to 1, or a count.", unit: "units" },
+      pay_code: {
+        description: "The pay code the unit kind was mapped to when the run was locked.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.hr_person_link": {
     context: "integrations",
     description:
@@ -5849,7 +5931,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       person_id: "exported",
       tenant_user_id: "exported",
       other_name: {
-        description: "A worker who is not a Harbour user, or a visitor, by name.",
+        description: "A worker who is not a Thapsus Care user, or a visitor, by name.",
       },
       injury_details: { description: "Their injuries, in words." },
       died: { description: "True when they died." },
@@ -6008,11 +6090,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       expires_at: "exported",
       accepted_at: "exported",
       accepted_auth_user_id: {
-        description: "Harbour's own identifier of the sign-in the member was linked to.",
+        description: "Thapsus Care's own identifier of the sign-in the member was linked to.",
         class: "internal",
       },
       claimed_auth_user_id: {
-        description: "Harbour's own identifier of the sign-in an acceptance created.",
+        description: "Thapsus Care's own identifier of the sign-in an acceptance created.",
         class: "internal",
       },
       claimed_at: "exported",
@@ -6542,7 +6624,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       run_id: { description: "The pay run exported (pay_run.id)." },
       calculation: { description: "The run's calculation exported.", unit: "count" },
       format: {
-        description: "How it left Harbour.",
+        description: "How it left Thapsus Care.",
         codes: {
           xero_payroll_uk: "Sent to Xero Payroll UK through its API.",
           staffology_csv: "A Staffology pay elements file.",
@@ -6686,6 +6768,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       period_start: { description: "The first UK date of the pay period." },
       period_end: { description: "The last UK date of the pay period." },
       kind: { description: "Regular or a correction." },
+      pay_route: {
+        description:
+          "The route to payroll fixed when the run was drafted: harbour_export or thapsus_hr (a correction takes its original's); empty before slice 89.",
+      },
       corrects_run_id: { description: "The locked run a correction corrects (pay_run.id)." },
       rule_set_id: { description: "The rule set used (pay_rule_set.id)." },
       nation: { description: "The nation whose rates applied." },
@@ -7081,7 +7167,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "staff_wellbeing",
     personal: false,
     reasonNotExported:
-      "Anonymous answers waiting apart until their survey closes, when they move to the survey's responses (scheduling.md section 20 rule 3); they leave Harbour only as a closed survey's results above the minimum group size.",
+      "Anonymous answers waiting apart until their survey closes, when they move to the survey's responses (scheduling.md section 20 rule 3); they leave Thapsus Care only as a closed survey's results above the minimum group size.",
     columns: {},
   },
   "public.pulse_survey_response": {
@@ -7091,7 +7177,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "staff_wellbeing",
     personal: false,
     reasonNotExported:
-      "Anonymous answers leave Harbour only as a closed survey's results above the minimum group size (scheduling.md section 20 rule 4), so no small group can be picked out of an export.",
+      "Anonymous answers leave Thapsus Care only as a closed survey's results above the minimum group size (scheduling.md section 20 rule 4), so no small group can be picked out of an export.",
     columns: {},
   },
   "public.recognition": {
@@ -7331,7 +7417,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       severity: { description: "info, warning or urgent." },
       title: "exported",
       body: { description: "Generic body text, without personal data." },
-      link: { description: "Link inside Harbour." },
+      link: { description: "Link inside Thapsus Care." },
       channels: { description: "Channels used: in_app, push, email, sms." },
       source_type: "exported",
       source_id: "exported",
@@ -7590,7 +7676,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         codes: {
           power: "Power cut.",
           network: "Internet or network failure.",
-          harbour_unavailable: "Harbour unavailable.",
+          harbour_unavailable: "Thapsus Care unavailable.",
           device_failure: "Devices not working.",
           planned_maintenance: "Planned maintenance.",
           other: "Other outage.",
@@ -7705,9 +7791,9 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "Whose case it is.",
         codes: {
           resident: "A person receiving care at the location.",
-          staff: "A member of staff in Harbour.",
+          staff: "A member of staff in Thapsus Care.",
           staff_unnamed:
-            "An agency or bank worker not in Harbour, with nothing identifying (H-782).",
+            "An agency or bank worker not in Thapsus Care, with nothing identifying (H-782).",
         },
       },
       person_id: "exported",
@@ -8026,7 +8112,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         codes: { minor: "Minor change.", major: "Major change." },
       },
       change_summary: { description: "What changed (the change log)." },
-      body: { description: "The policy's text, if written in Harbour." },
+      body: { description: "The policy's text, if written in Thapsus Care." },
       document_id: { description: "The policy's PDF, if uploaded (document.id)." },
       roles: { description: "The role keys whose holders must read and sign it." },
       review_due_on: { description: "When it is due for review (UK date)." },
@@ -8247,7 +8333,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.rate_table": {
     context: "platform",
     description:
-      "The organisation's own settings over Harbour's rate table (global rows are in rates.md).",
+      "The organisation's own settings over Thapsus Care's rate table (global rows are in rates.md).",
     treatment: "tenant_overrides_only",
     retention: "tenant_configuration",
     personal: false,
@@ -8420,7 +8506,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       kind: {
         description: "What was decided.",
         codes: {
-          accepted: "Harbour's period accepted.",
+          accepted: "Thapsus Care's period accepted.",
           lengthened: "The organisation keeps it longer, with its own period.",
           period_set: "The organisation's policy sets the period, now set.",
           not_used: "The organisation does not keep this kind of record.",
@@ -8539,7 +8625,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       description: { description: "What the role is for." },
       permissions: { description: "Permissions in this role version." },
       scope_kind: { description: "tenant, location, assigned, self or none." },
-      is_builtin: { description: "True for Harbour's built-in roles." },
+      is_builtin: { description: "True for Thapsus Care's built-in roles." },
       based_on_key: { description: "The built-in role it was cloned from." },
       archived_at: "exported",
       created_at: "exported",
@@ -8795,7 +8881,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.sample_batch": {
     context: "platform",
     description:
-      "Sample data batches (platform-completions.md rules 29 to 32): who loaded invented people to learn Harbour, when, how many, and when the batch was removed.",
+      "Sample data batches (platform-completions.md rules 29 to 32): who loaded invented people to learn Thapsus Care, when, how many, and when the batch was removed.",
     treatment: "tenant_rows",
     retention: "audit_event",
     personal: false,
@@ -8898,7 +8984,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "Who receives the information.",
         codes: {
           family: "A family member or representative (recipient_contact_id).",
-          professional: "A professional with a Harbour account (recipient_tenant_user_id).",
+          professional: "A professional with a Thapsus Care account (recipient_tenant_user_id).",
           link: "Whoever holds an About Me share link.",
         },
       },
@@ -9680,7 +9766,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       provider_id: { description: "The id the sign-in service knows the connection by." },
       issuer: { description: "The identity provider's issuer URL." },
       discovery_url: { description: "The identity provider's OpenID discovery document." },
-      client_id: { description: "Harbour's client id at the identity provider." },
+      client_id: { description: "Thapsus Care's client id at the identity provider." },
       private_key_ref: {
         class: "internal",
         description:
@@ -9817,7 +9903,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "What changed from the previous version, section by section.",
       },
       registration_prompts: {
-        description: "Registration applications the change may need (Harbour's prompts).",
+        description: "Registration applications the change may need (Thapsus Care's prompts).",
       },
       approved_by: {
         description:
@@ -10337,7 +10423,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "Whether it uses care data beyond direct care (national data opt-out); empty until it says.",
       },
-      marketing_enabled: { description: "True when it uses Harbour for marketing (consent)." },
+      marketing_enabled: { description: "True when it uses Thapsus Care for marketing (consent)." },
       ai_free_text_enabled: { description: "True when AI may read free text (consent)." },
       ai_provider: { description: "The AI provider it chose, when the AI module is planned." },
       staff_file_option: {
@@ -10399,7 +10485,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "The export format's schema version (EXPORT_SCHEMA_VERSION).",
       },
       storage_key: {
-        description: "Where Harbour kept the archive in storage.",
+        description: "Where Thapsus Care kept the archive in storage.",
         class: "internal",
       },
       bytes: { description: "The archive's size.", unit: "bytes" },
@@ -10436,7 +10522,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.tenant_setting_decision": {
     context: "platform",
     description:
-      "The organisation's decisions on the settings Harbour chose for it, for onboarding (platform-completions.md rules 26 and 27; append-only): a later decision is a new row.",
+      "The organisation's decisions on the settings Thapsus Care chose for it, for onboarding (platform-completions.md rules 26 and 27; append-only): a later decision is a new row.",
     treatment: "tenant_rows",
     retention: "audit_event",
     personal: false,
@@ -10447,7 +10533,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       kind: {
         description: "What was decided.",
         codes: {
-          accepted: "Harbour's default accepted.",
+          accepted: "Thapsus Care's default accepted.",
           set: "The organisation set its own figure.",
         },
       },
@@ -10511,6 +10597,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       is_agency: { description: "True for agency and bank workers." },
       mfa_required: { description: "True when MFA is required (every role reading care records)." },
       last_seen_at: "exported",
+      status_changed_at: {
+        description:
+          "When the membership was last suspended, reinstated or ended (instant, UTC; H-566).",
+      },
+      sign_in_erasure_requested_at: {
+        description: "When the member asked for their account to be deleted (instant, UTC).",
+      },
+      sign_in_erased_at: {
+        description:
+          "When the member's sign-in identity was erased; the name and job title stay (instant, UTC).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -10537,7 +10634,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       source: {
         description: "Where the record came from.",
         codes: {
-          harbour: "Recorded in Harbour.",
+          harbour: "Recorded in Thapsus Care.",
           lms: "Imported from a learning platform (workforce.md section 13).",
         },
       },

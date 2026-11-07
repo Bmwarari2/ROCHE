@@ -84,6 +84,8 @@ function contract(name: string, make: () => ThapsusHrPort) {
       const port = make();
       expect(await port.putPayUnits("pp-1", [], "evt-4")).toEqual({ ok: false, error: "planned" });
       expect(await port.rates(["e1"])).toEqual({ ok: false, error: "planned" });
+      expect(await port.payPeriods()).toEqual({ ok: false, error: "planned" });
+      expect(port.capabilities().partner_pay_items).toBe("planned");
     });
 
     it("reports its health", async () => {
@@ -93,6 +95,60 @@ function contract(name: string, make: () => ThapsusHrPort) {
 }
 
 contract("mock", () => new MockThapsusHr(workspace));
+
+describe("hazard HZ-140 the mock serves Phase 19 pay only when asked, as planned (K4, K5)", () => {
+  const port = () => {
+    const p = new MockThapsusHr(workspace);
+    p.phase19 = true;
+    p.payPeriodsList.push({
+      id: "pp_1",
+      frequency: "weekly",
+      startsOn: "2026-11-02",
+      endsOn: "2026-11-08",
+    });
+    p.ratesList.push(
+      { employeeId: "e1", hourlyPence: 1_271, effectiveFrom: "2026-04-01" },
+      { employeeId: "e2", hourlyPence: 1_300, effectiveFrom: "2026-04-01" },
+    );
+    return p;
+  };
+  const unit = { employeeId: "e1", payPeriodId: "pp_1", payCode: "BASIC", units: 37.5 };
+
+  it("says the pay capabilities are available, and reads periods and the rates asked for", async () => {
+    const p = port();
+    expect(p.capabilities()).toMatchObject({
+      partner_pay_items: "available",
+      pay_rates_read: "available",
+    });
+    expect(await p.payPeriods()).toMatchObject({ ok: true, value: [{ id: "pp_1" }] });
+    expect(await p.rates(["e1"])).toEqual({
+      ok: true,
+      value: [{ employeeId: "e1", hourlyPence: 1_271, effectiveFrom: "2026-04-01" }],
+    });
+  });
+
+  it("replaces a period's items with each put, and replays a key without applying it again", async () => {
+    const p = port();
+    expect(await p.putPayUnits("pp_1", [unit], "k1")).toEqual({ ok: true, value: { accepted: 1 } });
+    expect(await p.putPayUnits("pp_1", [{ ...unit, units: 40 }], "k2")).toMatchObject({ ok: true });
+    expect(p.payItems.get("pp_1")).toEqual([{ ...unit, units: 40 }]);
+    expect(await p.putPayUnits("pp_1", [unit], "k1")).toMatchObject({ ok: true });
+    expect(p.payItems.get("pp_1")).toEqual([{ ...unit, units: 40 }]);
+  });
+
+  it("refuses money, an unknown period and an item for another period", async () => {
+    const p = port();
+    expect(await p.putPayUnits("pp_1", [{ ...unit, pence: 4_000 } as never], "k3")).toEqual({
+      ok: false,
+      error: "refused",
+    });
+    expect(await p.putPayUnits("pp_9", [unit], "k4")).toEqual({ ok: false, error: "not_found" });
+    expect(await p.putPayUnits("pp_1", [{ ...unit, payPeriodId: "pp_2" }], "k5")).toEqual({
+      ok: false,
+      error: "refused",
+    });
+  });
+});
 
 describe("hazard HZ-133 the mock's behaviour", () => {
   it("returns 429 with Retry-After once the minute's calls are spent", async () => {

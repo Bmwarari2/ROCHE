@@ -77,7 +77,7 @@ export function checkOutboundForSample(
   records: readonly { readonly sample: boolean }[],
 ): OutboundCheck {
   return records.some((r) => r.sample)
-    ? { ok: false, problem: "sample_data", message: "Sample data never leaves Harbour." }
+    ? { ok: false, problem: "sample_data", message: "Sample data never leaves Thapsus Care." }
     : { ok: true };
 }
 

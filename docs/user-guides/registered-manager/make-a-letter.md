@@ -9,7 +9,7 @@ letters also need permission to manage incidents.
 
 1. Open the person's record and choose **Letters**.
 2. Under **Make a letter**, choose the **Template**. Only approved letter templates are listed:
-   email templates are not offered until Harbour can send email.
+   email templates are not offered until Thapsus Care can send email.
 3. For an incident follow-up, choose the **Incident it is about**.
 4. Fill in any details the template asks for, such as a fee, in pounds and pence.
 5. Choose **Preview the letter**.
@@ -21,5 +21,5 @@ letters also need permission to manage incidents.
 ## Good to know
 
 - Letters are addressed to the person for now. Letters to a contact are not available yet.
-- If the template changed after your preview, Harbour shows the new version. Check it and confirm
+- If the template changed after your preview, Thapsus Care shows the new version. Check it and confirm
   again.

@@ -131,6 +131,9 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - name: Markdown links resolve
         run: node scripts/check-markdown-links.mjs
+      # ADR-0127: people read "Thapsus Care"; the codename stays only in technical identifiers.
+      - name: The old product name does not come back where people read it
+        run: node scripts/rename-product.mjs --check
       # Trivy's --ignore-unfixed hides an unfixed advisory whatever its exp: date, and pnpm's
       # ignoreGhsas never expires, so this fails once an exception's review date has passed or is
       # later than its cap, or when the exceptions record, ignoreGhsas, .trivyignore and the inline

@@ -2,6 +2,10 @@ import {
   type AssignableRole,
   CreateMember,
   type InvitationSummary,
+  MEMBER_CHANGE_REASONS,
+  MEMBER_DEVICE_CHECKS,
+  MEMBER_REINSTATE_REASONS,
+  type MemberLifecycle,
   type MemberSummary,
 } from "@harbour/contracts";
 import type { Translator } from "@harbour/i18n";
@@ -50,6 +54,72 @@ const MEMBER_CHIP: Record<MemberSummary["state"], Omit<TeamChip, "label">> = {
 
 export function memberChip(state: MemberSummary["state"], t: Translator): TeamChip {
   return { ...MEMBER_CHIP[state], label: t("team.member.state", { state }) };
+}
+
+type MembershipState = MemberLifecycle["state"];
+
+const MEMBERSHIP_CHIP: Record<MembershipState, Omit<TeamChip, "label">> = {
+  ...MEMBER_CHIP,
+  left: { status: "neutral", icon: "ban" },
+};
+
+/** A membership's state, ended included (H-566), as an icon and a word. */
+export function membershipChip(state: MembershipState, t: Translator): TeamChip {
+  return { ...MEMBERSHIP_CHIP[state], label: t("team.lifecycle.state", { state }) };
+}
+
+/** A change a manager can make to a membership from its page (H-566). */
+export type MembershipKind = "suspend" | "reinstate" | "end" | "erase";
+
+/**
+ * Which changes to offer (H-566): suspend an active or invited membership; reinstate or end a suspended one
+ * (ending only once the member's held entries are handed over); for an ended one, reinstate it
+ * when the API allows this manager (H-1469) and erase a sign-in nobody else relies on. Never the manager's own; the API refuses that too.
+ */
+export function membershipChanges(
+  member: Pick<MemberLifecycle, "id" | "state" | "signIn" | "entriesToHandOver" | "mayReinstate">,
+  myId: string,
+): readonly MembershipKind[] {
+  if (member.id === myId) return [];
+  // An invited member can be suspended too (their invitations end), as the API allows.
+  if (member.state === "active" || member.state === "invited") return ["suspend"];
+  if (member.state === "suspended") {
+    return member.entriesToHandOver === 0 ? ["reinstate", "end"] : ["reinstate"];
+  }
+  if (member.state === "left") {
+    // Reinstating an ended membership: only when the API says this manager may (H-1469).
+    return [
+      ...(member.mayReinstate ? (["reinstate"] as const) : []),
+      ...(member.signIn === "kept" ? (["erase"] as const) : []),
+    ];
+  }
+  return [];
+}
+
+/** The coded reasons for a change, with their words (none for erasing the sign-in). */
+export function membershipReasons(
+  kind: MembershipKind,
+  t: Translator,
+): { readonly value: string; readonly label: string }[] {
+  if (kind === "erase") return [];
+  if (kind === "reinstate") {
+    return MEMBER_REINSTATE_REASONS.map((reason) => ({
+      value: reason,
+      label: t("team.reinstate.reasonOption", { reason }),
+    }));
+  }
+  return MEMBER_CHANGE_REASONS.map((reason) => ({
+    value: reason,
+    label: t("team.lifecycle.reasonOption", { reason }),
+  }));
+}
+
+/** How a manager checked the devices a member used, with their words (H-566, clinical review B1). */
+export function deviceChecks(t: Translator): { readonly value: string; readonly label: string }[] {
+  return MEMBER_DEVICE_CHECKS.map((check) => ({
+    value: check,
+    label: t("team.end.deviceCheckOption", { check }),
+  }));
 }
 
 /**
@@ -135,7 +205,7 @@ export function readInvite(
   return { ok: true, value: { ...parsed.data, email: parsed.data.email.toLowerCase() } };
 }
 
-/** API refusals from the team routes that have their own words. */
+/** API refusals from the team and membership routes that have their own words. */
 const REFUSALS = new Set([
   "email_in_use",
   "member_id_conflict",
@@ -147,6 +217,16 @@ const REFUSALS = new Set([
   "member_mfa_not_required",
   "email_invalid",
   "invitation_closed",
+  "own_membership",
+  "last_user_manager",
+  "membership_ended",
+  "suspend_first",
+  "membership_not_ended",
+  "sign_in_in_use",
+  "entries_waiting",
+  "entries_to_hand_over",
+  "devices_unchecked",
+  "leaving_still_recorded",
 ]);
 
 /** The words for a team refusal, or null for one the shared problem words cover. */

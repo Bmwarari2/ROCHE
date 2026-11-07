@@ -58,6 +58,7 @@ import {
   taskStatePath,
   toRoundUpload,
 } from "./round-upload";
+import { SCOPE_TOO_LARGE_CODE, setScopeRefused } from "./scope-refusal-store";
 import {
   checkSession,
   classifyForbidden,
@@ -125,7 +126,7 @@ export class SessionRevokedError extends Error {
 export class DeviceRevokedError extends SessionRevokedError {
   constructor() {
     super();
-    this.message = "This device has been withdrawn from Harbour";
+    this.message = "This device has been withdrawn from Thapsus Care";
     this.name = "DeviceRevokedError";
   }
 }
@@ -481,9 +482,16 @@ export class HarbourConnector implements PowerSyncBackendConnector {
       throw new HttpError(403, "Sync credentials refused; the session still stands");
     }
     if (!response.ok) {
+      // The member's access reaches more than a phone can hold (ADR-0134): the banner says so in
+      // words, with what to do, rather than a bare failure.
+      if (response.status === 409) {
+        const problem = await readProblemBody(response);
+        setScopeRefused(problem.code === SCOPE_TOO_LARGE_CODE);
+      }
       // PowerSync retries the connection itself; the banner shows the failure meanwhile.
       throw new HttpError(response.status, "Could not obtain sync credentials");
     }
+    setScopeRefused(false);
     const credentials = parseSyncCredentials(await response.json());
     this.options.onWriteScope?.(writeScopeFromToken(credentials.token));
     this.options.onHandoverConfig?.(handoverConfigFromToken(credentials.token));

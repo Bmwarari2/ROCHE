@@ -44,7 +44,7 @@ const bannerDefaults: Record<BannerVariant, BannerDefaults> = {
     role: "alert",
     Icon: CircleAlert,
     title: "Your changes have not been sent yet",
-    description: "Harbour could not reach the server. Your changes are safe on this device.",
+    description: "Thapsus Care could not reach the server. Your changes are safe on this device.",
   },
   stale: {
     role: "alert",

@@ -41,7 +41,7 @@ const options: KeyOptions = {
   protectedOptions: (p: KeyProtection) => ({
     requireAuthentication: p === "biometric",
     keychainAccessible: 6,
-    authenticationPrompt: "Unlock Harbour",
+    authenticationPrompt: "Unlock Thapsus Care",
   }),
   plainOptions: { keychainAccessible: 6 },
 };

@@ -18,7 +18,7 @@ rewritten for Google Cloud to the plan in [infra/README.md](../../infra/README.m
 
 ## Appendix defaults adopted (each an ADR)
 
-Harbour as working name (0003); residential first (0004); demo tenant only (0005); CSO artefacts now,
+Thapsus Care as working name (0003); residential first (0004); demo tenant only (0005); CSO artefacts now,
 signature gates go-live (0006); Brian as data protection lead (0007); AWS eu-west-2, Supabase London
 for dev and pilots (0008; production partly superseded by 0098, Google Cloud europe-west2); Better Auth (0009); public store listing (0010); 7-day offline window,
 30-second kiosk lock (0011); build eMAR (0012); Xero Payroll first (0013); Bedrock London for AI

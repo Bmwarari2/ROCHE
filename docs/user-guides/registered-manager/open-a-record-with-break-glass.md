@@ -23,7 +23,7 @@ with your passkey or authenticator app (step-up).
 2. Choose **Open a record outside your access**.
 3. Choose **Why you need this record**, for example "Emergency care".
 4. Fill in **Explain in your own words** with at least 20 characters, then choose **Open record**.
-5. If Harbour shows **Confirm it is you**, choose **Sign in again**, sign in with your passkey or a
+5. If Thapsus Care shows **Confirm it is you**, choose **Sign in again**, sign in with your passkey or a
    code, then type the reason again.
 6. The record opens **for reading only**. To record something, tell the person in charge or
    record it on paper and enter it when you have access.

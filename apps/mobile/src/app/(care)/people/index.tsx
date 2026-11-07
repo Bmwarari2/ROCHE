@@ -77,8 +77,8 @@ export default function PeopleScreen() {
       {error ? (
         <View style={{ padding: theme.space[2] }}>
           <Text tone="danger" accessibilityRole="alert">
-            The people list could not be read from this device. Lock and unlock Harbour, then try
-            again.
+            The people list could not be read from this device. Lock and unlock Thapsus Care, then
+            try again.
           </Text>
         </View>
       ) : null}

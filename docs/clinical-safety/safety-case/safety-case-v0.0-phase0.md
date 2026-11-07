@@ -2,21 +2,21 @@
 
 | Item | Value |
 | --- | --- |
-| Product | Harbour |
+| Product | Thapsus Care |
 | Manufacturer | Thapsus Cargo Ltd |
 | Release | Phase 0 foundations, platform version `v0.0.x` `[release tag and commit - filled at tagging]` |
 | Report status | **Draft**. Not signed. Not for use with a live tenant |
-| Prepared by | Harbour engineering (Claude Code under the lead engineer), 11 October 2026 |
+| Prepared by | Thapsus Care engineering (Claude Code under the lead engineer), 11 October 2026 |
 | Clinical Safety Officer | `[CSO name - human action]` |
 | Standard | [DCB0129](https://adultsocialcare.standards.nhs.uk/published-standards/clinical-risk-management-its-application-in-the-manufacture-of-health-it-systems) |
 
 ## 1. Purpose
 
-This is the first clinical safety case report for Harbour. It covers the Phase 0 foundations release, which contains **no clinical functionality**: no care plans, notes, charts, assessments, medicines, incidents or notifications. Its purpose is to establish the clinical risk management file, open the hazard log with the day-one hazards, and record which safety-relevant foundations exist, so that later reports can show the safety argument growing release by release.
+This is the first clinical safety case report for Thapsus Care. It covers the Phase 0 foundations release, which contains **no clinical functionality**: no care plans, notes, charts, assessments, medicines, incidents or notifications. Its purpose is to establish the clinical risk management file, open the hazard log with the day-one hazards, and record which safety-relevant foundations exist, so that later reports can show the safety argument growing release by release.
 
 ## 2. System description and intended use
 
-Harbour is a multi-tenant digital social care record and operational platform for UK adult social care providers. The intended use is set out in [the clinical risk management plan](../clinical-risk-management-plan.md), section 1.3, and the medical-device boundary in [medical-device-boundary.md](../../compliance/medical-device-boundary.md).
+Thapsus Care is a multi-tenant digital social care record and operational platform for UK adult social care providers. The intended use is set out in [the clinical risk management plan](../clinical-risk-management-plan.md), section 1.3, and the medical-device boundary in [medical-device-boundary.md](../../compliance/medical-device-boundary.md).
 
 **What the Phase 0 release contains** (per master prompt section 19, Phase 0 scope):
 

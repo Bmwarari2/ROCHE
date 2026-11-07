@@ -180,9 +180,9 @@ describe("approvals screen (PLAT-011)", () => {
     expect(workflowItemTitle(base, t)).toBe("Incident, raised 30/10/2026 08:00");
   });
 
-  it("says who raised it, or that Harbour started it", () => {
+  it("says who raised it, or that Thapsus Care started it", () => {
     expect(raisedByLine(base, t)).toBe("Raised by Mo Manager");
-    expect(raisedByLine(item({ createdBy: null }), t)).toBe("Started by Harbour");
+    expect(raisedByLine(item({ createdBy: null }), t)).toBe("Started by Thapsus Care");
   });
 
   it.each<[string, Partial<WorkflowInstanceItem>, unknown]>([

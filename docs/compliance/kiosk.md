@@ -17,7 +17,7 @@ Care homes use shared tablets on a unit or corridor, and night staff often share
 | --- | --- | --- | --- |
 | Personal | A user's own or assigned phone | Full sign-in (passkey, or password plus TOTP) once; then biometric (`BIOMETRIC_STRONG`) or PIN to unlock | 2 minutes idle |
 | Shared | Tenant-owned, MDM-enrolled phone or tablet used by several staff | User picker (photos) then PIN; possession factor is the enrolled device | 30 seconds idle by default, tenant-configurable from 30 seconds to 2 minutes |
-| Kiosk | Shared device locked to Harbour: Android Enterprise dedicated-device mode or iOS Single App Mode, configured by the tenant's MDM | As shared | As shared |
+| Kiosk | Shared device locked to Thapsus Care: Android Enterprise dedicated-device mode or iOS Single App Mode, configured by the tenant's MDM | As shared | As shared |
 
 ## 3. Controls
 
@@ -25,7 +25,7 @@ Care homes use shared tablets on a unit or corridor, and night staff often share
 
 | Control | Detail |
 | --- | --- |
-| Possession factor: the MDM-enrolled device | A manager enrols the device in Harbour (Settings, Devices) with an enrolment token delivered through the MDM's managed app configuration. The app generates a non-exportable key pair in the Android Keystore or iOS Secure Enclave; Harbour registers the public key against the tenant and location. Every sign-in signs a server challenge (online) or a locally verifiable assertion (offline) with this key. A device that is not enrolled cannot use shared mode |
+| Possession factor: the MDM-enrolled device | A manager enrols the device in Thapsus Care (Settings, Devices) with an enrolment token delivered through the MDM's managed app configuration. The app generates a non-exportable key pair in the Android Keystore or iOS Secure Enclave; Thapsus Care registers the public key against the tenant and location. Every sign-in signs a server challenge (online) or a locally verifiable assertion (offline) with this key. A device that is not enrolled cannot use shared mode |
 | Knowledge factor: the user's PIN | Personal to the user, set during a full sign-in on a personal device or a supervised first sign-in; at least 6 digits; trivial PINs (repeated or sequential digits) refused |
 | Identification aid: the user's photo | The picker shows the photo and name of staff rostered or assigned at this location, so a user cannot pick a colleague's tile by mistake. The photo is not an authentication factor |
 | Biometrics | Platform biometrics on iOS and Android confirm only that some biometric enrolled on the device matched, not which person. On a shared device they cannot tell users apart, so they are **not accepted as the user factor in shared or kiosk mode**. See section 5 |
@@ -51,7 +51,7 @@ Care homes use shared tablets on a unit or corridor, and night staff often share
 | Device enrolled and supervised (iOS) or fully managed / dedicated (Android) | Possession factor; remote wipe; app lock-down |
 | Device passcode set, automatic date and time on, OS updates applied | SQLCipher key protection; HZ-010; patching |
 | USB debugging and developer options off; no other apps; no app installs | Reduces tampering and data exfiltration |
-| Lost-device process: report in Harbour, MDM wipe, Harbour revokes the device key | Data on a lost device cannot be used |
+| Lost-device process: report in Thapsus Care, MDM wipe, Thapsus Care revokes the device key | Data on a lost device cannot be used |
 | Devices stored on charge in a staff-only area when not in use | Physical security |
 
 ### 3.4 Compensating controls
@@ -70,7 +70,7 @@ Care homes use shared tablets on a unit or corridor, and night staff often share
 ### 3.5 Exception: the cached downtime pack
 
 A kiosk at a location keeps the latest downtime pack ([operations.md](../specs/operations.md)
-rule 8, OPS-028) so that staff can print it when the network or Harbour is down. The pack covers
+rule 8, OPS-028) so that staff can print it when the network or Thapsus Care is down. The pack covers
 every person at the location, which is wider than the scoped data in section 3.4, and printing it is
 a form of export, which section 3.4 otherwise keeps off shared devices. The exception is accepted
 because the pack is the continuity path for safe care in an outage (hazard HZ-021), with these

@@ -609,6 +609,160 @@ const elearning_outbox = new Table(
   { insertOnly: true },
 );
 
+/**
+ * Medicines on the phone (medicines.md section 13.8; Phase 2 slice 68; ADR-0130): every MAR entry
+ * version not withdrawn (a stopped or replaced one too: the phone judges the time) for the people in
+ * the member's `medicines.emar.administer` scope, with their schedule times, dosing records and
+ * covert records; the administrations of the last days; the member's own medicines competence.
+ */
+const medication = new Table(
+  {
+    tenant_id: column.text,
+    person_id: column.text,
+    medicine_id: column.text,
+    version: column.integer,
+    replaces_id: column.text,
+    state: column.text,
+    vmp_id: column.text,
+    amp_id: column.text,
+    product_name: column.text,
+    route_code: column.text,
+    route_name: column.text,
+    directions: column.text,
+    pattern_kind: column.text,
+    interval_days: column.integer,
+    weekdays: column.text,
+    interval_weeks: column.integer,
+    anchor_on: column.text,
+    day_of_month: column.integer,
+    prn_dose: column.text,
+    tags: column.text,
+    minimum_interval_minutes: column.integer,
+    indication: column.text,
+    special_instructions: column.text,
+    starts_at: column.text,
+    stops_at: column.text,
+    stop_effective_at: column.text,
+    cd_schedule: column.text,
+    check_outcome: column.text,
+    updated_at: column.text,
+    prn_max_per_24h: column.text,
+    replaced_by_id: column.text,
+    replaced_from: column.text,
+    stop_at: column.text,
+  },
+  { indexes: { by_person: ["person_id"], by_medicine: ["medicine_id"] } },
+);
+
+const medication_schedule = new Table(
+  {
+    tenant_id: column.text,
+    person_id: column.text,
+    medication_id: column.text,
+    position: column.integer,
+    time: column.text,
+    dose_kind: column.text,
+    quantity: column.text,
+    from_quantity: column.text,
+    to_quantity: column.text,
+    unit_code: column.text,
+    unit_name: column.text,
+  },
+  { indexes: { by_medication: ["medication_id"] } },
+);
+
+const medication_dosing_record = new Table(
+  {
+    tenant_id: column.text,
+    person_id: column.text,
+    medication_id: column.text,
+    doses: column.text,
+    check_outcome: column.text,
+    check_at: column.text,
+    recorded_at: column.text,
+  },
+  { indexes: { by_medication: ["medication_id"] } },
+);
+
+const covert_medication_record = new Table(
+  {
+    tenant_id: column.text,
+    person_id: column.text,
+    medication_id: column.text,
+    medicine_id: column.text,
+    method: column.text,
+    pharmacist_advice: column.text,
+    starts_on: column.text,
+    review_on: column.text,
+    reviewed_on: column.text,
+    ended_on: column.text,
+    version: column.integer,
+  },
+  { indexes: { by_person: ["person_id"] } },
+);
+
+const medication_administration = new Table(
+  {
+    tenant_id: column.text,
+    person_id: column.text,
+    medication_id: column.text,
+    due_at: column.text,
+    outcome: column.text,
+    reason_code: column.text,
+    quantity: column.text,
+    unit_code: column.text,
+    given_at: column.text,
+    administered_by: column.text,
+    recorded_at: column.text,
+    supersedes_id: column.text,
+    covert: column.integer,
+    flags: column.text,
+  },
+  { indexes: { by_medication: ["medication_id"], by_person: ["person_id"] } },
+);
+
+const competence_sign_off = new Table({
+  tenant_id: column.text,
+  worker_id: column.text,
+  competence: column.text,
+  observed_on: column.text,
+  valid_until: column.text,
+});
+
+const competence_withdrawal = new Table({
+  tenant_id: column.text,
+  sign_off_id: column.text,
+});
+
+/**
+ * Local-only: the dm+d rows the phone's MARs need (ADR-0130; integrations.md section 12 rule 9),
+ * from `GET /v1/medicines/device-subset`, replaced whole at each fetch. Global reference data, no
+ * personal data. `kind` is `vtm`, `vmp`, `amp`, `vmpp`, `ampp` or `unresolved`; a GTIN row names its
+ * pack and its dates, so a scan offline matches only a pack in force on the day (HZ-113).
+ */
+const dmd_device_product = new Table(
+  {
+    kind: column.text,
+    name: column.text,
+    vmp_id: column.text,
+    amp_id: column.text,
+    vmpp_id: column.text,
+    invalid: column.integer,
+    detail: column.text,
+  },
+  { localOnly: true, indexes: { by_vmp: ["vmp_id"], by_amp: ["amp_id"] } },
+);
+
+const dmd_device_gtin = new Table(
+  {
+    gtin: column.text,
+    ampp_id: column.text,
+    start_date: column.text,
+    end_date: column.text,
+  },
+  { localOnly: true, indexes: { by_gtin: ["gtin"] } },
+);
+
 export const AppSchema = new Schema({
   person,
   allergy,
@@ -638,6 +792,15 @@ export const AppSchema = new Schema({
   clock_event,
   lone_worker_outbox,
   elearning_outbox,
+  medication,
+  medication_schedule,
+  medication_dosing_record,
+  covert_medication_record,
+  medication_administration,
+  competence_sign_off,
+  competence_withdrawal,
+  dmd_device_product,
+  dmd_device_gtin,
 });
 
 export type Database = (typeof AppSchema)["types"];
@@ -728,6 +891,17 @@ export type RoundWritableTable = (typeof ROUND_WRITABLE_TABLES)[number];
 /** What the phone sends for a course taken offline (slice 72): to the e-learning routes. */
 export const TRAINING_WRITABLE_TABLES = ["elearning_outbox"] as const;
 export type TrainingWritableTable = (typeof TRAINING_WRITABLE_TABLES)[number];
+
+/** Medicines on the phone (slice 68): the round's reference and recent administrations. */
+export const MEDICINES_TABLES = [
+  "medication",
+  "medication_schedule",
+  "medication_dosing_record",
+  "covert_medication_record",
+  "medication_administration",
+  "competence_sign_off",
+  "competence_withdrawal",
+] as const;
 
 /** The only synced tables a device writes to: append-only entries, inserts only. */
 export const DEVICE_WRITABLE_TABLES: readonly OfflineWindowTable[] = OFFLINE_WINDOW_TABLES;

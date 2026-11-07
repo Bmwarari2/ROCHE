@@ -76,7 +76,7 @@ export const SSO_OFF = () =>
   new HttpProblem(
     401,
     "sso_session_ended",
-    "Single sign-on is not available here. Sign in with your Harbour passkey or password.",
+    "Single sign-on is not available here. Sign in with your Thapsus Care passkey or password.",
   );
 
 export function deviceIdOf(header: string | undefined): string | null {
@@ -121,6 +121,7 @@ export interface Services {
   readonly pharmacy: PharmacyOrderPort | null;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
+  readonly medicinesPrintLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */
   readonly handoverCompileLimiter: RateLimiter;
   readonly accountDeletionLimiter: RateLimiter;
@@ -399,7 +400,7 @@ async function endIdleSession(c: Context<AppEnv>, access: TenantAccess, minutes:
   return new HttpProblem(
     401,
     "unauthenticated",
-    "You were signed out because Harbour was not used for a while.",
+    "You were signed out because Thapsus Care was not used for a while.",
     "Sign in again to continue.",
   );
 }

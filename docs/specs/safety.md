@@ -133,7 +133,7 @@ until their nation pack (Phase 7) and never a partial answer.
    support statutory guidance (14.17: physical, domestic, sexual, psychological, financial or
    material, modern slavery, discriminatory, organisational, neglect and acts of omission,
    self-neglect) produces a concern draft to the local authority, due without delay (the s.42 duty
-   is the local authority's; the time is Harbour's, so the draft says so), and, where abuse is
+   is the local authority's; the time is Thapsus Care's, so the draft says so), and, where abuse is
    alleged, the Reg 18 notification. Pressure ulcers: **Corrected**: the DHSC 2018 protocol was
    withdrawn on 26 June 2023; the current one is
    [Pressure ulcers: how to safeguard adults](https://www.gov.uk/government/publications/pressure-ulcers-how-to-safeguard-adults)
@@ -141,9 +141,9 @@ until their nation pack (Phase 7) and never a partial answer.
    "immediately or within 48 hours" (`pressure_ulcer.decision_guide_hours`) where severe damage is
    suspected, which "may be indicated in some cases by multiple category 2 or single category 3 or
    4 ulcers, but could also be indicated by the impact the pressure damage has on the person
-   affected (for example, pain)". Harbour runs it for category 3, 4, unstageable, deep tissue
+   affected (for example, pain)". Thapsus Care runs it for category 3, 4, unstageable, deep tissue
    injury, more than one category 2, or a single category 2 with a concern of abuse or neglect or a
-   severe impact (unstageable and deep tissue injury are Harbour's reading, for the CSO, H-66).
+   severe impact (unstageable and deep tissue injury are Thapsus Care's reading, for the CSO, H-66).
 5. **Duty of candour (Regulation 20)**: **Corrected**: an adult social care provider is "any other
    registered person", so the notifiable safety incident is defined by
    [regulation 20(9)](https://www.legislation.gov.uk/uksi/2014/2936/regulation/20), not 20(8)
@@ -187,12 +187,12 @@ until their nation pack (Phase 7) and never a partial answer.
 10. **Clocks**: every draft shows its due time and is listed on the manager dashboard; overdue
     drafts escalate through the notification centre's escalation chain until submitted or marked
     not required with a reason. Without-delay kinds that the law does not time (s.42 concern,
-    LeDeR, medical examiner pack, Herbert Protocol, UKHSA report) say that Harbour set the time.
+    LeDeR, medical examiner pack, Herbert Protocol, UKHSA report) say that Thapsus Care set the time.
     Day clocks keep the UK wall-clock time across clock changes; working-day clocks skip the
     nation's bank holidays.
 11. **Separation of duties**: the person who raised an incident cannot close it, and an incident
     cannot close while a notification is a draft or ready, a classifier question is open, the
-    candour record is open, the duty of candour may apply (Harbour found it, or the decision says
+    candour record is open, the duty of candour may apply (Thapsus Care found it, or the decision says
     notifiable) and no candour record has finished, or any person we support affected has no
     finished candour record of their own: one record covers only the person it names, whatever it
     decides (`incidentCloseProblems`, `candourCloseBlock`; #120 review H1 and H2, round 2 M1 and
@@ -258,7 +258,7 @@ to verify, shown as targets, never as statutory deadlines. Figures come through
    outcome is shared with the person who raised it before closing, unless anonymous with no reply
    token.
 4. **Deaths** (`deaths.ts`; SAFE-014). Expected or unexpected is the clinician's recorded
-   judgement, never decided by Harbour. The steps each needs: verification of death, family told,
+   judgement, never decided by Thapsus Care. The steps each needs: verification of death, family told,
    the medical examiner information pack, the notification under Regulation 16 of the CQC (Registration) Regulations 2009, a LeDeR notification for a
    person with a learning disability or autism; for an unexpected death, also the police (where the
    cause may be unnatural or suspicious) and leaving the room and equipment as they are until told
@@ -402,7 +402,7 @@ HZ-013 and HZ-127). No web screens yet (slice 63).
    request (`POST /v1/deaths`). A death corrected as recorded in error withdraws it
    (`people.person.status_corrected`), never deleting it. It holds the clinician's judgement
    (expected or not; whether the cause may be unnatural or the circumstances suspicious; whose
-   judgement it is), never Harbour's. **Until both are recorded the plan assumes an unexpected death
+   judgement it is), never Thapsus Care's. **Until both are recorded the plan assumes an unexpected death
    whose cause may be unnatural**, so the police steps and leaving the room as it is are never
    missed (`deathRecordPlan`), and the record cannot close.
 2. **The steps** are the slice 7 plan's. Verification of death, telling the family, telling the
@@ -471,7 +471,7 @@ open for an exit, get, record the judgement, `/steps`, `/review`, `/close`), `/v
 save). Outbox events:
 `safety.incident.recorded`, `safety.notification.due`, `safety.notification.overdue`,
 `safety.notification.submitted`. Submission to CQC, HSE and local authorities is by the manager on
-the regulator's own portal in Phase 1 (Harbour prepares and records); direct submission APIs are
+the regulator's own portal in Phase 1 (Thapsus Care prepares and records); direct submission APIs are
 integrations for later phases where they exist.
 
 Complaints and compliments (Phase 2 slice 18; rule 2 above; SAFE-011; `apps/api/src/routes/complaints.ts`;
@@ -597,7 +597,7 @@ at the top linking to them: each with its clock (overdue for how long, due, subm
 required), its status as its own chip, its deadlines in the law's terms from the classifier's
 outputs (without delay from when the clock started; RIDDOR's second deadline), who it is about
 for one person, its recipient and, on a draft still open, its warnings with a next step
-(provisional; waiting for answers; no longer indicated; a Harbour target, as soon as possible
+(provisional; waiting for answers; no longer indicated; a Thapsus Care target, as soon as possible
 for a safeguarding concern or a missing person). Open questions, the kinds waiting for them,
 checks that decide whether one is needed (RIDDOR's absence check, the safeguarding decision
 guide, an outbreak's links, the candour decision), outputs drafted on another record, "not
@@ -629,7 +629,7 @@ unfinished read warns that unfinished notifications may be missing (#52 review).
 who it is about (unnumbered when not shown), warnings (waiting for answers read from its
 incident), every deadline in the law's terms (kept once done), the record it was drafted on (the
 incident, named and linked with its status; the person's DoLS register; or their record), why
-Harbour drafted it, what it must include and the sources (the API's English, marked as English;
+Thapsus Care drafted it, what it must include and the sources (the API's English, marked as English;
 a source is linked only on https) and how it ended (when and by whom it was submitted, the
 regulator's reference, whether a document is attached, why it is not required). Both pages and the
 incident page say when the clocks were worked out; on the incident page each notification links to
@@ -707,7 +707,7 @@ the statutory notifications:
   (linked to its page for a holder of `safety.incident.manage`) and the pack's seven sections in
   `MEDICAL_EXAMINER_PACK_SECTIONS` order, each with what it holds (the catalogue repeats the
   domain's words) and where it is kept (their record's Overview, Notes, Charts and Assessments or
-  Advance care; this incident), or "not shown on Harbour's web pages yet" (diagnoses, medicines).
+  Advance care; this incident), or "not shown on Thapsus Care's web pages yet" (diagnoses, medicines).
   The LeDeR prompt: with a LeDeR draft, "report the death on LeDeR's online form, which anyone can
   use" linked to `SOURCES.leder`, then record it on the notification; when the incident does not
   record whether the person had a learning disability or was autistic, "check whether LeDeR
@@ -763,7 +763,7 @@ in words; after a save the page opens again with focus on its heading and says w
 **Review round 1 (#120)**, fail safe:
 
 - **Closing waits for the duty of candour** (`candourCloseBlock` in `incidentCloseProblems`, so the
-  API refuses and the web lists it first): where Harbour found the duty may apply (a candour output
+  API refuses and the web lists it first): where Thapsus Care found the duty may apply (a candour output
   on the last classification, or a candour notification neither decided not required nor flagged
   no longer indicated) or the threshold decision says notifiable, the incident cannot close until a
   candour record has finished; and since one candour record covers one relevant person, with two
@@ -775,10 +775,10 @@ in words; after a save the page opens again with focus on its heading and says w
 - **The threshold question** repeats regulation 20(9) (unintended or unexpected, during the
   provision of a regulated activity; a death relating directly to the incident; an impairment of
   sensory, motor or intellectual functions; the prolonged period read from the rate table as
-  `candour.prolonged_harm_days`), with Harbour's finding on the answers beside it. A decision that
+  `candour.prolonged_harm_days`), with Thapsus Care's finding on the answers beside it. A decision that
   differs from the finding, or changes a recorded one, takes a confirmation and a reason of at
   least 20 characters (as H-265) and moves the record on at once with that reason as the step's;
-  "not notifiable" after Harbour drafted a candour notification asks the same. The relevant person's
+  "not notifiable" after Thapsus Care drafted a candour notification asks the same. The relevant person's
   hint gives only regulation 20(7)'s cases for a representative.
 - **Clocks**: telling the person counts only in person (a conversation recorded not in person keeps
   "Due now" and says so); a target at UK midnight reads "by the end of" the day before.
@@ -809,11 +809,11 @@ in words; after a save the page opens again with focus on its heading and says w
   regulation 20(7) and recorded on the same record, not named as the relevant person); the record
   moves on (`POST .../candour/step`) only while it names one of them; a finished record's person
   cannot change. The web's picker lists only the people affected.
-- **Reasons in the API** (M3): a threshold decision that differs from Harbour's finding
+- **Reasons in the API** (M3): a threshold decision that differs from Thapsus Care's finding
   (`candourFindingOf` on the stored classification, the function the web uses) or changes a
   recorded decision is refused without `thresholdConfirmed` and a `thresholdReason` of at least 20
   characters (`candourReasonProblems`, `CANDOUR_REASON_MIN`); the reason is kept in the audit event.
-  The "not notifiable" step after Harbour drafted a candour notification needs `confirmed` and the
+  The "not notifiable" step after Thapsus Care drafted a candour notification needs `confirmed` and the
   same reason.
 - **Leaving the candour check** (M4; widened in round 3 M1, below): once a threshold decision is
   recorded, `PUT /v1/incidents/{id}` refuses a change that removes someone affected, or changes their kind or role
@@ -822,7 +822,7 @@ in words; after a save the page opens again with focus on its heading and says w
   incident.
 - **Stuck incidents have an owner** (M4): the worker's hourly `candour-blocked-incidents` job gives
   each incident not closed, more than `candour.close_blocked_days` days after it happened (rate
-  table; Harbour default 14, to verify, H-480), that the duty of candour holds open
+  table; Thapsus Care default 14, to verify, H-480), that the duty of candour holds open
   (`candourCloseBlock`) one urgent task (`safety.candour_close_blocked`, for `safety.incident.manage`
   holders in the Registered Manager role), escalated on its own ladder since round 3 (M2, below). Closing the
   incident finishes it, and so does the next run once nothing holds the incident. Submitting the
@@ -905,7 +905,7 @@ actions), H-481 (the pack listed, not assembled; its clock; the LeDeR check) and
 learning disability and autism question on the form). As recommended for H-481 (31/10/2026), the
 after-death section also shows each person's CQC death notification (regulation 16) with its
 clock, linked to its page for a holder of `safety.incident.manage`, so it is seen with the pack
-and LeDeR; the medical examiner information stays labelled not statutory, with Harbour's
+and LeDeR; the medical examiner information stays labelled not statutory, with Thapsus Care's
 "without delay" target.
 
 ### Web screens (Phase 2 slice 62)
@@ -1068,8 +1068,8 @@ code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-mana
    correction gives a reason), and follows that row wherever the person is now, so an outcome
    after a discharge, move or leaving can still be recorded.
 3a. **Unnamed staff cases (H-782, recommended answer applied 31/10/2026).** Named staff on a line
-   list are the organisation's own members, agency workers registered in Harbour included. An agency
-   or bank worker who is not in Harbour is added as an unnamed staff case: onset, test and outcome
+   list are the organisation's own members, agency workers registered in Thapsus Care included. An agency
+   or bank worker who is not in Thapsus Care is added as an unnamed staff case: onset, test and outcome
    only, no person or member id and nothing identifying, counted once (an update supersedes that
    same case) and included in the UKHSA report's staff figures (`unnamedStaffCases` says how many).
    Staff rows are kept 3 years from the outbreak's closure (`outbreak_staff_case`; H-767).
@@ -1079,13 +1079,13 @@ code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-mana
    row of the outbreak, whoever is reading (residents the reader cannot see are counted, not
    listed). People are counted from their current rows, except "positive" and "in hospital",
    which count anyone who ever was (H-784). A field with no value is listed as missing, never
-   guessed. The fields are shown on the outbreak to copy into the report; Harbour never writes into
+   guessed. The fields are shown on the outbreak to copy into the report; Thapsus Care never writes into
    a report's content, which stays the preparer's.
 5. **Closure** (`checkOutbreakClosure`, HZ-013): a person closes the outbreak with a date and a
    reason (for example agreed with the health protection team), only once its own report is
    submitted or recorded as not needed (an outbreak without a report never closes), not before the
    day it was declared or the last case's symptoms started (from every row), and not in the future.
-   Harbour sets no quiet period of its own (H-768). Cases still unwell are said beside the closure,
+   Thapsus Care sets no quiet period of its own (H-768). Cases still unwell are said beside the closure,
    never a blocker. A closed outbreak never changes; cases continue on a new outbreak.
 6. **IPC audits** (`checkIpcTemplate`, `ipcCriteriaResults`): an audit template of kind `ipc` maps
    every question to one or more of the 10 criteria of the Code of Practice on the prevention and
@@ -1101,7 +1101,7 @@ report. Nothing diagnoses, predicts or scores a person, and nothing recommends t
 
 | Table | Kind | Key columns | Security | Retention class |
 | --- | --- | --- | --- | --- |
-| `ipc_code_criterion` | Global reference | id (`criterion_1` to `criterion_10`), number, title (Harbour's summary), source | No tenant; read by every role, written only by the owner role in migrations | Not exported (global) |
+| `ipc_code_criterion` | Global reference | id (`criterion_1` to `criterion_10`), number, title (Thapsus Care's summary), source | No tenant; read by every role, written only by the owner role in migrations | Not exported (global) |
 | `outbreak` | Mutable aggregate, tenant | location, syndrome, organism, state (`declared`, `closed`), declared at and by, its own report, health protection team reference, closed on, at and by, closure reason | Tenant policy; restrictive: `safety.outbreak.manage` at the location; declared open in the declarer's name, one open per location and illness; one outbreak per report; place, illness and declaration fixed; report linked once; closed once, only with a report that is submitted or not required, not before the declaration's UK date; a closed outbreak never changes; no delete | `serious_incident` |
 | `outbreak_case` | Append-only, tenant | outbreak, resident (person) or staff (member), onset, symptoms, test type, date and result, flu and COVID-19 vaccination, outcome and date, supersedes and correction reason | Tenant policy; restrictive: through the outbreak's location, and a resident's row only where the person is visible; an open outbreak only; a resident of the outbreak's location or staff with a current role there or organisation-wide; once per person, then superseding rows for the same person (following the superseded row), each row superseded once; nothing in the future | `care_record` |
 
@@ -1210,7 +1210,7 @@ the whole organisation) reads them for the full export, never writes.
     does), so the general document routes never list or serve it. It can be fetched again exactly,
     with step-up. Packs issued before this change are read from the exports bucket. The disclosure log is the list of requests with their basis,
     approver and release.
-42a. **Hand-over (H-958, recommended answer applied 31/10/2026).** The released pack leaves Harbour
+42a. **Hand-over (H-958, recommended answer applied 31/10/2026).** The released pack leaves Thapsus Care
    once: a holder of `safety.incident.manage` where the person is, with a fresh step-up, downloads it
    as a PDF built from the pack exactly as issued, its fingerprint checked first and printed on every
    page (`GET /v1/disclosures/{id}/pack/pdf`, audited `safety.disclosure.pack_downloaded`; a second

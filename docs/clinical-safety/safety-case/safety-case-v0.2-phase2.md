@@ -2,12 +2,12 @@
 
 | Item | Value |
 | --- | --- |
-| Product | Harbour |
+| Product | Thapsus Care |
 | Manufacturer | Thapsus Cargo Ltd |
 | Release | Phase 2, platform version `v0.2.x` `[release tag and commit - filled at tagging]`. Drafted against `main` at `a47f82fb`, with the Phase 2 branches and pull requests named in section 2 |
 | Previous report | [v0.1 Phase 1 residential MVP](safety-case-v0.1-phase1.md) (draft, not signed) |
 | Report status | **First draft**. Not signed. Clinical Safety Officer approval pending. Not for use with a live tenant |
-| Prepared by | Harbour engineering (Claude Code under the lead engineer), 31 October 2026 |
+| Prepared by | Thapsus Care engineering (Claude Code under the lead engineer), 31 October 2026 |
 | Clinical Safety Officer | `[CSO name - human action]` (not yet appointed, H-20) |
 | Standard | [DCB0129](https://adultsocialcare.standards.nhs.uk/published-standards/clinical-risk-management-its-application-in-the-manufacture-of-health-it-systems) |
 | Clinical risk management file | [Clinical risk management plan](../clinical-risk-management-plan.md), [hazard log](../hazard-log.md), [medical-device boundary](../../compliance/medical-device-boundary.md), [DCB0160 deployment template](../dcb0160-deployment-template.md) |
@@ -35,7 +35,7 @@ the tests that verify them, what stays open and the decision the CSO must make.
 
 Everything v0.1 says about Phase 1 stands unless this report changes it: the system definition,
 the clinical risk management system, the assumptions, the Phase 1 hazards and their residual risks,
-the deployer information and the known limitations. Neither report is signed. Harbour cannot sign
+the deployer information and the known limitations. Neither report is signed. Thapsus Care cannot sign
 its own safety case: every rating and residual risk below is an engineering proposal until a
 Clinical Safety Officer reviews and accepts it (sections 8 and 10).
 
@@ -138,7 +138,7 @@ justification, and the CSO accepts or rejects each (section 10).
   themselves`). All passing on `feat/meds-domain-administration`.
 - **Open**: the witness signing in with their own factor on the same device, re-verified by the
   server (slices 34 and 70; ADR-0084), and its API test; the deployer's witness policy (slice 81).
-- **Justification for level 3**: Harbour can make two different, competent, signed-in people put
+- **Justification for level 3**: Thapsus Care can make two different, competent, signed-in people put
   their names to a check, but cannot see whether the second person genuinely watched or compared.
 - **CSO decision**: accept or reject level 3 (H-513, H-841).
 
@@ -168,7 +168,7 @@ justification, and the CSO accepts or rejects each (section 10).
 
 - **Rating**: Major / Medium / 3, proposed residual Major / Low / 3.
 - **Controls built** (domain, slice 2, with three review rounds on #135): every MAR entry in force
-  needs one decision a person made (continue, change, stop or query), and Harbour never infers a stop
+  needs one decision a person made (continue, change, stop or query), and Thapsus Care never infers a stop
   because a source leaves a medicine out; a decision is supported only by a line that says that thing
   about the same dm+d product; a stop cites a current line that says so; a continue needs a line that
   shows what is prescribed now (on a return, the discharge letter's line); one entry per dm+d VMP,
@@ -184,10 +184,10 @@ justification, and the CSO accepts or rejects each (section 10).
 - **Open**: the API applying a reconciliation and completing the people lifecycle's return check in
   one transaction (slice 16); the nurse's journey with Playwright and axe (slice 52); the transfer
   and downtime packs listing medicines from the eMAR (slice 49).
-- **Justification for level 3**: Harbour can make every medicine and every source line need a
+- **Justification for level 3**: Thapsus Care can make every medicine and every source line need a
   person's decision, but cannot know whether the discharge letter is right or read correctly.
 - **Boundary**: the product comparison is by dm+d identity only, never by ingredient, and the
-  allergy comparison is the completer's, not Harbour's (section 6).
+  allergy comparison is the completer's, not Thapsus Care's (section 6).
 - **CSO decision**: accept or reject level 3 (H-513, H-841).
 
 ### HZ-123 Staffing below the tenant's assessed need or skill mix without a visible warning
@@ -309,7 +309,7 @@ No hazard here crosses the boundary in [medical-device-boundary.md](../../compli
 The points to check are:
 
 - **HZ-121**: products are compared by dm+d identity only, never by ingredient, and the allergy
-  comparison is the completer's; Harbour suggests no medicine and calculates no dose.
+  comparison is the completer's; Thapsus Care suggests no medicine and calculates no dose.
 - **HZ-123**: the dependency figures are the organisation's own tool (section 6 of the boundary
   document lists it as a grey area), labelled as such, with no score, risk level or judgement of
   safe staffing.
@@ -356,7 +356,7 @@ For the tenant's [DCB0160 assessment](../dcb0160-deployment-template.md), from t
 - The organisation's own dependency scale, its review, and what to do about a shortfall (HZ-123,
   H-712).
 - The organisation's safeguarding policy and the local authority's procedures (HZ-126).
-- Policies opened in Harbour, not from printed copies (HZ-128).
+- Policies opened in Thapsus Care, not from printed copies (HZ-128).
 - Checking the source export and a sample before committing, and a sample after (HZ-130, H-682).
 
 ## 10. Decisions for the CSO
@@ -371,7 +371,7 @@ For the tenant's [DCB0160 assessment](../dcb0160-deployment-template.md), from t
 
 ## 11. Sign-off
 
-**Clinical Safety Officer approval: pending.** Harbour engineering cannot sign this report. The CSO's
+**Clinical Safety Officer approval: pending.** Thapsus Care engineering cannot sign this report. The CSO's
 review and signature, and top management's acknowledgement, are logged as H-840 in
 [docs/plans/human-actions.md](../../plans/human-actions.md).
 

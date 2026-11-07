@@ -61,7 +61,7 @@ The first version is always a major change: everyone asked will read and sign it
   says "Superseded. No version is in force now."
 - A published version cannot be changed. To change it, start a new draft.
 - Only one draft at a time.
-- Harbour gives the author (or the publisher) a task when the review date is near or past.
+- Thapsus Care gives the author (or the publisher) a task when the review date is near or past.
 - The rules: [quality spec section 17, rules 25 to 28](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
   [section 18, policy library](../../specs/quality.md#18-policy-library-and-read-and-sign-slice-25-qual-008-migration-0087)
   and section 21 of the quality spec on the `feat/quality-dashboard-pir` branch; the hazard

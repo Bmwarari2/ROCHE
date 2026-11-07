@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare a Harbour release - changesets, version, plain-English release notes, clinical safety case delta, SBOM and provenance, staging rollback test, mobile build rules. Use at the end of each two-week train or when cutting a release candidate.
+description: Prepare a Thapsus Care release - changesets, version, plain-English release notes, clinical safety case delta, SBOM and provenance, staging rollback test, mobile build rules. Use at the end of each two-week train or when cutting a release candidate.
 ---
 
 # Release

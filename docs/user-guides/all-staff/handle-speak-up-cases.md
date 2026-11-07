@@ -22,7 +22,7 @@ Managers, the owner and the quality lead cannot see cases unless the lead names 
 
 ## Steps for the lead
 
-1. Read **What was raised**. Under it Harbour says who raised it, or that it was raised
+1. Read **What was raised**. Under it Thapsus Care says who raised it, or that it was raised
    anonymously or in confidence.
 2. Under **Acknowledge**, choose **Acknowledge**.
 3. Under **People on the case**, tick who works on it and choose **Save people on the case**. They
@@ -41,15 +41,15 @@ Managers, the owner and the quality lead cannot see cases unless the lead names 
   was raised anonymously with no way to reply."
 - If the page warns **Possible flood**, many anonymous concerns arrived today and new ones are
   refused above the organisation's daily limit. Check for repeats.
-- When a concern arrives, every Freedom to Speak Up lead is told in Harbour: "A speak-up concern
+- When a concern arrives, every Freedom to Speak Up lead is told in Thapsus Care: "A speak-up concern
   has arrived", or, for one about care quality or safety, an urgent "A speak-up concern about care
   quality or safety has arrived". The alert names nobody and says nothing else of the concern.
   It is not sent to your phone or email, and nobody else is told, so check your cases often,
   and arrange cover with your organisation when you are away.
-- Harbour never tells managers about a case, and never sends it to the regulator or the police.
+- Thapsus Care never tells managers about a case, and never sends it to the regulator or the police.
   If a concern needs a safeguarding referral or an incident record, you decide and make it
   yourself.
-- Appointing the lead has no web screen yet. Ask the person who manages Harbour for your
+- Appointing the lead has no web screen yet. Ask the person who manages Thapsus Care for your
   organisation.
 - The rules: [safety specification, Phase 2 rule 3](../../specs/safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012)
   and [ADR-0089](../../decisions/0089-restricted-silos-whistleblowing.md).

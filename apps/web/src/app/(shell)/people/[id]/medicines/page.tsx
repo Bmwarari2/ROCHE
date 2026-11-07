@@ -1,15 +1,18 @@
-import { ButtonLink, Card, EmptyState, StatusChip } from "@harbour/ui";
-import { ClipboardList, Pill, Plus, TriangleAlert } from "lucide-react";
+import { Button, ButtonLink, Card, EmptyState, SelectField, StatusChip } from "@harbour/ui";
+import { ClipboardList, ListChecks, Pill, Plus, Printer, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NoAccess } from "@/components/care/NoAccess";
 import { Notice } from "@/components/care/Notice";
 import { RecordFrame } from "@/components/care/RecordFrame";
+import { WarningArrival } from "@/components/care/WarningArrival";
 import { StartReconciliationForm } from "@/components/medicines/ReconciliationForms";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { medicinesRoundShown, personRoundHref } from "@/lib/medicine-round";
+import { stockShown } from "@/lib/medicine-stock";
 import {
   entryChip,
   entryHref,
@@ -18,10 +21,12 @@ import {
   medicinesShown,
   reconciliationHref,
 } from "@/lib/medicines";
+import { marPrintHref, printableMonths } from "@/lib/medicines-print";
 import { getPerson, readOrFail } from "@/lib/person-record";
-import { recordMetadata } from "@/lib/record-metadata";
+import { firstParam, recordMetadata } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export async function generateMetadata(): Promise<Metadata> {
   return recordMetadata("medicines");
@@ -33,8 +38,16 @@ export async function generateMetadata(): Promise<Metadata> {
  * words (never rewritten), its dates, and its state as an icon and a word. An entry not yet
  * checked always says so, with the API's notice. Reconciliations due are shown first.
  */
-async function MedicinesTab({ params }: { readonly params: Params }) {
+async function MedicinesTab({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { id } = await params;
+  const print = firstParam((await searchParams).print);
+  const months = printableMonths();
   const { person } = await getPerson(id);
   if (!person) return null;
   const { me } = await getShellContext();
@@ -55,15 +68,58 @@ async function MedicinesTab({ params }: { readonly params: Params }) {
           <h2 className="m-0 text-eyebrow">{t("medicines.title")}</h2>
           <p className="m-0 max-w-prose text-text-secondary">{t("medicines.intro")}</p>
         </div>
-        {writer ? (
-          <ButtonLink
-            href={`${medicinesHref(id)}/new`}
-            icon={<Plus size={18} strokeWidth={1.5} aria-hidden="true" />}
-          >
-            {t("medicines.add")}
-          </ButtonLink>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {medicinesRoundShown(me.permissions) ? (
+            <ButtonLink
+              href={personRoundHref(id)}
+              variant="secondary"
+              icon={<ListChecks size={18} strokeWidth={1.5} aria-hidden="true" />}
+            >
+              {t("medicines.round.openRound")}
+            </ButtonLink>
+          ) : null}
+          {writer ? (
+            <ButtonLink
+              href={`${medicinesHref(id)}/new`}
+              icon={<Plus size={18} strokeWidth={1.5} aria-hidden="true" />}
+            >
+              {t("medicines.add")}
+            </ButtonLink>
+          ) : null}
+        </div>
       </div>
+      <nav aria-label={t("medicines.links.label")}>
+        <ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-1 p-0">
+          {stockShown(me.permissions) ? (
+            <li>
+              <Link
+                href={`${medicinesHref(id)}/stock`}
+                className="inline-flex min-h-target items-center underline"
+              >
+                {t("medicines.links.stock")}
+              </Link>
+            </li>
+          ) : null}
+          <li>
+            <Link
+              href={`${medicinesHref(id)}/homely-remedies`}
+              className="inline-flex min-h-target items-center underline"
+            >
+              {t("medicines.links.homely")}
+            </Link>
+          </li>
+          {writer ? (
+            <li>
+              <Link
+                href={`${medicinesHref(id)}/reviews`}
+                className="inline-flex min-h-target items-center underline"
+              >
+                {t("medicines.links.reviews")}
+              </Link>
+            </li>
+          ) : null}
+        </ul>
+      </nav>
       {data.openReconciliationId ? (
         <Notice
           icon={<ClipboardList size={20} strokeWidth={1.5} aria-hidden="true" />}
@@ -170,6 +226,31 @@ async function MedicinesTab({ params }: { readonly params: Params }) {
           </ul>
         )}
       </Card>
+      <Card as="section" title={t("medicines.print.title")} headingLevel={3}>
+        {/* A plain GET form: the PDF downloads, so client-side navigation must not take it. */}
+        <form method="get" action={marPrintHref(id)} className="flex flex-col gap-3">
+          <p className="m-0 max-w-prose">{t("medicines.print.about")}</p>
+          {print === "failed" ? (
+            <WarningArrival>{t("medicines.print.failed")}</WarningArrival>
+          ) : null}
+          <SelectField
+            id="mar-month"
+            name="month"
+            label={t("medicines.print.month")}
+            defaultValue={months[0]?.value ?? ""}
+            options={months}
+          />
+          <div>
+            <Button
+              type="submit"
+              variant="secondary"
+              icon={<Printer size={18} strokeWidth={1.5} aria-hidden="true" />}
+            >
+              {t("medicines.print.submit")}
+            </Button>
+          </div>
+        </form>
+      </Card>
       {writer && !data.openReconciliationId ? (
         <Card as="section" title={t("medicines.rec.changeTitle")} headingLevel={3}>
           <div className="flex flex-col gap-3">
@@ -187,7 +268,10 @@ async function MedicinesTab({ params }: { readonly params: Params }) {
   );
 }
 
-export default async function MedicinesPage(props: { readonly params: Params }) {
+export default async function MedicinesPage(props: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { id } = await props.params;
   return (
     <RecordFrame personId={id} tab="medicines">

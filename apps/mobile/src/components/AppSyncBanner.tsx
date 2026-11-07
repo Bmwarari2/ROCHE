@@ -1,10 +1,16 @@
 import { SyncBanner } from "@harbour/ui-native";
 import { useStatus } from "@powersync/react";
 import { useNetworkState } from "expo-network";
+import { useEffect } from "react";
 import { useVault } from "../app-state/vault";
 import { useHeldEntryCount, useQueuedChanges, useUploadIssueState } from "../care/hooks";
 import { appEnv } from "../config/app-env";
 import { STALE_AFTER_MS } from "../config/constants";
+import {
+  announceRefusalOnce,
+  forgetRefusalAnnouncement,
+  useScopeRefused,
+} from "../sync/scope-refusal-store";
 import { deriveConnectionState, lastSyncedAtOf } from "../sync/sync-state";
 
 /**
@@ -24,7 +30,16 @@ export function AppSyncBanner() {
   const held = useHeldEntryCount();
   const refused = held === null || issues === null ? null : issues + held;
 
-  const state = appEnv.demoMode ? "offline" : deriveConnectionState(status, network);
+  // The API refused this phone because the member's access is too wide (ADR-0134; HZ-138).
+  // Offline wins: the refusal is said again once the phone can reach the API (review, minor 7).
+  const scopeRefused = useScopeRefused();
+  const derived = appEnv.demoMode ? "offline" : deriveConnectionState(status, network);
+  const showRefusal = scopeRefused && !appEnv.demoMode && derived !== "offline";
+  const state = showRefusal ? "failed" : derived;
+  // Said again after the phone has been offline, when the refusal shows once more (review, minor 2).
+  useEffect(() => {
+    if (!showRefusal) forgetRefusalAnnouncement();
+  }, [showRefusal]);
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);
 
   return (
@@ -34,6 +49,8 @@ export function AppSyncBanner() {
       staleAfterMs={STALE_AFTER_MS}
       queuedChanges={queued}
       refusedEntries={refused}
+      failureReason={showRefusal ? "scope_too_large" : null}
+      announce={announceRefusalOnce}
       onRetry={() => {
         void vault.retrySync();
       }}

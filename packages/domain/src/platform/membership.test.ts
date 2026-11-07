@@ -33,6 +33,12 @@ describe("H-566 membership changes, every action from every state", () => {
       suspended: { ok: true, outcome: "replay" },
       left: { ok: false, problem: "membership_ended" },
     },
+    reinstate: {
+      invited: { ok: true, outcome: "replay" },
+      active: { ok: true, outcome: "replay" },
+      suspended: { ok: true, outcome: "apply" },
+      left: { ok: false, problem: "membership_ended" },
+    },
     end: {
       invited: { ok: false, problem: "suspend_first" },
       active: { ok: false, problem: "suspend_first" },
@@ -54,7 +60,7 @@ describe("H-566 membership changes, every action from every state", () => {
     expect(checkMembershipChange(facts({ action, state }))).toEqual(expected);
   });
 
-  it.each(["suspend", "end", "erase_sign_in"] as const)(
+  it.each(["suspend", "reinstate", "end", "erase_sign_in"] as const)(
     "never lets a manager %s their own membership",
     (action) => {
       expect(checkMembershipChange(facts({ action, state: "left", self: true }))).toEqual({
@@ -73,7 +79,11 @@ describe("H-566 the sign-in is erased only when nobody else relies on it", () =>
       { otherMemberships: 1 },
       { ok: false, problem: "sign_in_in_use" },
     ],
-    ["a Harbour operator's sign-in", { operator: true }, { ok: false, problem: "sign_in_in_use" }],
+    [
+      "a Thapsus Care operator's sign-in",
+      { operator: true },
+      { ok: false, problem: "sign_in_in_use" },
+    ],
     ["a sign-in already erased", { signInLinked: false }, { ok: true, outcome: "replay" }],
     [
       "a sign-in already erased, even if the old one were in use elsewhere",
@@ -91,5 +101,25 @@ describe("H-566 the sign-in is erased only when nobody else relies on it", () =>
     for (const message of Object.values(MEMBERSHIP_MESSAGES)) {
       expect(message).toMatch(/^[A-Z].*\.$/);
     }
+  });
+});
+
+describe("H-566 H-1469 reinstating an ended membership (a wrong leaving date withdrawn, HZ-133)", () => {
+  it.each<[Partial<MembershipFacts>, MembershipCheck]>([
+    [{ organisationWide: true }, { ok: true, outcome: "apply" }],
+    [{ organisationWide: false }, { ok: false, problem: "membership_ended" }],
+    [{}, { ok: false, problem: "membership_ended" }],
+    [
+      { organisationWide: true, signInErased: true },
+      { ok: false, problem: "membership_ended" },
+    ],
+    [
+      { organisationWide: true, self: true },
+      { ok: false, problem: "own_membership" },
+    ],
+  ])("%o gives %o", (extra, expected) => {
+    expect(checkMembershipChange(facts({ action: "reinstate", state: "left", ...extra }))).toEqual(
+      expected,
+    );
   });
 });

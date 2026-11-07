@@ -402,6 +402,7 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
         quantity: 5,
         reason: "Coughing at night",
         allergiesChecked: true,
+        medicinesCompared: true,
         ...body,
       },
     });
@@ -461,6 +462,15 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
     expect(
       (await json<{ problems: { problem: string }[] }>(r)).problems.map((p) => p.problem),
     ).toEqual(["too_soon"]);
+  });
+
+  it("hazard HZ-120 refuses a dose unless the giver compared it with the current medicines", async () => {
+    // The API matches only the same dm+d product, so the comparison is the giver's; never assumed.
+    for (const medicinesCompared of [false, undefined]) {
+      const notCompared = await give("carer", { medicinesCompared });
+      expect(notCompared.status).toBe(422);
+      expect(JSON.stringify(await notCompared.json())).toMatch(/medicinesCompared/);
+    }
   });
 
   it("records a dose already given outside the protocol with its flags, escalated urgently", async () => {
@@ -525,6 +535,7 @@ describe("hazard HZ-120 homely remedies only within the home's protocol (slice 3
         quantity: 2,
         reason: "Headache",
         allergiesChecked: true,
+        medicinesCompared: true,
       },
     });
     expect(given.status).toBe(422);

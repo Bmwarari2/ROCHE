@@ -1,6 +1,6 @@
 # How to print the downtime pack
 
-The downtime pack is a paper copy of what staff need to give safe care when Harbour cannot be
+The downtime pack is a paper copy of what staff need to give safe care when Thapsus Care cannot be
 reached: a front sheet of warnings and one page per person.
 
 **Who can do this**: senior carers and team leaders, nurses, managers and the owner. Care workers
@@ -11,8 +11,8 @@ alone is not enough.
 
 ## Steps
 
-1. Go to **Downtime** in the menu. Choose your home if Harbour asks.
-2. Choose **Open the pack**. If Harbour shows **Confirm it is you**, sign in again with your
+1. Go to **Downtime** in the menu. Choose your home if Thapsus Care asks.
+2. Choose **Open the pack**. If Thapsus Care shows **Confirm it is you**, sign in again with your
    passkey or a code from your authenticator app.
 3. Check the chip says **In date**, and read the **Use until** time.
 4. Choose **Download the pack to print (PDF)** and print it.
@@ -42,4 +42,4 @@ alone is not enough.
 ## Good to know
 
 - Opening and printing each count towards a limit (30 an hour) and each is recorded.
-- Harbour does not keep a copy of the printed pack.
+- Thapsus Care does not keep a copy of the printed pack.

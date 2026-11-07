@@ -1,7 +1,7 @@
 # How to add, schedule and retire an audit template
 
 An audit template holds the scored questions for one kind of audit, mapped to the quality
-statements. Add one from Harbour's starter templates, schedule it at each location, and retire it
+statements. Add one from Thapsus Care's starter templates, schedule it at each location, and retire it
 when you no longer use it.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner, the group executive and
@@ -43,7 +43,7 @@ The schedule then shows on **Quality audits** under **Schedule**, marked **Due**
 
 - Audits already started keep the questions they started with, even if the template changes or is
   retired. Its audits and schedules stay.
-- Harbour's starter templates are Harbour's drafting. Review the wording and weights against your
+- Thapsus Care's starter templates are only a draft. Review the wording and weights against your
   own policies before you rely on them.
 - If the template is already scheduled at every location you can see, the page says "This template
   is scheduled at every location you can see."

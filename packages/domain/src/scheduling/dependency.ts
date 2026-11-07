@@ -54,7 +54,7 @@ export type DependencyAssessmentKind = (typeof DEPENDENCY_ASSESSMENT_KINDS)[numb
 
 /** Shown with every required-hours figure and comparison (rule 12). */
 export const DEPENDENCY_TOOL_NOTICE =
-  "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing.";
+  "These hours come from your organisation's own dependency scale. Thapsus Care adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing.";
 
 export const STAFFING_STATUSES = [
   "below",

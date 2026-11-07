@@ -7,7 +7,7 @@
 | Who handles | The **tenant** (controller) for complaints about its processing. Thapsus forwards any it receives. Thapsus handles complaints about its own processing as controller |
 | Tooling | In-product data protection complaint form, register and outcome tracking (phase per [feature register](../specs/feature-register.md)) |
 
-## 1. What Harbour provides
+## 1. What Thapsus Care provides
 
 | Feature | Detail |
 | --- | --- |
@@ -34,4 +34,4 @@
 | --- | --- |
 | Complaint about a tenant's processing reaches Thapsus | Log in support as `DP complaint`; forward to the tenant's DPO in-app and by email within `[2]` working days; tell the complainant it has been passed to the care provider, which is responsible |
 | Complaint about Thapsus's own processing (as controller) | Follow the tenant procedure above, owned by the Thapsus DPO lead `[human action]` |
-| Complaint about how Harbour works (for example a feature makes rights hard to exercise) | Forward to the tenant, and also raise a product issue labelled `data-protection` |
+| Complaint about how Thapsus Care works (for example a feature makes rights hard to exercise) | Forward to the tenant, and also raise a product issue labelled `data-protection` |

@@ -31,7 +31,7 @@ env:
 - assertVisible:
     text: "This phone holds the open tasks due from .*"
 - assertVisible:
-    text: ".*The whole round is in Harbour on the web.*"
+    text: ".*The whole round is in Thapsus Care on the web.*"
 - assertNotVisible:
     text: "Nothing due.*"
 - extendedWaitUntil:

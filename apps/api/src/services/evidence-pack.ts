@@ -259,7 +259,7 @@ type EntryRow = typeof careNote.$inferSelect | typeof observation.$inferSelect;
  * reference (typed: free text). An inspector reads these as a person reading the record would.
  */
 async function provenanceFields(tx: Transaction, row: EntryRow): Promise<EvidenceField[]> {
-  const fields = [field("recorded_at", "Recorded in Harbour", when(row.recordedAt))];
+  const fields = [field("recorded_at", "Recorded in Thapsus Care", when(row.recordedAt))];
   if (row.clockDrift) {
     fields.push(
       field("clock_drift", "Device clock", "The device's clock was wrong when this was written"),
@@ -305,7 +305,7 @@ async function provenanceFields(tx: Transaction, row: EntryRow): Promise<Evidenc
         "Back-entered from paper",
         `Written on paper at ${d}/${m}/${y} ${time}${repeated} during ${
           cut ? `a ${words(cut.kind)} outage from ${when(cut.startedAt)}` : "an outage"
-        }, and entered in Harbour later`,
+        }, and entered in Thapsus Care later`,
       ),
     );
     if (row.paperReference) {
@@ -423,7 +423,7 @@ async function loadIncident(tx: Transaction, id: string): Promise<Loaded | null>
         ...(only ? personFields(only) : []),
         field("type", "Type", words(row.type)),
         field("occurred_at", "When", when(row.occurredAt)),
-        field("recorded_at", "Recorded in Harbour", when(row.recordedAt)),
+        field("recorded_at", "Recorded in Thapsus Care", when(row.recordedAt)),
         field("late_entry", "Written late", yesNo(row.lateEntry)),
         ...(row.clockDrift
           ? [

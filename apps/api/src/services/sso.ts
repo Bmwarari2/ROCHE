@@ -224,7 +224,7 @@ export interface SsoHooks {
 }
 
 const ACCOUNT_ELSEWHERE =
-  "This identity provider account is already linked to another Harbour sign-in.";
+  "This identity provider account is already linked to another Thapsus Care sign-in.";
 
 /** The hooks the SSO plugin calls; they run before anyone is signed in. */
 export function createSsoHooks(deps: {
@@ -283,7 +283,7 @@ export function createSsoHooks(deps: {
         return refuse(
           facts.tenant_id,
           "sign_in_first",
-          "Sign in with your existing Harbour sign-in first, then accept your invitation.",
+          "Sign in with your existing Thapsus Care sign-in first, then accept your invitation.",
         );
       return { action: "continue" };
     },

@@ -1251,7 +1251,7 @@ describe("duty of candour and investigations", () => {
     );
   });
 
-  it("hazard HZ-091 a decision against Harbour's finding, or a changed one, needs a reason and a tick in the API (round 2 M3)", async () => {
+  it("hazard HZ-091 a decision against Thapsus Care's finding, or a changed one, needs a reason and a tick in the API (round 2 M3)", async () => {
     const incident = await harmed([affected(4)]);
     const decision = (notifiable: boolean) => ({
       notifiable,
@@ -1266,7 +1266,7 @@ describe("duty of candour and investigations", () => {
     });
     expect(bare.status).toBe(422);
     expect((await json<{ detail: string }>(bare)).detail).toBe(
-      "Say why in at least 20 characters: the decision differs from Harbour's finding or changes the one recorded. Confirm the decision.",
+      "Say why in at least 20 characters: the decision differs from Thapsus Care's finding or changes the one recorded. Confirm the decision.",
     );
     // Agreeing with Harbour needs no reason.
     const agreed = await json<CandourView>(

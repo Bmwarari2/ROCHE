@@ -151,7 +151,7 @@ export const dpiaRouter = createRouter()
       tags: ["platform"],
       summary: "Save the DPIA being prepared (starting a new version if none is)",
       description:
-        "platform.dpia.prepare. Refreshes Harbour's prefill and stores the organisation's answers, residual risk ratings and any ICO reference; the saver joins the version's preparers, who may not sign it. Saving a prepared version returns it to draft. Send the open version's `version` (409 when stale). Audited.",
+        "platform.dpia.prepare. Refreshes Thapsus Care's prefill and stores the organisation's answers, residual risk ratings and any ICO reference; the saver joins the version's preparers, who may not sign it. Saving a prepared version returns it to draft. Send the open version's `version` (409 when stale). Audited.",
       security,
       request: { body: { content: { "application/json": { schema: SaveDpia } } } },
       responses: { 200: jsonBody(DpiaVersion, "Saved"), ...errorResponses, ...conflictResponse },

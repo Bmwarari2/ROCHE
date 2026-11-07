@@ -40,7 +40,7 @@ least 4.5:1 contrast on white and on black. The columns are already on `tenant` 
    to see on the dark theme's black). The refusal names the nearest colour of the same hue that
    passes (`adjustAccentForContrast`), and the settings screen offers it in one step and shows the
    ratios. Auto-adjusting is offered, never done silently, so the owner sees the colour their staff
-   will see. No accent: Harbour's own. The focus ring keeps Harbour's own colour in both themes,
+   will see. No accent: Thapsus Care's own. The focus ring keeps Thapsus Care's own colour in both themes,
    so an accent never weakens it; status colours are fixed tokens and never take the accent.
 2. The display name (`checkBrandName`: NFC-normalised, trimmed, spaces collapsed, at most 80
    characters, no control, bidirectional-override or zero-width characters, so one organisation's
@@ -64,7 +64,7 @@ least 4.5:1 contrast on white and on black. The columns are already on `tenant` 
    change is audited (`platform.branding.updated` with the fields changed and the old and new
    accent, refusals too; `platform.branding.logo` with the document id), never the logo's bytes.
 5. Sign-in: the organisation is not known before sign-in (one address can belong to several), so
-   the sign-in page stays Harbour's; the "choose an organisation" page shows each one's name.
+   the sign-in page stays Thapsus Care's; the "choose an organisation" page shows each one's name.
    Printed packs and letters keep the registered name as they do now; adding the logo to them is
    a later slice (the PDF writer, ADR-0040, would need the image path the transfer pack uses).
 6. Not clinical: no hazard is affected. No personal data: a logo and a display name are about the
@@ -188,7 +188,7 @@ shows it; upload and remove a logo; axe in light and dark).
   and next week, next only once it has ended), each location's report in the reader's access
   (narrowed to the location switcher's location when one is chosen, and saying so when that hides
   every report) with its totals in words and its state as icons and words ("Reviewed" or "To
-  review", "n things flagged", "Could not be read"); a week with no reports says when Harbour
+  review", "n things flagged", "Could not be read"); a week with no reports says when Thapsus Care
   builds them. For a reader across the organisation it also shows the searches that showed no one
   at any location, with who searched, why and who is flagged. The report page ("Break-glass report
   for {location}", its title naming the location and week, never a person) shows the totals, what
@@ -265,7 +265,7 @@ shows it; upload and remove a logo; axe in light and dark).
   the sign-in's memberships, or record last use per session and organisation); background reads
   (the person record header's 2-minute refresh, `HeaderFreshness`) count as use, which also keeps a
   shared ward PC signed in as the last user (mark them as background while still checking idle);
-  Harbour's global per-role rows beat an organisation's stricter default; acting-up grants add no
+  Thapsus Care's global per-role rows beat an organisation's stricter default; acting-up grants add no
   role keys; an idle session still works on the identity-level routes (`/v1/memberships`,
   `/v1/me/sessions`, `revoke-others`) and on `/api/auth/*`; use is recorded before authorisation.
 - Admin sign-out: `POST /v1/members/{tenantUserId}/sessions/revoke` (`platform.user.manage` with
@@ -294,13 +294,13 @@ shows it; upload and remove a logo; axe in light and dark).
   ends at once and open invitations end; with entries waiting on the member's devices it needs
   `confirmEntriesWaiting`, and the holds fall due at once so the entries are handed over; every
   session of the sign-in ends unless the person has a membership elsewhere that has not ended
-  (suspended included) or the sign-in is a Harbour operator's (audited `platform.member.suspended`
+  (suspended included) or the sign-in is a Thapsus Care operator's (audited `platform.member.suspended`
   before the sessions end). `POST .../end` ends only a suspended
   membership (409 `suspend_first`), keeping the member row, display name and job title so care
   records stay attributable (Regulation 17). `POST .../sign-in/erase` erases the sign-in identity
   of an ended membership (409 `membership_not_ended`) once it has no membership in any other
   organisation that has not ended (invited, active or suspended: erasing would orphan it) and is
-  not a Harbour operator's (409 `sign_in_in_use`): the auth user with its address, password hash,
+  not a Thapsus Care operator's (409 `sign_in_in_use`): the auth user with its address, password hash,
   passkeys, TOTP secret and backup codes, sessions, and every verification token naming it
   (password resets, passkey challenges, session second-factor records), in one transaction of the
   auth role, audited (`platform.member.sign_in_erased`, listing exactly what was removed and that
@@ -326,8 +326,55 @@ shows it; upload and remove a logo; axe in light and dark).
   sign-in link (`app.change_membership`, `app.accept_invitation`, `app.link_sso_member`,
   `app.end_leaver_access`) takes the same per-organisation lock first and then its row locks in id
   order, so a suspension never deadlocks with an invitation being accepted and a leaver's access is
-  never ended while they suspend the last other user manager. Reinstating has no route yet; the
-  web screens for these routes are a follow-up.
+  never ended while they suspend the last other user manager.
+- Completing the lifecycle (H-566 v2, migration 0149; `feat/platform-member-lifecycle-v2`):
+  - `POST /v1/members/{tenantUserId}/reinstate` (H-1463; step-up, `MEMBER_REINSTATE_REASONS`)
+    undoes a suspension before the end through `app.change_membership` (`reinstate`), and only
+    when the manager holds every permission of the member's roles and grants where they apply
+    (`app.may_invite`, read under the organisation's lock; 403 `beyond_inviter`, as for an
+    invitation). Sessions ended at the suspension stay ended; audited `platform.member.reinstated`.
+    A holder of the permission across the organisation may also bring an ended membership back
+    (H-1469; a wrong leaving date withdrawn, HZ-133), active with its sign-in or invited without
+    one, never while a leaving is still recorded (409 `leaving_still_recorded`: withdraw it first,
+    in the staff file or through the HR link's withdraw), never once the sign-in has been erased
+    or while the member's deletion request stands, or once its
+    sign-in has been deleted from another organisation. Roles and grants ended by the leaver
+    process stay ended; any still in force come back only where the manager holds them
+    (`app.may_invite`). `tenant_user_membership_guard` (replaced in place) allows this one
+    transition for `harbour_member_owner` only. `mayReinstate` on the status tells the page.
+  - Suspending counts and hurries only the member's own held entries (the device report names the
+    owner), never a colleague's on a shared device. Ending waits for entries of theirs held on a
+    device with an open hold, its own task or a capped-holds task it was merged into (409
+    `entries_to_hand_over`; a device revoked as lost or stolen does not count, H-1465), and, when
+    they used any device for Care mode, for the manager's coded device check (`deviceCheck`:
+    `device_returned_checked` or `device_lost_incident_raised`; 409 `devices_unchecked`; H-1464),
+    since a suspended phone cannot report again.
+  - `GET /v1/members/{tenantUserId}/lifecycle` (whether the person works elsewhere is shown only
+    once the membership here has ended): state, when it last changed
+    (`status_changed_at`, set by `app.change_membership`), whether deletion was asked for and is
+    open, the sign-in's state (`kept`, `kept_other_organisation`, `erased`, `none`), entries
+    waiting and to hand over, devices used and the last report. No address or sign-in detail.
+  - Erasure without a manager (H-1462): the account deletion request records
+    `sign_in_erasure_requested_at` (`app.request_sign_in_erasure`, own row only). The nightly sweep
+    (invitation queue) lists every ended membership whose sign-in is due
+    (`app.sign_ins_due_for_erasure`, owned by `harbour_member_owner`, worker only): the membership
+    that asked has ended, and no membership of the sign-in in an onboarding or active organisation
+    is invited, active or suspended, in any organisation that is not closed, and it is not an
+    operator's. For each, audited first by the system, on the worker's own connection and in one
+    transaction, `app.change_membership` (`unlink_sign_in`; only `session_user` `harbour_worker`
+    may, never the application role acting as the system) re-checks it is due, takes the
+    sign-in's lock (which accepting an invitation and a single sign-on link also take), removes the
+    link and sets `sign_in_erased_at`; the identity is then deleted and the transaction commits (a
+    failed deletion restores the link, audited as an error); an open deletion request closes. The
+    sweep is its own job (`sign-in-erasure-sweep`, 03:47). The membership that asked comes last, so a stopped sweep finds it due
+    again; one failure never stops the rest. The application role has no UPDATE on the three
+    lifecycle times.
+  - Web: the member page in Settings, Team shows the membership (icon and word), the sign-in, any
+    deletion request, devices and held entries, with "Suspend membership", "Reinstate membership",
+    "End membership" (with the device check) and "Erase sign-in" sheets.
+  - Not built: a report route for a suspended phone (H-1466); a dedicated lost-device hold closure
+    (H-1465); review of entries written offline while suspended that arrive after reinstatement
+    (H-1467).
 - Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
 ## Invitations and MFA enrolment (PLAT-004)
@@ -363,7 +410,7 @@ Flow:
    `invitation.expiry_hours` capped by `invitation.expiry_hours_max` (rate table, 72 and 168), and
    the member's address copied from their record by the database, never from the request. The
    link is emailed through the organisation's email adapter: a generic subject ("You have been
-   invited to Harbour"), the organisation's name, the expiry in UK time, nothing about any person
+   invited to Thapsus Care"), the organisation's name, the expiry in UK time, nothing about any person
    receiving care. Audited (`platform.invitation.sent`, opaque ids, never the address or the
    token); refused attempts too. The first owner, made by `POST /operator/tenants`, is invited by
    an operator admin (`POST /operator/tenants/{id}/owner-invitation`) through a security-definer
@@ -544,7 +591,7 @@ As built, the routes (`apps/api/src/routes/invitations.ts`, `operator-invitation
 - The email goes straight to the organisation's `comms.email` adapter (the mock unless one is
   configured; in production none means not sent, `emailSent: false`, audited
   `platform.invitation.email_failed`; H-356), never through `notification_delivery`, which would
-  store the link. Subject "You have been invited to Harbour", the link only (H-357).
+  store the link. Subject "You have been invited to Thapsus Care", the link only (H-357).
 - The worker's nightly `invitation-sweep` (03:17) runs `app.sweep_expired_invitations` and deletes
   each sign-in `app.unlinked_invitation_sign_ins` lists through the auth role, each audited as
   `platform.invitation.sign_in_removed`. Known gap, logged in STATUS: a sign-in linked between the
@@ -928,7 +975,7 @@ Envelope encryption and per-organisation shredding ([ADR-0109](../decisions/0109
    30 seconds everywhere else (the data-key cache); the key material is destroyed when the delay
    ends (30 days in Cloud KMS, recorded on the certificate) and cannot be restored after.
 5. Every destruction certificate (the existing per-document ones and the shred's) carries its body's
-   SHA-256 and a signature by Harbour's certificate key, with the key and algorithm inside the
+   SHA-256 and a signature by Thapsus Care's certificate key, with the key and algorithm inside the
    signed body; the shred's also names both people, the export, the key versions and their destroy
    times. Each states when database backups no longer hold deleted rows (the longer of the
    point-in-time recovery window and the backup retention). Certificates hold opaque ids only.
@@ -1243,8 +1290,8 @@ Act 2025; ICO guidance on time limits):
     tenant has verified; it never creates a member, never links a different email, and never signs
     in a family member or an operator.
 16. The tenant chooses which roles may use SSO; a member holding a role not on the list signs in
-    with Harbour's own methods.
-17. SSO is a first factor only: a session from SSO that reaches care records still needs Harbour's
+    with Thapsus Care's own methods.
+17. SSO is a first factor only: a session from SSO that reaches care records still needs Thapsus Care's
     own second factor (passkey or authenticator), and step-up always needs it (section 5.3).
 
 ### Tests (written before the code)
@@ -1325,7 +1372,7 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
    what retention allows is listed as erasable. The decision is recorded on the case; deletion itself
    is done by the retention engine (retention-and-deletion.md), never by the workbench.
 7. Portability (UK GDPR Art 20) applies only to data the subject provided, processed by consent or
-   contract by automated means: in Harbour, a member of staff's own records; for a person's care
+   contract by automated means: in Thapsus Care, a member of staff's own records; for a person's care
    records (public task and health care bases) the case records that it does not apply and offers
    access instead (`portabilityApplies`).
 8. Rectification records which records were corrected (or why not); the correction itself is made
@@ -1420,7 +1467,7 @@ renumbered at merge). Procedures: [breach-response.md](../compliance/breach-resp
     is recorded once; a change of mind is a new decision with its own reasoning, kept in history.
 21. Recording the ICO report needs a decision to report; a report after the deadline is refused
     without the reasons for the delay (Art 33(1)). The ICO's reference is kept as given.
-22. The notice to the people affected is drafted from Harbour's plain-English template (what
+22. The notice to the people affected is drafted from Thapsus Care's plain-English template (what
     happened, what it means for them, what has been done, what they can do, who to contact), edited
     by a person, and recorded with the day they were told. It needs a decision to tell them.
 23. A breach closes only once decided, with lessons of at least 20 characters; once closed nothing
@@ -1495,7 +1542,7 @@ Hazards: HZ-130 (imported records mis-mapped, duplicated or attached to the wron
 | Table | Columns | Rules |
 | --- | --- | --- |
 | `import_batch` | `id`, `tenant_id`, `record_type` (`people`), `location_id` (every imported person's home), `status` (`staged`, `committed`, `undone`, `discarded`, `expired`), `row_count`, `uploaded_by`, `uploaded_at`, `expires_at`, `dry_run_at`, `dry_run_by`, `dry_run_errors`, `dry_run_warnings`, `closed_at`, `closed_by`, `created_at`, `created_by` | One upload. Inserted staged, in the uploader's own name. A guard keeps who uploaded what, where and when; moves the status forward only (staged to committed, discarded or expired; committed to undone); commits only after a dry run and before `expires_at`; closes in the member's own name, or as the system only once `expires_at` has passed; never deleted. Opaque ids, counts and times only: no file name, heading or value |
-| `import_row` | `id`, `tenant_id`, `batch_id`, `row_number` (1 is the first row under the header), `cells` (JSON: Harbour field key to the text as given) | The quarantine: personal data, held only while the batch is staged. INSERT and SELECT only for the application, into a staged batch; never updated; deleted, every row of the batch, in the transaction that commits, discards or expires it (`app.import_batch_closed`, a trigger owned by `harbour_import_owner`) |
+| `import_row` | `id`, `tenant_id`, `batch_id`, `row_number` (1 is the first row under the header), `cells` (JSON: Thapsus Care field key to the text as given) | The quarantine: personal data, held only while the batch is staged. INSERT and SELECT only for the application, into a staged batch; never updated; deleted, every row of the batch, in the transaction that commits, discards or expires it (`app.import_batch_closed`, a trigger owned by `harbour_import_owner`) |
 | `import_commit` | `id`, `tenant_id`, `batch_id` (one per batch), `record_ids` (the people created), `record_count`, `committed_by`, `committed_at`, `undone_at`, `undone_by`, `created_at`, `created_by` | The commit record: inserted in the committer's own name with the batch committed; undone only by `app.undo_import_batch` |
 | `person.import_batch_id` | The batch that created the person, or empty | Set only as the person is created, only while that batch is staged after its dry run (the commit creates people before it closes the batch), never changed (`app.person_import_batch_guard`); an undo removes only people carrying the batch's id (#150 review, security M1). The people sync streams do not select it |
 
@@ -1539,10 +1586,10 @@ organisation.
     one header row, RFC 4180 quoting, comma separated) or JSON rows (objects of text), within
     `IMPORT_LIMITS` (rows, columns and characters a cell; product limits, not statutory figures),
     enforced while the file is read, so reading stops at the first row, column or cell too many.
-    Each column is matched to a Harbour field by the mapping given (column heading to field key, or
+    Each column is matched to a Thapsus Care field by the mapping given (column heading to field key, or
     `null` to leave the column out), else by its field key or label, ignoring case, spaces,
     hyphens and underscores (own keys only). A column that matches nothing, a mapping to a field
-    Harbour does not import, or two columns for one field refuse the upload (422
+    Thapsus Care does not import, or two columns for one field refuse the upload (422
     `columns_not_mapped`), naming each column by its position, never its heading (a file without a
     header row would make its first person's details the headings). A cell that could not be
     stored (a control character, or half of a character: a lone UTF-16 surrogate) refuses the
@@ -1579,7 +1626,7 @@ organisation.
     and warning by row and field key with a code and plain words (never a value or a heading), the
     warning keys, what the file stated for each person's allergy status (none, no known allergies,
     has allergies), and, in plain words (`whatHappens`), what committing will do: create that many
-    people at the chosen home as current residents, changing nobody already in Harbour; show them
+    people at the chosen home as current residents, changing nobody already in Thapsus Care; show them
     to staff at once, on the web and on phones at their next sync, after which the import can no
     longer be undone; where phones are in use (`phonesInUse`: a sync token carrying people issued in
     the organisation within `mobile.offline_window_days`), that the import should be treated as one
@@ -1661,7 +1708,7 @@ organisation.
   only, two columns for one field, a mapping to no field); `PLAT-014 person import rules`
   (identifier, local identifier on two rows, dates from 1900, the postcode, control characters and
   lone surrogates, test NHS numbers, a cell that cannot be stored found by row and field);
-  `hazard HZ-130 ...` (an NHS number or local identifier already in Harbour, naming the record;
+  `hazard HZ-130 ...` (an NHS number or local identifier already in Thapsus Care, naming the record;
   possible duplicates by every kind of name agreement, naming the row or record; different NHS
   numbers never warned; the commit check table with exactly the warnings seen; round 2: a pair
   warned once on the later row, the warnings bounded per row and in total, a crowded date of birth
@@ -1719,7 +1766,7 @@ HZ-024 (care plans), HZ-124 (staff files), HZ-072 (sample data).
     and its own audit action per record created (`medicines.entry.imported`,
     `care.plan.imported`, `workforce.compliance_item.imported`). Every type is matched to its
     record by identifier only: a person by NHS number (a 999-range number only in test
-    environments), a staff file by the member's work email. A row whose person or file Harbour
+    environments), a staff file by the member's work email. A row whose person or file Thapsus Care
     does not hold is refused, never matched by name (HZ-130).
 28. **Medicines arrive not yet checked and are held until checked** (H-548, HZ-005). The medicine
     is the dm+d product its VMP code (and optional AMP code) names: the code must have the
@@ -1787,7 +1834,7 @@ when a design partner needs it (H-753). Code: `packages/db/src/schema/sso.ts`, m
 `packages/domain/src/platform/sso.ts`, `apps/api/src/routes/sso.ts`, `apps/api/src/services/sso.ts`,
 `apps/api/src/auth/better-auth.ts`.
 
-**Data.** `sso_connection` (one per organisation, mutable, versioned): the provider id Harbour
+**Data.** `sso_connection` (one per organisation, mutable, versioned): the provider id Thapsus Care
 derives from the organisation (`harbour-<tenant id>`), the issuer and its discovery URL (https), the
 client id, the name of the private key in the managed secret store and its key id, the roles
 allowed to use SSO, and whether it is switched on. `sso_domain` (mutable, versioned): an email
@@ -1813,11 +1860,11 @@ change in `record_version` and the audit trail.
 20. Linking: the SSO callback runs `ssoSignInDecision` (rules 15 and 16) for the organisation the
     provider belongs to, and refuses a provider account already linked to another sign-in (one
     account, one sign-in, across organisations). An SSO session reaches only that organisation. A
-    new issuer, client or discovery URL switches SSO off until every domain is proved again. An active member with a Harbour sign-in is linked to it; an invited member
+    new issuer, client or discovery URL switches SSO off until every domain is proved again. An active member with a Thapsus Care sign-in is linked to it; an invited member
     with none gets a sign-in created and is linked by `app.link_sso_member`, which accepts any open
     invitation and is audited. Anyone else is refused with the rule's words; nothing is created for
     them.
-21. Rule 17 holds through the existing session factor (ADR-0072): an SSO session has no Harbour
+21. Rule 17 holds through the existing session factor (ADR-0072): an SSO session has no Thapsus Care
     factor recorded, so care records and step-up ask for the passkey or authenticator code on that
     session (HZ-112). A provider's MFA claim is never read.
 22. Only holders of `platform.tenant.manage` read or change the configuration; every change needs a
@@ -1826,7 +1873,7 @@ change in `record_version` and the audit trail.
 23. Single sign-on is behind the `platform.sso` flag, off by default: with it off the configuration
     API refuses and the SSO sign-in and callback answer 404. An SSO session carries its
     organisation on its own row and reaches no other; on Better Auth's routes it may only read
-    itself, sign out and confirm a Harbour code. No implicit linking by email.
+    itself, sign out and confirm a Thapsus Care code. No implicit linking by email.
 24. While the flag is off, an SSO session is refused and ended on every request: the session
     middleware checks the flag before it accepts the session or moves its expiry on, on every
     `/v1` route (the tenantless ones, `/v1/memberships`, `/v1/me/sessions*` and the invitation
@@ -1840,7 +1887,7 @@ change in `record_version` and the audit trail.
     token's signature and expiry, not the flag; the next token is refused with the session.
     Which organisation a session is from is read from the session Better Auth resolved, never
     from a second read of its row, so a request racing its end is still taken as SSO.
-25. Wrong Harbour codes are throttled per member across all sessions as well as per session, the
+25. Wrong Thapsus Care codes are throttled per member across all sessions as well as per session, the
     sign-in's own code step included (HZ-112): the member's attempts are counted in Postgres; after
     five in an hour each waits a minute, then four, then 15 (the cap), and at most ten are checked
     in an hour.
@@ -1869,7 +1916,7 @@ change in `record_version` and the audit trail.
   missing from the store refused; domain added, proved by a mocked DNS answer, refused without it;
   sign-in started with PKCE and the client id; the resolver links an active member, links and
   activates an invited one, refuses a stranger, a family member and a role not allowed; an SSO
-  session is refused care records until a Harbour factor is used (HZ-112).
+  session is refused care records until a Thapsus Care factor is used (HZ-112).
 
 ## Permission matrix
 

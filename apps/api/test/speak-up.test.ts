@@ -559,7 +559,7 @@ describe("SAFE-012 the lead exports the silo alone, with step-up (H-721)", () =>
 });
 
 describe("SAFE-012 the lead's view and appointment (ADR-0089 security review)", () => {
-  it("pages the lead's list by cursor, and refuses a cursor Harbour did not give", async () => {
+  it("pages the lead's list by cursor, and refuses a cursor Thapsus Care did not give", async () => {
     await raiseNamed("named");
     await raiseNamed("named");
     const first = await json<SpeakUpCaseList>(await asLead("/v1/speak-up/cases?limit=2"));

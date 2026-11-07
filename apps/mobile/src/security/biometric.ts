@@ -9,7 +9,7 @@ export type UnlockFailure = "cancelled" | "not_secure" | "locked_out" | "unavail
 export class DeviceNotSecureError extends Error {
   constructor() {
     super(
-      "Set a screen lock (passcode, PIN or pattern) on this device to use Harbour. Care records are only stored on locked devices.",
+      "Set a screen lock (passcode, PIN or pattern) on this device to use Thapsus Care. Care records are only stored on locked devices.",
     );
     this.name = "DeviceNotSecureError";
   }
@@ -52,7 +52,7 @@ export async function authenticate(
 export const unlockFailureMessages: Record<UnlockFailure, string> = {
   cancelled: "Unlock was cancelled. Tap Unlock to try again.",
   not_secure:
-    "This device has no screen lock. Set a passcode, PIN or pattern in Settings to use Harbour.",
+    "This device has no screen lock. Set a passcode, PIN or pattern in Settings to use Thapsus Care.",
   locked_out: "Too many attempts. Unlock your device with its passcode first, then try again.",
   unavailable: "Device authentication is not available. Check your device security settings.",
   failed: "That did not work. Tap Unlock to try again.",

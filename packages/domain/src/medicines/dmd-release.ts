@@ -528,7 +528,7 @@ export function dmdReleaseFreshness(
       status: "none",
       ageDays: null,
       message:
-        "No dm+d release is loaded, so no medicine can be chosen. Tell your Harbour administrator.",
+        "No dm+d release is loaded, so no medicine can be chosen. Tell your Thapsus Care administrator.",
     };
   }
   const ageDays = Math.round(dayNumber(todayUk) - dayNumber(release.releasedOn));
@@ -537,7 +537,7 @@ export function dmdReleaseFreshness(
     return {
       status: "out_of_date",
       ageDays,
-      message: `The dm+d data is out of date: the release in use is dated ${date}, ${ageDays} days ago. Check the product against the pack and the prescription, and tell your Harbour administrator.`,
+      message: `The dm+d data is out of date: the release in use is dated ${date}, ${ageDays} days ago. Check the product against the pack and the prescription, and tell your Thapsus Care administrator.`,
     };
   }
   return { status: "current", ageDays, message: `dm+d release dated ${date}.` };

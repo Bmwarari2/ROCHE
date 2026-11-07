@@ -234,7 +234,7 @@ interface VaultValue {
 const VaultContext = createContext<VaultValue | null>(null);
 
 export const REMOTE_WIPE_NOTICE =
-  "You were signed out of Harbour on this device, so the care records stored on it have been removed. Sign in again to continue.";
+  "You were signed out of Thapsus Care on this device, so the care records stored on it have been removed. Sign in again to continue.";
 
 const RESET_NOTICE =
   "This device's security settings changed, so the data stored on it was reset. It will download again when you are online.";
@@ -310,7 +310,7 @@ function errorMessage(error: unknown): string {
   }
   const text = error instanceof Error ? error.message.toLowerCase() : "";
   if (text.includes("cancel")) return unlockFailureMessages.cancelled;
-  return "Harbour could not be unlocked. Try again, or sign out and sign in again.";
+  return "Thapsus Care could not be unlocked. Try again, or sign out and sign in again.";
 }
 
 /** Opens the database with its key, reads the unsent entries' ids, and closes it again. */
@@ -622,7 +622,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       });
       if (key.protection === "passcode") {
         // The keystore read did not prompt, so ask for the passcode explicitly.
-        const result = await authenticate("Unlock Harbour");
+        const result = await authenticate("Unlock Thapsus Care");
         if (!result.ok) throw new Error(unlockFailureMessages[result.reason]);
       }
       if (created && previousId) {
@@ -745,7 +745,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       if (!dbRef.current) {
         await openVault();
       } else {
-        const result = await authenticate("Unlock Harbour");
+        const result = await authenticate("Unlock Thapsus Care");
         if (!result.ok) throw new Error(unlockFailureMessages[result.reason]);
       }
       setStatus("unlocked");
@@ -1297,7 +1297,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
 
   const forceResync = useCallback(async (): Promise<ResyncResult> => {
     const current = dbRef.current;
-    if (!current) return { ok: false, reason: "Unlock Harbour first." };
+    if (!current) return { ok: false, reason: "Unlock Thapsus Care first." };
     const queue = await current.getUploadQueueStats();
     if (queue.count > 0) {
       return {

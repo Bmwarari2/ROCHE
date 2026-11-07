@@ -18,7 +18,7 @@
 
 | Level | Definition | Care-specific examples |
 | --- | --- | --- |
-| SEV1 Critical | Harbour unavailable or unsafe for many tenants; confirmed or likely cross-tenant exposure; data loss or corruption in care or medicines records; active security compromise | API down; sync stopped for all devices; records written to the wrong tenant or person; restore needed |
+| SEV1 Critical | Thapsus Care unavailable or unsafe for many tenants; confirmed or likely cross-tenant exposure; data loss or corruption in care or medicines records; active security compromise | API down; sync stopped for all devices; records written to the wrong tenant or person; restore needed |
 | SEV2 Major | Major function unavailable or degraded for one or more tenants with a workaround; risk to care if prolonged; suspected breach under investigation | eMAR rounds failing to save for a tenant; escalation or notification-clock jobs not firing; sync delayed beyond the stale threshold for many devices |
 | SEV3 Minor | Partial degradation, no risk to care, workaround available | Slow reports; one integration failing; email delays |
 | SEV4 Low | Cosmetic or single-user issue | Layout problem; typo |

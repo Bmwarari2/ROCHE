@@ -299,14 +299,14 @@ describe("section-level change summary", () => {
     expect(changed(o)).toEqual(expected);
   });
 
-  it("marks every section on the first version in Harbour", () => {
+  it("marks every section on the first version in Thapsus Care", () => {
     const first = statementOfPurposeChanges(null, CONTENT);
     expect(first.every((c) => c.change === "changed")).toBe(true);
-    expect(first[0]?.lines).toEqual(["First version in Harbour"]);
+    expect(first[0]?.lines).toEqual(["First version in Thapsus Care"]);
   });
 });
 
-describe("registration prompts (Harbour's reading, to confirm with CQC)", () => {
+describe("registration prompts (Thapsus Care's reading, to confirm with CQC)", () => {
   const manager = CONTENT.registeredManagers[0];
   if (!manager) throw new Error("fixture");
   it.each<[string, Partial<StatementOfPurposeContent>, string[]]>([

@@ -136,7 +136,7 @@ const claims = (overrides: Partial<SyncTokenClaims>): Partial<SyncTokenClaims> =
  * round's open tasks follow care.plan.read, as the round view does, and the handovers
  * care.handover.manage.
  */
-const FAMILY: Record<string, "people" | "care" | "entries" | "handover"> = {
+const FAMILY: Record<string, "people" | "care" | "entries" | "handover" | "meds"> = {
   assigned_people: "people",
   assigned_allergies: "people",
   location_people: "people",
@@ -151,6 +151,10 @@ const FAMILY: Record<string, "people" | "care" | "entries" | "handover"> = {
   location_open_tasks: "care",
   assigned_handovers: "handover",
   location_handovers: "handover",
+  assigned_medicines: "meds",
+  location_medicines: "meds",
+  assigned_medicine_administrations: "meds",
+  location_medicine_administrations: "meds",
 };
 
 let hydrated: ReturnType<typeof compile>["hydrated"];
@@ -189,6 +193,12 @@ describe("sync streams definition", () => {
       if (stream === "my_locations") continue;
       // The member's own shifts and clock events: by their own id only, in the token's shift days
       // (scheduling.md section 18); tested in shift-streams.test.ts.
+      // The member's own medicines competence, by their own id (medicines-streams.test.ts).
+      if (stream === "my_medicines_competence") {
+        expect(query, stream).toContain("auth.user_id()");
+        expect(query, stream).not.toContain("connection.parameter");
+        continue;
+      }
       if (stream === "my_shifts" || stream === "my_clock_events") {
         expect(query, stream).toContain("auth.user_id()");
         expect(query, stream).toContain("IN auth.parameter('shift_days')");
@@ -216,7 +226,9 @@ describe("sync streams definition", () => {
         );
       } else {
         expect(query, stream).toContain(`IN auth.parameter('${family}_location_ids')`);
-        for (const other of ["people", "care", "entries", "handover"].filter((f) => f !== family)) {
+        for (const other of ["people", "care", "entries", "handover", "meds"].filter(
+          (f) => f !== family,
+        )) {
           expect(query, stream).not.toContain(`auth.parameter('${other}_location_ids')`);
         }
       }
@@ -276,8 +288,9 @@ describe("sync streams definition", () => {
         FAMILY[stream] !== "handover" &&
         !query.includes("person_id IS NULL"),
     );
-    // People, allergies, the five reference, two plan and five entry queries, and tasks.
-    expect(location.length).toBe(15);
+    // People, allergies, the five reference, two plan and five entry queries, tasks, the four
+    // medicines queries and the administrations, by their routing home (slice 68; ADR-0134).
+    expect(location.length).toBe(20);
     const live = (column: string) =>
       `(${column} = 'active' OR ${column} = 'on_leave' OR ${column} = 'in_hospital')`;
     for (const { stream, query } of location) {
@@ -286,7 +299,7 @@ describe("sync streams definition", () => {
       const filtered =
         query.includes(live("status")) ||
         query.includes(live("person.status")) ||
-        /\.sync_location_id IN auth\.parameter\('(entries|care)_location_ids'\)/.test(query);
+        /\.sync_location_id IN auth\.parameter\('(entries|care|meds)_location_ids'\)/.test(query);
       expect(filtered, stream).toBe(true);
     }
   });

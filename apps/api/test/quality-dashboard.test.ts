@@ -127,7 +127,7 @@ describe("QUAL-005 the quality dashboard", () => {
     expect(await codeOf(r)).toBe(code);
   });
 
-  it("hazard HZ-129 never rates an indicator Harbour does not record yet", async () => {
+  it("hazard HZ-129 never rates an indicator Thapsus Care does not record yet", async () => {
     const d = await dashboard();
     for (const key of [
       "missed_visits",
@@ -147,7 +147,7 @@ describe("QUAL-005 the quality dashboard", () => {
     }
   });
 
-  it("hazard HZ-129 never rates a period before the location used Harbour", async () => {
+  it("hazard HZ-129 never rates a period before the location used Thapsus Care", async () => {
     // Harbour House was set up today, so September is not a whole period for it.
     const d = await dashboard(DEMO.locationId);
     expect(indicator(d, "falls")).toMatchObject({
@@ -364,7 +364,7 @@ describe("QUAL-006 the PIR prefill", () => {
     expect((await get(`/v1/quality/pir?locationId=${DEMO.locationId}`, "carer")).status).toBe(403);
   });
 
-  it("hazard HZ-129 prefills what Harbour records and marks the rest to complete", async () => {
+  it("hazard HZ-129 prefills what Thapsus Care records and marks the rest to complete", async () => {
     const result = await pir();
     expect(result.questionSet.confirmed).toBe(false);
     const item = (key: string) => result.items.find((i) => i.key === key);
@@ -383,7 +383,7 @@ describe("QUAL-006 the PIR prefill", () => {
     });
   });
 
-  it("hazard HZ-129 does not prefill a year the location did not use Harbour for", async () => {
+  it("hazard HZ-129 does not prefill a year the location did not use Thapsus Care for", async () => {
     const result = await pir(DEMO.locationId);
     expect(result.items.find((i) => i.key === "incidents")).toMatchObject({
       status: "to_complete",

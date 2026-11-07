@@ -52,7 +52,7 @@ export const EscalationPolicyRef = z
   .meta({
     id: "EscalationPolicyRef",
     description:
-      "The organisation's own escalation policy for a validated tool's result, or that none is configured; never a Harbour recommendation",
+      "The organisation's own escalation policy for a validated tool's result, or that none is configured; never a Thapsus Care recommendation",
   });
 export type EscalationPolicyRef = z.infer<typeof EscalationPolicyRef>;
 

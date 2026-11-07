@@ -126,7 +126,7 @@ describe("hazard HZ-014 a result links the organisation's policy for its tool an
   });
 });
 
-describe("hazard HZ-012 the link is the organisation's own policy, never a Harbour recommendation", () => {
+describe("hazard HZ-012 the link is the organisation's own policy, never a Thapsus Care recommendation", () => {
   it("returns only what the organisation configured, and the band as stored", () => {
     const own = link("own", {
       title: "Deteriorating resident policy",
@@ -186,7 +186,7 @@ describe("hazard HZ-014 a policy link is checked before it is saved", () => {
     ["NEWS2 high", { toolKey: "news2", band: "high" }, true],
     ["Braden below the threshold", { toolKey: "braden", band: "below_at_risk_threshold" }, true],
     ["the falls pathway", { toolKey: "ng249_falls", band: null }, true],
-    ["a tool Harbour does not calculate", { toolKey: "abbey", band: null }, false],
+    ["a tool Thapsus Care does not calculate", { toolKey: "abbey", band: null }, false],
     ["another tool's band", { toolKey: "must", band: "very_high_risk" }, false],
     ["a band for the falls pathway", { toolKey: "ng249_falls", band: "high" }, false],
   ] as const)("%s", (_name, input, ok) => {

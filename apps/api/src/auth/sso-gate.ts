@@ -80,14 +80,14 @@ export function ssoAuthGate(services: Services): MiddlewareHandler<AppEnv> {
           return problem(
             401,
             "sso_session_ended",
-            "Single sign-on is not available here. Sign in with your Harbour passkey or password.",
+            "Single sign-on is not available here. Sign in with your Thapsus Care passkey or password.",
           );
         }
         if (!SSO_SESSION_AUTH_PATHS.has(path)) {
           return problem(
             403,
             "sso_session_limited",
-            "Sign in with your Harbour passkey or password to change your sign-in settings.",
+            "Sign in with your Thapsus Care passkey or password to change your sign-in settings.",
           );
         }
       }

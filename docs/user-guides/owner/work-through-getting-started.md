@@ -13,9 +13,9 @@ owner can record decisions.
 1. Go to **Getting started** in the menu.
 2. Read **Progress**, for example "6 of 14 done".
 3. Under **Checklist**, work through items marked **Not done: blocks go-live** first.
-4. For a setting, choose **Accept Harbour's setting** once it has been reviewed. For clinical
+4. For a setting, choose **Accept Thapsus Care's setting** once it has been reviewed. For clinical
    settings, first choose who reviewed them (the clinical lead or Clinical Safety Officer).
-5. For retention, choose **Keep Harbour's period** or **We do not keep these**.
+5. For retention, choose **Keep Thapsus Care's period** or **We do not keep these**.
 6. For "people ready", open each person listed and add what is missing, such as a photo or
    allergy status.
 7. When it says "Ready to go live: nothing is blocking it", you are ready.
@@ -32,5 +32,5 @@ Before you add your first real person you can load a few invented people to prac
 
 ## Good to know
 
-- Each setting is named in plain words made from Harbour's own name for it, for example "Care plan
+- Each setting is named in plain words made from Thapsus Care's own name for it, for example "Care plan
   review interval (months)". The reasons are in English only for now.

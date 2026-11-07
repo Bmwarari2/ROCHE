@@ -1,0 +1,2 @@
+ALTER TABLE "homely_remedy_administration" ADD COLUMN "medicines_compared" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "homely_remedy_administration" ADD CONSTRAINT "homely_remedy_administration_medicines_compared" CHECK (outcome <> 'given' OR medicines_compared) NOT VALID;

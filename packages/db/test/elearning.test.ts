@@ -180,7 +180,7 @@ describe("WORK-006 attempts and statements are the member's own", () => {
     ).rejects.toThrow(/row-level security/);
     const record = await asSystem((c) =>
       c.query<{ id: string }>(
-        "INSERT INTO training_record (worker_id, topic, completed_on, provider) VALUES ($1, 'fire_safety', CURRENT_DATE, 'Harbour e-learning') RETURNING id",
+        "INSERT INTO training_record (worker_id, topic, completed_on, provider) VALUES ($1, 'fire_safety', CURRENT_DATE, 'Thapsus Care e-learning') RETURNING id",
         [a.carer],
       ),
     );

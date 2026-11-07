@@ -148,3 +148,36 @@ export const DmdReleaseHistory = z
     ),
   })
   .meta({ id: "DmdReleaseHistory" });
+
+/**
+ * The dm+d rows the member's phone needs for the MAR entries it holds (integrations.md section 12
+ * rule 9; ADR-0130; mobile slice 68): products with what they belong to, the barcodes of packs in
+ * force or yet to start, and identifiers a MAR names that the reference data lacks (HZ-113).
+ */
+export const DmdDeviceProduct = z
+  .object({
+    kind: z.enum(["vmp", "amp", "vmpp", "ampp"]),
+    id: dmdId,
+    name: z.string(),
+    vmpId: dmdId.nullable(),
+    ampId: dmdId.nullable(),
+    vmppId: dmdId.nullable(),
+    invalid: z.boolean(),
+    supersededBy: dmdId.nullable(),
+  })
+  .meta({ id: "DmdDeviceProduct" });
+
+export const DmdDeviceSubset = z
+  .object({
+    products: z.array(DmdDeviceProduct),
+    gtins: z.array(
+      z.object({
+        gtin: z.string().regex(/^\d{8,14}$/),
+        amppId: dmdId,
+        startDate: isoDate,
+        endDate: isoDate.nullable(),
+      }),
+    ),
+    unresolved: z.array(dmdId),
+  })
+  .meta({ id: "DmdDeviceSubset" });

@@ -13,7 +13,7 @@ manager if you did.
 1. Go to **Downtime** and open the outage. It shows **Closed: paper records to enter**.
 2. Read the counts under **Reconcile the paper records**: how many records were entered, from how
    many forms, and how many have no form reference, a time outside the outage, or were recorded
-   in Harbour during the outage.
+   in Thapsus Care during the outage.
 3. Under **Check these entries**, look in each person's record for every item listed, for example
    "Possibly the same care recorded twice". Tick each one once you have checked it.
 4. Under **What was checked**, say how many paper forms there were and that each one is entered.

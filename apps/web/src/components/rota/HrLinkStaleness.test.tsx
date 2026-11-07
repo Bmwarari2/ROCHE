@@ -46,7 +46,7 @@ describe("hazard HZ-133 the rota says when the HR platform's data is out of date
     expect(text).toContain("Staff data from the HR platform may be out of date");
     expect(text).toContain("06/11/2026");
     expect(text).toContain(
-      "Harbour has not had leave, sickness and staff changes from the HR platform since the time below",
+      "Thapsus Care has not had leave, sickness and staff changes from the HR platform since the time below",
     );
     expect(body.querySelector("[role=alert]")).toBeNull();
     expect(body.querySelector("svg")).not.toBeNull();

@@ -81,7 +81,7 @@ test("a shred is asked for, refused by a second person, asked again, approved an
   ).toBeVisible();
   const what = region(cass, "What a shred does");
   await expect(what).toContainText("Destroying the stored files cannot be undone.");
-  await expect(what).toContainText("Care records in Harbour are not removed by this.");
+  await expect(what).toContainText("Care records in Thapsus Care are not removed by this.");
   await bothThemes(cass, "shred page");
 
   // Nothing chosen, no reason, no acknowledgement: each said at its field.

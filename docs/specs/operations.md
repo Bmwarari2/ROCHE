@@ -9,7 +9,7 @@ Phases 3 and 4. Status per feature: [feature register](feature-register.md).
 
 ## 1. Purpose and register rows
 
-When the power, the network or Harbour fails, staff still know who is in the building, what they
+When the power, the network or Thapsus Care fails, staff still know who is in the building, what they
 are allergic to, every resuscitation decision in force, what texture of food and drink is safe, how
 each person communicates and how to get them out; and when systems return, the care written on
 paper goes into the record with its true time, marked so nobody mistakes it for a contemporaneous
@@ -49,7 +49,7 @@ From `packages/domain/src/platform/permissions.ts` (matrix: [permissions.md](per
 | `care.note.write` and the other care write permissions | Back-entering a paper record (the same permission as writing it at the time) | As for the record kind |
 
 Care workers and agency staff read the printed pack the nurse or senior in charge hands out; they
-do not hold location-wide read access in Harbour, because their scope is the people assigned to
+do not hold location-wide read access in Thapsus Care, because their scope is the people assigned to
 them. Reconciling an outage needs `operations.downtime.manage` and someone who entered none of its
 paper records.
 
@@ -91,12 +91,12 @@ are policy defaults (marked to verify), never statutory.
    warning. Pages follow the building: room in natural order, then name; no room last.
 4. **Wrong person** (HZ-001). A section whose data belongs to another person is withheld, never
    printed: "Not included: this information did not match the person. Check the record when
-   Harbour is back." Another person's contact is dropped and the person's own contacts still print.
+   Thapsus Care is back." Another person's contact is dropped and the person's own contacts still print.
    The whole pack is never refused for one person's problem: an outage without any pack is worse.
 5. **Resuscitation** (HZ-015). Every active ReSPECT and DNACPR decision prints, newest first, with
-   its clinician, date and review date; Harbour never picks a "current" one. When the decisions in
+   its clinician, date and review date; Thapsus Care never picks a "current" one. When the decisions in
    force disagree the section's state is `conflicting` and the words inside the section say:
-   "Resuscitation records disagree. Every record in force is listed here. Harbour does not choose
+   "Resuscitation records disagree. Every record in force is listed here. Thapsus Care does not choose
    between them: check the signed forms and follow the home's policy." (wording for the CSO,
    H-100). A decision past its review date still prints and is noted.
 6. **Unreadable values** (HZ-016). A stored IDDSI code that is not an IDDSI level makes that section
@@ -151,7 +151,7 @@ are policy defaults (marked to verify), never statutory.
     reason of at least `MIN_BACK_ENTRY_REASON_LENGTH` characters is given, and the reason is shown
     with the entry. The usual late-entry flag (care.md rule 3) still applies, and every back-entry
     carries a label wherever it appears: "Written on paper 11/10/2026 15:05 during the outage (power
-    cut) from 11/10/2026 14:40. Entered in Harbour 11/10/2026 19:20 on the device, received
+    cut) from 11/10/2026 14:40. Entered in Thapsus Care 11/10/2026 19:20 on the device, received
     11/10/2026 19:21." Back-entries refresh the handovers of the shift they happened in and the
     shift that received them (care.md rule 8). Corrections supersede, as for any care event.
 13. **Through the normal route** (`checkEntryAgainstOutages`; HZ-017). Every care write checks its
@@ -424,7 +424,7 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
   `downtime_pack.requests_per_hour` per member (429 with Retry-After beyond it).
 - Building reads only the location's own people receiving care, in the builder's view, and
   publishes `operations.downtime_pack.generated` (location and pack ids) for kiosks. While the MAR
-  and PEEP places are unconfirmed, the pack prints "where it is kept is not set in Harbour: ask the
+  and PEEP places are unconfirmed, the pack prints "where it is kept is not set in Thapsus Care: ask the
   nurse in charge" (H-201). Allergies are each person's own current ones: inactive, resolved,
   refuted, entered in error and deleted rows never print, as on the phone (`currentAllergiesOf`,
   shared with the hospital transfer pack; HZ-007).
@@ -442,7 +442,7 @@ Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`)
   person's page says to confirm who they are with a colleague who knows them, and the front sheet
   says photos are not printed. While the location's paper MAR and PEEP places are unconfirmed, the
   front sheet also says so once, first among the safety-critical warnings ("Where the paper MAR and
-  the PEEPs are kept is not confirmed in Harbour: ask the nurse in charge before you need them.";
+  the PEEPs are kept is not confirmed in Thapsus Care: ask the nurse in charge before you need them.";
   read from the location when the pack is printed, since a change to the places builds the pack
   again; recommended answer to H-213, 31/10/2026). When an ADRT is held, the resuscitation section prints "ADRT also
   held: read it before any decision about resuscitation", and with no ReSPECT or DNACPR it never

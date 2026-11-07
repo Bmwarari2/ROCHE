@@ -217,7 +217,7 @@ export function candourReasonProblems(
   const problems: string[] = [];
   if ((reason?.trim().length ?? 0) < CANDOUR_REASON_MIN) {
     problems.push(
-      `Say why in at least ${CANDOUR_REASON_MIN} characters: the decision differs from Harbour's finding or changes the one recorded.`,
+      `Say why in at least ${CANDOUR_REASON_MIN} characters: the decision differs from Thapsus Care's finding or changes the one recorded.`,
     );
   }
   if (confirmed !== true) problems.push("Confirm the decision.");

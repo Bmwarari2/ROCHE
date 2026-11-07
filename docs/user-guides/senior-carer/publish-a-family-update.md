@@ -15,7 +15,7 @@ Write a short everyday update for the person's family, from a recent note, activ
    Do not name other residents or give health details.
 4. For a photo, add a caption if you like, and tick that nobody else can be recognised in it.
 5. Choose **Preview the update**.
-6. If Harbour asks for a **Reason it may be published**, say why the family can read this here, for
+6. If Thapsus Care asks for a **Reason it may be published**, say why the family can read this here, for
    example that they have already been told by phone. Then preview again.
 7. Read **Check before publishing**: this is what the family will read.
 8. Choose **Publish the update**.

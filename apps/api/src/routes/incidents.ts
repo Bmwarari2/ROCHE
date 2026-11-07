@@ -1114,7 +1114,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Record the candour threshold decision, notifications, enquiries and correspondence",
       description:
-        "Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision). The relevant person must be one of the people affected and cannot change once the record is finished. A decision that differs from Harbour's finding, or changes a recorded one, needs thresholdConfirmed and a thresholdReason of at least 20 characters (audited). Times cannot be later than now; telling, sending and attempts cannot be earlier than the incident.",
+        "Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision). The relevant person must be one of the people affected and cannot change once the record is finished. A decision that differs from Thapsus Care's finding, or changes a recorded one, needs thresholdConfirmed and a thresholdReason of at least 20 characters (audited). Times cannot be later than now; telling, sending and attempts cannot be earlier than the incident.",
       security,
       request: {
         params: IncidentParam,
@@ -1273,7 +1273,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Take the next candour step (candourStepProblems says what each step needs)",
       description:
-        "Refused while the record names nobody affected. Not notifiable after Harbour drafted a candour notification needs confirmed and a reason of at least 20 characters.",
+        "Refused while the record names nobody affected. Not notifiable after Thapsus Care drafted a candour notification needs confirmed and a reason of at least 20 characters.",
       security,
       request: {
         params: IncidentParam,

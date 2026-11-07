@@ -30,7 +30,7 @@ export const MEDICATION_ERROR_KINDS = [
 
 /** Where the categories come from, said wherever they are shown or exported. */
 export const MEDICATION_ERROR_SOURCE =
-  "NRLS medication incident error categories (National Reporting and Learning System, NHS England), as adapted by Harbour for care settings";
+  "NRLS medication incident error categories (National Reporting and Learning System, NHS England), as adapted by Thapsus Care for care settings";
 
 export const MEDICATION_ERROR_KIND_WORDS: Readonly<Record<MedicationErrorKindName, string>> = {
   omitted_dose: "Dose omitted",

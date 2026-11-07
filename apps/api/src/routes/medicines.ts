@@ -139,7 +139,7 @@ const dmdUnknown = (loaded: boolean) =>
     "Choose the medicine from dm+d.",
     loaded
       ? "dm+d does not hold this product. Choose it from the dm+d list."
-      : "The dm+d reference data is not loaded yet, so no medicine can be recorded. Ask Harbour support.",
+      : "The dm+d reference data is not loaded yet, so no medicine can be recorded. Ask Thapsus Care support.",
   );
 
 type DmdFacts = DmdProductFacts & { readonly name: string };

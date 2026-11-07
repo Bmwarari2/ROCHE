@@ -1,5 +1,6 @@
 "use server";
 
+import type { ChangeMembership, ReinstateMember } from "@harbour/contracts";
 import type { ApiClient } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
@@ -68,6 +69,62 @@ export async function revokeInvitation(invitationId: string): Promise<ActionResu
     const { error, response } = await api.POST("/v1/invitations/{id}/revoke", {
       params: { path: { id: invitationId } },
     });
+    if (!response.ok) return teamProblem(error);
+    revalidatePath("/settings/team", "layout");
+    return { ok: true, data: null };
+  });
+}
+
+type MembershipChange =
+  | {
+      readonly kind: "suspend";
+      readonly reasonCode: string;
+      readonly confirmEntriesWaiting: boolean;
+    }
+  | { readonly kind: "reinstate"; readonly reasonCode: string }
+  | { readonly kind: "end"; readonly reasonCode: string; readonly deviceCheck?: string }
+  | { readonly kind: "erase" };
+
+/**
+ * Suspends, reinstates or ends a membership, or erases an ended member's sign-in (H-566). The API
+ * checks `platform.user.manage`, step-up, its reach, the reason code and the held entries again.
+ */
+export async function changeMembership(
+  memberId: string,
+  change: MembershipChange,
+): Promise<ActionResult<null>> {
+  if (!isUuid(memberId)) return refused(t("errors.notFound"), "not_found");
+  return withApi<null>(async (api) => {
+    const params = { path: { tenantUserId: memberId } };
+    const { error, response } =
+      change.kind === "erase"
+        ? await api.POST("/v1/members/{tenantUserId}/sign-in/erase", { params })
+        : change.kind === "reinstate"
+          ? await api.POST("/v1/members/{tenantUserId}/reinstate", {
+              params,
+              body: { reasonCode: change.reasonCode as ReinstateMember["reasonCode"] },
+            })
+          : change.kind === "suspend"
+            ? await api.POST("/v1/members/{tenantUserId}/suspend", {
+                params,
+                body: {
+                  reasonCode: change.reasonCode as ChangeMembership["reasonCode"],
+                  confirmEntriesWaiting: change.confirmEntriesWaiting,
+                },
+              })
+            : await api.POST("/v1/members/{tenantUserId}/end", {
+                params,
+                body: {
+                  reasonCode: change.reasonCode as ChangeMembership["reasonCode"],
+                  ...(change.deviceCheck
+                    ? {
+                        deviceCheck: change.deviceCheck as NonNullable<
+                          ChangeMembership["deviceCheck"]
+                        >,
+                      }
+                    : {}),
+                },
+              });
     if (!response.ok) return teamProblem(error);
     revalidatePath("/settings/team", "layout");
     return { ok: true, data: null };

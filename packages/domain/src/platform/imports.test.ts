@@ -515,7 +515,7 @@ describe("PLAT-014 person import rules", () => {
   });
 });
 
-describe("hazard HZ-130 matching rows against people already in Harbour", () => {
+describe("hazard HZ-130 matching rows against people already in Thapsus Care", () => {
   const someone = (o: Partial<ExistingPerson> = {}): ExistingPerson => ({
     id: "0193a000-0000-7000-8000-000000000402",
     nhsNumber: "9990000026",
@@ -803,7 +803,7 @@ describe("PLAT-014 the people dry run report", () => {
         recordMatchesCapped: true,
       }).join(" "),
     ).toMatch(
-      /Nothing can be committed .*2 found.*creates 1 person.*can be undone until a phone.*1 person has allergies.*possible duplicate \(3\).*more people already in Harbour/,
+      /Nothing can be committed .*2 found.*creates 1 person.*can be undone until a phone.*1 person has allergies.*possible duplicate \(3\).*more people already in Thapsus Care/,
     );
   });
 

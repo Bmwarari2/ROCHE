@@ -5,7 +5,7 @@ import { characterCount, peopleLabel, t } from "./i18n";
 describe("t", () => {
   it("is British English", () => {
     expect(t.locale).toBe("en-GB");
-    expect(t("app.name")).toBe("Harbour");
+    expect(t("app.name")).toBe("Thapsus Care");
   });
 });
 

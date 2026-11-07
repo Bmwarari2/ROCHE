@@ -126,7 +126,7 @@ export function assemblePirDraft(
         : {
             dataPoint,
             value: null,
-            notAvailable: "Not available in Harbour: check your own records.",
+            notAvailable: "Not available in Thapsus Care: check your own records.",
           };
     }),
   );
@@ -154,8 +154,8 @@ export const PIR_BUILT: ReadonlySet<string> = new Set([
 export type PirReason = "not_built" | "no_value" | "small_number";
 
 export const PIR_REASONS: Readonly<Record<PirReason, string>> = {
-  not_built: "Not recorded in Harbour yet: complete it from your own records.",
-  no_value: "Not available in Harbour: check your own records.",
+  not_built: "Not recorded in Thapsus Care yet: complete it from your own records.",
+  no_value: "Not available in Thapsus Care: check your own records.",
   small_number:
     "A small number, not shown so that no one can be identified: check your own records.",
 };

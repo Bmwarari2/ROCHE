@@ -9,7 +9,7 @@ its section before its code. Status per feature: [feature register](feature-regi
 
 ## 1. Purpose and register rows
 
-Section 15.3: connect Harbour to the partners a provider already uses, each behind a domain
+Section 15.3: connect Thapsus Care to the partners a provider already uses, each behind a domain
 interface with a contract test and a mock, so a tenant without the partner still has a working
 product.
 
@@ -89,31 +89,31 @@ Plan slices 86 to 90; human actions H-1340 to H-1345; hazard HZ-133; DPIA risk R
 
 ### 11.1 Purpose and owners
 
-A provider that uses both Harbour and Thapsus-HR shares staff records, leave, rota, clocking and pay
+A provider that uses both Thapsus Care and Thapsus-HR shares staff records, leave, rota, clocking and pay
 without exporting files. Each kind of data has one owner per tenant, and the other system holds a
 read-only copy. The default owners are set out in the table in ADR-0126 (H-1340):
 - **Thapsus-HR owns:** employee records, leavers, pay rates and pay periods, leave and sickness.
-- **Harbour owns:**
+- **Thapsus Care owns:**
   - care shifts and clocking;
   - timesheet approval and pay units;
   - recruitment, DBS and right to work;
   - training, competence and supervision.
 
-A tenant without the link keeps every Harbour module as it is.
+A tenant without the link keeps every Thapsus Care module as it is.
 
 ### 11.2 Flows
 
 | Flow | Direction | When | Thapsus-HR today (commit d9888cef) |
 | --- | --- | --- | --- |
-| Employees and their changes | Thapsus-HR to Harbour | On an `employee.created`, `changed`, `transferred` or `terminated` webhook, then `GET /v1/employees/{id}`; a full reconciliation every night | Available (`employees:read`) |
-| Leavers | Thapsus-HR to Harbour | On `employee.terminated`, ahead of anything else in the queue | Available |
-| A starter hired in Harbour | Harbour to Thapsus-HR | An offer accepted with a start date (WORK-001) | Available: `POST /v1/employees` (`employees:write`) |
+| Employees and their changes | Thapsus-HR to Thapsus Care | On an `employee.created`, `changed`, `transferred` or `terminated` webhook, then `GET /v1/employees/{id}`; a full reconciliation every night | Available (`employees:read`) |
+| Leavers | Thapsus-HR to Thapsus Care | On `employee.terminated`, ahead of anything else in the queue | Available |
+| A starter hired in Thapsus Care | Thapsus Care to Thapsus-HR | An offer accepted with a start date (WORK-001) | Available: `POST /v1/employees` (`employees:write`) |
 | Locations | Mapped both ways at connection | When connecting, and when either side adds a location | Available (`org:read`) |
-| Leave and sickness | Thapsus-HR to Harbour | Polled by cursor every 5 minutes until events exist; nightly reconciliation | Read available (`leave:read`); events needed |
-| Shifts | Harbour to Thapsus-HR | Published, changed or cancelled in Harbour | `/v1/shifts` available (`time:write`); a partner owner needed |
-| Clock events | Harbour to Thapsus-HR | Once the event has reached Harbour from the device | `/v1/clock/events` available; `source` must allow a partner |
-| Approved units by pay code | Harbour to Thapsus-HR | Timesheet approved; pay period closed | Not available: a pay inputs route and scope needed |
-| Hourly rates and pay periods | Thapsus-HR to Harbour | Daily, and on `employee.changed` | Not available: a narrow pay read needed |
+| Leave and sickness | Thapsus-HR to Thapsus Care | Polled by cursor every 5 minutes until events exist; nightly reconciliation | Read available (`leave:read`); events needed |
+| Shifts | Thapsus Care to Thapsus-HR | Published, changed or cancelled in Thapsus Care | `/v1/shifts` available (`time:write`); a partner owner needed |
+| Clock events | Thapsus Care to Thapsus-HR | Once the event has reached Thapsus Care from the device | `/v1/clock/events` available; `source` must allow a partner |
+| Approved units by pay code | Thapsus Care to Thapsus-HR | Timesheet approved; pay period closed | Not available: a pay inputs route and scope needed |
+| Hourly rates and pay periods | Thapsus-HR to Thapsus Care | Daily, and on `employee.changed` | Not available: a narrow pay read needed |
 
 ### 11.3 Schema (slice 87, migration 0141)
 
@@ -129,15 +129,15 @@ Every table has `tenant_id`, forced RLS and a policy:
     A database check refuses a row whose home region is not `uk` or whose address is not
     `https://api.uk.` on a domain, and only holders of `integrations.hr_link.manage`, or the sync,
     write it.
-- **`hr_person_link`** joins Harbour's staff member to the Thapsus-HR employee identifier and
+- **`hr_person_link`** joins Thapsus Care's staff member to the Thapsus-HR employee identifier and
   employee number. It records how the match was made (`employee_number`, `email_and_birth_date`, `manual`,
-  or `starter` for a starter Harbour created), who confirmed it and when, and the earliest leaving
+  or `starter` for a starter Thapsus Care created), who confirmed it and when, and the earliest leaving
   date Thapsus-HR gave. Each side is unique, so nobody is linked twice. It holds identifiers only:
   no name, email or date of birth from Thapsus-HR.
-- **`hr_location_link`** joins a Harbour location to a Thapsus-HR location.
+- **`hr_location_link`** joins a Thapsus Care location to a Thapsus-HR location.
 - **`hr_sync_state`** holds, for each kind of data, the cursor, the last good sync and the last
   error code.
-- **`hr_delivery`** is the outbound delivery log. Each row holds the kind, Harbour's reference,
+- **`hr_delivery`** is the outbound delivery log. Each row holds the kind, Thapsus Care's reference,
   Thapsus-HR's identifier, the idempotency key, the state, the attempt count and the last error
   code.
 - **Absences from Thapsus-HR** arrive through the scheduling absence port with source `thapsus_hr`
@@ -161,10 +161,10 @@ the ratchet test checks. The rota managers holding `read` are care coordinators;
 
 ### 11.5 Rules that are easy to get wrong
 
-1. **UK only.** Harbour connects only when the Thapsus-HR workspace's home region is `uk` and its
+1. **UK only.** Thapsus Care connects only when the Thapsus-HR workspace's home region is `uk` and its
    API host is the UK one. It checks both on every sync. Otherwise it refuses, sends nothing and
    alerts.
-2. **One owner.** Harbour refuses an edit to a field the other system owns, and shows "Managed in
+2. **One owner.** Thapsus Care refuses an edit to a field the other system owns, and shows "Managed in
    Thapsus-HR" with the time of the last sync. Reconciliation puts back the owner's version and
    records a drift event.
 3. **Matching.** Match by employee number first, then by work email together with date of birth.
@@ -173,17 +173,17 @@ the ratchet test checks. The rota managers holding `read` are care coordinators;
 4. **Allow-lists for outbound fields.** Each flow sends only its listed fields (section 11.8), and
    a test fails on any other field. No service user, visit address or care note ever leaves.
 5. **Idempotency.**
-   - Harbour's event identifier is the idempotency key.
-   - Harbour's record identifier is stored in Thapsus-HR as the partner reference, once it can
+   - Thapsus Care's event identifier is the idempotency key.
+   - Thapsus Care's record identifier is stored in Thapsus-HR as the partner reference, once it can
      hold one.
    - Thapsus-HR keeps idempotency keys for only 24 hours, so a retry older than that looks up the
      partner reference first.
-6. **Rate limits.** Thapsus-HR allows 600 calls a minute per tenant by default. Harbour batches
+6. **Rate limits.** Thapsus-HR allows 600 calls a minute per tenant by default. Thapsus Care batches
    reads, honours 429 with `Retry-After`, and backs off on errors. After repeated failures it
    alerts the rota manager and the operator console.
 7. **Time.** Instants go as UTC with the Europe/London wall-clock alongside them. Shifts crossing
-   midnight and clock changes follow Harbour's clock-change rule (#16).
-8. **Leavers fail safe.** A known leaving date ends Harbour sign-in at the end of that day, even if
+   midnight and clock changes follow Thapsus Care's clock-change rule (#16).
+8. **Leavers fail safe.** A known leaving date ends Thapsus Care sign-in at the end of that day, even if
    later syncs fail.
 9. **Staleness.**
    - Once the last good sync is older than the tenant's limit (default 15 minutes, H-1344), rota
@@ -193,25 +193,78 @@ the ratchet test checks. The rota managers holding `read` are care coordinators;
 10. **Sickness detail stays in Thapsus-HR.** Only the dates and the type "sickness" cross. Reasons,
     fit notes and medical detail never do.
 11. **Pay units, not money.**
-    - Harbour sends hours, sleep-ins, mileage and similar units by pay code, and Thapsus-HR
+    - Thapsus Care sends hours, sleep-ins, mileage and similar units by pay code, and Thapsus-HR
       applies the rates.
-    - Harbour reads the hourly rate only for its minimum wage check per pay reference period.
-12. **No double payment.** When Thapsus-HR owns the route to payroll, Harbour's payroll export
+    - Thapsus Care reads the hourly rate only for its minimum wage check per pay reference period.
+12. **No double payment.** When Thapsus-HR owns the route to payroll, Thapsus Care's payroll export
     (slice 76) is off for the tenant. Changing it takes effect from the next pay period.
-13. **The rota stays with Harbour.** Care shifts and the rota are a fixed Harbour owner (confirmed
-    06/11/2026), so every shift passes Harbour's competence, required check, staffing and Working
+13. **The rota stays with Thapsus Care.** Care shifts and the rota are a fixed Thapsus Care owner (confirmed
+    06/11/2026), so every shift passes Thapsus Care's competence, required check, staffing and Working
     Time checks (HZ-123, HZ-124); Thapsus-HR shows the rota read-only.
 14. **Thapsus-HR's rules stand.** For example, Thapsus-HR refuses overlapping shifts for one
-    employee. Harbour treats such a refusal as a delivery error for the rota manager to review. It
+    employee. Thapsus Care treats such a refusal as a delivery error for the rota manager to review. It
     is never a reason to change Thapsus-HR's behaviour for its other customers (section 11.9).
+
+How slice 89 applies rules 11 and 12 ([ADR-0131](../decisions/0131-pay-through-thapsus-hr.md);
+migration 0148; HZ-133, HZ-140). Built against the mock with Thapsus-HR's Phase 19 pay items (K4)
+and pay read (K5) switched on; at the pinned commit both answer `planned`, so nothing goes live:
+- **One route per pay period.** Each pay run's route is fixed when it is drafted; a correction
+  takes its original's. The link's settings hold the route for periods with no run yet (Thapsus Care's
+  export by default) and at most one change waiting, from the first day of a later pay period
+  than any run, with a fresh step-up. A move to Thapsus-HR also needs both pay capabilities
+  available, pay rates and periods owned by Thapsus-HR and timesheets by Thapsus Care, and a start on
+  one of its pay periods. A run drafted with the link disconnected or off pays through Thapsus Care's
+  export; a run whose route is Thapsus-HR is not locked while the link cannot take pay.
+- **Pay periods and rates in.** Read once a day and on a manual sync, checked at the boundary and
+  written by the sync alone (`hr_pay_period`, `hr_pay_rate`). A pay period whose dates change is
+  raised, never moved. Only the employee, the hourly rate in whole pence and its effective date
+  are kept; rates are read by pay holders only.
+- **Pay runs.** A run for a period paid through Thapsus-HR must be one of its pay periods
+  exactly. The minimum wage check uses the lowest of each member's Thapsus-HR rates in force
+  during the period, and calculation is refused when rates are more than two days old; a member
+  with none gets the "no role rate" exception, which cannot be overridden for such a run.
+- **Units by pay code out.** Hours split as the pay line splits them (by night, weekend, bank
+  holiday and overtime), sleep-ins, on-call periods away and miles; per employee and pay code,
+  summed, to 2 places, from the calculation the second person checked. Before a run is locked
+  every member with units must be matched and every unit kind mapped to a pay code (by a pay
+  approver), or the lock is refused naming what is missing. On lock the units and their pay codes
+  are kept unchanged (`hr_pay_unit`) and Thapsus Care's export is not offered. The latest locked run of
+  each period (a correction carries the whole period) replaces that period's items in Thapsus-HR,
+  through the delivery log; a refusal, a member no longer matched and pay left unsent on
+  disconnecting go to pay approvers.
+
+How slice 90 finishes the link (screens and guide; HZ-133, HZ-140):
+- **One settings page** (`/settings/hr-link`, menu "HR platform link", shown with the flag on to
+  holders of the link's permissions): status and sync health with the staleness note, check and
+  sync now; connect (step-up); owners and the out-of-date limit; disconnect after a confirmation;
+  location mapping; the match review queue (confirm or reject, for `.review`); what was sent; pay
+  (route to payroll, a change from a later period, pay codes for pay approvers); and absence copies
+  to release.
+- **Held copies are listed before release**: `GET /v1/integrations/hr-link/absences/held` (manage)
+  reads Thapsus-HR's list again while linked and returns the current copies it no longer lists, or
+  every copy in force once disconnected; it changes nothing. The release then sends exactly those
+  ids.
+- **"Managed in the HR platform"** (icon and words) on absences copied from Thapsus-HR and pay runs
+  paid through it (`AbsenceItem.source`, `PayRunItem.payRoute`); the API's refusal of a change says
+  the same. The staff file has no web screen yet; the label and the leaving-date withdrawal come with
+  it.
+- **Follow-ups from slices 88 and 89**: a shift cancellation Thapsus-HR answers not found is done,
+  not retried; a pay run for a period set for Thapsus-HR is not drafted while the link is down
+  unless a person confirms the export (`confirmExport`, audited); pay approvers are told when the
+  flag is off with locked pay unsent; a changed employee's rate is read on `employee.changed`; a rate
+  Thapsus-HR stops listing for an employee is retired (only when the whole read was clean), as is a
+  pay period no pay run uses.
+- User guides: [registered-manager](../user-guides/registered-manager/link-to-the-hr-platform.md)
+  (link, pay, releasing absence copies).
 
 ### 11.6 API and events
 
-Harbour routes (OpenAPI):
+Thapsus Care routes (OpenAPI):
 - `POST /v1/integrations/hr-link`: connect, with step-up.
 - `GET /v1/integrations/hr-link`: status, owners and staleness.
-- `PATCH /v1/integrations/hr-link`: owners, staleness limit and pay code mapping, with
-  `expected_version` and step-up.
+- `PATCH /v1/integrations/hr-link`: owners, staleness limit, pay code mapping (`payCodes`) and
+  the route to payroll from a later pay period (`payRoute`), with `expected_version`; the pay
+  changes need step-up (slice 89).
 - `POST /v1/integrations/hr-link/test`
 - `DELETE /v1/integrations/hr-link`: stops sync and keeps the links for audit.
 - `GET /v1/integrations/hr-link/matches`, `POST .../matches/{id}/confirm` and
@@ -271,10 +324,10 @@ How slice 88 applies the rules:
   manages members across the organisation to reinstate them once reinstatement exists, and until
   then to invite them again. Giving access back moves to the member lifecycle rework on
   `app.change_membership` (batch 3c decision). Until it lands, Thapsus-HR can show a person active
-  while Harbour shows them left (HZ-133).
+  while Thapsus Care shows them left (HZ-133).
 
 How slice 87 applies the rules:
-- **Matching (rule 3).** Staff who have left are not candidates. Harbour holds no employee number of
+- **Matching (rule 3).** Staff who have left are not candidates. Thapsus Care holds no employee number of
   its own, so automatic links are by work email with date of birth until a link records one.
   Confirming a match needs a fresh step-up and a staff file the reviewer can see; when Thapsus-HR
   already gave a leaving date, only someone who manages that staff file confirms. The queue shows
@@ -306,7 +359,7 @@ and signing secret (the connection's Secret Manager reference):
 - when the named employee cannot be fetched it keeps nothing and answers 503, so Thapsus-HR sends
   it again;
 - payloads are validated with Zod and quarantined on failure;
-- payloads carry identifiers only, so Harbour fetches each record.
+- payloads carry identifiers only, so Thapsus Care fetches each record.
 
 Outbox events consumed:
 - `scheduling.shift.published`, `scheduling.shift.changed` and `scheduling.shift.cancelled`;
@@ -327,7 +380,7 @@ opaque identifiers only.
 
 ### 11.7 Offline and clinical safety
 
-The phone never talks to Thapsus-HR. Clock events reach Harbour first through sync and are
+The phone never talks to Thapsus-HR. Clock events reach Thapsus Care first through sync and are
 forwarded from there. The rota on the device shows the staleness notice from its last sync.
 
 HZ-133 is the hazard: staff data from the HR platform out of date, matched to the wrong person, or
@@ -336,7 +389,7 @@ after the hazard. HZ-123 and HZ-124 gain linked-tenant tests in slice 88.
 
 ### 11.8 Data protection
 
-**Roles.** The provider is the controller for both products. Whether Thapsus-HR is Harbour's
+**Roles.** The provider is the controller for both products. Whether Thapsus-HR is Thapsus Care's
 sub-processor or the provider's own processor is H-1341.
 
 **The new purpose (B3).** Sharing staff records, rota, clocking, absence dates and pay units with
@@ -349,13 +402,13 @@ Fields that cross, by flow:
 
 | Flow | Fields |
 | --- | --- |
-| Employee to Harbour | Thapsus-HR identifier, employee number, names, work email, work phone, date of birth (for matching only), job title, location, contracted hours, start date, leaving date |
+| Employee to Thapsus Care | Thapsus-HR identifier, employee number, names, work email, work phone, date of birth (for matching only), job title, location, contracted hours, start date, leaving date |
 | Starter to Thapsus-HR | Names, work email, date of birth, job title, location, contracted hours, start date |
-| Absence to Harbour | Thapsus-HR identifier, employee, type (leave, sickness or other), start, end, status |
-| Shift to Thapsus-HR | Harbour reference, employee, location, role, start, end, break minutes. Sleep-ins reach payroll as pay units, not as a shift attribute |
-| Clock event to Thapsus-HR | Harbour reference, employee, kind (in or out), time, location; no GPS position |
+| Absence to Thapsus Care | Thapsus-HR identifier, employee, type (leave, sickness or other), start, end, status |
+| Shift to Thapsus-HR | Thapsus Care reference, employee, location, role, start, end, break minutes. Sleep-ins reach payroll as pay units, not as a shift attribute |
+| Clock event to Thapsus-HR | Thapsus Care reference, employee, kind (in or out), time, location; no GPS position |
 | Pay units to Thapsus-HR | Employee, pay period, pay code, units |
-| Rate to Harbour | Employee, hourly rate, effective from |
+| Rate to Thapsus Care | Employee, hourly rate, effective from |
 
 **Transfers.** Nothing leaves the UK. Rule 1 enforces this.
 
@@ -383,7 +436,7 @@ the text for that phase.
    - more webhook events.
 
    No care-sector rule, term, screen or jurisdiction-pack value is added to Thapsus-HR. Care logic
-   (sleep-ins, competence, safe staffing) stays in Harbour, and sleep-ins reach payroll as pay
+   (sleep-ins, competence, safe staffing) stays in Thapsus Care, and sleep-ins reach payroll as pay
    items.
 2. **Inert until connected.**
    - Nothing changes for a tenant until its administrator creates a partner connection.
@@ -400,7 +453,7 @@ the text for that phase.
 4. **Opt-in events.** Each Thapsus-HR webhook endpoint lists its event types
    (`webhook_endpoints.event_types`), so an existing endpoint never receives the new events unless
    its owner adds them.
-5. **UK only for Harbour.** Thapsus-HR refuses a Harbour connection for a tenant whose home region
+5. **UK only for Thapsus Care.** Thapsus-HR refuses a Thapsus Care connection for a tenant whose home region
    is not `uk`. Its EU and US customers see no change.
 
 **The changes**
@@ -413,7 +466,7 @@ the text for that phase.
 | K4 | **Partner pay items**: a new table and route (`PUT /v1/pay-periods/{id}/partner-items`, scope `pay-items:write`), idempotent by partner reference. A `partnerItems` section in payroll inputs and snapshots, mapped to earnings by each payroll connector's mapping. For an employee whose pay a partner owns, the hours section takes the partner's items instead of timesheets, so nobody is paid twice | Only tenants with partner items |
 | K5 | **A narrow pay read**: scope `pay-rates:read`, giving the hourly rate and effective dates only, within the client's location scope, with every read audited. Pay periods become readable by API clients | Only clients granted the scope |
 | K6 | **A rate-limit bucket for partners**: a partner client's calls use their own bucket, so a sync never uses up the allowance of the tenant's other API clients | Only partner clients |
-| K7 | **Documentation**: Harbour listed as a customer-enabled integration in `SUBPROCESSORS.md` (UK only) before any code is written, plus `docs/api.md` and the admin guide | - |
+| K7 | **Documentation**: Thapsus Care listed as a customer-enabled integration in `SUBPROCESSORS.md` (UK only) before any code is written, plus `docs/api.md` and the admin guide | - |
 
 **How "no change for everyone else" is proven.** Each item below is an acceptance criterion of
 Thapsus-HR's Phase 19:
@@ -434,13 +487,13 @@ Thapsus-HR's Phase 19:
 - **Isolation and residency.**
   - The new tables join the isolation suite.
   - Residency tests cover every region pair.
-  - A Harbour connection is refused for EU and US tenants.
+  - A Thapsus Care connection is refused for EU and US tenants.
 - **Performance holds.** Load-test results for the rota grid, clocking and payroll close stay
   within their current budgets.
 - **Rollback is clean.** Turning the flag off or removing the connection stops all partner
   behaviour. The migrations only add things, so the previous release runs on the new schema.
 
-Until the changes ship, Harbour builds and tests against the mock. Only the flows marked available
+Until the changes ship, Thapsus Care builds and tests against the mock. Only the flows marked available
 in section 11.2 can go live.
 
 ### 11.10 Tests
@@ -468,7 +521,7 @@ in section 11.2 can go live.
 ## 12. dm+d reference data (INTG-006; slice 10; ADR-0080)
 
 The NHS Dictionary of Medicines and Devices (dm+d), published by the NHSBSA through TRUD, is the
-only source of the medicines Harbour records ([medicines.md](medicines.md) rule 1, HZ-005). Slice
+only source of the medicines Thapsus Care records ([medicines.md](medicines.md) rule 1, HZ-005). Slice
 10 builds the reference tables, the release loader, the release source port with a mock, and the
 search and barcode lookups; slice 75 downloads each release from TRUD and runs the loader; slice 68
 sends each device its subset. Until the TRUD account and the licence terms are in place (H-510,
@@ -565,7 +618,7 @@ organisation rows), and `rls-coverage.test.ts` lists them as national reference 
 5. **Out of date is said, never hidden** (`dmdReleaseFreshness`). Every search and lookup returns
    the release in use (the latest loaded by release date), its date and its status: `current`,
    `out_of_date` when it is older than `medicines.dmd.stale_after_days` (rate table, 35 days,
-   Harbour default, H-651; the national row only, so a tenant cannot quieten it), or `none`, with a
+   Thapsus Care default, H-651; the national row only, so a tenant cannot quieten it), or `none`, with a
    message in words. Screens show the date and, when out of date, the warning, by icon and word
    (slice 52).
 6. **Search** (`dmdSearchQuery`): a dm+d code (6 digits or more) is checked with `isDmdId` and
@@ -589,7 +642,7 @@ organisation rows), and `rls-coverage.test.ts` lists them as national reference 
 8. **Dose units and routes** (`dmdDoseUnitCodes`, `dmdProductFacts`): the units a dose of a product
    may be written in are the unit dose unit ("tablet"), the unit of its unit dose form size ("ml")
    and the units of its strengths ("mg"), each once; its routes are the VMP's routes. These feed
-   `checkDose` and the route check (HZ-005). Harbour never converts between them (H-652).
+   `checkDose` and the route check (HZ-005). Thapsus Care never converts between them (H-652).
 9. **The device subset** (`selectDmdDeviceSubset`; slice 68 streams it): the products on the
    location's MAR entries, the products that replaced them, every valid AMP of a VMP-level entry (the
    named AMP only for an AMP-level one, kept even when invalid), their valid AMPPs and the VMPPs
@@ -765,7 +818,7 @@ Domain rules: `packages/domain/src/integrations/esign-ocr.ts`. Schema: migration
    match). A staff HR document, a logo and a person's document are refused (not found).
    A person receiving care, or their representative, signs with the existing typed-name flow and a
    recorded capacity.
-2. **In Harbour** (provider `in_app`, every organisation's default): only the member named signs,
+2. **In Thapsus Care** (provider `in_app`, every organisation's default): only the member named signs,
    only while the request is open, only the exact bytes asked for (the hash they read must match
    the request and the current version), and only with a second factor used within the step-up
    window (ADR-0072). The typed-name `document_signature` row and the request's evidence (the
@@ -800,7 +853,7 @@ Domain rules: `packages/domain/src/integrations/esign-ocr.ts`. Schema: migration
    with the same key returns the first scan. It is stored first as the person's document
    (`person_document`: malware scan, care record retention); an image that does not scan clean is
    never read. The allowlist is checked again just before the engine is called. A result with a
-   line outside 0 to 199 or a part Harbour does not know is refused whole (`unreadable`), never
+   line outside 0 to 199 or a part Thapsus Care does not know is refused whole (`unreadable`), never
    coerced.
 8. Every value read is **unconfirmed**. A person confirms it as read, corrects it, or rejects it;
    confirming or correcting also decides **which chart line and which part** it is (the engine's
@@ -844,7 +897,7 @@ the person, scans, decides, releases and reads lines.
 | `POST /v1/documents/{id}/signature-requests` | Ask a member to sign (sends the envelope through DocuSign when chosen) |
 | `GET /v1/documents/{id}/signature-requests` | A document's requests |
 | `GET /v1/me/signature-requests` | What I am asked to sign |
-| `POST /v1/signature-requests/{id}/sign` | Sign in Harbour (step-up) |
+| `POST /v1/signature-requests/{id}/sign` | Sign in Thapsus Care (step-up) |
 | `POST /v1/signature-requests/{id}/cancel` | Cancel with a reason |
 | `POST /v1/signature-requests/{id}/refresh` | Ask DocuSign where it stands; store a clean signed copy |
 | `POST /v1/people/{id}/mar-scans` | Scan a paper MAR chart (the body is the photograph) |

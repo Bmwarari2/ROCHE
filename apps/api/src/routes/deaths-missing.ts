@@ -259,7 +259,7 @@ export const deathsMissingRouter = createRouter()
       summary:
         "Record the clinician's judgement: expected or not, and whether the cause may be unnatural",
       description:
-        "Harbour never decides either: the record says whose judgement it is. Until both are recorded the steps assume an unexpected death whose cause may be unnatural, so the police steps are never missed.",
+        "Thapsus Care never decides either: the record says whose judgement it is. Until both are recorded the steps assume an unexpected death whose cause may be unnatural, so the police steps are never missed.",
       security,
       request: {
         params: IdParam,

@@ -117,7 +117,7 @@ describe("hazard HZ-021 the downtime pack", () => {
       }
       const medicines = page.sections.find((s) => s.key === "medicines_due");
       expect(medicines?.status).toBe("held_elsewhere");
-      expect(medicines?.note).toMatch(/not set in Harbour/);
+      expect(medicines?.note).toMatch(/not set in Thapsus Care/);
     }
     expect(body.freshness.state).toBe("current");
     expect(body.header[0]).toMatch(/^Downtime pack for /);
@@ -139,7 +139,7 @@ describe("hazard HZ-021 the downtime pack", () => {
     expect(pages.slice(1).every((lines) => lines.join(" ").match(/NHS number 999/))).toBe(true);
     // The demo home's MAR and PEEP places are unconfirmed: the front sheet says so once (H-213).
     expect(pages[0]?.join(" ")).toMatch(
-      /paper MAR and the PEEPs are kept is not confirmed in Harbour/,
+      /paper MAR and the PEEPs are kept is not confirmed in Thapsus Care/,
     );
   });
 
@@ -209,7 +209,7 @@ describe("hazard HZ-021 the downtime pack", () => {
     const confirmed = await pack();
     expect(confirmed.built).toBe(false);
     const medicines = confirmed.pages[0]?.sections.find((s) => s.key === "medicines_due");
-    expect(medicines?.note).toBe(`Not kept in Harbour yet. Use ${mar}.`);
+    expect(medicines?.note).toBe(`Not kept in Thapsus Care yet. Use ${mar}.`);
   });
 
   it("is only for holders of operations.downtime.read where the location is", async () => {

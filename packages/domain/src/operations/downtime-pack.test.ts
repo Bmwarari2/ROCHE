@@ -447,7 +447,7 @@ describe("pack content", () => {
     expect(onlyPage(person("p-1", { preferredName: null })).displayName).toBe("Example, Ada");
   });
 
-  it("points to the location's own MAR and PEEP places until medicines and PEEPs are in Harbour", async () => {
+  it("points to the location's own MAR and PEEP places until medicines and PEEPs are in Thapsus Care", async () => {
     const medicinesPort = paperMarMedicinesPort(" the MAR folder in the clinical room ");
     const peepPort = fireFileEvacuationPort("the red fire grab bag at reception");
     const page = onlyPage(
@@ -458,11 +458,11 @@ describe("pack content", () => {
     );
     expect(section(page, "medicines_due")).toMatchObject({
       status: "held_elsewhere",
-      note: "Not kept in Harbour yet. Use the MAR folder in the clinical room.",
+      note: "Not kept in Thapsus Care yet. Use the MAR folder in the clinical room.",
     });
     expect(section(page, "evacuation")).toMatchObject({
       status: "held_elsewhere",
-      note: "Not kept in Harbour yet. Use the red fire grab bag at reception.",
+      note: "Not kept in Thapsus Care yet. Use the red fire grab bag at reception.",
     });
     expect(page.missingCritical).toEqual([]);
   });
