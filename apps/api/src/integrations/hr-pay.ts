@@ -48,8 +48,12 @@ import { audit, deliver, members } from "./hr-rota";
 const PAY_PULL_HOURS = 24;
 
 export type PayPath =
-  /** Not linked, the flag off or the link disconnected: Harbour's export, as before. */
-  | { readonly route: "harbour_export"; readonly link: null }
+  /**
+   * Not linked, the flag off or the link disconnected: Harbour's export, as before. `intended` is
+   * the route the link's settings give the period, so a run drafted while the link is down is
+   * never sent to the export without a person saying so.
+   */
+  | { readonly route: "harbour_export"; readonly link: null; readonly intended: PayRoute | null }
   | { readonly route: PayRoute; readonly link: HrConnection }
   /** A route date that is not a real day: nothing is paid out until a person puts it right. */
   | { readonly route: null; readonly link: HrConnection };
@@ -57,15 +61,22 @@ export type PayPath =
 /** The route to payroll for a pay period starting on `periodStart` (rule 12). */
 export async function payPathFor(tx: Transaction, periodStart: string): Promise<PayPath> {
   const link = await hrConnection(tx);
-  if (link?.status !== "connected" || !(await hrLinkEnabled(tx))) {
-    return { route: "harbour_export", link: null };
-  }
-  const input = {
+  const input = link && {
     currentRoute: link.settings.pay.route,
     pendingRoute: link.settings.pay.pendingRoute,
     pendingFrom: link.settings.pay.pendingFrom,
     periodStart,
   };
+  if (!link || !input || link.status !== "connected" || !(await hrLinkEnabled(tx))) {
+    const intended = input
+      ? payUnitsToHrAllowed(input)
+        ? "thapsus_hr"
+        : payrollExportAllowed(input)
+          ? "harbour_export"
+          : null
+      : "harbour_export";
+    return { route: "harbour_export", link: null, intended };
+  }
   if (payUnitsToHrAllowed(input)) return { route: "thapsus_hr", link };
   if (payrollExportAllowed(input)) return { route: "harbour_export", link };
   return { route: null, link };

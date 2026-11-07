@@ -31,7 +31,9 @@ import {
   hrConnection,
   hrLinkEnabled,
   pullSafely,
+  raiseHrAlert,
 } from "../integrations/hr-link";
+import { unsentPayPeriods } from "../integrations/hr-pay";
 import { syncRotaSafely } from "../integrations/hr-rota";
 import type { Logger } from "../logger";
 import { raiseCoverTask } from "../services/absence";
@@ -554,7 +556,14 @@ export async function syncHrLinks(deps: TaskDeps, now = new Date()): Promise<num
   const services = deps.hrLink;
   if (!services) return 0;
   const linked = await eachTenant(deps, "hr-link-sync", async (tx, tenantId) => {
-    if (!(await hrLinkEnabled(tx))) return 0;
+    if (!(await hrLinkEnabled(tx))) {
+      // With the flag off, locked pay not yet in Thapsus-HR waits: pay approvers are told (HZ-140).
+      const off = await hrConnection(tx);
+      if (off && (await unsentPayPeriods(tx)) > 0) {
+        await raiseHrAlert(tx, "pay_units_unsent", "integration_connection", off.id, now);
+      }
+      return 0;
+    }
     const link = await hrConnection(tx);
     if (link?.status !== "connected") return 0;
     const port = services.port(tenantId, link.settings);

@@ -121,7 +121,16 @@ export const PayProfileItem = z
   .meta({ id: "PayProfileItem" });
 
 export const CreatePayRun = z
-  .object({ frequency: PayFrequency, periodStart: isoDate, periodEnd: isoDate })
+  .object({
+    frequency: PayFrequency,
+    periodStart: isoDate,
+    periodEnd: isoDate,
+    /**
+     * The HR platform link is down for a period its settings send there: pay this period through
+     * the payroll export instead (slice 90; HZ-140). Audited.
+     */
+    confirmExport: z.boolean().optional(),
+  })
   .meta({ id: "CreatePayRun" });
 export const PayRunVersion = z.object({ version }).meta({ id: "PayRunVersion" });
 export const OverridePayException = z

@@ -1,6 +1,8 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { MockThapsusHr } from "../src/integrations/thapsus-hr";
+import { syncHrLinks } from "../src/jobs/tasks";
+import { createLogger } from "../src/logger";
 import { payrollExportNotConfigured } from "../src/services/payroll-export";
 import { createHarness, type Harness, LODGE } from "./support/harness";
 
@@ -412,6 +414,62 @@ describe("hazard HZ-140 a refusal of locked pay goes to pay approvers (rule 11)"
       "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.pay_units_refused' AND required_permission = 'scheduling.pay.approve'",
     );
     expect(alert).toHaveLength(1);
+  });
+});
+
+describe("hazard HZ-140 the link down never sends a period to the export without a person (slice 90)", () => {
+  const P3 = { frequency: "weekly", periodStart: "2026-10-26", periodEnd: "2026-11-01" };
+
+  it("refuses to draft a period set for Thapsus-HR while the flag is off, unless the export is confirmed", async () => {
+    await sql("UPDATE feature_flag SET enabled = false WHERE flag_key = 'integrations.thapsus_hr'");
+    try {
+      const refused = await as("owner", "/v1/pay-runs", { method: "POST", body: P3 });
+      expect(refused.status).toBe(409);
+      expect(await codeOf(refused)).toBe("hr_link_down_for_pay");
+      const made = await as("owner", "/v1/pay-runs", {
+        method: "POST",
+        body: { ...P3, confirmExport: true },
+      });
+      expect(made.status).toBe(201);
+      const [row] = await sql<{ pay_route: string }>(
+        "SELECT pay_route FROM pay_run WHERE period_start = $1",
+        [P3.periodStart],
+      );
+      expect(row?.pay_route).toBe("harbour_export");
+    } finally {
+      await sql(
+        "UPDATE feature_flag SET enabled = true WHERE flag_key = 'integrations.thapsus_hr'",
+      );
+    }
+  });
+
+  it("tells pay approvers on the scheduled sync when the flag is off with locked pay not yet sent", async () => {
+    await sql("UPDATE hr_delivery SET payload_sha256 = repeat('b', 64) WHERE kind = 'pay_units'");
+    await sql("UPDATE feature_flag SET enabled = false WHERE flag_key = 'integrations.thapsus_hr'");
+    try {
+      await syncHrLinks(
+        {
+          workerPool: h.db.pool("harbour_worker"),
+          appDb: h.handle.services.db,
+          logger: createLogger("silent"),
+          hrLink: h.handle.services.hrLink,
+        },
+        new Date(),
+      );
+    } finally {
+      await sql(
+        "UPDATE feature_flag SET enabled = true WHERE flag_key = 'integrations.thapsus_hr'",
+      );
+    }
+    const alert = await sql(
+      "SELECT 1 FROM task WHERE kind = 'integrations.hr_link.pay_units_unsent' AND required_permission = 'scheduling.pay.approve' AND status = 'open'",
+    );
+    expect(alert).toHaveLength(1);
+    // Resolved for the next test, which raises it again on disconnecting.
+    await sql(
+      "UPDATE task SET status = 'done', completed_at = now(), completed_by = $1 WHERE kind = 'integrations.hr_link.pay_units_unsent'",
+      [DEMO.users.owner.id],
+    );
   });
 });
 

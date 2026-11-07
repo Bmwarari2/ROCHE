@@ -689,7 +689,14 @@ export async function deliverRota(
         .where(and(eq(hrDelivery.kind, "shift"), eq(hrDelivery.harbourRef, a.id)));
       // Cancelled when Thapsus-HR may hold it: sent once, or an attempt whose answer was lost.
       if (!sent || (sent.state === "refused" && !sent.hrId)) continue;
-      if (await once("shift", a.id, CANCELLED, (key) => port.cancelShift(a.id, key), true)) {
+      // A shift Thapsus-HR does not have is already gone: done, never retried every run.
+      const cancel = async (key: string): Promise<HrResult<{ readonly id: string }>> => {
+        const r = await port.cancelShift(a.id, key);
+        return !r.ok && r.error === "not_found"
+          ? { ok: true, value: { id: sent.hrId ?? "absent" } }
+          : r;
+      };
+      if (await once("shift", a.id, CANCELLED, cancel, true)) {
         return { ...out, error: "rate_limited" };
       }
     }

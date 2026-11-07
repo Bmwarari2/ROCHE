@@ -52297,6 +52297,9 @@
           "periodEnd": {
             "type": "string",
             "format": "date"
+          },
+          "confirmExport": {
+            "type": "boolean"
           }
         },
         "required": [

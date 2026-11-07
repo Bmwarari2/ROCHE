@@ -66541,6 +66541,7 @@ export interface components {
       periodStart: string;
       /** Format: date */
       periodEnd: string;
+      confirmExport?: boolean;
     };
     PayRunDetail: {
       run: components["schemas"]["PayRunItem"];

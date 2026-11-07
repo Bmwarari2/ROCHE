@@ -157,6 +157,34 @@ describe("hazard HZ-133 shifts go out with their listed fields only, once, and a
     ]);
   });
 
+  it("takes a cancellation Thapsus-HR answers not found as done, never retried every run", async () => {
+    const cancel = mock.cancelShift.bind(mock);
+    let calls = 0;
+    mock.cancelShift = async () => {
+      calls += 1;
+      return { ok: false, error: "not_found" } as never;
+    };
+    try {
+      await sql(
+        "UPDATE shift_assignment SET deleted_at = now(), remove_reason = 'Swapped' WHERE id = $1",
+        [assignmentId],
+      );
+      // Sent again first, so the cancellation is a new attempt.
+      await sql("UPDATE hr_delivery SET payload_sha256 = repeat('c', 64) WHERE harbour_ref = $1", [
+        assignmentId,
+      ]);
+      expect((await sync()).deliveries).toMatchObject({ cancelled: 1 });
+      await sync();
+      expect(calls).toBe(1);
+    } finally {
+      mock.cancelShift = cancel;
+      await sql(
+        "UPDATE shift_assignment SET deleted_at = NULL, remove_reason = NULL WHERE id = $1",
+        [assignmentId],
+      );
+    }
+  });
+
   it("sends a shift that goes back to an earlier version with a new key, never a replay", async () => {
     const keys = () =>
       sql<{ idempotency_key: string }>(

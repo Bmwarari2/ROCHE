@@ -798,6 +798,15 @@ export const payRouter = createRouter()
           // A period paid through Thapsus-HR is its pay period exactly (rule 11; HZ-140).
           const path = await payPath(tx, body.periodStart);
           if (path.route === null) throw routeUnknown();
+          // The link is down for a period its settings send to Thapsus-HR: only on a person's
+          // say-so does it go to Harbour's export instead (HZ-140).
+          if (path.link === null && path.intended !== "harbour_export" && !body.confirmExport) {
+            throw new HttpProblem(
+              409,
+              "hr_link_down_for_pay",
+              "This period is set to be paid through the HR platform, but the link is off or disconnected. Wait for the link, or confirm this period goes to the payroll export instead.",
+            );
+          }
           if (
             path.route === "thapsus_hr" &&
             !(await withSystemRights(tx, () => hrPayPeriodOf(tx, body)))
@@ -825,6 +834,7 @@ export const payRouter = createRouter()
             action: A.runCreated,
             resourceType: "pay_run",
             resourceId: made.id,
+            ...(body.confirmExport ? { scope: { exportConfirmedWhileHrLinkDown: true } } : {}),
           });
           return runItem(tx, made);
         },
