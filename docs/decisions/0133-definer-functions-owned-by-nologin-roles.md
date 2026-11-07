@@ -11,7 +11,7 @@ informed: Brian, DPO lead
 ## Context and problem statement
 
 A `SECURITY DEFINER` function runs with its owner's rights (ADR-0002). The security review of batch
-3a found 32 of them owned by `harbour_owner`, the migrator: a role that can log in and owns every
+3a found 32 of them owned by `harbour_owner` (34 once batch 3c merged), the migrator: a role that can log in and owns every
 table. A flaw in any of those functions (a missing check, an injectable argument, a name shadowed
 through `search_path`) would run with every table's rights. Most definer functions also pinned
 `search_path` without `pg_temp` last, so a temporary object of the caller's could shadow a name the
@@ -35,7 +35,7 @@ function resolves. The other definer functions were already owned by single-purp
 ## Decision outcome
 
 Chosen option: one NOLOGIN owner per bounded context, because it limits a flaw to one context's
-tables while keeping the number of roles manageable (one per function would add 32 roles for little
+tables while keeping the number of roles manageable (one per function would add 34 roles for little
 gain; one for all would put payroll, casework and care rounds in one blast radius).
 
 - Roles (created by `pnpm db:bootstrap`, as every role is; `harbour_owner` may `SET ROLE` to them,

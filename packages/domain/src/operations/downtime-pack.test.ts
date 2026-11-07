@@ -534,6 +534,78 @@ describe("pack content", () => {
   });
 });
 
+describe("hazard HZ-021 medicines from the eMAR on the downtime pack (slice 49)", () => {
+  const at = (hours: number) => new Date(AS_AT.getTime() + hours * HOUR);
+  const dose = (name: string, hours: number, o: Partial<ScheduledDose> = {}): ScheduledDose => ({
+    name,
+    dose: "1 tablet",
+    route: "oral",
+    dueAt: at(hours),
+    timeCritical: false,
+    status: "due",
+    givenAt: null,
+    ...o,
+  });
+  const due = (scheduled: ScheduledDose[]) => {
+    const page = onlyPage(
+      person("p-1", { medicinesDue: src("p-1", { status: "recorded", scheduled, prn: [] }) }),
+    );
+    const content = page.content.medicinesDue;
+    return content?.status === "recorded" ? content.due.map((d) => d.name) : null;
+  };
+
+  it.each([
+    [
+      "an outstanding dose before the pack is kept, first",
+      [dose("Late", -3, { outstanding: true }), dose("Later", 2)],
+      ["Late", "Later"],
+    ],
+    [
+      "outstanding doses first, earliest first",
+      [
+        dose("Due", 1),
+        dose("Older", -5, { outstanding: true }),
+        dose("Newer", -2, { outstanding: true }),
+      ],
+      ["Older", "Newer", "Due"],
+    ],
+    [
+      "a dose before the pack that is not outstanding is left off",
+      [dose("Before", -1), dose("Due", 1)],
+      ["Due"],
+    ],
+    [
+      "an outstanding dose already given is left off",
+      [dose("Given", -2, { outstanding: true, status: "given" })],
+      [],
+    ],
+    [
+      "a held dose is kept, with its notice",
+      [dose("Held", 2, { onHold: true, notice: "Do not give" })],
+      ["Held"],
+    ],
+  ])(
+    "hazard HZ-021 lists outstanding doses first and keeps them whatever the window (slice 49): %s",
+    (_, scheduled, expected) => {
+      expect(due(scheduled)).toEqual(expected);
+    },
+  );
+
+  it("hazard HZ-021 says the eMAR could not be read, with a warning, never a silent pointer to paper", () => {
+    const page = onlyPage(
+      person("p-1", {
+        medicinesDue: src("p-1", { status: "unreadable", where: "the paper MAR in the office" }),
+      }),
+    );
+    expect(status(page, "medicines_due")).toBe("unreadable");
+    const note = page.sections.find((s) => s.key === "medicines_due")?.note;
+    expect(note).toBe(
+      "Medicines could not be read from the eMAR when this pack was made. Use the eMAR, or the paper MAR in the office if it is in use.",
+    );
+    expect(page.warnings.map((w) => w.kind)).toContain("medicines_unreadable");
+  });
+});
+
 describe("hazard HZ-015 resuscitation status on the downtime pack", () => {
   it("prints the decision in force", () => {
     const page = onlyPage(person("p-1"));

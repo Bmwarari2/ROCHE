@@ -110,6 +110,11 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.sample_people()": ["harbour_app"],
   // Cover needs at any home of the organisation (HZ-123, migration 0107).
   "app.raise_cover_need(uuid, uuid)": ["harbour_app", "harbour_owner"],
+  // Cover needs for Thapsus-HR absences, raised by the link's sync (migration 0142).
+  "app.raise_hr_cover_need(uuid, uuid)": ["harbour_app", "harbour_owner"],
+  // A reinstated member given a real leaving by the link's sync (migration 0142); no caller since
+  // batch 3c refuses withdrawing a leaving once access has ended (migration 0144).
+  "app.end_relinked_leaver_access(uuid)": ["harbour_owner"],
   "app.absence_member(uuid)": ["harbour_app", "harbour_owner"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
   // Import wizard (Phase 2 slice 26, migration 0088).

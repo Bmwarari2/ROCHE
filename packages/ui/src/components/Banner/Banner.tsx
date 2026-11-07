@@ -77,6 +77,12 @@ export interface BannerProps extends Omit<HTMLAttributes<HTMLDivElement>, "title
   retrying?: boolean;
   /** Any other action, such as a link to the sync log. */
   action?: ReactNode;
+  /**
+   * False for a banner already on the page when it loads (rendered with the page, not news): no
+   * live region, so it never talks over a status message; found in reading order after the
+   * heading. Default true.
+   */
+  announce?: boolean;
 }
 
 /**
@@ -92,6 +98,7 @@ export function Banner({
   retryLabel = "Try again",
   retrying = false,
   action,
+  announce = true,
   className,
   ...rest
 }: BannerProps) {
@@ -99,7 +106,7 @@ export function Banner({
   const { Icon } = defaults;
   return (
     <div
-      role={defaults.role}
+      role={announce ? defaults.role : undefined}
       className={cx("hb-banner", `hb-banner--${variant}`, className)}
       data-variant={variant}
       {...rest}

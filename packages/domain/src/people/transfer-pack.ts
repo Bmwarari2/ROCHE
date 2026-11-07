@@ -206,6 +206,8 @@ export interface TransferMedicine {
   readonly lastGivenAt: Date | null;
   /** Time-critical medicines (for example for Parkinson's disease) are listed first. */
   readonly timeCritical: boolean;
+  /** From the eMAR: the entry's status when it is not simply checked ("Not yet checked"). */
+  readonly status?: string | null;
 }
 
 export type MedicinesStatement =
@@ -219,6 +221,8 @@ export type MedicinesStatement =
        */
       readonly source: "emar" | "medicines_list" | "pharmacy_mar" | "pre_admission_assessment";
       readonly items: readonly TransferMedicine[];
+      /** From the eMAR: when it was read, so the pack says it is not the live record (slice 49). */
+      readonly producedAt?: Date;
     };
 
 export interface TransferCommunicationNeed {
@@ -343,6 +347,11 @@ export interface HospitalTransferInput {
   readonly photo: SectionSource<TransferPhoto> | null;
   readonly allergies: SectionSource<AllergyStatement>;
   readonly medicines: SectionSource<MedicinesStatement>;
+  /**
+   * The person has entries on the eMAR but it could not be read, so `medicines` is the earlier
+   * source (slice 49 review): the first page says so, never a silent fallback (HZ-023).
+   */
+  readonly medicinesEmarUnreadable?: boolean;
   readonly communication: SectionSource<CommunicationStatement>;
   readonly resuscitation: SectionSource<ResuscitationStatement>;
   readonly aboutMe: SectionSource<AboutMeDocument> | null;
@@ -373,7 +382,8 @@ export type TransferPackAttentionCode =
   | "resuscitation_review_overdue"
   | "medicines_need_checking"
   | "photo_not_printable"
-  | "allergy_confirmation_not_recorded";
+  | "allergy_confirmation_not_recorded"
+  | "medicines_emar_unreadable";
 
 /**
  * Something recorded that still needs checking before anyone relies on it, printed on the first
@@ -396,6 +406,8 @@ const ATTENTION_MESSAGES: Record<TransferPackAttentionCode, string> = {
     "This medicines list is from the pre-admission assessment, not the MAR. Check it against the MAR before relying on it.",
   photo_not_printable:
     "A photo is held in the record but cannot be printed. Confirm the person's identity another way.",
+  medicines_emar_unreadable:
+    "The care home's electronic medicines record could not be read when this pack was made, so this medicines list is not from it. Ring the home before relying on it.",
   allergy_confirmation_not_recorded:
     "No known allergies is recorded, but not who confirmed it or when. Check before relying on it.",
 };
@@ -406,6 +418,7 @@ const ATTENTION_NEEDS_ACKNOWLEDGEMENT: Record<TransferPackAttentionCode, boolean
   medicines_need_checking: false,
   photo_not_printable: false,
   allergy_confirmation_not_recorded: false,
+  medicines_emar_unreadable: false,
 };
 
 function attention(
@@ -657,6 +670,8 @@ export function assembleHospitalTransferPack(input: HospitalTransferInput): Tran
   ) {
     checks.push(attention("allergies", "allergy_confirmation_not_recorded"));
   }
+  if (input.medicinesEmarUnreadable)
+    checks.push(attention("medicines", "medicines_emar_unreadable"));
   if (medicines.status === "recorded" && medicines.source === "pre_admission_assessment") {
     checks.push(
       attention(

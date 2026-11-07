@@ -973,7 +973,7 @@ export const handoverItem = pgTable(
     ),
     check(
       "handover_item_source_type",
-      sql`source_type IN ('task', 'observation', 'incident', 'body_map_mark', 'care_note', 'notification')`,
+      sql`source_type IN ('task', 'observation', 'incident', 'body_map_mark', 'care_note', 'notification', 'medication_administration')`,
     ),
     // One of the eleven summary keys and an object of parameters, nothing else, each a string,
     // number or boolean, at most 4 KiB in all. The key and codes are never English, but a task's

@@ -28,6 +28,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Merge batch 3c (06/11/2026)
+
+`integration/phase-2-batch-3c`, from batch 3b: the Thapsus-HR link's slices 87 and 88 (0141,
+0142), PRN protocols (slice 28, 0143) and medicines in the Phase 1 outputs (slice 49, renumbered
+0145 to 0144). `feat/platform-member-lifecycle` is left out: it is a second design of H-566 beside
+0129, and its new parts are deferred to a rework on `app.change_membership`. An HR leaving is no
+longer withdrawn once access has ended (until reinstatement exists). The PR opens once #172 is on
+`main`. See `docs/changelog-dev/2026-11-06-integration-phase-2-batch-3c.md`.
+
 ## Merge batch 3b (06/11/2026)
 
 `integration/phase-2-batch-3b`, from batch 3a: migrations 0120 to 0140 (slice 38 renumbered from
@@ -139,10 +148,13 @@ Phases 3 to 7 are not started.
 
 **Added to the plan on 01/11/2026**: the Thapsus-HR link (INTG-014, ADR-0126), so a provider using
 both products shares rota, time, pay and staff records without exports. It is Phase 2 slices 86 to 90
-on `docs/plan-thapsus-hr-link`, and takes migration 0141 (0142 if needed), H-1340 to H-1345, HZ-133
-and DPIA risk R30.
+on `docs/plan-thapsus-hr-link`, and takes migration 0141 (0139 went to slice 71, 0140 to slice 38), H-1340 to H-1345,
+HZ-133 and DPIA risk R30. Slice 86 (port, mock, rules) is on `feat/integrations-hr-link-port`;
+slice 87 (connection, people, locations, the signed webhook, reconciliation; migration 0141) is on
+`feat/integrations-hr-link-connection`, branched from it. Next: slice 88 (absences and the rota's
+staleness notice). Harbour keeps the rota (confirmed 06/11/2026).
 
-**Next free numbers**: migration 0141, human actions block H-1350, hazard HZ-134, ADR-0127.
+**Next free numbers**: migration 0142, human actions block H-1350, hazard HZ-134, ADR-0127.
 
 **Human questions**: every open question takes its recommended answer until the testing-phase
 review ([recommended-answers.md](recommended-answers.md)). The ten Brian decisions that had no default
@@ -183,6 +195,12 @@ longer written (H-716; the column drop is a later contract migration). H-566 has
 and API routes (suspend, end, erase the sign-in), held in the database by migration 0129
 (`app.change_membership`, a restrictive policy and a guard trigger on `tenant_user`, the last user
 manager kept); its web screens and a reinstate route are still to build.
+
+**Phase 2 slice 49, medicines in the Phase 1 outputs** (`feat/meds-phase1-outputs`, MEDS-001 and
+MEDS-002, from slice 48; no migration): the downtime pack's doses due and the transfer pack's
+medicines come from the eMAR, each saying when it was read and that it is not the live record;
+outstanding and refused doses reach the handover (migration 0144). Left: the not-available stock
+task needs slice 42's hook (TODO for the batch).
 
 **Phase 2 slice 48, rounds, escalation and conflict review** (`feat/meds-rounds`, MEDS-002, from
 slice 34 with #162's final head (559440bb) merged in): migration 0134 adds
@@ -317,6 +335,12 @@ best-interests decision, with review and end; covert and self-administered doses
 escalated, never refused; self-administration assessments; homely remedy protocols per home and
 doses checked against them. New permission `medicines.covert.manage`, backfilled to built-in roles.
 Next: the web screens (slices 52, 53, 55). Lands through a merge batch.
+
+**Phase 2 slice 28, PRN protocols and the psychotropic report** (`feat/meds-prn-protocols`,
+MEDS-003, from slice 22; migration 0143; HZ-117; H-1380 to H-1389, recommended answers applied):
+versioned PRN protocols that show the entry's limits and never copy them, outcome follow-up, the
+organisation's medicine lists (the psychotropic list) and the PRN frequency report. New permission
+`medicines.list.manage`, backfilled to built-in roles. Next: the round display (slice 53).
 
 **Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
 with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client

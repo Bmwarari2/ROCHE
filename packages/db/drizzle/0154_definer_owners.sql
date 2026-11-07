@@ -58,7 +58,7 @@ GRANT EXECUTE ON FUNCTION app.holds_role_permission_somewhere(text) TO harbour_c
 GRANT EXECUTE ON FUNCTION app.member_is_agency(uuid) TO harbour_care_definer;
 --> statement-breakpoint
 
--- harbour_workforce_definer: absence_member, casework_for_subject_access, casework_member, employee_case_open, end_leaver_access, equality_monitoring_counts, induction_policy_signing, open_employee_case, operator_appoint_case_manager, staff_profile_worker, supervises_member, supervision_in_force.
+-- harbour_workforce_definer: absence_member, casework_for_subject_access, casework_member, employee_case_open, end_leaver_access, equality_monitoring_counts, induction_policy_signing, open_employee_case, operator_appoint_case_manager, staff_profile_worker, supervises_member, supervision_in_force, end_relinked_leaver_access.
 GRANT USAGE ON SCHEMA public, app TO harbour_workforce_definer;
 --> statement-breakpoint
 GRANT SELECT ON public.absence, public.equality_monitoring, public.location, public.policy_signature, public.policy_version, public.role, public.staff_profile, public.supervision_record, public.vacancy TO harbour_workforce_definer;
@@ -85,7 +85,7 @@ GRANT EXECUTE ON FUNCTION app.holds_self_permission(text) TO harbour_workforce_d
 GRANT EXECUTE ON FUNCTION app.member_is_agency(uuid) TO harbour_workforce_definer;
 --> statement-breakpoint
 
--- harbour_scheduling_definer: agency_access_open, agency_assignment_booked, agency_member_role_guard, agency_worker_guard, member_is_agency, raise_cover_need, reads_worker_time.
+-- harbour_scheduling_definer: agency_access_open, agency_assignment_booked, agency_member_role_guard, agency_worker_guard, member_is_agency, raise_cover_need, reads_worker_time, raise_hr_cover_need.
 GRANT USAGE ON SCHEMA public, app TO harbour_scheduling_definer;
 --> statement-breakpoint
 GRANT SELECT ON public.absence, public.access_grant, public.agency, public.agency_worker, public.role, public.role_assignment, public.shift_assignment TO harbour_scheduling_definer;
@@ -267,6 +267,8 @@ ALTER FUNCTION app.employee_case_open() OWNER TO harbour_workforce_definer;
 --> statement-breakpoint
 ALTER FUNCTION app.end_leaver_access(uuid) OWNER TO harbour_workforce_definer;
 --> statement-breakpoint
+ALTER FUNCTION app.end_relinked_leaver_access(uuid) OWNER TO harbour_workforce_definer;
+--> statement-breakpoint
 ALTER FUNCTION app.equality_monitoring_counts(uuid) OWNER TO harbour_workforce_definer;
 --> statement-breakpoint
 ALTER FUNCTION app.induction_policy_signing(uuid) OWNER TO harbour_workforce_definer;
@@ -292,6 +294,8 @@ ALTER FUNCTION app.agency_worker_guard() OWNER TO harbour_scheduling_definer;
 ALTER FUNCTION app.member_is_agency(uuid) OWNER TO harbour_scheduling_definer;
 --> statement-breakpoint
 ALTER FUNCTION app.raise_cover_need(uuid,uuid) OWNER TO harbour_scheduling_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.raise_hr_cover_need(uuid,uuid) OWNER TO harbour_scheduling_definer;
 --> statement-breakpoint
 ALTER FUNCTION app.reads_worker_time(uuid) OWNER TO harbour_scheduling_definer;
 --> statement-breakpoint
@@ -332,6 +336,8 @@ GRANT EXECUTE ON FUNCTION app.casework_member(uuid,text[]) TO harbour_owner;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.end_leaver_access(uuid) TO harbour_owner;
 --> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.end_relinked_leaver_access(uuid) TO harbour_owner;
+--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.equality_monitoring_counts(uuid) TO harbour_owner;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.induction_policy_signing(uuid) TO harbour_owner;
@@ -355,6 +361,8 @@ GRANT EXECUTE ON FUNCTION app.agency_access_open(uuid,uuid) TO harbour_owner;
 GRANT EXECUTE ON FUNCTION app.member_is_agency(uuid) TO harbour_owner;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.raise_cover_need(uuid,uuid) TO harbour_owner;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.raise_hr_cover_need(uuid,uuid) TO harbour_owner;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.reads_worker_time(uuid) TO harbour_owner;
 --> statement-breakpoint

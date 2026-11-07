@@ -28,6 +28,13 @@ import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { DataKeyCache } from "../integrations/envelope";
+import {
+  type HrLinkServices,
+  hrConnection,
+  hrLinkEnabled,
+  pullSafely,
+} from "../integrations/hr-link";
+import { syncRotaSafely } from "../integrations/hr-rota";
 import type { Logger } from "../logger";
 import { raiseCoverTask } from "../services/absence";
 import { tellAboutBreachNotice } from "../services/breach-notices";
@@ -114,6 +121,8 @@ export interface TaskDeps {
   readonly exportStorage?: DocumentStoragePort;
   /** The documents bucket, for the bytes of documents destroyed past retention. */
   readonly storage?: DocumentStoragePort;
+  /** The Thapsus-HR link's adapter; absent in jobs that never touch it. */
+  readonly hrLink?: HrLinkServices;
   /** Organisation keys, to complete an approved crypto-shred (PLAT-012, ADR-0109). */
   readonly tenantKeys?: TenantKeyPort;
   readonly dataKeyCache?: DataKeyCache;
@@ -642,6 +651,30 @@ async function endLeaverSessions(
 }
 
 /**
+ * The Thapsus-HR link's reconciliation (integrations.md section 11.2; rules 1, 2, 3 and 8): for each
+ * organisation with the link on and connected, pulls every employee, links, records leaving dates
+ * and puts back the owner's version of drifted fields; a failure is recorded and the last good
+ * sync stays as it was, so rotas say the data is out of date (rule 9). Returns employees linked.
+ */
+export async function syncHrLinks(deps: TaskDeps, now = new Date()): Promise<number> {
+  const services = deps.hrLink;
+  if (!services) return 0;
+  const linked = await eachTenant(deps, "hr-link-sync", async (tx, tenantId) => {
+    if (!(await hrLinkEnabled(tx))) return 0;
+    const link = await hrConnection(tx);
+    if (link?.status !== "connected") return 0;
+    const port = services.port(tenantId, link.settings);
+    if (!port) return 0;
+    const out = await pullSafely(tx, tenantId, port, link.settings, now);
+    // Absences in and the rota out, once people are linked (section 11.2; slice 88).
+    await syncRotaSafely(tx, tenantId, port, link.settings, now);
+    return out.linked;
+  });
+  if (linked > 0) deps.logger.info({ linked }, "HR link employees linked");
+  return linked;
+}
+
+/**
  * Policy read-and-sign reminders and review tasks (quality.md section 19.3; HZ-128).
  */
 export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<number> {
@@ -1140,6 +1173,25 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   // A shift an absence left needing cover (scheduling.md section 17 rule 7; HZ-123): a task for
   // the rota managers at the shift's home. A failure throws, so the relay retries; the task is
   // raised once per need.
+  // A rota published at a home linked to Thapsus-HR: its shifts go out now rather than at the next
+  // sync (integrations.md section 11.2). A failure is recorded in the delivery log; the sync
+  // carries on with it.
+  handlers.set("scheduling.rota_published", async (event) => {
+    const services = deps.hrLink;
+    if (!services) return;
+    await inTenant(event.tenantId, async (tx) => {
+      if (!(await hrLinkEnabled(tx))) return;
+      const link = await hrConnection(tx);
+      if (link?.status !== "connected") return;
+      const port = services.port(event.tenantId, link.settings);
+      // Only the rota goes out here; absences come in on the scheduled sync.
+      if (port) {
+        await syncRotaSafely(tx, event.tenantId, port, link.settings, new Date(), {
+          absences: false,
+        });
+      }
+    });
+  });
   handlers.set("scheduling.cover_needed", async (event) => {
     const coverNeedId = (event.payload as { coverNeedId?: unknown } | null)?.coverNeedId;
     // A malformed event is dropped, never retried for ever (security review, finding 5).
