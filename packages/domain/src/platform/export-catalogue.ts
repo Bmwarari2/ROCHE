@@ -404,6 +404,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
@@ -666,6 +671,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
@@ -967,6 +977,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
@@ -1993,6 +2008,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "mar_chart",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
       id: { description: "The record's id, chosen by the device or browser that made it." },
       tenant_id: "exported",
       person_id: "exported",
@@ -2759,6 +2779,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
@@ -5196,6 +5221,21 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
+      shift_end: {
+        description:
+          "The handover's shift end, copied by the database for the phone's streams (migration 0145); not exported.",
+        class: "internal",
+      },
+      at_home: {
+        description:
+          "Whether the row is about nobody or someone who lives at the handover's home, for the phone's streams (migration 0145); not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       handover_id: { description: "The handover (handover.id)." },
@@ -5238,6 +5278,16 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
+      shift_end: {
+        description:
+          "The handover's shift end, copied by the database for the phone's streams (migration 0145); not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       handover_id: { description: "The handover acknowledged (handover.id)." },
@@ -5262,6 +5312,21 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
+      shift_end: {
+        description:
+          "The handover's shift end, copied by the database for the phone's streams (migration 0145); not exported.",
+        class: "internal",
+      },
+      at_home: {
+        description:
+          "Whether the row is about nobody or someone who lives at the handover's home, for the phone's streams (migration 0145); not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       handover_id: { description: "The handover (handover.id)." },
@@ -7131,6 +7196,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
@@ -9887,6 +9957,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "as_subject",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       series_id: "exported",
@@ -10329,6 +10404,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "care_record",
     personal: true,
     columns: {
+      sync_location_id: {
+        description:
+          "The home whose phones hold the row, set and moved by the database (migration 0145; ADR-0134); routing only, not exported.",
+        class: "internal",
+      },
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
