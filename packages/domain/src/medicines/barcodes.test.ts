@@ -16,7 +16,7 @@ describe("pack barcodes (ADR-0081)", () => {
     ["a linear EAN-13", "5000000000012", { gtin: GTIN, symbology: "linear" }],
     [
       "a GS1 DataMatrix with expiry, batch and serial",
-      `]d201${GTIN}17280331` + "10AB12\u001d21SER9",
+      `]d201${GTIN}1728033110AB12\u001d21SER9`,
       { gtin: GTIN, expiry: "2028-03-31", batch: "AB12", serial: "SER9" },
     ],
     [
