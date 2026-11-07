@@ -54,6 +54,11 @@ export const LoneWorkerRoute = z
     problems: z.array(z.object({ code: z.string(), message: z.string() })),
     /** Whether the organisation attaches location evidence to events (off by default; H-527). */
     locationEvidence: z.boolean(),
+    /**
+     * Whether text messages can be chosen: only once an SMS gateway is connected. None is at
+     * launch (ADR-0132), so the form offers phone notification and email only.
+     */
+    smsAvailable: z.boolean(),
     /** The saved route's version, to send back with a change; null before one is saved. */
     version: version.nullable(),
   })

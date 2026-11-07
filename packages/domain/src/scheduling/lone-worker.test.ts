@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
+import { smsGatewayConfigured } from "../integrations/ports";
 import type { EscalationStep } from "../platform/notifications";
 import {
   ALARM_REASON_WORDS,
@@ -15,6 +16,7 @@ import {
   type LoneWorkerEventKind,
   type LoneWorkerSessionTimes,
   nextCheckInDue,
+  ROUTE_PROBLEM_MESSAGES,
   realertDue,
   resolveOnCheckIn,
   sessionStatus,
@@ -468,7 +470,63 @@ describe("checkRoute (H-539)", () => {
     ["in-app only", [{ ...onCall, channels: ["in_app"] as const }, manager], ["in_app_only"]],
     ["steps out of order", [{ ...onCall, afterMinutes: 20 }, manager], ["chain"]],
   ] as const)("%s", (_label, steps, expected) => {
-    expect(checkRoute(steps as readonly EscalationStep[]).problems).toEqual(expected);
+    expect(checkRoute(steps as readonly EscalationStep[], { smsAvailable: true }).problems).toEqual(
+      expected,
+    );
+  });
+});
+
+describe("hazard HZ-125 no on-call step relies on text messages while no SMS gateway is set up (ADR-0132)", () => {
+  const onCall: EscalationStep = {
+    afterMinutes: 1,
+    targetTenantUserId: "00000000-0000-4000-8000-000000000001",
+    channels: ["push"],
+  };
+  const manager: EscalationStep = {
+    afterMinutes: 10,
+    targetRoleKey: "registered_manager",
+    channels: ["push", "email"],
+  };
+  it.each([
+    ["phone notification and email only", [onCall, manager], false, []],
+    [
+      "text message beside a phone notification",
+      [{ ...onCall, channels: ["push", "sms"] as const }, manager],
+      false,
+      ["sms_unavailable"],
+    ],
+    [
+      "text message as a step's only way away from the app",
+      [{ ...onCall, channels: ["in_app", "sms"] as const }, manager],
+      false,
+      ["in_app_only", "sms_unavailable"],
+    ],
+    [
+      "text message once a gateway is connected",
+      [{ ...onCall, channels: ["sms"] as const }, manager],
+      true,
+      [],
+    ],
+  ] as const)("%s", (_label, steps, smsAvailable, expected) => {
+    expect(checkRoute(steps as readonly EscalationStep[], { smsAvailable }).problems).toEqual(
+      expected,
+    );
+  });
+
+  it("says in words what to choose instead", () => {
+    expect(ROUTE_PROBLEM_MESSAGES.sms_unavailable).toMatch(/phone notification or email/);
+    expect(ROUTE_PROBLEM_MESSAGES.in_app_only).not.toMatch(/text message/);
+  });
+});
+
+describe("smsGatewayConfigured", () => {
+  it.each([
+    [null, false],
+    [{ provider: "mock", status: "connected" }, false],
+    [{ provider: "uk_gateway", status: "configured" }, false],
+    [{ provider: "uk_gateway", status: "connected" }, true],
+  ] as const)("%j is %s", (connection, expected) => {
+    expect(smsGatewayConfigured(connection)).toBe(expected);
   });
 });
 

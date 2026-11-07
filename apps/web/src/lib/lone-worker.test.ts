@@ -13,6 +13,7 @@ import {
   readAcknowledge,
   readRoute,
   readStart,
+  routeChannels,
   routeRoleOptions,
   sessionChip,
   sessionsInOrder,
@@ -341,21 +342,23 @@ describe("hazard HZ-125 acknowledging needs an outcome and a note (slice 61)", (
   });
 });
 
+const NO_SMS = { smsAvailable: false } as const;
+
 describe("hazard HZ-125 the on-call route (H-539, slice 61)", () => {
   const good = {
     "step-1-minutes": "1",
     "step-1-target": "role:team_leader",
-    "step-1-channel": ["push", "sms"],
+    "step-1-channel": ["push", "email"],
     "step-2-minutes": "15",
     "step-2-target": "role:registered_manager",
     "step-2-channel": ["email"],
   };
 
   it("reads a valid route", () => {
-    expect(readRoute(form(good), 2, t)).toEqual({
+    expect(readRoute(form(good), 2, t, NO_SMS)).toEqual({
       ok: true,
       steps: [
-        { afterMinutes: 1, targetRoleKey: "team_leader", channels: ["push", "sms"] },
+        { afterMinutes: 1, targetRoleKey: "team_leader", channels: ["push", "email"] },
         { afterMinutes: 15, targetRoleKey: "registered_manager", channels: ["email"] },
       ],
     });
@@ -363,11 +366,11 @@ describe("hazard HZ-125 the on-call route (H-539, slice 61)", () => {
 
   it("reads a named person", () => {
     const id = "20000000-0000-4000-8000-000000000009";
-    const read = readRoute(form({ ...good, "step-1-target": `person:${id}` }), 2, t);
+    const read = readRoute(form({ ...good, "step-1-target": `person:${id}` }), 2, t, NO_SMS);
     expect(read.ok && read.steps[0]).toEqual({
       afterMinutes: 1,
       targetTenantUserId: id,
-      channels: ["push", "sms"],
+      channels: ["push", "email"],
     });
   });
 
@@ -387,9 +390,37 @@ describe("hazard HZ-125 the on-call route (H-539, slice 61)", () => {
     ["zero minutes", { ...good, "step-1-minutes": "0" }, 2, ["step-1-minutes"]],
     ["too many minutes", { ...good, "step-2-minutes": "1441" }, 2, ["step-2-minutes"]],
   ] as const)("refuses %s", (_, entries, count, fields) => {
-    const read = readRoute(form(entries), count, t);
+    const read = readRoute(form(entries), count, t, NO_SMS);
     expect(read.ok).toBe(false);
     if (!read.ok) expect(read.problems.map((p) => p.field)).toEqual(fields);
+  });
+
+  // ADR-0132: no SMS at launch, so no step may rely on a text message that would go nowhere.
+  it.each([
+    ["a text message beside a phone notification", ["push", "sms"]],
+    ["a text message as the only way away from Harbour", ["sms"]],
+  ] as const)("refuses %s while no SMS gateway is set up, in words", (_, channels) => {
+    const read = readRoute(form({ ...good, "step-1-channel": [...channels] }), 2, t, NO_SMS);
+    expect(read.ok).toBe(false);
+    if (!read.ok) {
+      expect(read.problems).toEqual([
+        { field: "step-1-channel", message: expect.stringMatching(/phone notification or email/) },
+      ]);
+    }
+  });
+
+  it("accepts a text message once a gateway is connected", () => {
+    const read = readRoute(form({ ...good, "step-1-channel": ["sms"] }), 2, t, {
+      smsAvailable: true,
+    });
+    expect(read.ok).toBe(true);
+  });
+
+  it.each([
+    [false, ["push", "email", "in_app"]],
+    [true, ["push", "email", "sms", "in_app"]],
+  ] as const)("offers these channels when SMS is available: %s", (sms, channels) => {
+    expect(routeChannels(sms)).toEqual(channels);
   });
 
   it("offers only the shipped staff roles that can see and acknowledge alarms", () => {

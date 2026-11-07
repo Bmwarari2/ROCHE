@@ -28,6 +28,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## No SMS at launch (07/11/2026)
+
+`fix/comms-no-sms-at-launch` (ADR-0132): nothing relies on a text message while no SMS gateway is
+connected. A lone-worker route step cannot choose one (refused in words), saved routes lose it
+(migration 0145, an SMS-only step gains a phone notification), the delivery job skips it, and
+families are offered app and email only. See
+`docs/changelog-dev/2026-11-07-fix-comms-no-sms-at-launch.md`.
+
 ## Merge batch 3c (06/11/2026)
 
 `integration/phase-2-batch-3c`, from batch 3b: the Thapsus-HR link's slices 87 and 88 (0141,

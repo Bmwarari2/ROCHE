@@ -5933,6 +5933,8 @@
     "scheduling.loneWorker.route.minutesOrder",
     "scheduling.loneWorker.route.targetRequired",
     "scheduling.loneWorker.route.channelRequired",
+    "scheduling.loneWorker.route.smsUnavailable",
+    "scheduling.loneWorker.route.smsNotSetUp",
     "scheduling.loneWorker.route.tooFew",
     "scheduling.loneWorker.route.managerFirst",
     "scheduling.loneWorker.route.noManager",

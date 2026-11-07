@@ -3,7 +3,7 @@ import { readRateTable } from "../../test/rate-table";
 import { MAX_OUTBOUND_TITLE_LENGTH } from "../integrations/ports";
 import type { QuietHours } from "../platform/notifications";
 import { RateNotFoundError, type RateRow } from "../platform/rates";
-import type { FamilyChannelState } from "./channels";
+import { type FamilyChannelState, offeredFamilyChannelKinds } from "./channels";
 import { FEED_CLINICAL_TERMS } from "./feed-text";
 import {
   checkFamilyNotificationTemplate,
@@ -94,6 +94,8 @@ function request(overrides: Partial<FamilyNotificationRequest> = {}): FamilyNoti
     portalBaseUrl: PORTAL,
     tenantQuietHours: QUIET,
     ownQuietHours: null,
+    // A gateway connected: the rules for each channel. Launch has none (the test below).
+    smsAvailable: true,
     now: NOON,
     ...overrides,
   };
@@ -463,5 +465,38 @@ describe("hazard HZ-009 quiet hours always apply to family updates, on the UK cl
     [{ start: "ab:cd", end: "08:00" }, false],
   ])("treats %j as valid: %s", (window, valid) => {
     expect(isValidQuietHours(window)).toBe(valid);
+  });
+});
+
+describe("no family notification relies on text messages while no SMS gateway is set up (ADR-0132)", () => {
+  it("skips a text message channel in words and still sends by email and app", () => {
+    const plan = planFamilyNotification(request({ smsAvailable: false }));
+    expect(plan.action).toBe("send");
+    if (plan.action !== "send") return;
+    expect(plan.deliveries.map((d) => d.channel)).not.toContain("sms");
+    expect(plan.skipped).toContainEqual(
+      expect.objectContaining({ channelId: "sms-1", channel: "sms", reason: "sms_unavailable" }),
+    );
+  });
+
+  it("sends nothing when a text message was the family member's only channel", () => {
+    const plan = planFamilyNotification(
+      request({
+        smsAvailable: false,
+        channels: [channel({ id: "sms-1", kind: "sms", address: "+447700900123" })],
+      }),
+    );
+    expect(plan).toMatchObject({
+      action: "none",
+      reason: "no_channel",
+      skipped: [{ channelId: "sms-1", reason: "sms_unavailable" }],
+    });
+  });
+
+  it.each([
+    [false, ["email", "push"]],
+    [true, ["email", "sms", "push"]],
+  ] as const)("offers family members these channels when SMS is available: %s", (sms, kinds) => {
+    expect(offeredFamilyChannelKinds(sms)).toEqual(kinds);
   });
 });

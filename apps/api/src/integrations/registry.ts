@@ -1,6 +1,11 @@
 import type { Transaction } from "@harbour/db";
 import { integrationConnection } from "@harbour/db";
-import type { OutboundMessage, PortName, SendResult } from "@harbour/domain";
+import {
+  type OutboundMessage,
+  type PortName,
+  type SendResult,
+  smsGatewayConfigured,
+} from "@harbour/domain";
 import { eq } from "drizzle-orm";
 import { type AdapterFactoryOptions, createAdapter } from "./adapters";
 
@@ -56,4 +61,16 @@ export function createAdapterResolver(options: AdapterFactoryOptions) {
     }
     return adapter as ChannelAdapter;
   };
+}
+
+/**
+ * Whether the organisation can really send text messages: a connected SMS gateway, never the mock
+ * (ADR-0132: no SMS at launch). Read in the caller's transaction, under its RLS.
+ */
+export async function smsAvailable(tx: Transaction): Promise<boolean> {
+  const [connection] = await tx
+    .select({ provider: integrationConnection.provider, status: integrationConnection.status })
+    .from(integrationConnection)
+    .where(eq(integrationConnection.port, "comms.sms"));
+  return smsGatewayConfigured(connection ?? null);
 }

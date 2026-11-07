@@ -64,6 +64,7 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { RateLimiter, requireWithinLimit } from "../http/rate-limit";
+import { smsAvailable } from "../integrations/registry";
 import { accessRowsOfMember } from "../services/access-rows";
 import {
   acknowledgeAlarmNotifications,
@@ -369,7 +370,8 @@ export const loneWorkerRouter = createRouter()
       const access = await requireAnyPermission(c, [MANAGE, MONITOR, CHECK_IN]);
       const body = await withTenant(c, async (tx) => {
         const route = await loneWorkerRoute(tx);
-        const { problems: found } = checkRoute(route.steps);
+        const sms = await smsAvailable(tx);
+        const { problems: found } = checkRoute(route.steps, { smsAvailable: sms });
         const overrides = await tx
           .select({
             flagKey: featureFlag.flagKey,
@@ -378,7 +380,7 @@ export const loneWorkerRouter = createRouter()
           })
           .from(featureFlag)
           .where(isNull(featureFlag.deletedAt));
-        return { route, found, overrides };
+        return { route, found, overrides, sms };
       });
       const flags = await c.get("services").flags.evaluateAll({
         tenantId: access.tenantId,
@@ -394,6 +396,7 @@ export const loneWorkerRouter = createRouter()
               ? [{ code: "not_named", message: "No on-call route has been named yet." }]
               : body.found.map((code) => ({ code, message: ROUTE_PROBLEM_MESSAGES[code] })),
           locationEvidence: flags[LOCATION_FLAG] === true,
+          smsAvailable: body.sms,
           version: body.route.version,
         },
         200,
@@ -407,7 +410,7 @@ export const loneWorkerRouter = createRouter()
       tags: ["scheduling"],
       summary: "Name the on-call route for lone-worker alarms (H-539)",
       description:
-        "scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.",
+        "scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app, and none relies on text messages while no SMS gateway is connected (ADR-0132). Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.",
       security,
       request: { body: { content: { "application/json": { schema: SetLoneWorkerRoute } } } },
       responses: {
@@ -420,7 +423,9 @@ export const loneWorkerRouter = createRouter()
       const access = await requirePermission(c, MANAGE);
       const body = c.req.valid("json");
       const steps = body.steps as EscalationStep[];
-      const { problems: found, chainProblems } = checkRoute(steps);
+      // A step may not rely on text messages while no SMS gateway is connected (ADR-0132; HZ-125).
+      const sms = await withTenant(c, (tx) => smsAvailable(tx));
+      const { problems: found, chainProblems } = checkRoute(steps, { smsAvailable: sms });
       if (found.length > 0) {
         await writeAudit(c.get("services").appPool, access, {
           action: A.routeSet,
@@ -544,6 +549,7 @@ export const loneWorkerRouter = createRouter()
           steps: steps.map((s) => ({ ...s, channels: [...s.channels] })),
           problems: [],
           locationEvidence: flags[LOCATION_FLAG] === true,
+          smsAvailable: sms,
           version: saved.version,
         },
         200,

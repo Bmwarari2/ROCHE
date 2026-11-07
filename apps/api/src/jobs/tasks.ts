@@ -35,6 +35,7 @@ import {
   pullSafely,
 } from "../integrations/hr-link";
 import { syncRotaSafely } from "../integrations/hr-rota";
+import { smsAvailable } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { raiseCoverTask } from "../services/absence";
 import { tellAboutBreachNotice } from "../services/breach-notices";
@@ -1273,6 +1274,19 @@ export async function processDeliveries(deps: DeliveryDeps, now = new Date()): P
         // (Phase 1-2); until then those channels have no destination.
         const destination = channel === "email" ? (recipient?.email ?? null) : null;
         const attempts = delivery.attempts + 1;
+        // No text message is handed to a port that sends nothing (ADR-0132: no SMS at launch).
+        if (channel === "sms" && !(await smsAvailable(tx))) {
+          await tx
+            .update(notificationDelivery)
+            .set({
+              status: "skipped",
+              attempts,
+              provider: adapter.provider,
+              lastError: "No SMS gateway",
+            })
+            .where(eq(notificationDelivery.id, delivery.id));
+          return;
+        }
         if (destination === null) {
           await tx
             .update(notificationDelivery)

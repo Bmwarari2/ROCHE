@@ -319,14 +319,17 @@ export type RouteProblem =
   | "too_few_steps"
   | "no_registered_manager"
   | "manager_first"
-  | "in_app_only";
+  | "in_app_only"
+  | "sms_unavailable";
 
 export const ROUTE_PROBLEM_MESSAGES: Record<RouteProblem, string> = {
   chain: "The steps are not in a valid order or have no target or channel.",
   too_few_steps: "Name the on-call person or role first, then the Registered Manager.",
   no_registered_manager: "A later step must go to the Registered Manager.",
   manager_first: "The first step is the on-call person or role, before the Registered Manager.",
-  in_app_only: "Every step must reach people away from the app, by push, email or text message.",
+  in_app_only: "Every step must reach people away from the app, by phone notification or email.",
+  sms_unavailable:
+    "Text messages cannot be sent: no text message service is set up. Choose a phone notification or email for each step instead.",
 };
 
 /**
@@ -334,8 +337,15 @@ export const ROUTE_PROBLEM_MESSAGES: Record<RouteProblem, string> = {
  * Harbour always does it), then step 1, the on-call person or role, is told the moment the alarm
  * is raised; later steps follow by their minutes, and one of them is the Registered Manager. Every
  * step must reach people outside the app. The feature stays off until a valid route is saved.
+ *
+ * No step may rely on text messages while no SMS gateway is set up (ADR-0132: no SMS at launch;
+ * HZ-125): a text message would go nowhere, so it neither counts as reaching people away from the
+ * app nor may be chosen.
  */
-export function checkRoute(steps: readonly EscalationStep[]): {
+export function checkRoute(
+  steps: readonly EscalationStep[],
+  options: { readonly smsAvailable: boolean },
+): {
   readonly problems: RouteProblem[];
   readonly chainProblems: string[];
 } {
@@ -348,7 +358,11 @@ export function checkRoute(steps: readonly EscalationStep[]): {
     problems.push("manager_first");
   if (steps.length >= 2 && !later.some((s) => s.targetRoleKey === "registered_manager"))
     problems.push("no_registered_manager");
-  if (steps.some((s) => !s.channels.some((c) => c !== "in_app"))) problems.push("in_app_only");
+  const reaches = (c: string) => c !== "in_app" && (c !== "sms" || options.smsAvailable);
+  if (steps.some((s) => !s.channels.some(reaches))) problems.push("in_app_only");
+  if (!options.smsAvailable && steps.some((s) => s.channels.includes("sms"))) {
+    problems.push("sms_unavailable");
+  }
   return { problems, chainProblems };
 }
 

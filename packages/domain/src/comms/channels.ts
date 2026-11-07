@@ -14,6 +14,14 @@ import { isPlausibleEmail } from "../shared/email";
 export const FAMILY_CHANNEL_KINDS = ["email", "sms", "push"] as const;
 export type FamilyChannelKind = (typeof FAMILY_CHANNEL_KINDS)[number];
 
+/**
+ * The channels a family member may be offered: app and email always, text message only once an
+ * SMS gateway is connected (`smsGatewayConfigured`). None is at launch (ADR-0132; H-09, H-105).
+ */
+export function offeredFamilyChannelKinds(smsAvailable: boolean): readonly FamilyChannelKind[] {
+  return smsAvailable ? FAMILY_CHANNEL_KINDS : FAMILY_CHANNEL_KINDS.filter((k) => k !== "sms");
+}
+
 export const FAMILY_CHANNEL_PORTS: Readonly<Record<FamilyChannelKind, PortName>> = {
   email: "comms.email",
   sms: "comms.sms",

@@ -32,7 +32,7 @@ export default async function LoneWorkerRoutePage() {
     .filter((m) => m.state === "active")
     .map((m) => ({ value: `person:${m.id}`, label: m.displayName }));
   const roles = routeRoleOptions().map((r) => ({ value: `role:${r.key}`, label: r.name }));
-  const { on, steps, problems, version, locationEvidence } = route.data;
+  const { on, steps, problems, version, locationEvidence, smsAvailable } = route.data;
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -85,7 +85,18 @@ export default async function LoneWorkerRoutePage() {
           <h2 id="route-steps" className="hb-card__title">
             {t("scheduling.loneWorker.route.steps")}
           </h2>
-          <LoneWorkerRouteForm steps={steps} version={version} roles={roles} people={people} />
+          {smsAvailable ? null : (
+            <p className="m-0 text-body-dense text-text-secondary">
+              {t("scheduling.loneWorker.route.smsNotSetUp")}
+            </p>
+          )}
+          <LoneWorkerRouteForm
+            steps={steps}
+            version={version}
+            roles={roles}
+            people={people}
+            smsAvailable={smsAvailable}
+          />
         </div>
       </Card>
     </div>

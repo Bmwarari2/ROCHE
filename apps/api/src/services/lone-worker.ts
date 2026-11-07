@@ -27,6 +27,7 @@ import {
   sessionStatus,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { smsAvailable } from "../integrations/registry";
 import { publish } from "../outbox";
 import { rateNumber } from "./rates";
 import { roleHolders, toldOf } from "./role-holders";
@@ -120,7 +121,7 @@ export async function loneWorkerRoute(tx: Transaction): Promise<RouteState> {
   return {
     chainId: chain.id,
     steps,
-    on: checkRoute(steps).problems.length === 0,
+    on: checkRoute(steps, { smsAvailable: await smsAvailable(tx) }).problems.length === 0,
     version: chain.version,
   };
 }

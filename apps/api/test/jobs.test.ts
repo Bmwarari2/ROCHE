@@ -243,4 +243,25 @@ describe("notification deliveries", () => {
     ]);
     expect(await processDeliveries({ ...deps, adapterFor })).toBe(0);
   });
+
+  it("hazard HZ-125 never hands a text message to the mock while no SMS gateway is set up (ADR-0132)", async () => {
+    const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
+    const adapterFor = createAdapterResolver({ production: false, mocks });
+    await asTenant(appPool, (c) =>
+      c.query(
+        `INSERT INTO notification (recipient_tenant_user_id, kind, title, link, channels)
+         VALUES ($1, 'test.sms', 'An alarm needs you', '/lone-working', '{in_app,sms}')`,
+        [DEMO.users.manager.id],
+      ),
+    );
+    await processDeliveries({ ...deps, adapterFor });
+    expect(mocks.sms.sent).toEqual([]);
+    const rows = await asTenant(appPool, (c) =>
+      c.query(
+        `SELECT d.status, d.last_error FROM notification_delivery d
+         JOIN notification n ON n.id = d.notification_id WHERE n.kind = 'test.sms'`,
+      ),
+    );
+    expect(rows.rows).toEqual([{ status: "skipped", last_error: "No SMS gateway" }]);
+  });
 });

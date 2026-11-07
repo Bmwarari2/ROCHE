@@ -8,7 +8,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState, useTransition } f
 import { setLoneWorkerRoute } from "@/app/actions/lone-worker";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { t } from "@/lib/i18n";
-import { MAX_ROUTE_STEPS, ROUTE_CHANNELS, readRoute, targetValue } from "@/lib/lone-worker";
+import { MAX_ROUTE_STEPS, readRoute, routeChannels, targetValue } from "@/lib/lone-worker";
 import { type ActionResult, collectedRefusal, errorFor } from "@/lib/outcome";
 
 /**
@@ -41,12 +41,15 @@ export function LoneWorkerRouteForm({
   version,
   roles,
   people,
+  smsAvailable,
 }: {
   readonly steps: readonly LoneWorkerRouteStep[];
   readonly version: number | null;
   readonly roles: readonly Option[];
   /** Members who may be named, when the viewer may list the team; otherwise roles only. */
   readonly people: readonly Option[];
+  /** Text message is offered only once an SMS gateway is connected (ADR-0132). */
+  readonly smsAvailable: boolean;
 }) {
   const router = useRouter();
   const [steps, setSteps] = useState<readonly Row[]>(() =>
@@ -78,7 +81,9 @@ export function LoneWorkerRouteForm({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const read = readRoute(new FormData(event.currentTarget), steps.length, t);
+    const read = readRoute(new FormData(event.currentTarget), steps.length, t, {
+      smsAvailable,
+    });
     if (!read.ok) {
       setResult(collectedRefusal(read.problems));
       return;
@@ -152,7 +157,7 @@ export function LoneWorkerRouteForm({
                       {channelError}
                     </p>
                   ) : null}
-                  {ROUTE_CHANNELS.map((channel) => (
+                  {routeChannels(smsAvailable).map((channel) => (
                     <Checkbox
                       key={channel}
                       id={`route-step-${n}-channel-${channel}`}

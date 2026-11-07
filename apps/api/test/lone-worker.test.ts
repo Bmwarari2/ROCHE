@@ -104,7 +104,7 @@ const notificationsOf = (userId: string, kind?: string) =>
 const ON_CALL = DEMO.users.owner.id;
 const ROUTE = {
   steps: [
-    { afterMinutes: 1, targetTenantUserId: ON_CALL, channels: ["push", "sms"] },
+    { afterMinutes: 1, targetTenantUserId: ON_CALL, channels: ["push", "email"] },
     { afterMinutes: 10, targetRoleKey: "registered_manager", channels: ["push", "email"] },
   ],
   version: null,
@@ -190,6 +190,22 @@ describe("off until the organisation names its on-call route (H-539)", () => {
     });
     expect(inApp.status).toBe(422);
     expect((await json<ProblemDetails>(inApp)).detail).toMatch(/away from the app/);
+  });
+
+  // ADR-0132: no SMS gateway at launch, so a text message from an alarm would go nowhere.
+  it("hazard HZ-125 refuses a step that relies on text messages while no SMS gateway is set up, in words", async () => {
+    for (const channels of [["push", "sms"], ["sms"]]) {
+      const r = await as("manager", "/v1/lone-worker/route", {
+        method: "PUT",
+        body: { steps: [{ ...ROUTE.steps[0], channels }, ROUTE.steps[1]], version: null },
+      });
+      expect(r.status).toBe(422);
+      expect((await json<ProblemDetails>(r)).detail).toMatch(
+        /Text messages cannot be sent: no text message service is set up/,
+      );
+    }
+    const route = await as("manager", "/v1/lone-worker/route");
+    expect(await json<{ smsAvailable: boolean }>(route)).toMatchObject({ smsAvailable: false });
   });
 
   it("refuses a family or visitor role, or a person who cannot acknowledge alarms, on the route", async () => {
