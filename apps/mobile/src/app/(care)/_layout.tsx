@@ -99,7 +99,7 @@ export default function CareLayout() {
       <Tabs.Screen
         name="training"
         options={{
-          // Beside Shifts (H-1365): the member's own courses, for holders of workforce.self.read.
+          // Beside Shifts (H-1365): the member's own courses, for holders of TRAINING_SELF.
           title: t("mobile.training.title"),
           headerShown: false,
           tabBarButtonTestID: "tab-training",
