@@ -155,6 +155,40 @@ variable "timeout_seconds" {
   default     = 300
 }
 
+variable "task_count" {
+  description = "Tasks in one execution of a job."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.task_count >= 1
+    error_message = "A job runs at least one task."
+  }
+}
+
+variable "parallelism" {
+  description = "Tasks of a job that may run at once (null: Cloud Run's default)."
+  type        = number
+  default     = null
+}
+
+variable "max_retries" {
+  description = "Times a failed task of a job is retried (0: never)."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.max_retries >= 0 && var.max_retries <= 10
+    error_message = "max_retries must be between 0 and 10."
+  }
+}
+
+variable "job_invokers" {
+  description = "Members granted roles/run.invoker on this job only, by a fixed name (for example scheduler => serviceAccount:...)."
+  type        = map(string)
+  default     = {}
+}
+
 variable "deletion_protection" {
   type    = bool
   default = true

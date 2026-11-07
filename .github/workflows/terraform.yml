@@ -331,8 +331,10 @@ jobs:
           CLOUDSDK_CORE_PROJECT: ${{ vars.GCP_PROJECT_ID_DEV }}
         run: |
           repo="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/harbour"
-          gcloud run jobs update "${PREFIX}-migrate" --region "${GCP_REGION}" --image "${repo}/api:${GITHUB_SHA}" --quiet
+          gcloud run jobs update "${PREFIX}-migrate" --region "${GCP_REGION}" --image "${repo}/api:${GITHUB_SHA}" --update-env-vars "APP_VERSION=${GITHUB_SHA}" --quiet
           gcloud run jobs execute "${PREFIX}-migrate" --region "${GCP_REGION}" --wait
+          # The dm+d job runs the same image; Cloud Scheduler starts it monthly (H-1241).
+          gcloud run jobs update "${PREFIX}-dmd" --region "${GCP_REGION}" --image "${repo}/api:${GITHUB_SHA}" --update-env-vars "APP_VERSION=${GITHUB_SHA}" --quiet
           gcloud run services update "${PREFIX}-api" --region "${GCP_REGION}" --container main --image "${repo}/api:${GITHUB_SHA}" --update-env-vars "APP_VERSION=${GITHUB_SHA}" --quiet
           gcloud run services update "${PREFIX}-worker" --region "${GCP_REGION}" --container main --image "${repo}/api:${GITHUB_SHA}" --update-env-vars "APP_VERSION=${GITHUB_SHA}" --quiet
           gcloud run services update "${PREFIX}-web" --region "${GCP_REGION}" --container main --image "${repo}/web:${GITHUB_SHA}" --quiet

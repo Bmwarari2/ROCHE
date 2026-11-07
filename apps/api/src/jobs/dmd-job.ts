@@ -1,5 +1,5 @@
 import { createPool } from "@harbour/db";
-import { loadConfig } from "../config";
+import { loadDmdJobConfig } from "../config";
 import { createDmdReleaseSource, realPeopleEnvironment, trudSettings } from "../integrations/dmd";
 import { createLogger } from "../logger";
 import { dmdLoadLimits, runDmdReleaseJob } from "./dmd";
@@ -11,7 +11,8 @@ import { dmdLoadLimits, runDmdReleaseJob } from "./dmd";
  * developer's machine), loads it as the worker role, and exits non-zero when it is refused, fails
  * or cannot be downloaded. `pnpm --filter @harbour/api dmd:run` runs it once.
  */
-const config = loadConfig();
+// Only the job's own settings: it holds none of the API's secrets (H-1505).
+const config = loadDmdJobConfig();
 const logger = createLogger(config.LOG_LEVEL);
 const expected = realPeopleEnvironment({
   production: config.NODE_ENV === "production",

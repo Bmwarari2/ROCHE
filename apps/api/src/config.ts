@@ -1,3 +1,4 @@
+import { isIPv4 } from "node:net";
 import { trudUrlAllowed } from "@harbour/domain";
 import { z } from "zod";
 
@@ -9,6 +10,8 @@ import { z } from "zod";
 
 /** The only Google Cloud region personal data may live in (ADR-0098). */
 export const GCP_REGIONS = ["europe-west2"] as const;
+/** TRUD's own host: the only one a production download may reach (slice 75, rule 3). */
+export const TRUD_DEFAULT_HOSTS = ["isd.digital.nhs.uk"] as const;
 
 const GCP_PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 /** A Cloud KMS key in an allowed region: projects/<p>/locations/<region>/keyRings/<r>/cryptoKeys/<k>. */
@@ -108,7 +111,7 @@ const Env = z.object({
   /** Hosts the download may reach, the archive's address and every redirect (comma separated). */
   TRUD_ALLOWED_HOSTS: z
     .string()
-    .default("isd.digital.nhs.uk")
+    .default(TRUD_DEFAULT_HOSTS.join(","))
     .transform((v) =>
       v
         .split(",")
@@ -375,6 +378,90 @@ const list = (value: string) =>
 export function flagsmithHost(betterAuthUrl: string): string | null {
   const host = new URL(betterAuthUrl).hostname;
   return host.startsWith("api.") ? `flags.${host.slice("api.".length)}` : null;
+}
+
+/**
+ * The dm+d release job's settings only (H-1505): its own database URL, the TRUD download and the
+ * loader's limits. The job runs with NODE_ENV=production and holds none of the API's secrets, so
+ * it never goes through `loadConfig`, whose production rules demand them.
+ */
+const DmdJobEnv = Env.pick({
+  NODE_ENV: true,
+  LOG_LEVEL: true,
+  DATABASE_DMD_URL: true,
+  DMD_RELEASE_MAX_FILES: true,
+  DMD_RELEASE_MAX_BYTES: true,
+  DMD_LOAD_TIMEOUT_MINUTES: true,
+  TRUD_API_KEY: true,
+  TRUD_BASE_URL: true,
+  TRUD_DMD_ITEM: true,
+  TRUD_ALLOWED_HOSTS: true,
+  DMD_ARCHIVE_MAX_BYTES: true,
+  DMD_WORK_DIR: true,
+});
+export type DmdJobConfig = z.infer<typeof DmdJobEnv>;
+
+export function loadDmdJobConfig(env: NodeJS.ProcessEnv = process.env): DmdJobConfig {
+  const parsed = DmdJobEnv.parse(env);
+  if (!trudUrlAllowed(parsed.TRUD_BASE_URL, parsed.TRUD_ALLOWED_HOSTS)) {
+    throw new Error("TRUD_BASE_URL must be https on one of TRUD_ALLOWED_HOSTS");
+  }
+  // A missing TRUD key is left to the job, which logs `trud_unconfigured` and exits non-zero so
+  // the alert fires (runbook).
+  if (parsed.NODE_ENV === "production") {
+    // The host list comes from the same environment, so production accepts TRUD's own host only.
+    const ownHosts: readonly string[] = TRUD_DEFAULT_HOSTS;
+    if (!parsed.TRUD_ALLOWED_HOSTS.every((h) => ownHosts.includes(h))) {
+      throw new Error("TRUD_ALLOWED_HOSTS must list TRUD's own host only in production");
+    }
+    checkDmdDatabaseUrl(parsed.DATABASE_DMD_URL);
+  }
+  return parsed;
+}
+
+/** The only query settings the job's database URL may carry, each once (pg reads every one). */
+const DMD_URL_PARAMS = new Set(["sslmode", "sslrootcert"]);
+
+/** 10/8, 172.16/12 and 192.168/16: the Cloud SQL private IP seed-secrets.sh writes. */
+function privateIpv4(host: string): boolean {
+  if (!isIPv4(host)) return false;
+  const [a = -1, b = -1] = host.split(".").map(Number);
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
+/**
+ * In production the job connects as its own role (harbour_dmd_job), to the database's private
+ * address, over TLS that verifies the server (security check of PR #179). pg copies every query
+ * parameter into its settings (user, host, a repeated sslmode), so only sslmode and sslrootcert
+ * are accepted, each once, and the host must be a private IPv4 literal.
+ */
+function checkDmdDatabaseUrl(value: string): void {
+  if (value.trim() === "") throw new Error("DATABASE_DMD_URL must be set in production");
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("DATABASE_DMD_URL must be a postgres URL in production");
+  }
+  if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+    throw new Error("DATABASE_DMD_URL must be a postgres URL in production");
+  }
+  const keys = [...url.searchParams.keys()];
+  if (keys.some((k) => !DMD_URL_PARAMS.has(k)) || new Set(keys).size !== keys.length) {
+    throw new Error(
+      "DATABASE_DMD_URL may carry only sslmode and sslrootcert, each once, in production",
+    );
+  }
+  if (decodeURIComponent(url.username) !== "harbour_dmd_job") {
+    throw new Error("DATABASE_DMD_URL must connect as harbour_dmd_job in production");
+  }
+  if (!privateIpv4(url.hostname)) {
+    throw new Error("DATABASE_DMD_URL must name the database's private IPv4 address in production");
+  }
+  const sslmode = url.searchParams.get("sslmode");
+  if (sslmode !== "verify-ca" && sslmode !== "verify-full") {
+    throw new Error("DATABASE_DMD_URL must use sslmode=verify-ca or verify-full in production");
+  }
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {

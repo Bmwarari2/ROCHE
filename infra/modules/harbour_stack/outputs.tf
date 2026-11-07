@@ -47,6 +47,11 @@ output "migrate_job" {
   value       = module.job_migrate.name
 }
 
+output "dmd_job" {
+  description = "The dm+d release job, started monthly by Cloud Scheduler. Run by hand with: gcloud run jobs execute <name> --region europe-west2"
+  value       = module.job_dmd.name
+}
+
 output "sql_instances" {
   value = {
     main         = module.db_main.instance_name

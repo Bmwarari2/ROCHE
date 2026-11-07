@@ -60,6 +60,8 @@ variable "deploy_roles" {
     "roles/artifactregistry.admin",
     "roles/certificatemanager.owner",
     "roles/cloudkms.admin",
+    # The monthly dm+d release job's trigger (H-1241, H-1502).
+    "roles/cloudscheduler.admin",
     "roles/cloudsql.admin",
     "roles/compute.admin",
     "roles/dns.admin",

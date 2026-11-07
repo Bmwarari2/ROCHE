@@ -155,6 +155,18 @@ variable "migrate_command" {
   default = ["node", "apps/api/dist/migrate.js"]
 }
 
+variable "dmd_command" {
+  description = "The dm+d release job (apps/api/build.mjs bundles src/jobs/dmd-job.ts here)."
+  type        = list(string)
+  default     = ["node", "apps/api/dist/dmd-job.js"]
+}
+
+variable "dmd_schedule" {
+  description = "When Cloud Scheduler starts the dm+d job, as cron in Europe/London time: monthly, early on the 3rd (H-1241)."
+  type        = string
+  default     = "17 3 3 * *"
+}
+
 variable "api_health_check_path" {
   type    = string
   default = "/health"
