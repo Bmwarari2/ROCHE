@@ -176,12 +176,16 @@ test("HZ-127 a police call made before the person was found is recorded afterwar
   await expect(
     page.getByText(/If the police were called before the person was found/),
   ).toBeVisible();
+  // Found after the target with no call: said as missed, with how to record a call made.
+  await expect(page.getByText(/No police call is recorded/)).toBeVisible();
   await accessibleInBothThemes(page, "found episode with no police call");
   await page.getByLabel("What happened").selectOption("police_called");
   await fillWhen(page, "When it happened", new Date(Date.now() - 70 * 60_000));
   await page.getByLabel("Reference").fill(`CAD late ${RUN}`);
   await page.getByRole("button", { name: "Add to the timeline" }).click();
   await expect(page.getByText(`Reference: CAD late ${RUN}`).first()).toBeVisible();
+  await expect(page.getByText("The police have been called")).toBeVisible();
+  await expect(page.getByText(/^Recorded later, at /).first()).toBeVisible();
   await expect(page.getByText(/If the police were called before the person was found/)).toHaveCount(
     0,
   );

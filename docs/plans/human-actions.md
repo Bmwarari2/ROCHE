@@ -1036,6 +1036,16 @@ gates stay unsigned until H-20.
 | H-1496 | Decide whether invoker helper functions called from definers (for example `app.holds_permission_at`) also pin `pg_temp` last. Recommended answer: yes, in one later migration; low risk today as they qualify every table | Lead engineer | ADR-0133 (security review L4) | None | open (recommended answer in force) |
 | H-1497 | Decide whether the audit chain trigger (`app.audit_event_chain`) gets its own NOLOGIN owner, apart from `harbour_platform_definer`, which also provisions organisations from operator input. Recommended answer: yes, in a later migration | Lead engineer | ADR-0133 (security review L5) | None | open (recommended answer in force) |
 
+## Guide gaps from the slice 83 review: late police call (H-1567 to H-1569)
+
+Logged by the late police call PR (lead's list of 07/11/2026, item 2; block H-1561 to H-1580).
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1567 | Decide whether police involvement learned of after the incident closed raises a task to reopen the incident and notify the CQC (as built), or is accepted as residual risk | CSO | HZ-127, HZ-013; `raisePoliceAfterCloseTask` | First real tenant | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1568 | Confirm that a police call cannot be added once the episode closes (the incident is then the only route), and the "called after the target" wording shown as a warning | CSO | HZ-127; `apps/web/src/lib/missing.ts` (`policeCallState`) | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1569 | Confirm the 15 minutes after which a timeline entry says it was recorded later (`RECORDED_LATER_MS`), or make it a rate. Recommended answer: 15 minutes, a product setting | CSO | HZ-127; `apps/web/src/lib/missing.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
