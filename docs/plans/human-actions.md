@@ -1036,6 +1036,17 @@ gates stay unsigned until H-20.
 | H-1496 | Decide whether invoker helper functions called from definers (for example `app.holds_permission_at`) also pin `pg_temp` last. Recommended answer: yes, in one later migration; low risk today as they qualify every table | Lead engineer | ADR-0133 (security review L4) | None | open (recommended answer in force) |
 | H-1497 | Decide whether the audit chain trigger (`app.audit_event_chain`) gets its own NOLOGIN owner, apart from `harbour_platform_definer`, which also provisions organisations from operator input. Recommended answer: yes, in a later migration | Lead engineer | ADR-0133 (security review L5) | None | open (recommended answer in force) |
 
+## Guide gaps from the slice 83 review (H-1561 to H-1580)
+
+Logged by the guide-gap PRs (lead's list of 07/11/2026; the guides builder logs the review's own
+rows from H-1543). Each open question takes its recommended answer until the testing-phase review.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1561 | Accept the HZ-127 control that absconding incidents open a missing person episode as missing person incidents do (police call target, urgent task, immediate-risk alert), and whether it changes the residual risk | CSO | HZ-127; `apps/web/src/lib/missing.ts` (`missingEpisodeSubjects`) | First real tenant | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1562 | Decide whether the incident record asks when the person was found for absconding too, or the episode's found entry stays the only found time for both types. Recommended answer: the episode's found entry (the incident's found time only drives post-fall observations) | CSO | HZ-127; `apps/web/src/lib/incident-forms.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1563 | Confirm that absconding (which can be a capacitous person choosing to leave) gets the same police call target (`missing_person.police_call_minutes`) and immediate-risk alert as going missing, or ask for a separate rate key. Recommended answer: the same target; staff call at once when worried | CSO | HZ-127; [rates.md](../specs/rates.md) | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
