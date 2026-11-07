@@ -102,6 +102,12 @@ afterAll(async () => {
   await h?.close();
 });
 
+// The phone's checks (ADR-0081): photo confirmation, and a pack with no barcode, with why.
+const POINT_OF_CARE = {
+  identity: "photo",
+  pack: { method: "override", override: { code: "no_barcode_on_pack", note: null } },
+};
+
 describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
   let entryId = "";
   let dueAt = "";
@@ -141,7 +147,7 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     expect(record?.state).toBe("due");
     dueAt = record?.dueAt as string;
     recordId = randomUUID();
-    const r = await give(recordId);
+    const r = await give(recordId, { pointOfCare: POINT_OF_CARE });
     expect(r.status, await r.clone().text()).toBe(201);
     const out = await json<Recorded>(r);
     expect(out.administration.flags).toContain("entry_not_yet_checked");
@@ -156,6 +162,33 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     const r = await give(randomUUID());
     expect(r.status).toBe(422);
     expect((await json<{ code: string }>(r)).code).toBe("administration_already_recorded");
+  });
+
+  it("hazard HZ-001 refuses a dose given from the phone without identity or pack checks (ADR-0081)", async () => {
+    const r = await give(randomUUID(), { pointOfCare: { identity: null, pack: null } });
+    expect(r.status).toBe(422);
+    const body = await json<{ code: string; detail: string }>(r);
+    expect(body.code).toBe("administration_identity_not_confirmed");
+    expect(body.detail).toContain("Scan the pack");
+    const scannedWithoutGtin = await give(randomUUID(), {
+      pointOfCare: { identity: "photo", pack: { method: "scanned" } },
+    });
+    expect((await json<{ code: string }>(scannedWithoutGtin)).code).toBe(
+      "administration_pack_not_checked",
+    );
+  });
+
+  it("keeps the phone's identity and pack checks with the record as its barcode evidence", async () => {
+    const stored = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ scan_evidence: unknown }>(
+            "SELECT scan_evidence FROM medication_administration WHERE id = $1",
+            [recordId],
+          )
+        ).rows[0],
+    );
+    expect(stored?.scan_evidence).toMatchObject(POINT_OF_CARE);
   });
 
   it("refuses a dose without its amount, or in another unit", async () => {

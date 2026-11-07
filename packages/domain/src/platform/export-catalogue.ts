@@ -2070,7 +2070,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       correction_reason: { description: "Why the record was corrected." },
       scan_evidence: {
-        description: "Barcode evidence, when scanning is in use (empty until then).",
+        description:
+          "How the person was identified (photo or wristband) and the pack checked (scanned, with its GTIN, batch and expiry, or why it was not), when recorded on a phone.",
       },
       cd_entry_id: { description: "The controlled drugs register entry (empty until slice 34)." },
       created_at: "exported",

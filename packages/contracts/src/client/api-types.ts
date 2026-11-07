@@ -76443,6 +76443,7 @@ export interface components {
        * @default null
        */
       givenBy: string | null;
+      pointOfCare?: components["schemas"]["PointOfCare"];
     };
     /** @default null */
     CdWitness:
@@ -76454,6 +76455,38 @@ export interface components {
           noWitnessReason: string;
         }
       | null;
+    /** @default null */
+    PointOfCare: {
+      /** @enum {string|null} */
+      identity: "photo" | "wristband" | null;
+      pack: {
+        /** @enum {string} */
+        method: "scanned" | "override";
+        /** @default null */
+        gtin: string | null;
+        /** @default null */
+        batch: string | null;
+        /**
+         * Format: date
+         * @default null
+         */
+        expiry: string | null;
+        /** @default null */
+        amppId: string | null;
+        /** @default null */
+        override: {
+          /** @enum {string} */
+          code:
+            | "no_barcode_on_pack"
+            | "barcode_unreadable"
+            | "pack_not_in_reference_data"
+            | "patient_own_supply"
+            | "other";
+          /** @default null */
+          note: string | null;
+        } | null;
+      } | null;
+    } | null;
     CorrectAdministration: {
       /** Format: uuid */
       id: string;

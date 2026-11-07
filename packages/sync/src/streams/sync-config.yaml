@@ -890,7 +890,9 @@ streams:
                        medication.indication, medication.special_instructions, medication.starts_at,
                        medication.stops_at, medication.stop_effective_at, medication.cd_schedule,
                        medication.check_outcome, medication.updated_at, medication.prn_max_per_24h,
-               medication.replaced_by_id, medication.replaced_from, medication.stop_at
+               medication.replaced_by_id, medication.replaced_from, medication.stop_at,
+               medication.origin, medication.corrected_part_way_through,
+               medication.earlier_doses_due_on, medication.earlier_doses_due_reason
         FROM medication, person_assignment
         WHERE medication.person_id = person_assignment.person_id
           AND medication.tenant_id = auth.parameter('tenant_id')
@@ -984,7 +986,9 @@ streams:
                        medication.indication, medication.special_instructions, medication.starts_at,
                        medication.stops_at, medication.stop_effective_at, medication.cd_schedule,
                        medication.check_outcome, medication.updated_at, medication.prn_max_per_24h,
-               medication.replaced_by_id, medication.replaced_from, medication.stop_at
+               medication.replaced_by_id, medication.replaced_from, medication.stop_at,
+               medication.origin, medication.corrected_part_way_through,
+               medication.earlier_doses_due_on, medication.earlier_doses_due_reason
         FROM medication, person
         WHERE medication.person_id = person.id
           AND medication.tenant_id = auth.parameter('tenant_id')

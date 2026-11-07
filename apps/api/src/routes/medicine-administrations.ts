@@ -9,6 +9,7 @@ import {
   DosingRecordList,
   DosingRecordOut,
   MedicineRound,
+  type PointOfCare,
   RecordAdministration,
   RecordDosingRecord,
   RoundQuery,
@@ -35,6 +36,8 @@ import {
   type MarEntry,
   type MedicinesCompetence,
   marEntryDoses,
+  POINT_OF_CARE_WORDS,
+  pointOfCareIssues,
   recordDosingRecord,
   ukIsoDate,
   variableDoseFor,
@@ -310,6 +313,8 @@ async function store(
     readonly correctionReason: string | null;
     readonly cdEntryId?: string | null;
     readonly covert: boolean;
+    /** Identity and pack checks from the phone (ADR-0081), kept as they were sent. */
+    readonly scanEvidence?: PointOfCare | null;
     readonly now: Date;
   },
 ) {
@@ -364,6 +369,7 @@ async function store(
         supersedesId: args.supersedesId,
         correctionReason: args.correctionReason,
         cdEntryId: args.cdEntryId ?? null,
+        scanEvidence: args.scanEvidence ?? null,
       })
       .returning(),
   );
@@ -482,6 +488,22 @@ export const medicineAdministrationsRouter = createRouter()
           if (kept) return { status: 202 as const, conflict: kept };
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
+          // The phone's identity and pack checks (ADR-0081; HZ-001): a dose given needs both.
+          const pointOfCareProblems = body.pointOfCare
+            ? pointOfCareIssues(body.outcome === "given", {
+                identity: body.pointOfCare.identity,
+                pack: body.pointOfCare.pack?.method ?? null,
+                packOverride: body.pointOfCare.pack?.override ?? null,
+              })
+            : [];
+          if (body.pointOfCare?.pack?.method === "scanned" && !body.pointOfCare.pack.gtin) {
+            pointOfCareProblems.push("pack_not_checked");
+          }
+          if (pointOfCareProblems.length > 0) {
+            throw deny(
+              pointOfCareProblems.map((p) => ({ problem: p, message: POINT_OF_CARE_WORDS[p] })),
+            );
+          }
           // A controlled drug given moves stock: its register entry is written with the record, with
           // a fresh step-up and the witness's signature (slice 34; ADR-0084).
           const isCd = await isControlledDrug(tx, entry.id);
@@ -627,6 +649,7 @@ export const medicineAdministrationsRouter = createRouter()
             correctionReason: null,
             cdEntryId: cd?.cdEntryId ?? null,
             covert: body.covert,
+            scanEvidence: body.pointOfCare,
             now,
           });
           // Slice 42's stock hook (medicines.md section 15 rule 3): a given dose moves the person's

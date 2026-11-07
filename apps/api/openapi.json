@@ -45910,6 +45910,9 @@
             ],
             "format": "uuid",
             "default": null
+          },
+          "pointOfCare": {
+            "$ref": "#/components/schemas/PointOfCare"
           }
         },
         "required": [
@@ -45950,6 +45953,112 @@
           }
         ],
         "default": null
+      },
+      "PointOfCare": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "identity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "photo",
+              "wristband",
+              null
+            ]
+          },
+          "pack": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "scanned",
+                  "override"
+                ]
+              },
+              "gtin": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{14}$",
+                "default": null
+              },
+              "batch": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 20,
+                "default": null
+              },
+              "expiry": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "default": null
+              },
+              "amppId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[1-9]\\d{5,17}$",
+                "default": null
+              },
+              "override": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "no_barcode_on_pack",
+                      "barcode_unreadable",
+                      "pack_not_in_reference_data",
+                      "patient_own_supply",
+                      "other"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "default": null
+                  }
+                },
+                "default": null,
+                "required": [
+                  "code"
+                ]
+              }
+            },
+            "required": [
+              "method"
+            ]
+          }
+        },
+        "default": null,
+        "required": [
+          "identity",
+          "pack"
+        ]
       },
       "CorrectAdministration": {
         "type": "object",

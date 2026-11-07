@@ -11,9 +11,10 @@ import {
 import {
   type AdministrationEscalation,
   type AdministrationOutcome,
-  DOSE_TAKEN_OUTCOMES,
   type DosingRecord,
+  supersededBy as domainSupersededBy,
   doseWindow,
+  effectiveRecords,
   entryVersionIds,
   escalationAt,
   type GivenDose,
@@ -31,6 +32,7 @@ import {
   REVIEW_FLAG_WORDS,
   type ReviewFlag,
   resolveMedicinesRates,
+  takenDoses,
   ukIsoDate,
 } from "@harbour/domain";
 import { and, asc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
@@ -122,41 +124,21 @@ export async function recentAdministrations(
   );
 }
 
-/** Which record corrects each record (the correction's id), if any. */
+/** Which record corrects each record, what the MAR says happened, and the doses taken: the
+ * round's own rules (packages/domain medicines/round.ts), shared with the phone. */
 export function supersededBy(rows: readonly AdministrationRow[]): Map<string, string> {
-  return new Map(
-    rows.filter((r) => r.supersedesId !== null).map((r) => [r.supersedesId as string, r.id]),
-  );
+  return domainSupersededBy(rows);
 }
 
-/** The records nothing corrects: what the MAR says happened. */
 export function effective(rows: readonly AdministrationRow[]): AdministrationRow[] {
-  const corrected = supersededBy(rows);
-  return rows.filter((r) => !corrected.has(r.id));
+  return effectiveRecords(rows);
 }
 
-/** The doses the person took, from the effective records, for intervals and the 24-hour total. */
 export function givenDoses(
   rows: readonly AdministrationRow[],
   entries: ReadonlyMap<string, MarEntry>,
 ): GivenDose[] {
-  return effective(rows)
-    .filter(
-      (r) =>
-        DOSE_TAKEN_OUTCOMES.has(r.outcome as AdministrationOutcome) &&
-        r.quantity !== null &&
-        r.unitCode !== null,
-    )
-    .map((r) => ({
-      id: r.id,
-      entryId: r.medicationId,
-      tags: entries.get(r.medicationId)?.tags ?? [],
-      at: r.givenAt,
-      quantity: Number(r.quantity),
-      unitCode: r.unitCode as string,
-      by: r.administeredBy,
-      synced: true,
-    }));
+  return takenDoses(rows, entries);
 }
 
 /** The person's dosing records, as the rules read them. */

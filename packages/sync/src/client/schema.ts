@@ -650,6 +650,11 @@ const medication = new Table(
     replaced_by_id: column.text,
     replaced_from: column.text,
     stop_at: column.text,
+    /** 'transcribed' | 'reconciliation' | 'import': an unchecked import is held (HZ-005). */
+    origin: column.text,
+    corrected_part_way_through: column.text,
+    earlier_doses_due_on: column.text,
+    earlier_doses_due_reason: column.text,
   },
   { indexes: { by_person: ["person_id"], by_medicine: ["medicine_id"] } },
 );
