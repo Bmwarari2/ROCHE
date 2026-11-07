@@ -5,7 +5,8 @@ statements. Add one from Thapsus Care's starter templates, schedule it at each l
 when you no longer use it.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner, the group executive and
-the quality and compliance lead. Care workers, senior carers and nurses cannot.
+the quality and compliance lead. Care and support workers, team leaders or senior carers, and nurses
+cannot.
 
 **Register row**: QUAL-004.
 

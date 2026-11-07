@@ -3,8 +3,8 @@
 Take a safeguarding concern from raised to closed: refer it or record why not, record the
 enquiry and its outcome, and keep the protective measures up to date.
 
-**Who can do this**: the Registered Manager, the deputy manager and the owner. Nurses, senior
-carers and care workers can raise a concern but cannot run the log.
+**Who can do this**: the Registered Manager, the deputy manager and the owner. Nurses, team leaders
+or senior carers, and care and support workers can raise a concern but cannot run the log.
 
 **Register row**: SAFE-006.
 

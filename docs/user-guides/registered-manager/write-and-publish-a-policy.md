@@ -8,7 +8,7 @@ branch.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner and the quality and
 compliance lead. Where a policy needs a second reviewer, the person who worked on the draft cannot
-publish it. Care workers, senior carers and nurses cannot.
+publish it. Care and support workers, team leaders or senior carers, and nurses cannot.
 
 **Register row**: QUAL-008.
 

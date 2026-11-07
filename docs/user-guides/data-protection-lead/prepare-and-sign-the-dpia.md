@@ -5,8 +5,8 @@ and how they are reduced. Someone prepares it, and the named data protection lea
 Whoever prepared a version cannot sign it.
 
 **Who can do this**: prepare: the owner, Registered Manager or quality lead. Sign: the person named
-as data protection lead, who must be the owner or a quality lead. Signing needs you to confirm it
-is you (step-up).
+as data protection lead, who must be the owner or a quality lead. Before you sign, Thapsus Care asks
+you to confirm it is you, with your passkey or authenticator app.
 
 **Register row**: PLAT-023.
 

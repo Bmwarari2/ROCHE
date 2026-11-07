@@ -5,9 +5,9 @@ evidence and audits are mapped to. Mapping gives each statement your own title, 
 it and the evidence you expect.
 
 **Who can do this**: reading the framework: the Registered Manager, the deputy manager, the owner,
-the group executive and the quality and compliance lead. Saving the mapping: the Registered
-Manager, the deputy manager, the owner and the quality and compliance lead. Care workers, senior
-carers and nurses cannot.
+the group executive and the quality and compliance lead. Saving the mapping: the Registered Manager,
+the deputy manager, the owner and the quality and compliance lead. Care and support workers, team
+leaders or senior carers, and nurses cannot.
 
 **Register rows**: QUAL-001, QUAL-002.
 

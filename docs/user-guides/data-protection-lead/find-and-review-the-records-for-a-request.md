@@ -3,9 +3,9 @@
 Thapsus Care finds every record that names the person, then you decide, record by record, what is sent.
 Thapsus Care marks other people's names for you, but it never takes anything out by itself.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
-data protection for the whole organisation. Opening a record needs you to confirm it is you with
-your passkey or authenticator app (step-up).
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers data
+protection for the whole organisation. Opening a record needs you to confirm it is you with your
+passkey or authenticator app.
 
 **Register rows**: PLAT-022, WORK-011 (requests from members of staff).
 

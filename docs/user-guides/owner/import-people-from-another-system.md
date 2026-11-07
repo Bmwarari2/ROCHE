@@ -3,10 +3,10 @@
 When you move to Thapsus Care, you can bring the people you support across from your old system, a home
 at a time, from a CSV file. Nobody is added until you have checked the file and confirmed it.
 
-**Who can do this**: the owner. Another role can do it only if your organisation gives it the
-import wizard, and the right to add and see people, across the whole organisation; someone whose
-role covers some homes only is refused. Adding the people needs you to confirm it is you with your
-passkey or authenticator app (step-up).
+**Who can do this**: the owner. Another role can do it only if your organisation gives it the import
+wizard, and the right to add and see people, across the whole organisation; someone whose role
+covers some homes only is refused. Adding the people needs you to confirm it is you with your
+passkey or authenticator app.
 
 **Register row**: PLAT-014.
 

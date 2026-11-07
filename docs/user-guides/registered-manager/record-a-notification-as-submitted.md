@@ -1,7 +1,7 @@
 # How to record a statutory notification as submitted, or as not required
 
-**Who can do this**: the Registered Manager and the owner only. You must confirm it is you with
-your passkey or authenticator app (step-up).
+**Who can do this**: the Registered Manager and the owner only. You must confirm it is you with your
+passkey or authenticator app.
 
 **Register rows**: SAFE-002, SAFE-003, SAFE-004, SAFE-005.
 
@@ -31,7 +31,7 @@ Only if the law does not need it. If in doubt, notify. This cannot be undone.
 
 ## Good to know
 
-- Step-up asks you to have signed in with a passkey or code in the last 10 minutes. A password
-  alone never counts.
+- To confirm it is you, you must have signed in with a passkey or code in the last 10 minutes. A
+  password alone never counts.
 - The reason is kept with the notification and in the audit trail.
 - You cannot upload the submitted form on the web yet.

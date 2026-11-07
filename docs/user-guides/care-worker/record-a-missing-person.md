@@ -3,8 +3,9 @@
 Record that a person we support is missing, or has left without agreement, so the police steps and
 the search log start straight away.
 
-**Who can do this**: anyone who records incidents (care workers, agency and bank workers, senior
-carers, nurses, managers and the owner). The police steps in Thapsus Care are for nurses and managers.
+**Who can do this**: anyone who records incidents (care and support workers, agency and bank
+workers, team leaders or senior carers, nurses, managers and the owner). The police steps in Thapsus
+Care are for nurses and managers.
 
 **Register rows**: SAFE-015, SAFE-001.
 

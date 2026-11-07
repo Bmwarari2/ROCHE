@@ -4,8 +4,8 @@ A data rights request is someone asking to see, correct, erase or take their inf
 guide covers recording the request, confirming who is asking and keeping the clock. Finding the
 records, reviewing them and sending the response each have their own guide.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
-data protection for the whole organisation. A Registered Manager or deputy whose role covers one
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers data
+protection for the whole organisation. A Registered Manager or deputy manager whose role covers one
 home does not see **Data rights**, and Thapsus Care refuses them if they try.
 
 **Register rows**: PLAT-022, WORK-011 (requests from members of staff).

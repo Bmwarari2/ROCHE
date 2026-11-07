@@ -4,8 +4,8 @@ An audit asks a set of scored questions at one location. You answer each one, ad
 each shortfall and give your own self-rating. A mock inspection works the same way.
 
 **Who can do this**: the Registered Manager, the deputy manager, the owner, the group executive and
-the quality and compliance lead, at the locations where they run audits. Care workers, senior
-carers and nurses cannot.
+the quality and compliance lead, at the locations where they run audits. Care and support workers,
+team leaders or senior carers, and nurses cannot.
 
 **Register row**: QUAL-004.
 
