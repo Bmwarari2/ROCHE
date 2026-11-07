@@ -81,8 +81,15 @@ export const ChangeClockSetting = z
     version: z.number().int().nullable(),
     evidence: ClockEvidence,
     nfcTagRefs: z.array(tagRef).max(20).default([]),
-    /** Turning location or NFC evidence on needs the employee-monitoring DPIA approved (H-527). */
-    dpiaApproved: z.boolean().default(false),
+    /**
+     * Deprecated and ignored (H-1555): location or NFC evidence needs the organisation's signed
+     * DPIA to cover it, which the API checks itself. Kept so older clients are not refused.
+     */
+    dpiaApproved: z.boolean().default(false).meta({
+      deprecated: true,
+      description:
+        "Deprecated and ignored: location or NFC evidence needs the organisation's signed DPIA to cover it, which the API checks (H-1555).",
+    }),
   })
   .meta({ id: "ChangeClockSetting" });
 

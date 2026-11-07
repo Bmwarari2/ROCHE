@@ -7,8 +7,10 @@ import { type EffectiveAccess, resolveAccess } from "./access";
 import {
   checkDpiaSignOff,
   checkFeatureEnable,
+  DPIA_MONITORING_FLAGS,
   type DpiaBasis,
   type DpiaConfig,
+  type DpiaMonitoringFlag,
   type DpiaSignOffInput,
   type DpiaState,
   type DpiaView,
@@ -16,6 +18,7 @@ import {
   dpiaReviewDueAt,
   dpiaReviewTriggers,
   dpiaState,
+  monitoringCovered,
   prefillDpia,
   type RiskLevel,
   standardRiskIds,
@@ -471,4 +474,77 @@ describe("switching a module on against the DPIA", () => {
     if (result.ok) expect(result.reviewTriggered).toBe(review);
     else expect(result.problem).toBe("dpia_addendum_required");
   });
+});
+
+describe("employee monitoring under the signed DPIA (H-527, H-1033, H-1555)", () => {
+  const LONE = "scheduling.lone_worker.location" satisfies FlagKey;
+  const CLOCK = "scheduling.clock.location_evidence" satisfies FlagKey;
+  const signedAt = new Date("2026-03-15T12:00:00Z");
+  const soon = new Date("2026-06-01T09:00:00Z");
+  const without = dpiaBasis(config());
+  const withLone = dpiaBasis(config({}, ["module.residential", LONE]));
+  const withBoth = dpiaBasis(config({}, ["module.residential", LONE, CLOCK]));
+
+  it("lists exactly the two monitoring flags", () => {
+    expect([...DPIA_MONITORING_FLAGS]).toEqual([LONE, CLOCK]);
+  });
+
+  it.each<[string, FlagKey[], string[]]>([
+    ["no monitoring", ["module.residential"], ["module.residential"]],
+    ["lone-worker location", ["module.residential", LONE], ["module.residential", LONE]],
+    ["clock evidence", ["module.residential", CLOCK], ["module.residential", CLOCK]],
+    ["both", [CLOCK, LONE, "module.residential"], ["module.residential", CLOCK, LONE]],
+    [
+      "a flag that changes no processing",
+      ["module.residential", "locale.welsh"],
+      ["module.residential"],
+    ],
+  ])("counts the monitoring flags as features in the basis: %s", (_label, features, expected) => {
+    expect(dpiaBasis(config({}, features)).features).toEqual(expected);
+  });
+
+  it("screens a monitoring flag as systematic monitoring", () => {
+    const draft = prefillDpia(config({}, ["module.residential", CLOCK]), NOW);
+    expect(draft.sections.find((s) => s.key === "screening")?.prefilled).toMatchObject({
+      systematicMonitoring: true,
+    });
+  });
+
+  it.each<[string, DpiaMonitoringFlag, DpiaBasis | null, boolean]>([
+    ["lone-worker location with no signed DPIA", LONE, null, false],
+    ["clock evidence with no signed DPIA", CLOCK, null, false],
+    ["lone-worker location when the signed DPIA does not list it", LONE, without, false],
+    ["clock evidence when the signed DPIA lists only lone-worker location", CLOCK, withLone, false],
+    ["lone-worker location when the signed DPIA lists it", LONE, withLone, true],
+    ["clock evidence when the signed DPIA lists it", CLOCK, withBoth, true],
+  ])("covers %s: %s", (_label, flag, basis, covered) => {
+    expect(monitoringCovered(flag, basis)).toBe(covered);
+  });
+
+  it.each<[string, DpiaBasis, DpiaBasis, string[] | null]>([
+    ["lone-worker location switched on after signing", without, withLone, [LONE]],
+    ["clock evidence switched on after signing", withLone, withBoth, [CLOCK]],
+    ["both switched on after signing", without, withBoth, [CLOCK, LONE]],
+    ["monitoring already covered when signed", withBoth, withBoth, null],
+    ["monitoring switched off", withBoth, without, null],
+  ])("flags the DPIA for review: %s", (_label, signedBasis, current, items) => {
+    const triggers = dpiaReviewTriggers({ signedAt, basis: signedBasis }, current, soon, RATES);
+    expect(triggers).toEqual(items ? [{ kind: "feature_enabled", items }] : []);
+    expect(
+      dpiaState({ status: "signed", signedAt, basis: signedBasis }, null, current, soon, RATES)
+        .state,
+    ).toBe(items ? "review_due" : "signed");
+  });
+
+  it.each<[string, FlagKey, boolean]>([
+    ["lone-worker location", LONE, true],
+    ["clock evidence", CLOCK, true],
+  ])(
+    "is never refused when a monitoring flag is switched on, and flags a review: %s",
+    (_l, flag, review) => {
+      const result = checkFeatureEnable(flag, without);
+      expect(result).toEqual({ ok: true, reviewTriggered: review });
+      expect(checkFeatureEnable(flag, withBoth)).toEqual({ ok: true, reviewTriggered: false });
+    },
+  );
 });

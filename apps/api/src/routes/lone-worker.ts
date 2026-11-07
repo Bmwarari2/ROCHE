@@ -15,7 +15,6 @@ import {
 } from "@harbour/contracts";
 import {
   escalationChain,
-  featureFlag,
   incident,
   type LoneWorkerAlarmRow,
   type LoneWorkerSessionRow,
@@ -66,6 +65,7 @@ import { HttpProblem, problems } from "../http/problem";
 import { RateLimiter, requireWithinLimit } from "../http/rate-limit";
 import { STAFF_PUSH_AVAILABLE, smsAvailable } from "../integrations/registry";
 import { accessRowsOfMember } from "../services/access-rows";
+import { monitoringInUse } from "../services/dpia";
 import {
   acknowledgeAlarmNotifications,
   type LoneWorkerFigures,
@@ -102,7 +102,7 @@ import { audit, dbCode } from "./people-shared";
 const CHECK_IN = "scheduling.lone_worker.check_in";
 const MONITOR = "scheduling.lone_worker.monitor";
 const MANAGE = "scheduling.lone_worker.manage";
-const LOCATION_FLAG = "scheduling.lone_worker.location";
+const LOCATION_FLAG = "scheduling.lone_worker.location" as const;
 const A = {
   routeSet: "scheduling.lone_worker.route_set",
   started: "scheduling.lone_worker.session_started",
@@ -237,22 +237,20 @@ function worksAt(
   );
 }
 
+/**
+ * Whether location evidence is attached to lone-worker events at a location (null: for the
+ * organisation): the flag on AND the organisation's signed DPIA covering it (H-527, H-1033,
+ * H-1555). Rows in `feature_flag` are set directly, so the DPIA is checked here, where the
+ * location is used.
+ */
 async function locationFlagOn(
   c: Context<AppEnv>,
   tx: Transaction,
   tenantId: string,
-  locationId: string,
+  locationId: string | null,
 ): Promise<boolean> {
-  const overrides = await tx
-    .select({
-      flagKey: featureFlag.flagKey,
-      locationId: featureFlag.locationId,
-      enabled: featureFlag.enabled,
-    })
-    .from(featureFlag)
-    .where(isNull(featureFlag.deletedAt));
-  const flags = await c.get("services").flags.evaluateAll({ tenantId, locationId, overrides });
-  return flags[LOCATION_FLAG] === true;
+  return (await monitoringInUse(c.get("services").flags, tx, tenantId, locationId, LOCATION_FLAG))
+    .on;
 }
 
 /** The status a monitor reads: an open help or duress alarm first, never "checked in" (M1). */
@@ -362,7 +360,7 @@ export const loneWorkerRouter = createRouter()
       tags: ["scheduling"],
       summary: "The on-call route for lone-worker alarms (H-539)",
       description:
-        "Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached. Holders of scheduling.lone_worker.check_in, .monitor or .manage.",
+        "Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached (the flag scheduling.lone_worker.location on and the organisation's signed DPIA covering it; H-1555). Holders of scheduling.lone_worker.check_in, .monitor or .manage.",
       security,
       responses: { 200: jsonBody(LoneWorkerRoute, "The route"), ...errorResponses },
     }),
@@ -375,20 +373,9 @@ export const loneWorkerRouter = createRouter()
           smsAvailable: sms,
           pushAvailable: STAFF_PUSH_AVAILABLE,
         });
-        const overrides = await tx
-          .select({
-            flagKey: featureFlag.flagKey,
-            locationId: featureFlag.locationId,
-            enabled: featureFlag.enabled,
-          })
-          .from(featureFlag)
-          .where(isNull(featureFlag.deletedAt));
-        return { route, found, overrides, sms };
-      });
-      const flags = await c.get("services").flags.evaluateAll({
-        tenantId: access.tenantId,
-        locationId: null,
-        overrides: body.overrides,
+        // The effective value: the flag on and covered by the signed DPIA (H-1555).
+        const locationEvidence = await locationFlagOn(c, tx, access.tenantId, null);
+        return { route, found, locationEvidence, sms };
       });
       return c.json(
         {
@@ -398,7 +385,7 @@ export const loneWorkerRouter = createRouter()
             body.route.chainId === null
               ? [{ code: "not_named", message: "No on-call route has been named yet." }]
               : body.found.map((code) => ({ code, message: ROUTE_PROBLEM_MESSAGES[code] })),
-          locationEvidence: flags[LOCATION_FLAG] === true,
+          locationEvidence: body.locationEvidence,
           smsAvailable: body.sms,
           pushAvailable: STAFF_PUSH_AVAILABLE,
           version: body.route.version,
@@ -534,28 +521,17 @@ export const loneWorkerRouter = createRouter()
             resourceId: id,
             scopeExtra: { steps: steps.length },
           });
-          const overrides = await tx
-            .select({
-              flagKey: featureFlag.flagKey,
-              locationId: featureFlag.locationId,
-              enabled: featureFlag.enabled,
-            })
-            .from(featureFlag)
-            .where(isNull(featureFlag.deletedAt));
-          return { version: savedVersion, overrides };
+          // The effective value: the flag on and covered by the signed DPIA (H-1555).
+          const locationEvidence = await locationFlagOn(c, tx, access.tenantId, null);
+          return { version: savedVersion, locationEvidence };
         },
       );
-      const flags = await c.get("services").flags.evaluateAll({
-        tenantId: access.tenantId,
-        locationId: null,
-        overrides: saved.overrides,
-      });
       return c.json(
         {
           on: true,
           steps: steps.map((s) => ({ ...s, channels: [...s.channels] })),
           problems: [],
-          locationEvidence: flags[LOCATION_FLAG] === true,
+          locationEvidence: saved.locationEvidence,
           smsAvailable: sms,
           pushAvailable: STAFF_PUSH_AVAILABLE,
           version: saved.version,
@@ -713,7 +689,7 @@ export const loneWorkerRouter = createRouter()
       tags: ["scheduling"],
       summary: "Check in, ask for help, raise duress or finish",
       description:
-        "scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the organisation's flag is on. Audited (duress as an event like any other).",
+        "scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the flag scheduling.lone_worker.location is on at the session's location and the organisation's signed DPIA covers it (H-1555). Audited (duress as an event like any other).",
       security,
       request: {
         params: IdParam,

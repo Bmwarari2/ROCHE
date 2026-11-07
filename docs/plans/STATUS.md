@@ -4,7 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 1% done** (3 of 234 register rows `done`; 103 `partial`, 128 `todo`). Rows become `done`
+**Overall: 2% done** (4 of 234 register rows `done`; 115 `partial`, 115 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 **Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
@@ -31,6 +31,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
+
+## H-1555: clock and lone-worker location evidence under a signed DPIA (07/11/2026)
+
+`fix/scheduling-clock-evidence-dpia`: location or NFC clock-in evidence and the lone-worker
+location are used only when the organisation's signed DPIA covers them (a client tick no longer
+switches them on); turning either on flags the DPIA for review. Migration 0153. See
+`docs/changelog-dev/2026-11-07-fix-scheduling-clock-evidence-dpia.md`.
 
 ## User guides: workforce and scheduling (07/11/2026)
 

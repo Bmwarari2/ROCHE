@@ -61051,7 +61051,7 @@ export interface paths {
     };
     /**
      * Set clock evidence at a location
-     * @description Location or NFC evidence is employee monitoring: it needs dpiaApproved, confirming the employee-monitoring DPIA is approved (H-527). Never a position: only whether the phone was at the location or read the location's tag.
+     * @description scheduling.rota.approve. Location or NFC evidence is employee monitoring (H-527, H-1555): it is refused (422 dpia_monitoring_not_covered) unless the flag scheduling.clock.location_evidence is on at the location and the organisation's signed DPIA lists it among its features. dpiaApproved is deprecated and ignored. Setting none is always allowed. Never a position: only whether the phone was at the location or read the location's tag. Audited with the evidence and the signed DPIA version relied on.
      */
     put: {
       parameters: {
@@ -62267,7 +62267,7 @@ export interface paths {
     };
     /**
      * The on-call route for lone-worker alarms (H-539)
-     * @description Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached. Holders of scheduling.lone_worker.check_in, .monitor or .manage.
+     * @description Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached (the flag scheduling.lone_worker.location on and the organisation's signed DPIA covering it; H-1555). Holders of scheduling.lone_worker.check_in, .monitor or .manage.
      */
     get: {
       parameters: {
@@ -62552,7 +62552,7 @@ export interface paths {
     put?: never;
     /**
      * Check in, ask for help, raise duress or finish
-     * @description scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the organisation's flag is on. Audited (duress as an event like any other).
+     * @description scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the flag scheduling.lone_worker.location is on at the session's location and the organisation's signed DPIA covers it (H-1555). Audited (duress as an event like any other).
      */
     post: {
       parameters: {
@@ -80249,7 +80249,11 @@ export interface components {
       evidence: components["schemas"]["ClockEvidence"];
       /** @default [] */
       nfcTagRefs: string[];
-      /** @default false */
+      /**
+       * @deprecated
+       * @description Deprecated and ignored: location or NFC evidence needs the organisation's signed DPIA to cover it, which the API checks (H-1555).
+       * @default false
+       */
       dpiaApproved: boolean;
     };
     CreateTimesheetEntry: {

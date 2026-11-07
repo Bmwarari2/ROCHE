@@ -518,42 +518,135 @@ describe("duress and help", () => {
   });
 });
 
-describe("location evidence (H-527)", () => {
-  it("is not kept while the flag is off, then one point is kept and erased at its date", async () => {
+describe("location evidence (H-527, H-1555)", () => {
+  const FLAG = "scheduling.lone_worker.location";
+  const point = { latitude: 51.5, longitude: -0.12, accuracyMetres: 20 };
+  const stored = (sessionId: string) =>
+    asDemoTenant(async (c) =>
+      Number(
+        (
+          await c.query<{ n: string }>(
+            "SELECT count(*) AS n FROM lone_worker_location WHERE session_id = $1 AND cleared_at IS NULL",
+            [sessionId],
+          )
+        ).rows[0]?.n,
+      ),
+    );
+  /** The flag for the organisation (null: no row, the catalogue's off) and at the demo location. */
+  const setFlag = (organisation: boolean | null, atLocation: boolean | null = null) =>
+    asDemoTenant(async (c) => {
+      await c.query("DELETE FROM feature_flag WHERE flag_key = $1", [FLAG]);
+      if (organisation !== null) {
+        await c.query(
+          "INSERT INTO feature_flag (location_id, flag_key, enabled) VALUES (NULL, $1, $2)",
+          [FLAG, organisation],
+        );
+      }
+      if (atLocation !== null) {
+        await c.query(
+          "INSERT INTO feature_flag (location_id, flag_key, enabled) VALUES ($1, $2, $3)",
+          [DEMO.locationId, FLAG, atLocation],
+        );
+      }
+    });
+  /** The organisation's signed DPIA listing these features; null for none signed. */
+  const signDpia = (features: string[] | null) =>
+    asDemoTenant(async (c) => {
+      await c.query("DELETE FROM dpia");
+      if (!features) return;
+      await c.query(
+        `INSERT INTO dpia (dpia_version, status, prefill, prepared_by, version_sha256, prepared_at,
+                           signed_by, signed_at, typed_name, statement, basis)
+         VALUES (1, 'signed', '{}'::jsonb, ARRAY[$1::uuid], repeat('a', 64), now(), $2, now(),
+                 'Olive Owner', 'Signed for the test', $3::jsonb)`,
+        [
+          DEMO.users.manager.id,
+          DEMO.users.owner.id,
+          JSON.stringify({ purposes: [], subProcessors: [], dataCategories: [], features }),
+        ],
+      );
+    });
+
+  afterAll(async () => {
+    await setFlag(null);
+    await signDpia(null);
+  });
+
+  it.each<[string, boolean | null, boolean | null, string[] | null, boolean]>([
+    ["the flag off, with no signed DPIA", null, null, null, false],
+    ["the flag on, with no signed DPIA", true, null, null, false],
+    [
+      "the flag on, with a signed DPIA that does not cover it",
+      true,
+      null,
+      ["module.residential"],
+      false,
+    ],
+    [
+      "the flag on, with a signed DPIA covering only clock evidence",
+      true,
+      null,
+      ["module.residential", "scheduling.clock.location_evidence"],
+      false,
+    ],
+    ["the flag off, with a signed DPIA covering it", false, null, [FLAG], false],
+    ["the flag off at the location, with a signed DPIA covering it", true, false, [FLAG], false],
+    ["the flag on at the location only, with a signed DPIA covering it", null, true, [FLAG], true],
+    ["the flag on, with a signed DPIA covering it", true, null, ["module.residential", FLAG], true],
+  ])("keeps a point only when covered: %s", async (_label, org, atLocation, features, kept) => {
+    await setFlag(org, atLocation);
+    await signDpia(features);
     const sessionId = crypto.randomUUID();
     expect((await start("carer", { id: sessionId, startedAt: iso(-5) })).status).toBe(201);
-    const point = { latitude: 51.5, longitude: -0.12, accuracyMetres: 20 };
-    await send("carer", sessionId, { location: point });
-    const stored = () =>
-      asDemoTenant(async (c) =>
-        Number(
-          (
-            await c.query<{ n: string }>(
-              "SELECT count(*) AS n FROM lone_worker_location WHERE session_id = $1 AND cleared_at IS NULL",
-              [sessionId],
-            )
-          ).rows[0]?.n,
-        ),
-      );
-    expect(await stored()).toBe(0);
-    await asDemoTenant(async (c) => {
-      await c.query(
-        "INSERT INTO feature_flag (location_id, flag_key, enabled) VALUES (NULL, 'scheduling.lone_worker.location', true)",
-      );
-      // The organisation's own period, a second, so the erasure can be seen here.
-      await c.query(
+    expect((await send("carer", sessionId, { location: point })).status).toBe(201);
+    expect(await stored(sessionId)).toBe(kept ? 1 : 0);
+    await send("carer", sessionId, { kind: "finish" });
+  });
+
+  it.each<[string, boolean | null, string[] | null, boolean]>([
+    ["off", null, null, false],
+    ["on but not covered", true, ["module.residential"], false],
+    ["on and covered", true, [FLAG], true],
+  ])("reports the effective value on the route: %s", async (_label, org, features, effective) => {
+    await setFlag(org);
+    await signDpia(features);
+    const route = await json<LoneWorkerRoute>(await as("carer", "/v1/lone-worker/route"));
+    expect(route.locationEvidence).toBe(effective);
+  });
+
+  it("flags the signed DPIA for review when the location flag is switched on after signing", async () => {
+    await setFlag(null);
+    await signDpia(["module.residential"]);
+    type Overview = { state: string; triggers: { kind: string; items?: string[] }[] };
+    const enabled = (o: Overview) => o.triggers.find((t) => t.kind === "feature_enabled")?.items;
+    const before = await json<Overview>(await as("owner", "/v1/dpia"));
+    expect(enabled(before) ?? []).not.toContain(FLAG);
+    await setFlag(true);
+    const after = await json<Overview>(await as("owner", "/v1/dpia"));
+    expect(after.state).toBe("review_due");
+    expect(enabled(after)).toContain(FLAG);
+  });
+
+  it("keeps one point once covered, and erases it at its date", async () => {
+    await setFlag(true);
+    await signDpia(["module.residential", FLAG]);
+    // The organisation's own period, a second, so the erasure can be seen here.
+    await asDemoTenant((c) =>
+      c.query(
         `INSERT INTO rate_table (tenant_id, key, value, unit, nation, valid_from, source, verification_status)
          VALUES ($1, 'lone_worker.location_days', 0.00001, 'days', 'all', '2000-01-01', 'test', 'verified')`,
         [DEMO.tenantId],
-      );
-    });
+      ),
+    );
+    const sessionId = crypto.randomUUID();
+    expect((await start("carer", { id: sessionId, startedAt: iso(-5) })).status).toBe(201);
     await send("carer", sessionId, { kind: "help", location: point });
-    expect(await stored()).toBe(1);
+    expect(await stored(sessionId)).toBe(1);
     const list = await json<LoneWorkerAlarmList>(await as("manager", "/v1/lone-worker/alarms"));
     expect(list.items.find((a) => a.sessionId === sessionId)?.location?.latitude).toBe(51.5);
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await sweepLoneWorkersJob(deps);
-    expect(await stored()).toBe(0);
+    expect(await stored(sessionId)).toBe(0);
   });
 });
 

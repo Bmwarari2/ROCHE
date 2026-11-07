@@ -512,37 +512,202 @@ describe("opt-outs and clock evidence", () => {
     expect(self.status).toBe(403);
   });
 
-  it("turns on location evidence only with the employee-monitoring DPIA approved (H-527)", async () => {
-    const without = await as("manager", `/v1/locations/${LOC}/clock-setting`, {
-      method: "PUT",
-      body: { version: null, evidence: "at_location" },
-    });
-    expect(without.status).toBe(422);
-    const withDpia = await as("manager", `/v1/locations/${LOC}/clock-setting`, {
-      method: "PUT",
-      body: { version: null, evidence: "at_location", dpiaApproved: true },
-    });
-    expect(withDpia.status).toBe(200);
-  });
-
-  it("keeps only the evidence the location asks for, never a position (H-527)", async () => {
-    const nfc = await clock("carer", {
-      kind: "break_start",
-      evidence: "nfc",
-      nfcTagRef: "TAG-1",
-    });
+  it("keeps no evidence while the location asks for none, and refuses a position (H-527)", async () => {
+    const nfc = await clock("carer", { kind: "break_start", evidence: "nfc", nfcTagRef: "TAG-1" });
     expect(nfc.status).toBe(201);
     const nfcItem = (await nfc.json()) as { evidence: string; flags: string[] };
     expect(nfcItem.evidence).toBe("none");
     expect(nfcItem.flags).toContain("evidence_not_matched");
-    const at = await clock("carer", { kind: "break_end", evidence: "at_location" });
-    expect(((await at.json()) as { evidence: string }).evidence).toBe("at_location");
     const position = await clock("carer", {
-      kind: "break_start",
+      kind: "break_end",
       evidence: "nfc",
       nfcTagRef: "51.5072,-0.1276",
     });
     expect(position.status).toBe(422);
+  });
+});
+
+/**
+ * H-1555 (H-527, H-1033): location or NFC clock-in evidence is employee monitoring, used only
+ * while the flag scheduling.clock.location_evidence is on at the location and the organisation's
+ * signed DPIA lists it. The client's dpiaApproved tick is ignored; rows in feature_flag are set
+ * directly, so the check also applies at clock-in.
+ */
+describe("hazard H-1555 clock evidence only under the signed DPIA", () => {
+  const FLAG = "scheduling.clock.location_evidence";
+  const putSetting = async (body: Record<string, unknown>) => {
+    const [row] = await sql<{ version: number }>(
+      "SELECT version FROM clock_setting WHERE location_id = $1",
+      [LOC],
+    );
+    return as("manager", `/v1/locations/${LOC}/clock-setting`, {
+      method: "PUT",
+      body: { version: row?.version ?? null, ...body },
+    });
+  };
+  /** The evidence flag at the demo location: on, off, or no row (the catalogue's off). */
+  const setFlag = async (on: boolean | null) => {
+    await sql("DELETE FROM feature_flag WHERE flag_key = $1", [FLAG]);
+    if (on !== null) {
+      await sql("INSERT INTO feature_flag (location_id, flag_key, enabled) VALUES ($1, $2, $3)", [
+        LOC,
+        FLAG,
+        on,
+      ]);
+    }
+  };
+  /** The organisation's signed DPIA, listing these features; null for none signed. */
+  const signDpia = async (features: string[] | null): Promise<string | null> => {
+    await sql("DELETE FROM dpia");
+    if (!features) return null;
+    const [row] = await sql<{ id: string }>(
+      `INSERT INTO dpia (dpia_version, status, prefill, prepared_by, version_sha256, prepared_at,
+                         signed_by, signed_at, typed_name, statement, basis)
+       VALUES (1, 'signed', '{}'::jsonb, ARRAY[$1::uuid], repeat('a', 64), now(), $2, now(),
+               'Olive Owner', 'Signed for the test', $3::jsonb) RETURNING id`,
+      [
+        MANAGER,
+        OWNER,
+        JSON.stringify({ purposes: [], subProcessors: [], dataCategories: [], features }),
+      ],
+    );
+    return row?.id ?? null;
+  };
+  const lastSettingAudit = async () =>
+    (
+      await sql<{ outcome: string; reason: string | null; scope: Record<string, unknown> }>(
+        `SELECT outcome, reason, scope FROM audit_event
+          WHERE action = 'scheduling.clock_setting.changed' AND resource_id = $1
+          ORDER BY seq DESC LIMIT 1`,
+        [LOC],
+      )
+    )[0];
+
+  afterAll(async () => {
+    await setFlag(null);
+    await signDpia(null);
+  });
+
+  it.each<[string, boolean | null, string[] | null, Record<string, unknown>]>([
+    [
+      "the client's dpiaApproved tick with no signed DPIA",
+      true,
+      null,
+      { evidence: "at_location", dpiaApproved: true },
+    ],
+    [
+      "the flag off at the location",
+      false,
+      [FLAG],
+      { evidence: "at_location", dpiaApproved: true },
+    ],
+    ["no flag row (off by default)", null, [FLAG], { evidence: "nfc", nfcTagRefs: ["TAG-1"] }],
+    [
+      "a signed DPIA that does not cover it",
+      true,
+      ["module.residential", "scheduling.lone_worker.location"],
+      { evidence: "nfc", nfcTagRefs: ["TAG-1"], dpiaApproved: true },
+    ],
+  ])("refuses location or NFC evidence with %s", async (_label, flag, features, body) => {
+    await setFlag(flag);
+    await signDpia(features);
+    const response = await putSetting(body);
+    expect(response.status).toBe(422);
+    const problem = (await response.json()) as { code: string; title: string };
+    expect(problem.code).toBe("dpia_monitoring_not_covered");
+    expect(problem.title).toBe(
+      "Location or NFC evidence is employee monitoring: your organisation's signed DPIA must cover it first.",
+    );
+    expect(await lastSettingAudit()).toMatchObject({
+      outcome: "denied",
+      reason: "dpia_monitoring_not_covered",
+    });
+    const [row] = await sql<{ evidence: string }>(
+      "SELECT evidence FROM clock_setting WHERE location_id = $1",
+      [LOC],
+    );
+    expect(row?.evidence ?? "none").toBe("none");
+  });
+
+  it.each<[string, boolean | null, string[] | null]>([
+    ["no flag and no DPIA", null, null],
+    ["the flag off", false, [FLAG]],
+    ["a DPIA that does not cover it", true, ["module.residential"]],
+  ])("always accepts none: %s", async (_label, flag, features) => {
+    await setFlag(flag);
+    await signDpia(features);
+    const response = await putSetting({ evidence: "none" });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { evidence: string }).evidence).toBe("none");
+    expect(await lastSettingAudit()).toMatchObject({
+      outcome: "success",
+      scope: expect.objectContaining({ evidence: "none", dpiaId: null }),
+    });
+  });
+
+  it("accepts it with the flag on and a signed DPIA covering it, auditing the DPIA relied on", async () => {
+    await setFlag(true);
+    const dpiaId = await signDpia(["module.residential", FLAG]);
+    // The deprecated tick is not needed, and false is ignored as well.
+    const response = await putSetting({ evidence: "at_location", dpiaApproved: false });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { evidence: string }).evidence).toBe("at_location");
+    const audited = await lastSettingAudit();
+    expect(audited).toMatchObject({ outcome: "success" });
+    expect(audited?.scope).toMatchObject({ evidence: "at_location", dpiaId });
+    expect(audited?.scope).not.toHaveProperty("dpiaApproved");
+  });
+
+  it.each<[string, boolean | null, string[] | null, string]>([
+    ["covered", true, ["module.residential", FLAG], "at_location"],
+    ["the flag switched off since", false, ["module.residential", FLAG], "none"],
+    ["no signed DPIA", true, null, "none"],
+    ["a DPIA superseded by one without the flag", true, ["module.residential"], "none"],
+  ])("records clock-in evidence only when covered: %s", async (_label, flag, features, kept) => {
+    // The setting asks for evidence at the location, as one saved before this check might.
+    await setFlag(true);
+    await signDpia(["module.residential", FLAG]);
+    const [current] = await sql<{ evidence: string }>(
+      "SELECT evidence FROM clock_setting WHERE location_id = $1",
+      [LOC],
+    );
+    if (current?.evidence !== "at_location") {
+      expect((await putSetting({ evidence: "at_location" })).status).toBe(200);
+    }
+    await setFlag(flag);
+    await signDpia(features);
+    const kinds = ["break_start", "break_end"] as const;
+    const [last] = await sql<{ kind: string }>(
+      "SELECT kind FROM clock_event WHERE worker_id = $1 ORDER BY recorded_at DESC LIMIT 1",
+      [CARER],
+    );
+    const kind = last?.kind === "break_start" ? kinds[1] : kinds[0];
+    const response = await clock("carer", { kind, evidence: "at_location" });
+    expect(response.status).toBe(201);
+    const item = (await response.json()) as { evidence: string; flags: string[] };
+    expect(item.evidence).toBe(kept);
+    if (kept === "none") expect(item.flags).toContain("evidence_not_matched");
+    else expect(item.flags).not.toContain("evidence_not_matched");
+  });
+
+  it("flags the signed DPIA for review when the evidence flag is switched on after signing", async () => {
+    await setFlag(null);
+    await signDpia(["module.residential"]);
+    const before = (await (await as("owner", "/v1/dpia")).json()) as {
+      triggers: { kind: string; items?: string[] }[];
+    };
+    const enabled = (t: typeof before) =>
+      t.triggers.find((x) => x.kind === "feature_enabled")?.items ?? [];
+    expect(enabled(before)).not.toContain(FLAG);
+    await setFlag(true);
+    const after = (await (await as("owner", "/v1/dpia")).json()) as typeof before & {
+      state: string;
+    };
+    expect(after.state).toBe("review_due");
+    expect(enabled(after)).toContain(FLAG);
+    await signDpia(["module.residential", FLAG]);
+    const covered = (await (await as("owner", "/v1/dpia")).json()) as typeof before;
+    expect(enabled(covered)).not.toContain(FLAG);
   });
 });
 

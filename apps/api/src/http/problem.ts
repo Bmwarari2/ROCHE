@@ -87,6 +87,17 @@ export const problems = {
   invalid: (detail?: string) =>
     new HttpProblem(422, "invalid", "Some details need checking.", detail),
   /**
+   * Employee monitoring (location or NFC clock-in evidence) asked for while the organisation's
+   * signed DPIA does not cover it, or its flag is off at the location (H-527, H-1033, H-1555).
+   */
+  dpiaMonitoringNotCovered: () =>
+    new HttpProblem(
+      422,
+      "dpia_monitoring_not_covered",
+      "Location or NFC evidence is employee monitoring: your organisation's signed DPIA must cover it first.",
+      "Switch on location evidence for the organisation, prepare the DPIA again so it lists it, and have the data protection lead sign it.",
+    ),
+  /**
    * A hand-over of held entries the server will not take as sent (care.md section 6, Device
    * integrity part 6): the device stops and keeps the entry held, never parking it as refused.
    */

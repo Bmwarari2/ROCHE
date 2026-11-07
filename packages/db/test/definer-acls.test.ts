@@ -55,6 +55,8 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.pay_run_status(uuid)": ["harbour_app", "harbour_owner"],
   "app.claim_invitation(text)": ["harbour_app"],
   "app.pulse_survey_results(uuid)": ["harbour_app"],
+  // Whether the signed DPIA covers employee monitoring, for whoever clocks in (H-1555, 0153).
+  "app.signed_dpia_features()": ["harbour_app"],
   "app.submit_pulse_response(uuid, jsonb)": ["harbour_app"],
   "app.evidence_pack_link_for_token(text)": ["harbour_app"],
   "app.family_can_see(uuid, text, text, timestamp with time zone)": [

@@ -47,7 +47,7 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
-import { writeAudit } from "../http/audit";
+import { AuditedRefusal, writeAudit } from "../http/audit";
 import {
   type AppEnv,
   requireAnyPermission,
@@ -58,6 +58,7 @@ import {
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { currentBookedShiftEnd } from "../services/agency-window";
+import { monitoringInUse } from "../services/dpia";
 import { rateNumber } from "../services/rates";
 import type { ShiftRow } from "../services/rota";
 import { staffNames } from "../services/staff";
@@ -308,19 +309,36 @@ async function replayOf(
   return { replay: eventItem(existing, entry?.id ?? null) };
 }
 
-/** The evidence kept: only what the location's setting asks for, an NFC tag only if listed. */
+/** The organisation's intention to use location or NFC clock-in evidence (H-527, H-1555). */
+const EVIDENCE_FLAG = "scheduling.clock.location_evidence" as const;
+
+/**
+ * The evidence kept: only what the location's setting asks for, an NFC tag only if listed, and
+ * only while the evidence flag is on at the location and the organisation's signed DPIA covers it
+ * (H-1555). A setting switched on before that check, or a DPIA superseded by one that does not
+ * list the flag, keeps no evidence.
+ */
 async function allowedEvidence(
+  c: Context<AppEnv>,
   tx: Transaction,
+  tenantId: string,
   body: { locationId: string; evidence: string; nfcTagRef: string | null },
 ): Promise<{ evidence: "none" | "at_location" | "nfc"; nfcTagRef: string | null }> {
-  if (body.evidence === "none") return { evidence: "none", nfcTagRef: null };
+  const none = { evidence: "none", nfcTagRef: null } as const;
+  if (body.evidence === "none") return none;
   const [setting] = await withSystemRights(tx, () =>
     tx.select().from(clockSetting).where(eq(clockSetting.locationId, body.locationId)),
   );
-  if (!setting || setting.evidence !== body.evidence) return { evidence: "none", nfcTagRef: null };
-  if (body.evidence === "nfc" && !setting.nfcTagRefs.includes(body.nfcTagRef ?? "")) {
-    return { evidence: "none", nfcTagRef: null };
-  }
+  if (!setting || setting.evidence === "none" || setting.evidence !== body.evidence) return none;
+  if (body.evidence === "nfc" && !setting.nfcTagRefs.includes(body.nfcTagRef ?? "")) return none;
+  const monitoring = await monitoringInUse(
+    c.get("services").flags,
+    tx,
+    tenantId,
+    body.locationId,
+    EVIDENCE_FLAG,
+  );
+  if (!monitoring.on) return none;
   return { evidence: body.evidence as "at_location" | "nfc", nfcTagRef: body.nfcTagRef };
 }
 
@@ -629,7 +647,7 @@ export const timeAttendanceRouter = createRouter()
           for (const f of found) flags.add(f);
         }
         // Evidence only as the location's setting allows (H-527): anything else is not kept.
-        const evidence = await allowedEvidence(tx, body);
+        const evidence = await allowedEvidence(c, tx, access.tenantId, body);
         if (evidence.evidence !== body.evidence) flags.add("evidence_not_matched");
         const pairing = await planPair(tx, {
           id: body.id,
@@ -763,7 +781,7 @@ export const timeAttendanceRouter = createRouter()
       tags: ["scheduling"],
       summary: "Set clock evidence at a location",
       description:
-        "Location or NFC evidence is employee monitoring: it needs dpiaApproved, confirming the employee-monitoring DPIA is approved (H-527). Never a position: only whether the phone was at the location or read the location's tag.",
+        "scheduling.rota.approve. Location or NFC evidence is employee monitoring (H-527, H-1555): it is refused (422 dpia_monitoring_not_covered) unless the flag scheduling.clock.location_evidence is on at the location and the organisation's signed DPIA lists it among its features. dpiaApproved is deprecated and ignored. Setting none is always allowed. Never a position: only whether the phone was at the location or read the location's tag. Audited with the evidence and the signed DPIA version relied on.",
       security,
       request: { params: IdParam, body: jsonBody(ChangeClockSetting, "The setting") },
       responses: {
@@ -778,11 +796,6 @@ export const timeAttendanceRouter = createRouter()
       const { id } = c.req.valid("param");
       requireLocationInScope(access, id);
       const body = c.req.valid("json");
-      if (body.evidence !== "none" && !body.dpiaApproved) {
-        throw problems.invalid(
-          "Location and NFC evidence need the employee-monitoring DPIA approved first.",
-        );
-      }
       if ((body.evidence === "nfc") !== body.nfcTagRefs.length > 0) {
         throw problems.invalid("NFC evidence names the location's tags; no other does.");
       }
@@ -791,6 +804,28 @@ export const timeAttendanceRouter = createRouter()
         access,
         { action: A.setting, resourceType: "location", id },
         async (tx) => {
+          // Employee monitoring only under the signed DPIA (H-1555), never on the client's word.
+          let dpiaId: string | null = null;
+          if (body.evidence !== "none") {
+            const monitoring = await monitoringInUse(
+              c.get("services").flags,
+              tx,
+              access.tenantId,
+              id,
+              EVIDENCE_FLAG,
+            );
+            if (!monitoring.on) {
+              throw new AuditedRefusal(problems.dpiaMonitoringNotCovered(), {
+                action: A.setting,
+                outcome: "denied",
+                resourceType: "location",
+                resourceId: id,
+                reason: "dpia_monitoring_not_covered",
+                scopeExtra: { evidence: body.evidence, flagOn: monitoring.flagOn },
+              });
+            }
+            dpiaId = monitoring.dpiaId;
+          }
           const [current] = await tx
             .select()
             .from(clockSetting)
@@ -816,7 +851,7 @@ export const timeAttendanceRouter = createRouter()
             action: A.setting,
             resourceType: "location",
             resourceId: id,
-            scopeExtra: { evidence: body.evidence, dpiaApproved: body.dpiaApproved },
+            scopeExtra: { evidence: body.evidence, dpiaId },
           });
           return saved as typeof clockSetting.$inferSelect;
         },
