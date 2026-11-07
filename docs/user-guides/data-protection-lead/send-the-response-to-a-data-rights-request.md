@@ -1,6 +1,6 @@
 # How to send the response to a data rights request
 
-Once every record is decided, Harbour builds the response from your decisions. You check it,
+Once every record is decided, Thapsus Care builds the response from your decisions. You check it,
 download it, send it to the requester yourself, and record that you have.
 
 **Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
@@ -31,11 +31,11 @@ The request now shows **Response**, with the outcome, when it was sent and its f
 
 ## Good to know
 
-- **Harbour does not send the response.** It prepares the file; you send it and record that you
+- **Thapsus Care does not send the response.** It prepares the file; you send it and record that you
   did.
 - The response can be checked only once every record has a decision and you have confirmed who is
   asking. If a record changed after you reviewed it, it goes back to review first.
-- The fingerprint (SHA-256) proves later that the file is exactly what was sent. Harbour keeps a
+- The fingerprint (SHA-256) proves later that the file is exactly what was sent. Thapsus Care keeps a
   copy of it.
 - A response recorded after the due date stays marked **Responded late**. It is never rewritten as
   on time.

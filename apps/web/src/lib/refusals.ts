@@ -422,7 +422,7 @@ const RULES: readonly Rule[] = [
   {
     key: "candourReason",
     fields: ["reason"],
-    found: has("the decision differs from Harbour's finding or changes the one recorded."),
+    found: has("the decision differs from Thapsus Care's finding or changes the one recorded."),
   },
   { key: "candourConfirm", fields: ["confirm"], found: has("Confirm the decision.") },
   {

@@ -1,4 +1,4 @@
-# Harbour constraints digest
+# Thapsus Care constraints digest
 
 Imported into every Claude Code session by `CLAUDE.md`. It condenses sections 4–7 and 20 of
 `docs/00-MASTER-PROMPT.md` (cited as §n); read the cited section for detail. The master prompt wins

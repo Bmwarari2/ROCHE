@@ -21,6 +21,7 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarOff,
+  ChartColumn,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
@@ -37,6 +38,7 @@ import {
   HeartHandshake,
   House,
   IdCard,
+  Link2,
   ListChecks,
   ListTodo,
   Lock,
@@ -45,7 +47,9 @@ import {
   Megaphone,
   MessageSquare,
   Newspaper,
+  Package,
   Palette,
+  Pill,
   Scale,
   ScrollText,
   Search,
@@ -87,6 +91,9 @@ export interface ShellFrameLabels {
   readonly people?: string | undefined;
   /** Shown only to people who read care plans (care.plan.read), whose round it is. */
   readonly round?: string | undefined;
+  readonly medicinesRound?: string | undefined;
+  readonly medicinesStock?: string | undefined;
+  readonly medicinesReports?: string | undefined;
   /** Shown only to people who take part in the shift handover (care.handover.manage). */
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
@@ -163,6 +170,8 @@ export interface ShellFrameLabels {
   readonly pay?: string | undefined;
   /** Shown only to people who manage records retention (platform.retention.manage). */
   readonly retention?: string | undefined;
+  /** The link to the HR platform's settings (slice 90), for its holders once turned on. */
+  readonly hrLink?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataImport?: string | undefined;
@@ -221,6 +230,9 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/my-shifts")) return "my-shifts";
   if (pathname.startsWith("/settings/dependency")) return "dependency";
   if (pathname.startsWith("/round")) return "round";
+  if (pathname.startsWith("/medicines-round")) return "medicines-round";
+  if (pathname.startsWith("/medicines-stock")) return "medicines-stock";
+  if (pathname.startsWith("/medicines-reports")) return "medicines-reports";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
@@ -263,6 +275,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/import")) return "import";
   if (pathname.startsWith("/settings/retention")) return "retention";
+  if (pathname.startsWith("/settings/hr-link")) return "hr-link";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/data-rights")) return "data-rights";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
@@ -353,6 +366,36 @@ export function ShellFrame({
       : []),
     ...(labels.round
       ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]
+      : []),
+    ...(labels.medicinesRound
+      ? [
+          {
+            id: "medicines-round",
+            label: labels.medicinesRound,
+            href: "/medicines-round",
+            icon: <Pill {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.medicinesStock
+      ? [
+          {
+            id: "medicines-stock",
+            label: labels.medicinesStock,
+            href: "/medicines-stock",
+            icon: <Package {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.medicinesReports
+      ? [
+          {
+            id: "medicines-reports",
+            label: labels.medicinesReports,
+            href: "/medicines-reports",
+            icon: <ChartColumn {...icon} />,
+          },
+        ]
       : []),
     ...(labels.handover
       ? [
@@ -720,6 +763,16 @@ export function ShellFrame({
             label: labels.retention,
             href: "/settings/retention",
             icon: <Lock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.hrLink
+      ? [
+          {
+            id: "hr-link",
+            label: labels.hrLink,
+            href: "/settings/hr-link",
+            icon: <Link2 {...icon} />,
           },
         ]
       : []),

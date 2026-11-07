@@ -351,7 +351,7 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
     expect(audit).toBe(1);
     expect(tasks).toMatchObject([
       {
-        title: "Check entries a device deleted after they reached Harbour: 1",
+        title: "Check entries a device deleted after they reached Thapsus Care: 1",
         person_id: null,
         location_id: DEMO.locationId,
       },
@@ -402,7 +402,9 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
     );
     expect(raised.map((r) => r.source_id)).toEqual(records.slice(0, 5));
     // The two past the cap are counted on the oldest task, and their ids listed in its details.
-    expect(raised[0]?.title).toBe("Check entries a device deleted after they reached Harbour: 3");
+    expect(raised[0]?.title).toBe(
+      "Check entries a device deleted after they reached Thapsus Care: 3",
+    );
     expect(
       (await taskAudit(raised[0]?.id)).filter(([action]) => action === "sync.entry_flag.added"),
     ).toEqual([
@@ -507,8 +509,8 @@ describe("hazard HZ-040 an entry a device reported deleted, uploaded later (roun
     );
     expect(tasks.map((t) => [t.location_id, t.title])).toEqual(
       [
-        [DEMO.locationId, "Check entries a device deleted after they reached Harbour: 1"],
-        [lodgeLocation, "Check entries a device deleted after they reached Harbour: 1"],
+        [DEMO.locationId, "Check entries a device deleted after they reached Thapsus Care: 1"],
+        [lodgeLocation, "Check entries a device deleted after they reached Thapsus Care: 1"],
       ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
     );
     // Each entry names its own location's task.

@@ -23,7 +23,7 @@ const VERSION = process.env.HARBOUR_APP_VERSION ?? "0.1.0";
 const BUILD_NUMBER = process.env.HARBOUR_BUILD_NUMBER ?? "1";
 
 const FACE_ID_REASON =
-  "Harbour uses Face ID to unlock the encrypted care records stored on this device.";
+  "Thapsus Care uses Face ID to unlock the encrypted care records stored on this device.";
 
 /**
  * The CI emulator build (`.github/workflows/mobile.yml`, HARBOUR_E2E_BUILD=1) talks to the runner's
@@ -50,7 +50,7 @@ const withE2eLoopbackCleartext: ConfigPlugin = (expoConfig) =>
 
 const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Harbour",
+  name: "Thapsus Care",
   slug: "harbour",
   scheme: "harbour",
   // Phones and tablets only: the web app is apps/web.
@@ -67,11 +67,11 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       NSFaceIDUsageDescription: FACE_ID_REASON,
       NSCameraUsageDescription:
-        "Harbour uses the camera only to read medicine pack barcodes. No picture is saved.",
+        "Thapsus Care uses the camera only to read medicine pack barcodes. No picture is saved.",
       NSLocationWhenInUseUsageDescription:
-        "Harbour uses your location only while the app is open, to confirm you have arrived at a home care visit.",
+        "Thapsus Care uses your location only while the app is open, to confirm you have arrived at a home care visit.",
       NSMicrophoneUsageDescription:
-        "Harbour uses the microphone to record voice notes that you add to care records.",
+        "Thapsus Care uses the microphone to record voice notes that you add to care records.",
     },
     privacyManifests: {
       NSPrivacyTracking: false,
@@ -184,7 +184,7 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
       "expo-camera",
       {
         cameraPermission:
-          "Harbour uses the camera only to read medicine pack barcodes. No picture is saved.",
+          "Thapsus Care uses the camera only to read medicine pack barcodes. No picture is saved.",
         recordAudioAndroid: false,
       },
     ],

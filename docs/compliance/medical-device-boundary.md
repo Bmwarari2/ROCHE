@@ -9,24 +9,24 @@
 
 ## 1. Why this matters
 
-Under the UK Medical Devices Regulations 2002, software is a medical device when its manufacturer intends it to be used for a medical purpose, such as diagnosis, prevention, monitoring, treatment or alleviation of disease. The MHRA guidance above explains how this applies to software and AI. Whether Harbour is a medical device turns on its **intended purpose** as Thapsus states it and on what the software actually does. Thapsus's position is that Harbour is **not** a medical device, and this document is the boundary that keeps that true. Crossing it would bring UK conformity assessment, registration with the MHRA and post-market surveillance duties, and would change the clinical safety case.
+Under the UK Medical Devices Regulations 2002, software is a medical device when its manufacturer intends it to be used for a medical purpose, such as diagnosis, prevention, monitoring, treatment or alleviation of disease. The MHRA guidance above explains how this applies to software and AI. Whether Thapsus Care is a medical device turns on its **intended purpose** as Thapsus states it and on what the software actually does. Thapsus's position is that Thapsus Care is **not** a medical device, and this document is the boundary that keeps that true. Crossing it would bring UK conformity assessment, registration with the MHRA and post-market surveillance duties, and would change the clinical safety case.
 
 ## 2. Intended purpose statement
 
-> Harbour is a digital social care record and operational platform for regulated adult social care providers. It stores, displays and transmits care information, applies rules that the provider configures, and calculates published validated assessment tools exactly as published, showing the calculation. It does not diagnose, predict, score risk with its own algorithms, or recommend treatment or medication. Clinical judgement and escalation remain with the provider's staff and follow the provider's own policies.
+> Thapsus Care is a digital social care record and operational platform for regulated adult social care providers. It stores, displays and transmits care information, applies rules that the provider configures, and calculates published validated assessment tools exactly as published, showing the calculation. It does not diagnose, predict, score risk with its own algorithms, or recommend treatment or medication. Clinical judgement and escalation remain with the provider's staff and follow the provider's own policies.
 
 This statement is used, unchanged, in the clinical safety case, the user guides, the app store listings (the Google Play listing carries a "not a medical device" statement, master prompt 17.3) and the DPA template.
 
-## 3. What Harbour does
+## 3. What Thapsus Care does
 
-| Harbour may | Example |
+| Thapsus Care may | Example |
 | --- | --- |
 | Store, display and transmit care information | Care plans, notes, charts, MAR, body maps, documents |
 | Apply rules the tenant configures | Reposition every 4 hours as written in the care plan; flag an overdue task; escalate an unacknowledged alarm after 10 minutes |
 | Show arithmetic on recorded values against targets a person has set | Running fluid total against the daily target in the care plan |
 | Calculate published validated tools exactly as published, with the formula shown | NEWS2, MUST, Waterlow, Braden, Abbey, PAINAD, Cornell, Barthel, OHAT (section 5) |
 | Link a result to the tenant's own escalation policy | "Your policy for a NEWS2 score of 5 or more" opens the tenant's document |
-| Enforce safety rules on record-keeping | Refuse an administration without person, dose and outcome; block a duplicate within the prescribed minimum interval (the interval comes from the prescription or PRN protocol, not from Harbour) |
+| Enforce safety rules on record-keeping | Refuse an administration without person, dose and outcome; block a duplicate within the prescribed minimum interval (the interval comes from the prescription or PRN protocol, not from Thapsus Care) |
 | Draft, summarise and search records with the optional AI module, labelled as drafts for human review | Shift handover draft generated from records |
 
 **Training and competence (Phase 2, slice 17)**: these stay inside the boundary and add no
@@ -37,9 +37,9 @@ in-date sign-off for a named competence on a UK date, from dates the organisatio
 blocks an action the organisation's rules say needs the competence, and makes no judgement about
 the person, the medicine or the dose.
 
-## 4. What Harbour must never do
+## 4. What Thapsus Care must never do
 
-| Harbour must never | Notes |
+| Thapsus Care must never | Notes |
 | --- | --- |
 | Produce a diagnosis or suggest one | Including "possible infection", "likely UTI" or similar labels derived by the software |
 | Produce a prognosis or predict an outcome | Including deterioration prediction from trends |
@@ -58,7 +58,7 @@ Rules for every validated tool:
 1. Implemented exactly as published, citing publisher, edition and URL in code and on screen. No re-weighting, no extra parameters, no changed thresholds.
 2. The screen shows each input's sub-score, the total, and the published banding. The user can check the arithmetic by hand.
 3. Incomplete input gives no total.
-4. The result links to the tenant's escalation policy. Harbour states the published band; it does not add a recommendation.
+4. The result links to the tenant's escalation policy. Thapsus Care states the published band; it does not add a recommendation.
 5. Each stored score records the tool edition and the code version.
 6. Table-driven tests cover every band boundary and the publisher's worked examples (hazard HZ-012 in the [hazard log](../clinical-safety/hazard-log.md)).
 7. The CSO checks each implementation against its source before release `[CSO - human action]`, and Thapsus confirms the publisher's terms for using the tool in software `[human action]`.
@@ -73,15 +73,15 @@ The formula shown to users for the three Phase 1 tools:
 
 **Implementation (Phase 1)**: NEWS2, MUST, Waterlow and Braden are calculated exactly as published in `packages/domain/src/care/` (`news2.ts`, `must.ts`, `waterlow.ts`, `braden.ts`). Each scoring table is a versioned constant with the publisher, edition and source cited in a code comment; `VALIDATED_TOOLS` in `tools.ts` carries the same citation for the screen; every result stores its `toolVersion` and the workings (each item, the value recorded and its points). Incomplete or impossible input returns a typed error and no total. NEWS2 returns the RCP chart 2 and chart 4 wording unchanged. MUST and Waterlow band the exact BMI and round it to one decimal place only for display, so a MUST BMI of 18.49 scores 2. Braden bands use the publisher's wording (severe risk, high risk, moderate risk, at risk), and a total of 19 or more reads "Below the at-risk threshold". The NG249 falls pathway (`falls.ts`) follows NICE's recommendations by setting (1.1.7 in residential care; 1.1.3, 1.1.4 and 1.1.6 in the community), names the recommendation that applies, returns follow-up tasks only, and a test asserts that it returns no numeric score. Waterlow and Braden are listed in `TOOLS_AWAITING_LICENCE_CONFIRMATION` until H-25 is closed.
 
-**Stored results (Phase 1, slice 4b)**: `POST /v1/people/{id}/assessments` runs the calculator on the server by its tool key (`validated-assessment.ts`) and stores the tool key and version, the answers, the score, the band, the workings, the follow-ups raised and the next due date; the client never sends a score. The NG249 falls pathway is stored with no score and no band. Corrections are new rows that supersede the original with a reason. Waterlow and Braden are refused while their `care.tool.waterlow` and `care.tool.braden` flags are off: off by default for every tenant, on only in the demo tenant, until H-25 is closed. Follow-up intervals (MUST rescreening, weighing, reviews) come from the rate table; Harbour schedules them and adds no recommendation.
+**Stored results (Phase 1, slice 4b)**: `POST /v1/people/{id}/assessments` runs the calculator on the server by its tool key (`validated-assessment.ts`) and stores the tool key and version, the answers, the score, the band, the workings, the follow-ups raised and the next due date; the client never sends a score. The NG249 falls pathway is stored with no score and no band. Corrections are new rows that supersede the original with a reason. Waterlow and Braden are refused while their `care.tool.waterlow` and `care.tool.braden` flags are off: off by default for every tenant, on only in the demo tenant, until H-25 is closed. Follow-up intervals (MUST rescreening, weighing, reviews) come from the rate table; Thapsus Care schedules them and adds no recommendation.
 
 **NEWS2 on the device (Phase 1, slice 10)**: the mobile app runs the same `calculateNews2` from `@harbour/domain` on the device, so a score shows with no signal. It uses the SpO2 scale the person's synced care profile sets (scale 2 only where a clinician recorded it); when the profile or the scale is not on the device it shows no total (rule 3) and says the scale is not on the device, and the server scores the readings on upload. With a total it shows every parameter's points, the formula and the published bands (rule 2), the RCP clinical risk, response, monitoring and chart 4 clinical response wording unchanged, the source with the tool version and a link to the RCP page (rule 1), and the line "Follow your organisation's escalation policy for this score" (rule 4); it adds no advice of its own. The device sends the readings only, never a score: the API recalculates on upload and raises the alert and tasks (`apps/mobile/src/care/charts.ts`, `apps/mobile/src/components/News2Panel.tsx`). Both the server's calculator and the device's path from typed readings are tested against `NEWS2_REFERENCE_VECTORS`, fixed readings whose points for every parameter, totals and bands were worked by hand from the RCP charts, so two errors cannot cancel out (rule 6; `packages/domain/src/care/news2-vectors.ts`); the CSO spot-checks them (human action H-129). Whether chart 4's ward wording suits homes without nurses, and whether the points could be shown when the SpO2 scale is not on the device, are CSO decisions (H-127, H-128). Linking the tenant's escalation policy document from the device is a follow-up (the document is not stored offline yet).
 
-**Escalation policy link (Phase 1, care API follow-ups; rule 4)**: the organisation configures which of its own policies each validated tool's result links (`escalation_policy_link`: per tool, optionally per band and per location, a title, a reference and one of its own documents; holders of `quality.policy.manage`). Every stored result of NEWS2, MUST, Waterlow, Braden and the NG249 falls pathway is returned with `escalationPolicy`: the organisation's link for the result's tool and band (a location's own first), or `not_configured`. The web shows it on every assessment result and every NEWS2 entry (`EscalationPolicyLine`): the policy's title and reference, linking its document, or, with an icon, "No escalation policy is configured for this result. Follow your organisation's procedures and tell the nurse in charge.", never nothing (#26 review round 2, C6), and on the NEWS2 result shown straight after saving (#26 review round 3). That sentence sends staff to the organisation's own procedures and the nurse in charge; it names no clinical response. It shows on every band, NEWS2 0 included, where the RCP's own response is routine monitoring, so "tell the nurse in charge" may read as Harbour adding to the published response; whether it should show only for bands that need a response is for the CSO (H-73; HZ-008). Who an urgent alert actually reached is said from the route kept on the entry, never assumed (#26 review round 3; HZ-014). The link is chosen by fixed lookup on the tool, the published band and the place (`escalationPolicyFor` in `packages/domain/src/care/escalation-policy.ts`); Harbour writes none of the policy's words, so the result still carries no recommendation of Harbour's own. Tests: `hazard HZ-012 the link is the organisation's own policy, never a Harbour recommendation`, the web tests and the Playwright journeys with axe for a configured policy (NEWS2) and none configured (MUST), and the HZ-014 tests listed in the hazard log. The phone shows the link next (H-73); the lookup order is for the CSO (H-163).
+**Escalation policy link (Phase 1, care API follow-ups; rule 4)**: the organisation configures which of its own policies each validated tool's result links (`escalation_policy_link`: per tool, optionally per band and per location, a title, a reference and one of its own documents; holders of `quality.policy.manage`). Every stored result of NEWS2, MUST, Waterlow, Braden and the NG249 falls pathway is returned with `escalationPolicy`: the organisation's link for the result's tool and band (a location's own first), or `not_configured`. The web shows it on every assessment result and every NEWS2 entry (`EscalationPolicyLine`): the policy's title and reference, linking its document, or, with an icon, "No escalation policy is configured for this result. Follow your organisation's procedures and tell the nurse in charge.", never nothing (#26 review round 2, C6), and on the NEWS2 result shown straight after saving (#26 review round 3). That sentence sends staff to the organisation's own procedures and the nurse in charge; it names no clinical response. It shows on every band, NEWS2 0 included, where the RCP's own response is routine monitoring, so "tell the nurse in charge" may read as Thapsus Care adding to the published response; whether it should show only for bands that need a response is for the CSO (H-73; HZ-008). Who an urgent alert actually reached is said from the route kept on the entry, never assumed (#26 review round 3; HZ-014). The link is chosen by fixed lookup on the tool, the published band and the place (`escalationPolicyFor` in `packages/domain/src/care/escalation-policy.ts`); Thapsus Care writes none of the policy's words, so the result still carries no recommendation of Thapsus Care's own. Tests: `hazard HZ-012 the link is the organisation's own policy, never a Thapsus Care recommendation`, the web tests and the Playwright journeys with axe for a configured policy (NEWS2) and none configured (MUST), and the HZ-014 tests listed in the hazard log. The phone shows the link next (H-73); the lookup order is for the CSO (H-163).
 
 Where the Waterlow card leaves room for reading, the reading taken is stated in the source comment of `waterlow.ts` for CSO review:
 
-| Reading | Card text | Harbour |
+| Reading | Card text | Thapsus Care |
 | --- | --- | --- |
 | Obese at 30 | "Above average BMI 25-29.9"; "Obese BMI > 30" | A BMI of 30.0 or more scores 2 |
 | Exact BMI bands | Bands written to one decimal place, with gaps between 24.9 and 25 and between 29.9 and 30 | Under 20, 20 up to 25, 25 up to 30, 30 or more, on the exact BMI |
@@ -110,12 +110,12 @@ generic line and a link only. Nothing interprets, scores or predicts
 **Medicines record and reconciliation (Phase 2, slice 2)**: these stay inside the boundary and add
 no score or recommendation (`packages/domain/src/medicines/`; [medicines.md](../specs/medicines.md)
 rules 1 to 12). A dose is transcribed exactly as prescribed, as a number and a unit dm+d permits for
-the product; Harbour checks how it is written (a zero before the point, no trailing zero, micrograms,
+the product; Thapsus Care checks how it is written (a zero before the point, no trailing zero, micrograms,
 nanograms and units in full) and never calculates, converts or range-checks it. Schedules are the
-prescribed wall-clock times expanded over the MAR cycle; Harbour suggests no time and no gap, and
+prescribed wall-clock times expanded over the MAR cycle; Thapsus Care suggests no time and no gap, and
 when a clock change brings two prescribed times together it keeps both doses and flags them for
 the nurse in charge rather than choosing. In a reconciliation a person decides every medicine on
-the MAR and every line in the sources; Harbour never infers a stop from a medicine missing from a
+the MAR and every line in the sources; Thapsus Care never infers a stop from a medicine missing from a
 letter, never pairs a line with an entry itself, and shows a difference on a link the person made by
 dm+d identity only (another VMP, another brand of the same VMP, or not coded), never by comparing
 ingredients; a medicine started while an entry for the same VMP continues is flagged as a possible
@@ -123,7 +123,7 @@ duplicate by that identity alone, and another product with the same ingredient i
 (#135 review). Which sources can show that a medicine continues is a record-keeping rule about the
 document (the discharge letter, a prescription or the GP record), not a judgement about the
 medicine. Allergies in the sources are compared with the recorded allergies by the person, who
-confirms it; Harbour matches no allergen (the section 6 grey area, decided in ADR-0082 with slice 3).
+confirms it; Thapsus Care matches no allergen (the section 6 grey area, decided in ADR-0082 with slice 3).
 The time-critical and minimum-interval rules (ADR-0082) are slice 3's and are not in this slice.
 
 **Importing medicines, care plans and staff files (Phase 2, slice 51)**: re-checked; still inside
@@ -140,32 +140,32 @@ come from the reference data, and with none loaded nothing is transcribed rather
 
 **Administration, PRN and controlled drugs (Phase 2, slice 3)**: these stay inside the boundary
 (`packages/domain/src/medicines/`; [medicines.md](../specs/medicines.md) rules 13 to 27;
-ADR-0082). Harbour compares the amount recorded with the dose on the entry, or on its checked dosing
+ADR-0082). Thapsus Care compares the amount recorded with the dose on the entry, or on its checked dosing
 record for a variable dose, and asks why when they differ; it never calculates a dose, suggests one
 or says whether one is safe. Time windows, the paracetamol gap and the PRN maximum are the
-prescriber's or the tenant's figures, applied to entries a person tagged; Harbour adds no interval
+prescriber's or the tenant's figures, applied to entries a person tagged; Thapsus Care adds no interval
 of its own and matches no ingredient. A dose over the prescribed 24-hour maximum is refused and the
 prescriber decides; a dose inside an interval needs a person's reason. A dose the person took
 themselves, or their family gave, or that staff record after giving it, or a correction, is
 recorded as a fact; where a dose about to be given would be refused it is flagged and sent to the
 nurse in charge to review, and over the maximum escalated urgently, the organisation's policy
-deciding what follows: Harbour adds no clinical advice (#162 clinical reviews; H-1062, H-1067). With
+deciding what follows: Thapsus Care adds no clinical advice (#162 clinical reviews; H-1062, H-1067). With
 no maximum recorded, the notice points to the prescribed interval and the prescriber, never a limit
-of Harbour's own. "Remaining" is the prescriber's maximum less the
+of Thapsus Care's own. "Remaining" is the prescriber's maximum less the
 total recorded, arithmetic on a figure a person set (section 3), and says nothing about whether
 another dose is safe; the CSO confirms that reading (H-1065). A dose in another unit is named as
 not counted, never converted. A scheduled dose is not recorded before its window opens, which is
 the tenant's own figure; a variable dose comes from the newest dosing record a person transcribed
 and another checked, never from a calculation. Late doses stay outstanding and are escalated;
-Harbour never makes a missed dose due again (a treatment decision). Competence is a record of an
+Thapsus Care never makes a missed dose due again (a treatment decision). Competence is a record of an
 observed sign-off, not an assessment. The controlled drugs register checks arithmetic and
 signatures, not the medicine.
 
-**Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). Slice 21 (the rota builder, [scheduling.md](../specs/scheduling.md) section 14) re-checked this: the rota's check counts the care minutes of assigned shifts and the staff holding each skill from workforce records, then calls the same `compareStaffing`; publishing asks the manager to read and acknowledge its warnings and never blocks on it; it adds no score, prediction or recommendation of who to roster. The rostering rule (DBS, right to work, registration, competence) is an employment and regulatory check, not clinical reasoning. Slice 27 (bank and agency workers) re-checked it: agency nurses count on the same comparison from the agency's confirmation, and the cost, the AWR clock and the access window are operational and legal, with no score or recommendation. Slice 36 (pay calculation runs, [scheduling.md](../specs/scheduling.md) section 18) re-checked it: a pay run reads approved time, recorded sickness dates and the staff file's date of birth and writes only pay records; it changes no rota, shift, clock-in or care record, and its minimum wage band and auto-enrolment category are statutory classifications of pay shown with their working, never a clinical judgement (the CSO confirms under H-1106). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
-**Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). Slice 21 (the rota builder, [scheduling.md](../specs/scheduling.md) section 14) re-checked this: the rota's check counts the care minutes of assigned shifts and the staff holding each skill from workforce records, then calls the same `compareStaffing`; publishing asks the manager to read and acknowledge its warnings and never blocks on it; it adds no score, prediction or recommendation of who to roster. The rostering rule (DBS, right to work, registration, competence) is an employment and regulatory check, not clinical reasoning. The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
+**Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Thapsus Care never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Thapsus Care adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). Slice 21 (the rota builder, [scheduling.md](../specs/scheduling.md) section 14) re-checked this: the rota's check counts the care minutes of assigned shifts and the staff holding each skill from workforce records, then calls the same `compareStaffing`; publishing asks the manager to read and acknowledge its warnings and never blocks on it; it adds no score, prediction or recommendation of who to roster. The rostering rule (DBS, right to work, registration, competence) is an employment and regulatory check, not clinical reasoning. Slice 27 (bank and agency workers) re-checked it: agency nurses count on the same comparison from the agency's confirmation, and the cost, the AWR clock and the access window are operational and legal, with no score or recommendation. Slice 36 (pay calculation runs, [scheduling.md](../specs/scheduling.md) section 18) re-checked it: a pay run reads approved time, recorded sickness dates and the staff file's date of birth and writes only pay records; it changes no rota, shift, clock-in or care record, and its minimum wage band and auto-enrolment category are statutory classifications of pay shown with their working, never a clinical judgement (the CSO confirms under H-1106). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
+**Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Thapsus Care never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Thapsus Care adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). Slice 21 (the rota builder, [scheduling.md](../specs/scheduling.md) section 14) re-checked this: the rota's check counts the care minutes of assigned shifts and the staff holding each skill from workforce records, then calls the same `compareStaffing`; publishing asks the manager to read and acknowledge its warnings and never blocks on it; it adds no score, prediction or recommendation of who to roster. The rostering rule (DBS, right to work, registration, competence) is an employment and regulatory check, not clinical reasoning. The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 
 **Outbreaks and IPC audits (Phase 2, slice 31)**: these stay inside the boundary and add no score
-about a person. The outbreak's illness is declared by a person, never derived; Harbour's
+about a person. The outbreak's illness is declared by a person, never derived; Thapsus Care's
 detection only applies UKHSA's published reporting thresholds to recorded cases and drafts the
 report (section 4 rule 7 of [safety.md](../specs/safety.md)). The case line list stores what
 staff observed and what tests reported (symptoms as codes, test results, vaccination answers,
@@ -175,7 +175,7 @@ audit's own arithmetic over the organisation's answers, which measures the servi
 Nothing labels a person as infected or likely infected, predicts spread or recommends isolation
 or treatment ([safety.md](../specs/safety.md) section 11).
 
-**dm+d reference data (Phase 2, slice 10; re-checked for ADR-0080)**: reference data only, inside the boundary, with no dose rule, score or recommendation ([integrations.md](../specs/integrations.md) section 12; `packages/domain/src/medicines/dmd-release.ts` and `dmd-subset.ts`). Harbour stores and shows what the NHSBSA publishes (names, forms, routes, units, packs, legal and controlled drug categories, GTINs, invalid and discontinued flags) and finds products by the words of their names or their codes. It reads ingredients only for the units their strengths are given in and never stores, searches or compares them. The dose units it offers for a product are the codes dm+d gives (the unit dose, its form size's unit and the strength units); Harbour never converts between them, never derives a dose from a strength or pack size, and never checks a dose against a range. A barcode lookup returns the packs dm+d says carry that GTIN, all of them when there are several, and leaves the choice to the person; matching the pack to the MAR entry is an identity check (slice 22, ADR-0081). The out-of-date warning is about the age of the data, not about any medicine. The device subset chooses rows by the products on the MARs and their packs, by identity only. The CSO confirms this reading (H-650), and a pharmacist the set of dose units (H-652).
+**dm+d reference data (Phase 2, slice 10; re-checked for ADR-0080)**: reference data only, inside the boundary, with no dose rule, score or recommendation ([integrations.md](../specs/integrations.md) section 12; `packages/domain/src/medicines/dmd-release.ts` and `dmd-subset.ts`). Thapsus Care stores and shows what the NHSBSA publishes (names, forms, routes, units, packs, legal and controlled drug categories, GTINs, invalid and discontinued flags) and finds products by the words of their names or their codes. It reads ingredients only for the units their strengths are given in and never stores, searches or compares them. The dose units it offers for a product are the codes dm+d gives (the unit dose, its form size's unit and the strength units); Thapsus Care never converts between them, never derives a dose from a strength or pack size, and never checks a dose against a range. A barcode lookup returns the packs dm+d says carry that GTIN, all of them when there are several, and leaves the choice to the person; matching the pack to the MAR entry is an identity check (slice 22, ADR-0081). The out-of-date warning is about the age of the data, not about any medicine. The device subset chooses rows by the products on the MARs and their packs, by identity only. The CSO confirms this reading (H-650), and a pharmacist the set of dose units (H-652).
 
 **Medicines record and reconciliation storage and API (Phase 2, slice 16)**: re-checked; still inside
 the boundary. The tables store what was transcribed and the database refuses rewriting it; the API
@@ -202,7 +202,7 @@ boundary. The round lists the prescribed doses in a time slot and their state in
 windows the organisation sets in the rate table; its order (late, due, not yet due, recorded;
 time-critical first) is a fixed display rule, not a priority score about the person. Escalation
 and handover reuse the task engine. A second record of a dose from a device is kept for a person
-to decide; Harbour never picks which record is right, and a dose found given twice raises an
+to decide; Thapsus Care never picks which record is right, and a dose found given twice raises an
 incident for people to investigate. Nothing suggests a dose, a change or a treatment.
 
 **Controlled drugs register (Phase 2, slice 34)**: re-checked; still inside the boundary. The
@@ -219,7 +219,7 @@ source) and what named people did and advised. The prompts are fixed words shown
 cleared by recorded evidence, never sent and never a judgement of harm: harm stays the incident's
 grading by a person. The controlled drug presumption reads the prescriber's CD schedule on the
 entry, a recorded fact. Medication reviews record a date the tenant set or the tenant's interval
-from the last done; Harbour never suggests a change, and the outcome is the clinician's words. The
+from the last done; Thapsus Care never suggests a change, and the outcome is the clinician's words. The
 PRN and psychotropic report counts records and says it does not judge the person or the
 prescribing (H-1297); no threshold, rate or score is applied to any person.
 **Controlled drugs register screens (Phase 2, slice 54)**: re-checked; still inside the boundary.
@@ -230,9 +230,9 @@ to investigate. The print view is a copy of the page as recorded.
 **Covert administration, self-administration and homely remedies (Phase 2, slice 38)**: checked;
 inside the boundary. A covert record stores a decision people made (the capacity assessment, the
 best-interests decision, who took part, the method and the pharmacist's advice in their words);
-Harbour checks that the record is complete and current, never whether covert administration or a
+Thapsus Care checks that the record is complete and current, never whether covert administration or a
 method is right. A self-administration assessment stores what a person found and the level they
-decided; Harbour applies fixed rules to those answers (no self-administering without the person's
+decided; Thapsus Care applies fixed rules to those answers (no self-administering without the person's
 choice, capacity, dexterity and lockable storage) and suggests nothing. A homely remedy dose is
 checked only against the home's own protocol, agreed with a GP or pharmacist: its dose, gap, most
 in 24 hours and days before referral, and an exact dm+d product match with a current entry. No
@@ -240,14 +240,14 @@ ingredient is compared (ADR-0082), no dose is calculated, and no remedy is sugge
 
 **PRN protocols, outcomes and the PRN frequency report (Phase 2, slice 28)**: checked; inside the
 boundary. A protocol stores the home's guidance in its own words, agreed with the prescriber or
-pharmacist, and shows the prescriber's limits from the entry; Harbour never suggests a sign, an
+pharmacist, and shows the prescriber's limits from the entry; Thapsus Care never suggests a sign, an
 alternative, an order or a dose. An outcome records what staff saw. The report counts records per
 person and medicine (doses, days, the most on one day, outcomes) and says it is a count for the
 prescriber and pharmacist; it applies no threshold, rate or score to any person. The psychotropic
 list holds exact dm+d products the organisation chose; nothing is matched by ingredient or name
 (ADR-0082).
 
-**Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
+**Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Thapsus Care never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Thapsus Care adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 **OCR of scanned MAR charts and e-signature (Phase 2, slice 79; ADR-0095)**: these stay inside the
 boundary. OCR transcribes the text on a photographed chart and nothing more: it never interprets a
 value, chooses a dm+d product, a dose unit or a schedule, or compares what it read with anything.
@@ -265,27 +265,36 @@ version of a document; it is a records control, not a clinical one.
 | Proposed feature | Phase | Question to answer |
 | --- | --- | --- |
 | Matching a recorded allergen to a medicine's dm+d ingredients on the administration screen (HZ-007) | 2 | Decided in [ADR-0082](../decisions/0082-medicines-rules-at-the-device-boundary.md) (proposed, CSO and a pharmacist to accept, H-514): allergies are displayed beside every medicine with no automated matching; in a reconciliation the completer confirms they compared the sources' allergies with the recorded ones |
-| Applying time-critical and minimum-interval rules (Parkinson's medicines, the paracetamol gap across products, bisphosphonates before food) | 2 | Decided in [ADR-0082](../decisions/0082-medicines-rules-at-the-device-boundary.md): the rules apply to entries a person tags at transcription and a second person checks; Harbour suggests a tag only from the tenant's own list of exact dm+d VMPs, never by ingredient or name; each entry's own interval is the prescription's or PRN protocol's; the figures are the tenant's, from the rate table |
+| Applying time-critical and minimum-interval rules (Parkinson's medicines, the paracetamol gap across products, bisphosphonates before food) | 2 | Decided in [ADR-0082](../decisions/0082-medicines-rules-at-the-device-boundary.md): the rules apply to entries a person tags at transcription and a second person checks; Thapsus Care suggests a tag only from the tenant's own list of exact dm+d VMPs, never by ingredient or name; each entry's own interval is the prescription's or PRN protocol's; the figures are the tenant's, from the rate table |
 | Dependency tool converting categories to care hours | 2 | Built as the safe default in slice 12 (section 5, "Dependency tool and required care hours"): the organisation's own scale, labelled as its tool, categories chosen by staff with a reason, hours added up with the method shown, no score or judgement of safe staffing. The CSO confirms the reading and decides whether it needs an ADR of its own (H-710) |
 | Wound photos with a ruler | 1 | Display only; no measurement from the image |
 | AI summaries that include clinical notes | 6 | Draft labelled "generated from records"; scope lock blocks interpretation; covered by the DPIA AI addendum |
-| Weight-loss or fluid alerts | 1 | Allowed only as tenant-configured thresholds, displayed as "your policy threshold", not as Harbour's assessment |
-| Risk assessment rating (likelihood x severity) | 1 | Decided in [ADR-0032](../decisions/0032-risk-assessment-rating.md) (proposed, CSO to accept, H-60): the assessor's own likelihood and severity, multiplied and banded with the published NPSA 2008 matrix (1 to 3 low, 4 to 6 moderate, 8 to 12 high, 15 to 25 extreme); the formula is shown and Harbour adds no parameters. The falls template is never rated (NICE NG249 1.1.1) |
-| Quality dashboard RAG (falls, pressure ulcers and medication errors per bed-days, overdue reviews, incident response) | 2 | Decided in slice 47 ([quality.md](../specs/quality.md) section 22, ADR-0108): counts of recorded events divided by a stated denominator, rated only against the organisation's own green and amber targets, shown with the working. No Harbour score, no prediction and nothing about one person; missing data is never rated (HZ-129) |
+| Weight-loss or fluid alerts | 1 | Allowed only as tenant-configured thresholds, displayed as "your policy threshold", not as Thapsus Care's assessment |
+| Risk assessment rating (likelihood x severity) | 1 | Decided in [ADR-0032](../decisions/0032-risk-assessment-rating.md) (proposed, CSO to accept, H-60): the assessor's own likelihood and severity, multiplied and banded with the published NPSA 2008 matrix (1 to 3 low, 4 to 6 moderate, 8 to 12 high, 15 to 25 extreme); the formula is shown and Thapsus Care adds no parameters. The falls template is never rated (NICE NG249 1.1.1) |
+| Quality dashboard RAG (falls, pressure ulcers and medication errors per bed-days, overdue reviews, incident response) | 2 | Decided in slice 47 ([quality.md](../specs/quality.md) section 22, ADR-0108): counts of recorded events divided by a stated denominator, rated only against the organisation's own green and amber targets, shown with the working. No Thapsus Care score, no prediction and nothing about one person; missing data is never rated (HZ-129) |
 
 **Re-checked for Phase 2 slice 37 (deaths and missing persons, 31 October 2026)**: no. Whether a
 death was expected, and whether its cause may be unnatural, is the clinician's judgement as
-recorded, never Harbour's; until it is recorded Harbour lists every step the safer answer needs,
+recorded, never Thapsus Care's; until it is recorded Thapsus Care lists every step the safer answer needs,
 which is a checklist, not an assessment. The mortality review records findings and lessons, never a
 score. The police call time is the tenant's own target from the rate table, applied as written; the
 Herbert Protocol profile copies what the record already holds and says where each part came from.
 Nothing interprets clinical data.
 
+Medicines stock, homely remedies and medication errors on the web (Phase 2 slice 55) stay on the
+same side. A storage reading shows only the API's "In range" or "Out of range", decided against the
+tenant's rate table range, with the figures beside it; the screen names no direction or cause and
+never says whether the medicines can still be used (the pharmacist decides; HZ-132). A homely remedy
+dose is checked against the tenant's own protocol as written, and the person's current medicines are
+listed for the giver to compare; Thapsus Care does not judge an interaction (HZ-120, H-1410). Medication
+error reports count records and judge nothing; the escalations shown are the API's prompts, never sent
+and never a severity score (HZ-134).
+
 ## 7. The question every clinical PR answers
 
 The PR template's clinical-safety section contains this question. A PR labelled `clinical` cannot merge until it is answered.
 
-> **Medical-device boundary**: Does this change make Harbour apply automated reasoning to produce a diagnosis, prognosis, risk score, or treatment or medication recommendation; interpret clinical data beyond a published tool's banding; change how a validated tool is calculated or displayed; or let AI output change a record or workflow without a human? **No** / **Yes** (an ADR and CSO review are required before merge, and this document is updated in the same PR).
+> **Medical-device boundary**: Does this change make Thapsus Care apply automated reasoning to produce a diagnosis, prognosis, risk score, or treatment or medication recommendation; interpret clinical data beyond a published tool's banding; change how a validated tool is calculated or displayed; or let AI output change a record or workflow without a human? **No** / **Yes** (an ADR and CSO review are required before merge, and this document is updated in the same PR).
 
 The `clinical-safety-reviewer` agent checks the answer against the diff. A "Yes" is not a failure; it means the boundary decision is made deliberately and recorded.
 
@@ -297,6 +306,8 @@ The `clinical-safety-reviewer` agent checks the answer against the diff. A "Yes"
 | Confirm terms for using NEWS2, MUST and Waterlow in software, and the authoritative Waterlow source | Brian with CSO |
 | Review and approve this boundary statement | CSO |
 
+**Printable MAR chart and controlled drugs register page (Phase 2 slice 50)**: these stay inside the boundary. They print the record as it stands: each dose's outcome as recorded, the reason recorded, when and by whom, the allergies and communication needs as recorded, and the register's entries, signatures and stock checks. They add no score, judgement or recommendation; "no outcome recorded" and "not yet due" describe the record, and every page says it is not the live record and to check the eMAR before giving or holding any medicine.
+
 **The medicines round on the phone (Phase 2 slice 69; ADR-0081)**: the phone runs the same
 `medicineRound` as the API on its synced MAR rows: which doses are due, late or recorded, from the
 prescriber's schedule and the tenant's dose windows in the rate table, and when a when-required
@@ -305,4 +316,4 @@ tenant-configured rules and the prescription as written; it makes no recommendat
 judgement of its own. Matching a scanned pack to the MAR entry's dm+d product and checking its
 expiry is a record-keeping check against reference data, not a clinical decision. Where the phone
 cannot know (a last dose older than its records) it says so and sends the carer to the nurse in
-charge. Re-checked for this PR: nothing in the slice moves Harbour across the boundary.
+charge. Re-checked for this PR: nothing in the slice moves Thapsus Care across the boundary.

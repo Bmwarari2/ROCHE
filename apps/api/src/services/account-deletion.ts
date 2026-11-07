@@ -80,7 +80,7 @@ export async function requestAccountDeletion(
       .insert(task)
       .values({
         kind: ACCOUNT_DELETION_TASK_KIND,
-        title: "A member asked for their Harbour account to be deleted",
+        title: "A member asked for their Thapsus Care account to be deleted",
         requiredPermission: MANAGE_MEMBERS,
         sourceType: "tenant_user",
         sourceId: access.tenantUserId,
@@ -93,6 +93,9 @@ export async function requestAccountDeletion(
       })
       .returning({ id: task.id, createdAt: task.createdAt });
     if (!created) throw new Error("The account deletion request was not stored.");
+    // Recorded on the member's own row (H-566, migration 0149): once that membership has ended
+    // and none is held elsewhere, the nightly sweep erases their sign-in. Acting for the member.
+    await tx.execute(sql`SELECT app.request_sign_in_erasure()`);
     if (assignee) {
       await tx.insert(notification).values({
         recipientTenantUserId: assignee,

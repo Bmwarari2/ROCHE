@@ -9,7 +9,7 @@ people assigned to them. Some roles can see the round but not act on it.
 
 ## Steps
 
-1. Go to **Round** in the menu. Choose your home if Harbour asks.
+1. Go to **Round** in the menu. Choose your home if Thapsus Care asks.
 2. Check the line at the top, for example "2 overdue, 3 due now, 5 still to come".
 3. Go to the person. To see only their tasks, choose **Show only Ada's tasks**. Choose
    **Show everyone** to go back.
@@ -40,7 +40,7 @@ people assigned to them. Some roles can see the round but not act on it.
 
 - **Allergies not recorded** means nobody has recorded whether the person has allergies. It does
   **not** mean they have none. Check with the nurse in charge.
-- **CPR decision not recorded** means no ReSPECT plan or DNACPR decision is in Harbour. Check the
+- **CPR decision not recorded** means no ReSPECT plan or DNACPR decision is in Thapsus Care. Check the
   paper record and tell the nurse in charge.
 - **Not recorded: check with the nurse in charge before giving any food** (or drink) means no food
   or drink level is recorded. Do not guess.

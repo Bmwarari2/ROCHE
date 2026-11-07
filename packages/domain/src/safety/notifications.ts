@@ -226,7 +226,11 @@ export const NOTIFICATION_KINDS: Readonly<Record<StatutoryNotificationKind, Noti
       clock: "without_delay",
       per: "person",
       retentionClass: "serious_incident",
-      source: cite("Harbour master prompt", "11.1 (Herbert Protocol)", "docs/00-MASTER-PROMPT.md"),
+      source: cite(
+        "Thapsus Care master prompt",
+        "11.1 (Herbert Protocol)",
+        "docs/00-MASTER-PROMPT.md",
+      ),
     },
   };
 

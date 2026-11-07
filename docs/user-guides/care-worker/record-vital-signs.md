@@ -29,7 +29,7 @@ managers.
 
 - **The score supports your judgement. It never replaces it.** If you are worried about the
   person, tell the nurse in charge whatever the score says.
-- Harbour calculates NEWS2 exactly as published (Royal College of Physicians, 2017) and never
+- Thapsus Care calculates NEWS2 exactly as published (Royal College of Physicians, 2017) and never
   changes a score.
 - A reading copied from a paper form is from the time written on it. Check it was escalated on
   paper, and check the person now.

@@ -25,20 +25,20 @@ function checkWords(valid: boolean | null): { title: string; detail: string } {
   if (valid === true) {
     return {
       title: "Signature checked",
-      detail: "This certificate has not been changed since Harbour signed it.",
+      detail: "This certificate has not been changed since Thapsus Care signed it.",
     };
   }
   if (valid === false) {
     return {
       title: "Signature does not match",
       detail:
-        "Do not rely on this certificate: it does not match what Harbour signed. Tell Thapsus Cargo Ltd.",
+        "Do not rely on this certificate: it does not match what Thapsus Care signed. Tell Thapsus Cargo Ltd.",
     };
   }
   return {
     title: "Not signed",
     detail:
-      "This certificate was issued before Harbour signed certificates, so it cannot be checked.",
+      "This certificate was issued before Thapsus Care signed certificates, so it cannot be checked.",
   };
 }
 
@@ -66,7 +66,7 @@ export function certificatePdfLines(
     { text: words.title, bold: true, size: 12, gapBefore: 8 },
     { text: words.detail },
     {
-      text: `Checked ${formatUkDateTimeWithZone(builtAt)}, when this PDF was made, against Harbour's certificate key.`,
+      text: `Checked ${formatUkDateTimeWithZone(builtAt)}, when this PDF was made, against Thapsus Care's certificate key.`,
       size: 9,
     },
     { text: "What was destroyed", bold: true, gapBefore: 10 },
@@ -107,7 +107,7 @@ export function certificatePdfLines(
     { text: `Signature (base64): ${row.signature ?? "none"}`, size: 8 },
     { text: "How to check it yourself", bold: true, gapBefore: 10 },
     {
-      text: `Take the signed body below exactly as printed (UTF-8, no added spaces or line breaks: the lines are broken only to fit the page), check its SHA-256, then verify the signature with Harbour's published certificate public key. Harbour also checks it at /v1/destruction-certificates/${row.id}/verification.`,
+      text: `Take the signed body below exactly as printed (UTF-8, no added spaces or line breaks: the lines are broken only to fit the page), check its SHA-256, then verify the signature with Thapsus Care's published certificate public key. Thapsus Care also checks it at /v1/destruction-certificates/${row.id}/verification.`,
     },
     { text: "Signed body", bold: true, gapBefore: 10 },
     { text: check.body, size: 8 },

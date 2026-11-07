@@ -251,7 +251,7 @@ describe("hazard HZ-011 row-level security coverage", () => {
     expect(writes).toEqual([]);
   });
 
-  it("gives no Harbour role the ability to bypass RLS", async () => {
+  it("gives no Thapsus Care role the ability to bypass RLS", async () => {
     const { rows } = await db
       .pool("harbour_owner")
       .query<{ rolname: string }>(

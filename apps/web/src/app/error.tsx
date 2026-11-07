@@ -17,7 +17,7 @@ export default function ErrorPage({
   readonly retry: () => void;
 }) {
   useEffect(() => {
-    console.error("Harbour page error", error.digest ?? error.name);
+    console.error("Thapsus Care page error", error.digest ?? error.name);
   }, [error]);
 
   return (

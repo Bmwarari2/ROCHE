@@ -153,7 +153,7 @@ describe("the weekly break-glass report screens", () => {
         () => "",
         t,
       ),
-    ).toContain("Contact Harbour support");
+    ).toContain("Contact Thapsus Care support");
   });
 
   it("counts a searcher's repeated use among the things flagged", () => {
@@ -328,8 +328,8 @@ describe("the weekly break-glass report screens", () => {
       t,
     );
     expect(staff(USER_A)).toBe("Nell Nurse, Clinical lead");
-    expect(staff(USER_B)).toBe("A member of staff Harbour cannot name");
-    expect(staff(null)).toBe("A member of staff Harbour cannot name");
+    expect(staff(USER_B)).toBe("A member of staff Thapsus Care cannot name");
+    expect(staff(null)).toBe("A member of staff Thapsus Care cannot name");
   });
 
   it("names the reader's own people and numbers the others in the report's order", () => {
@@ -373,7 +373,7 @@ describe("the weekly break-glass report screens", () => {
       ],
     });
     expect(summary.byReason.map((l) => t("breakGlassReport.reason", { reason: l.reason }))).toEqual(
-      ["Something else", "No reason chosen", "A reason Harbour cannot describe"],
+      ["Something else", "No reason chosen", "A reason Thapsus Care cannot describe"],
     );
   });
 

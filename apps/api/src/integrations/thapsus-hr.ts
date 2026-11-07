@@ -7,7 +7,6 @@ import {
   type HrLocation,
   type HrPage,
   type HrPayUnit,
-  type HrRate,
   type HrResult,
   type HrShift,
   type HrStarter,
@@ -75,8 +74,24 @@ export class MockThapsusHr implements ThapsusHrPort {
     readonly apiBaseUrl: string = workspaceInfo.apiBaseUrl,
   ) {}
 
+  /**
+   * Serve the pay capabilities Thapsus-HR's Phase 19 plans (K4, K5), for building and testing
+   * against them before they ship. Off by default, as at the pinned commit.
+   */
+  phase19 = false;
+  readonly payPeriodsList: Record<string, unknown>[] = [];
+  readonly ratesList: Record<string, unknown>[] = [];
+  /** The partner items held per pay period (replaced by each put). */
+  readonly payItems = new Map<string, readonly HrPayUnit[]>();
+
   capabilities() {
-    return THAPSUS_HR_CAPABILITIES;
+    return this.phase19
+      ? {
+          ...THAPSUS_HR_CAPABILITIES,
+          partner_pay_items: "available" as const,
+          pay_rates_read: "available" as const,
+        }
+      : THAPSUS_HR_CAPABILITIES;
   }
 
   private limited(): HrResult<never> | null {
@@ -112,13 +127,14 @@ export class MockThapsusHr implements ThapsusHrPort {
   }
 
   private idempotent(
-    flow: OutboundFlow,
+    /** The flow whose allow-list the body is checked against; null when the caller checked it. */
+    flow: OutboundFlow | null,
     key: string,
     route: string,
     body: object,
   ): HrResult<{ readonly id: string }> {
     // Anything outside the flow's allow-list is refused, never sent (rule 4).
-    if (outboundProblems(flow, body).length > 0) return { ok: false, error: "refused" };
+    if (flow && outboundProblems(flow, body).length > 0) return { ok: false, error: "refused" };
     const scoped = `${route} ${key}`;
     const text = JSON.stringify(body);
     const known = this.keys.get(scoped);
@@ -166,16 +182,56 @@ export class MockThapsusHr implements ThapsusHrPort {
     );
   }
 
+  /**
+   * Units by pay code for a pay period (K4: `PUT /v1/pay-periods/{id}/partner-items`, idempotent;
+   * a later put replaces the partner's items for the period). Planned at the pinned commit; the
+   * mock serves it only with `phase19` set, as Thapsus-HR's Phase 19 plans it (slice 89).
+   */
   async putPayUnits(
-    _payPeriodId: string,
-    _units: readonly HrPayUnit[],
-    _key: string,
+    payPeriodId: string,
+    units: readonly HrPayUnit[],
+    key: string,
   ): Promise<HrResult<{ readonly accepted: number }>> {
-    return planned; // K4
+    if (!this.phase19) return planned; // K4
+    if (!this.payPeriodsList.some((p) => p.id === payPeriodId)) {
+      return this.limited() ?? { ok: false, error: "not_found" };
+    }
+    // Each item within the pay units allow-list, for this period (rule 4).
+    if (
+      units.some(
+        (u) => outboundProblems("pay_units", u).length > 0 || u.payPeriodId !== payPeriodId,
+      )
+    ) {
+      return this.limited() ?? { ok: false, error: "refused" };
+    }
+    const before = this.writes.length;
+    const r =
+      this.limited() ??
+      this.idempotent(null, key, "PUT /v1/pay-periods/partner-items", { payPeriodId, units });
+    if (!r.ok) return r;
+    // A replay of the same key answers as before and changes nothing.
+    if (this.writes.length > before) this.payItems.set(payPeriodId, units);
+    return { ok: true, value: { accepted: units.length } };
   }
 
-  async rates(_employeeIds: readonly string[]): Promise<HrResult<readonly HrRate[]>> {
-    return planned; // K5
+  /** Hourly rates and effective dates only (K5, scope pay-rates:read); `phase19` as above. */
+  async rates(
+    employeeIds: readonly string[],
+  ): Promise<HrResult<readonly Readonly<Record<string, unknown>>[]>> {
+    if (!this.phase19) return planned; // K5
+    const wanted = new Set(employeeIds);
+    return (
+      this.limited() ?? {
+        ok: true,
+        value: this.ratesList.filter((r) => wanted.has(String(r.employeeId))),
+      }
+    );
+  }
+
+  /** Pay periods readable by API clients (K5); `phase19` as above. */
+  async payPeriods(): Promise<HrResult<readonly Readonly<Record<string, unknown>>[]>> {
+    if (!this.phase19) return planned; // K5
+    return this.limited() ?? { ok: true, value: this.payPeriodsList };
   }
 
   async health(): Promise<HealthResult> {

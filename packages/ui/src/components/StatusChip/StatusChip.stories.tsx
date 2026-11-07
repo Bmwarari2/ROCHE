@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { History, PencilLine } from "lucide-react";
+import { History, Lock, PencilLine } from "lucide-react";
 import { StatusChip } from "./StatusChip";
 
 const meta = {
@@ -55,5 +55,18 @@ export const CustomIcons: Story = {
       <StatusChip status="info" label="Draft, not in use" icon={PencilLine} />
       <StatusChip status="neutral" label="Superseded" icon={History} />
     </div>
+  ),
+};
+
+/**
+ * A read-only copy kept by another system, as the HR platform link labels absences and pay runs
+ * (slice 90): a lock and the words, with what to do beside it.
+ */
+export const ManagedElsewhere: Story = {
+  render: () => (
+    <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+      <StatusChip status="info" icon={Lock} label="Managed in the HR platform" />
+      <span>Change it in the HR platform. This copy follows at the next sync.</span>
+    </span>
   ),
 };

@@ -45,12 +45,12 @@ const SSO_MESSAGES: Record<SsoProblem, string> = {
   sso_off: "Single sign-on is not switched on for this organisation.",
   email_not_verified: "Your organisation's sign-in did not confirm your email address.",
   domain_not_verified: "This organisation has not verified your email domain for single sign-on.",
-  not_a_member: "Ask your manager to invite you to Harbour first.",
+  not_a_member: "Ask your manager to invite you to Thapsus Care first.",
   email_mismatch: "Sign in with the email address you were invited with.",
   member_not_active: "Your account is not active in this organisation.",
-  family_member: "Family members sign in with their own Harbour sign-in, not single sign-on.",
+  family_member: "Family members sign in with their own Thapsus Care sign-in, not single sign-on.",
   operator: "Thapsus operators sign in to the operator console, not with single sign-on.",
-  role_not_allowed: "Your role signs in with Harbour's own sign-in, not single sign-on.",
+  role_not_allowed: "Your role signs in with Thapsus Care's own sign-in, not single sign-on.",
 };
 
 function domainOf(email: string): string {
@@ -107,7 +107,7 @@ export function ssoSessionMayUse(
     return {
       ok: false,
       problem: "harbour_second_factor_required",
-      message: "Confirm it is you with your Harbour passkey or authenticator code first.",
+      message: "Confirm it is you with your Thapsus Care passkey or authenticator code first.",
     };
   }
   return { ok: true };

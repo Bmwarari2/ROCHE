@@ -553,7 +553,7 @@ export const shredRouter = createRouter()
       tags: ["platform"],
       summary: "Check a destruction certificate's signature",
       description:
-        "Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Harbour's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.",
+        "Rebuilds the certificate's canonical body from the stored record and checks its SHA-256 and its signature against Thapsus Care's certificate key. The body is returned exactly as signed, so anyone with the published public key can check it independently.",
       security,
       request: { params: Id },
       responses: {

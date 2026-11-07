@@ -9,12 +9,12 @@ import { guarded, SmtpEmail, type SmtpTransport, smtpTransport } from "./adapter
  * a double that throws as nodemailer does.
  */
 
-const FROM = "Harbour <no-reply@example.invalid>";
+const FROM = "Thapsus Care <no-reply@example.invalid>";
 const DOMAINS = ["example.invalid"];
 const MESSAGE: EmailMessage = {
   idempotencyKey: "invite-1",
   to: "ada.example@example.invalid",
-  title: "You have been invited to Harbour",
+  title: "You have been invited to Thapsus Care",
   link: "https://app.harbour.example.invalid/invitations/abc",
 };
 
@@ -34,6 +34,18 @@ function captured(): { transport: SmtpTransport; raw: () => Promise<string> } {
   };
 }
 
+/** The text a reader sees: the quoted-printable body decoded (soft line breaks joined, `=XX` bytes). */
+function bodyText(raw: string): string {
+  const body = raw.slice(raw.indexOf("\n\n") + 2);
+  const joined = body.replace(/=\r?\n/g, "");
+  return Buffer.from(
+    joined.replace(/=([0-9A-F]{2})/g, (_match, hex: string) =>
+      String.fromCharCode(parseInt(hex, 16)),
+    ),
+    "latin1",
+  ).toString("utf8");
+}
+
 function failing(error: Record<string, unknown>): SmtpTransport {
   return {
     sendMail: async () => {
@@ -51,10 +63,13 @@ describe("SmtpEmail", () => {
     const result = await new SmtpEmail(FROM, transport, DOMAINS).send(MESSAGE);
     expect(result).toMatchObject({ ok: true });
     const message = await raw();
-    expect(message).toContain("Subject: You have been invited to Harbour");
+    expect(message).toContain("Subject: You have been invited to Thapsus Care");
     expect(message).toContain("To: ada.example@example.invalid");
     expect(message).toContain("Content-Type: text/plain; charset=utf-8");
-    expect(message).toContain("Open Harbour to see the details:");
+    // The body is quoted-printable, so a long line may be folded: read it as the recipient does.
+    expect(bodyText(message)).toContain(
+      "Open Thapsus Care to see the details: https://app.harbour.example.invalid/invitations/abc",
+    );
     expect(message).not.toContain("text/html");
     expect(message).not.toContain("Content-Disposition: attachment");
   });
@@ -65,7 +80,7 @@ describe("SmtpEmail", () => {
       ...MESSAGE,
       body: "A manager will be in touch.",
     });
-    expect(await raw()).toContain("A manager will be in touch.");
+    expect(bodyText(await raw())).toContain("A manager will be in touch.");
   });
 
   it.each([
@@ -99,10 +114,10 @@ describe("SmtpEmail", () => {
 
 describe("SmtpEmail sender domains (#164 security review, L2)", () => {
   it.each([
-    ["a domain not on the list", "Harbour <alerts@elsewhere.example>", DOMAINS],
+    ["a domain not on the list", "Thapsus Care <alerts@elsewhere.example>", DOMAINS],
     ["a subdomain of an allowed domain", "alerts@mail.example.invalid", DOMAINS],
     ["no domains configured", FROM, []],
-    ["something that is not an address", "Harbour", DOMAINS],
+    ["something that is not an address", "Thapsus Care", DOMAINS],
   ])("sends nothing from %s", async (_label, from, domains) => {
     let sent = 0;
     const transport = {

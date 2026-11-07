@@ -134,9 +134,9 @@ describe("the email body (H-225)", () => {
       "Your code is 123456.\n",
     );
   });
-  it("otherwise sends the title and the link into Harbour", () => {
+  it("otherwise sends the title and the link into Thapsus Care", () => {
     expect(emailTextBody({ ...base, link: "https://app.example.invalid/x" })).toBe(
-      "A visit was missed\n\nOpen Harbour to see the details: https://app.example.invalid/x\n",
+      "A visit was missed\n\nOpen Thapsus Care to see the details: https://app.example.invalid/x\n",
     );
   });
 });

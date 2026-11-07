@@ -47,7 +47,7 @@ const audits = (action: string) =>
   );
 
 describe("rule 27 onboarding decisions are records, never ticks", () => {
-  it("records a decision on a setting Harbour chose, and refuses one with nothing behind it", async () => {
+  it("records a decision on a setting Thapsus Care chose, and refuses one with nothing behind it", async () => {
     const defaults = await read<{ key: string }>(
       `SELECT DISTINCT key FROM rate_table
         WHERE tenant_id IS NULL AND (source ILIKE '%tenant default%' OR source ILIKE '%tenant setting%')

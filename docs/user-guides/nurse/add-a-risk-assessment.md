@@ -12,7 +12,7 @@
 3. Say **What is the hazard?** and **Who is at risk?**
 4. Answer the **Questions from the template**.
 5. Choose how likely and how bad the harm would be, without and with the controls. These are your
-   judgements: Harbour works out the rating from them.
+   judgements: Thapsus Care works out the rating from them.
 6. Tick the **Controls in place** and add any others.
 7. Write the **Positive risk statement** and the person's views.
 8. Set the **Date assessed** and **Review by**, then choose **Save risk assessment**.

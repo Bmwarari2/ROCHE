@@ -1,6 +1,6 @@
 ---
 name: hazard
-description: Add or update a hazard in Harbour's DCB0129 clinical hazard log, with controls and the automated tests that verify them. Use for any change that could affect care, medicines, alerts, sync, time or identity.
+description: Add or update a hazard in Thapsus Care's DCB0129 clinical hazard log, with controls and the automated tests that verify them. Use for any change that could affect care, medicines, alerts, sync, time or identity.
 ---
 
 # Hazard log entry

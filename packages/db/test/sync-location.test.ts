@@ -196,6 +196,15 @@ describe("hazard HZ-138 a person's recent record moves to their new home's phone
     }
   });
 
+  it("refuses the migrator even a routing-only change: only the move's own definer makes one (ADR-0133)", async () => {
+    await expect(
+      inContext(owner(), ctx(TENANT_A, null, "tenant"), async (c) => {
+        await c.query("SELECT set_config('app.sync_location_move', 'on', true)");
+        await c.query("UPDATE care_note SET sync_location_id = location_id");
+      }),
+    ).rejects.toThrow(/append-only/);
+  });
+
   it("refuses the owner a change to anything but the sync home, even while moving", async () => {
     await expect(
       inContext(owner(), ctx(TENANT_A, null, "tenant"), async (c) => {

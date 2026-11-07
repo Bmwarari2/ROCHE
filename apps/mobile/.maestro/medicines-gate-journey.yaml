@@ -1,7 +1,7 @@
 # The Phase 2 medicines gate journey (slices 68 to 70), for an iOS simulator and an Android
 # emulator: the round opens after a complete sync; a witness and the member set medicines PINs on
 # this phone while online; a controlled drug is given offline with both PINs; a record is corrected
-# with why; everything reaches Harbour once the network returns. Positive identification and pack
+# with why; everything reaches Thapsus Care once the network returns. Positive identification and pack
 # checks are covered in hazard-HZ-003-offline-round.yaml.
 #
 # Needs the live API stack; HARBOUR_CD_MEDICINE (a controlled drug with stock on its register page)

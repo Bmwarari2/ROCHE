@@ -25,7 +25,7 @@ export const keyOptions: KeyOptions = {
   plainOptions,
   protectedOptions: (protection: KeyProtection) => ({
     requireAuthentication: protection === "biometric",
-    authenticationPrompt: "Unlock Harbour",
+    authenticationPrompt: "Unlock Thapsus Care",
     keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
   }),
 };

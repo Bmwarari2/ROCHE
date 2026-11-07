@@ -311,7 +311,8 @@ export function statementOfPurposeChanges(
     locations: [],
   };
   if (previous === null) {
-    for (const key of STATEMENT_OF_PURPOSE_ITEM_KEYS) lines[key].push("First version in Harbour");
+    for (const key of STATEMENT_OF_PURPOSE_ITEM_KEYS)
+      lines[key].push("First version in Thapsus Care");
   } else {
     if (!same(previous.aimsAndObjectives, next.aimsAndObjectives)) {
       lines.aims_and_objectives.push("Aims and objectives reworded");

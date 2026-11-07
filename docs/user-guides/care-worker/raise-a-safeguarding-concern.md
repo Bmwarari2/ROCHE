@@ -5,7 +5,7 @@ at risk of it.
 
 **Who can do this**: anyone who records incidents (care workers, agency and bank workers, senior
 carers, nurses, managers, the owner and most other staff), about a person they can see in
-Harbour. You need to have signed in with your passkey or authenticator app.
+Thapsus Care. You need to have signed in with your passkey or authenticator app.
 
 **Register row**: SAFE-006.
 
@@ -38,9 +38,9 @@ Harbour. You need to have signed in with your passkey or authenticator app.
 ## Good to know
 
 - The referral clock starts when you raise the concern. A manager decides whether to refer it to
-  the local authority. Harbour never refers it for them.
+  the local authority. Thapsus Care never refers it for them.
 - The managers who run the safeguarding log at the person's home are told straight away, urgently,
-  in Harbour, with a task to decide on the referral. Harbour does not send it to their phone or
+  in Thapsus Care, with a task to decide on the referral. Thapsus Care does not send it to their phone or
   email, so they see it when they next sign in. If no manager opens it, the next person in your
   organisation's escalation chain is told. **Always tell the person in charge, or the
   safeguarding lead, yourself too**, as your safeguarding procedure says.

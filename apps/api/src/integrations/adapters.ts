@@ -64,7 +64,7 @@ class Unconfigured<M extends OutboundMessage> {
 export function emailTextBody(message: EmailMessage): string {
   if (message.body !== undefined)
     return message.body.endsWith("\n") ? message.body : `${message.body}\n`;
-  return `${message.title}\n\n${message.link ? `Open Harbour to see the details: ${message.link}` : "Open Harbour to see the details."}\n`;
+  return `${message.title}\n\n${message.link ? `Open Thapsus Care to see the details: ${message.link}` : "Open Thapsus Care to see the details."}\n`;
 }
 
 /** What the SMTP adapter uses of a nodemailer transport (a double in tests). */

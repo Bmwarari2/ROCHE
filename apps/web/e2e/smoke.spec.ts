@@ -44,7 +44,9 @@ async function expectAccessible(page: Page, name: string) {
 
 async function signIn(page: Page, email: string) {
   await page.goto("/sign-in");
-  await expect(page.getByRole("heading", { level: 1, name: "Sign in to Harbour" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Sign in to Thapsus Care" }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign in with a passkey" })).toBeVisible();
   await expectAccessible(page, "sign-in");
   await page.getByLabel("Email address").fill(email);

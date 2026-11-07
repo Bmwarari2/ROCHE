@@ -16,6 +16,7 @@ export * from "./enums";
 export * from "./esign-ocr";
 export * from "./exports";
 export * from "./hr-link";
+export * from "./hr-pay";
 export * from "./imports";
 export * from "./induction";
 export * from "./integrations";

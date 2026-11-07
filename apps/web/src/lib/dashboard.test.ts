@@ -225,7 +225,7 @@ describe("tasks on the round", () => {
   it("warns, with no count, when nothing loaded", () => {
     const tile = tasksTile([FAILED, FAILED], "/round") as TileSummary;
     expect(tile).toMatchObject({ state: "failed", count: null });
-    expect(countLine(tile, t)).toBe("Harbour could not load this. Open the list to check it.");
+    expect(countLine(tile, t)).toBe("Thapsus Care could not load this. Open the list to check it.");
     expect(tileChips(tile, t)).toEqual([
       { status: "due", icon: "triangle-alert", label: "Could not load" },
     ]);

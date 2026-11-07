@@ -1002,7 +1002,7 @@ export const caseworkRouter = createRouter()
       tags: ["workforce"],
       summary: "Record a DBS or regulator referral decision",
       description:
-        "A case manager, with expectedVersion: referred on a date, or not required with a reason (rule 17). The decision is the people's; Harbour refers nobody. Audited with codes only.",
+        "A case manager, with expectedVersion: referred on a date, or not required with a reason (rule 17). The decision is the people's; Thapsus Care refers nobody. Audited with codes only.",
       security,
       request: {
         params: IdParam,

@@ -1,6 +1,6 @@
 ---
 name: add-migration
-description: Add a Drizzle migration safely for Harbour - schema change, generated SQL, custom SQL for RLS, grants and triggers, expand-and-contract rollout, and the isolation tests. Use whenever packages/db/src/schema changes.
+description: Add a Drizzle migration safely for Thapsus Care - schema change, generated SQL, custom SQL for RLS, grants and triggers, expand-and-contract rollout, and the isolation tests. Use whenever packages/db/src/schema changes.
 ---
 
 # Add a database migration

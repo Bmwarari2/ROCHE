@@ -137,7 +137,7 @@ describe("where an import stands, as an icon and a word", () => {
     ["undone", "notApplicable", "Undone"],
     ["discarded", "notApplicable", "Discarded"],
     ["expired", "notApplicable", "Expired"],
-    ["something_new", "overdue", "Unknown: check with Harbour support"],
+    ["something_new", "overdue", "Unknown: check with Thapsus Care support"],
   ])("%s", (status, chip, label) => {
     expect(importChip(status, t)).toMatchObject({ status: chip, label });
     expect(importChip(status, t).icon).toBeTruthy();
@@ -161,7 +161,7 @@ describe("findings name the row and field, and the other row or record (HZ-130)"
         personId: "0194d000-0000-7000-8000-000000000401",
         match: "names_swapped",
       },
-      "Row 5 (Date of birth) may be someone already in Harbour: names swapped, same date of birth. I have checked it",
+      "Row 5 (Date of birth) may be someone already in Thapsus Care: names swapped, same date of birth. I have checked it",
     ],
     [
       { row: 6, column: "date_of_birth" },

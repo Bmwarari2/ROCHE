@@ -2,6 +2,7 @@ import { Card, EmptyState, PageHeader } from "@harbour/ui";
 import { Banknote } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { ManagedInHrPlatform } from "@/components/hr-link/ManagedInHrPlatform";
 import { PayNotOrganisationWide } from "@/components/pay-time/PayNotOrganisationWide";
 import { OverrideForm, RunActions } from "@/components/pay-time/PayTimeForms";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
@@ -16,6 +17,7 @@ import {
   hoursAndMinutes,
   PAY_APPROVE,
   PAY_MANAGE,
+  paidThroughHrPlatform,
   payRunChip,
   payShown,
   pounds,
@@ -67,6 +69,7 @@ export default async function PayRunPage({ params }: { readonly params: Promise<
           <p className="m-0 flex flex-wrap items-center gap-2">
             <SafetyChip chip={payRunChip(run, t)} />
           </p>
+          {paidThroughHrPlatform(run) ? <ManagedInHrPlatform detail="payRun" /> : null}
           {run.calculatedAt ? (
             <p className="m-0 text-body-dense text-text-secondary">
               {t("payTime.run.calculatedAt", {

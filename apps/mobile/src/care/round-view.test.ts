@@ -131,10 +131,10 @@ describe("what each task on the round says", () => {
     expect(roundItem(row(), NOW).flags).toEqual([]);
   });
 
-  it("hazard HZ-006 ties an entry Harbour refused back to its task, and offers it again", () => {
+  it("hazard HZ-006 ties an entry Thapsus Care refused back to its task, and offers it again", () => {
     const item = roundItem(row({ evidence_required: 1, evidence_refused: 1 }), NOW);
     expect(item.action).toBe("evidence");
-    expect(item.notices[0]).toMatch(/^An entry for this task was not accepted by Harbour/);
+    expect(item.notices[0]).toMatch(/^An entry for this task was not accepted by Thapsus Care/);
   });
 
   it("says it cannot tell when a plan's round has no earlier-plan flag yet (#123 clinical review, L8)", () => {
@@ -150,7 +150,7 @@ describe("what each task on the round says", () => {
     const item = roundItem(row({ kind: "medicines.administration" }), NOW);
     expect(item.action).toBe("none");
     expect(item.notices).toContain(
-      "Medicines are recorded on the Medicines tab, where it is on, or in Harbour on the web.",
+      "Medicines are recorded on the Medicines tab, where it is on, or in Thapsus Care on the web.",
     );
   });
 
@@ -180,7 +180,7 @@ describe("what each task on the round says", () => {
   it("says where to record evidence for a task about nobody", () => {
     const item = roundItem(row({ evidence_required: 1, person_id: null }), NOW);
     expect(item.notices).toContain(
-      "This task is not about one person. Record it in Harbour on the web.",
+      "This task is not about one person. Record it in Thapsus Care on the web.",
     );
   });
 
@@ -290,7 +290,7 @@ describe("hazard HZ-028 what the round on this phone holds, never read as nothin
       holds: "This phone holds the open tasks due from 10/10/2026 at 01:00 to 13/10/2026 at 00:59.",
       synced: "Last successful sync 11/10/2026 at 10:45",
       incomplete:
-        "Tasks due before then, and changes made since the last sync, are not shown here. The whole round is in Harbour on the web.",
+        "Tasks due before then, and changes made since the last sync, are not shown here. The whole round is in Thapsus Care on the web.",
     });
   });
 
@@ -347,7 +347,7 @@ describe("who to tell when a task cannot be marked (#36 review round 2)", () => 
     [
       "the person in charge, who manages tasks",
       true,
-      "You cannot mark this task on this phone. You can check and change the task in Harbour on the web.",
+      "You cannot mark this task on this phone. You can check and change the task in Thapsus Care on the web.",
     ],
   ])("tells %s what to do", (_label, manager, words) => {
     expect(roundRefusalText({ key: "mobile.round.notYours" }, manager)).toBe(words);

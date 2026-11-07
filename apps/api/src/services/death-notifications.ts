@@ -127,7 +127,7 @@ export async function draftDeathNotifications(
             dueAt: diedAt,
             wording: info.statutory
               ? "Due without delay: overdue until submitted or marked not required with a reason."
-              : "Due without delay (Harbour sets this; the law sets no time): overdue until done or marked not required with a reason.",
+              : "Due without delay (Thapsus Care sets this; the law sets no time): overdue until done or marked not required with a reason.",
             statutory: info.statutory,
           },
         ],

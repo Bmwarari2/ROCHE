@@ -176,7 +176,7 @@ export const careSettingsRouter = createRouter()
       tags: ["care"],
       summary: "The escalation policy each validated tool's result links",
       description:
-        "The organisation's live links, for one band or every band of a tool, for one location or the whole organisation, with the bands each tool's results carry. Results show the most specific link for their tool, band and location, or that none is configured; Harbour adds no recommendation (medical-device boundary section 5 rule 4).",
+        "The organisation's live links, for one band or every band of a tool, for one location or the whole organisation, with the bands each tool's results carry. Results show the most specific link for their tool, band and location, or that none is configured; Thapsus Care adds no recommendation (medical-device boundary section 5 rule 4).",
       security,
       responses: {
         200: jsonBody(EscalationPolicyLinkList, "Links"),

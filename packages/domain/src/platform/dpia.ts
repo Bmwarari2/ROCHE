@@ -350,7 +350,7 @@ const PHASE_2_RISKS: readonly DpiaRisk[] = [
   },
   {
     id: "R27",
-    risk: "An identity provider account linked to the wrong member, or sign-in without Harbour's second factor",
+    risk: "An identity provider account linked to the wrong member, or sign-in without Thapsus Care's second factor",
     likelihood: "possible",
     severity: "severe",
     overall: "high",
@@ -420,7 +420,7 @@ export function prefillDpia(config: DpiaConfig, generatedAt: Date): DpiaDraft {
         dpo: config.tenant.dpo,
         caldicottGuardian: config.tenant.caldicottGuardian,
         siro: config.tenant.siro,
-        processor: "Thapsus Cargo Ltd (Harbour)",
+        processor: "Thapsus Cargo Ltd (Thapsus Care)",
         dpaSignedOn: config.tenant.dpaSignedOn,
       },
       tenantFields: [],

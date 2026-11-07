@@ -109,7 +109,7 @@ function Switcher({ switcher, icon }: { switcher: AppBarSwitcher; icon: ReactNod
  * location names shorten with an ellipsis so the actions (such as `AccountMenu`) stay on screen.
  */
 export function AppBar({
-  productName = "Harbour",
+  productName = "Thapsus Care",
   brandLogoSrc,
   homeHref = "/",
   tenant,

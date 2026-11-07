@@ -22,7 +22,7 @@ export default function Index() {
   return (
     <View style={[styles.centre, { backgroundColor: theme.colors.bg }]} testID="splash">
       <ActivityIndicator color={theme.colors.textSecondary} accessibilityLabel="Loading" />
-      <Text tone="secondary">Harbour</Text>
+      <Text tone="secondary">Thapsus Care</Text>
     </View>
   );
 }

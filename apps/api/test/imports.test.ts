@@ -269,7 +269,7 @@ describe("hazard HZ-130 uploading names columns and rows by number, never by wha
 });
 
 describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
-  it("hazard HZ-130 reports a number already in Harbour, at another home too, and treats another organisation's as new", async () => {
+  it("hazard HZ-130 reports a number already in Thapsus Care, at another home too, and treats another organisation's as new", async () => {
     const fresh = nextNhs();
     const { id, report } = await stagedAndChecked(
       [

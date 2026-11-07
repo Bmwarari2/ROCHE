@@ -291,7 +291,7 @@ export function checkDose(dose: Dose, permittedUnits: readonly DoseUnit[]): read
     const smallerName = doseUnitName(smallerUnit, false);
     issues.push({
       problem: "smaller_unit_permitted",
-      message: `A dose below 1 ${doseUnitName(dose.unit, true)} is written in ${smallerName} for this product, never as a decimal of ${name}. Harbour does not convert doses: ask the prescriber or pharmacist for the dose in ${smallerName}.`,
+      message: `A dose below 1 ${doseUnitName(dose.unit, true)} is written in ${smallerName} for this product, never as a decimal of ${name}. Thapsus Care does not convert doses: ask the prescriber or pharmacist for the dose in ${smallerName}.`,
     });
   }
   return issues;

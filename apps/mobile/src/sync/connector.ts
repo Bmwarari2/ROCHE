@@ -128,7 +128,7 @@ export class SessionRevokedError extends Error {
 export class DeviceRevokedError extends SessionRevokedError {
   constructor() {
     super();
-    this.message = "This device has been withdrawn from Harbour";
+    this.message = "This device has been withdrawn from Thapsus Care";
     this.name = "DeviceRevokedError";
   }
 }

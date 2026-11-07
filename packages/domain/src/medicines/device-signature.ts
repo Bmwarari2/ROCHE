@@ -81,7 +81,7 @@ export const DEVICE_SIGNATURE_WORDS: Readonly<Record<DeviceSignatureIssue, strin
   witness_signed_after:
     "The witness signed after the dose was recorded. The witness signs when they see it given.",
   signed_too_long_ago:
-    "A signature is older than this phone may keep records. Record the dose in Harbour on the web.",
+    "A signature is older than this phone may keep records. Record the dose in Thapsus Care on the web.",
   signature_invalid:
     "A signature does not match what was recorded. Record it again with both PINs.",
 };

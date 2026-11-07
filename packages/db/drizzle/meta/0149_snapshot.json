@@ -1,6 +1,6 @@
 {
-  "id": "6da33a7c-0f8e-4b32-ad0f-ff52f5a80614",
-  "prevId": "6eb939c6-4f72-4a60-9d06-85e6bd95739b",
+  "id": "52eb2a35-2313-4d06-92ba-fdaa29143d6b",
+  "prevId": "52c82d9b-6d6f-48d0-959c-ff75a63fa711",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -18100,6 +18100,489 @@
       },
       "isRLSEnabled": false
     },
+    "public.hr_pay_period": {
+      "name": "hr_pay_period",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "hr_id": {
+          "name": "hr_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starts_on": {
+          "name": "starts_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_on": {
+          "name": "ends_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "hr_pay_period_hr_key": {
+          "name": "hr_pay_period_hr_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "hr_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "deleted_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "hr_pay_period_start_key": {
+          "name": "hr_pay_period_start_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "frequency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "starts_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "deleted_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "hr_pay_period_tenant_id_id_key": {
+          "name": "hr_pay_period_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "hr_pay_period_values": {
+          "name": "hr_pay_period_values",
+          "value": "hr_id ~ '^[A-Za-z0-9_-]{1,64}$' AND frequency IN ('weekly', 'monthly')\n        AND ends_on >= starts_on AND ends_on - starts_on <= 30"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.hr_pay_rate": {
+      "name": "hr_pay_rate",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hourly_pence": {
+          "name": "hourly_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "hr_pay_rate_from_key": {
+          "name": "hr_pay_rate_from_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "staff_profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "deleted_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "hr_pay_rate_staff_profile_fk": {
+          "name": "hr_pay_rate_staff_profile_fk",
+          "tableFrom": "hr_pay_rate",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "hr_pay_rate_tenant_id_id_key": {
+          "name": "hr_pay_rate_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "hr_pay_rate_values": {
+          "name": "hr_pay_rate_values",
+          "value": "hourly_pence BETWEEN 1 AND 100000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.hr_pay_unit": {
+      "name": "hr_pay_unit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hr_pay_period_id": {
+          "name": "hr_pay_period_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_kind": {
+          "name": "unit_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pay_code": {
+          "name": "pay_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "hr_pay_unit_period_idx": {
+          "name": "hr_pay_unit_period_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "hr_pay_period_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "hr_pay_unit_run_fk": {
+          "name": "hr_pay_unit_run_fk",
+          "tableFrom": "hr_pay_unit",
+          "tableTo": "pay_run",
+          "columnsFrom": [
+            "tenant_id",
+            "run_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "hr_pay_unit_period_fk": {
+          "name": "hr_pay_unit_period_fk",
+          "tableFrom": "hr_pay_unit",
+          "tableTo": "hr_pay_period",
+          "columnsFrom": [
+            "tenant_id",
+            "hr_pay_period_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "hr_pay_unit_member_fk": {
+          "name": "hr_pay_unit_member_fk",
+          "tableFrom": "hr_pay_unit",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "member_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "hr_pay_unit_tenant_id_id_key": {
+          "name": "hr_pay_unit_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "hr_pay_unit_kind_key": {
+          "name": "hr_pay_unit_kind_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "run_id",
+            "member_id",
+            "unit_kind"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "hr_pay_unit_values": {
+          "name": "hr_pay_unit_values",
+          "value": "unit_kind ~ '^(hours(_(bank_holiday|night|overtime|weekend))*|sleep_in|on_call|mileage)$'\n        AND quantity > 0 AND pay_code ~ '^[A-Za-z0-9_.-]{1,32}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.import_batch": {
       "name": "import_batch",
       "schema": "",
@@ -34407,6 +34890,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "pay_route": {
+          "name": "pay_route",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -34606,6 +35095,10 @@
         "pay_run_period": {
           "name": "pay_run_period",
           "value": "period_end >= period_start AND period_end - period_start <= 30"
+        },
+        "pay_run_pay_route": {
+          "name": "pay_run_pay_route",
+          "value": "pay_route IS NULL OR pay_route IN ('harbour_export', 'thapsus_hr')"
         },
         "pay_run_status": {
           "name": "pay_run_status",
@@ -45017,6 +45510,24 @@
         },
         "last_seen_at": {
           "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_changed_at": {
+          "name": "status_changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sign_in_erasure_requested_at": {
+          "name": "sign_in_erasure_requested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sign_in_erased_at": {
+          "name": "sign_in_erased_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

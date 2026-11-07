@@ -80,7 +80,7 @@ test("hazard HZ-125 a manager names the route, a carer checks in and asks for he
   }
   await page.getByRole("button", { name: "Save route" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "so they are told away from Harbour",
+    "so they are told away from Thapsus Care",
   );
   await expectAccessible(page, "lone-working route refused");
   await nameRoute(page);

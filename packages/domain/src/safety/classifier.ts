@@ -299,7 +299,7 @@ const LEDER = cite(
   SOURCES.leder,
 );
 const MASTER = (section: string) =>
-  cite("Harbour master prompt", section, "docs/00-MASTER-PROMPT.md");
+  cite("Thapsus Care master prompt", section, "docs/00-MASTER-PROMPT.md");
 
 // ---------------------------------------------------------------------------------------------
 // Rules
@@ -898,7 +898,7 @@ function deadlines(
           dueAt: start,
           wording: info.statutory
             ? "Due without delay: overdue until submitted or marked not required with a reason."
-            : "Due without delay (Harbour sets this; the law sets no time): overdue until done or marked not required with a reason.",
+            : "Due without delay (Thapsus Care sets this; the law sets no time): overdue until done or marked not required with a reason.",
           statutory: info.statutory,
         },
       ];

@@ -152,7 +152,7 @@ describe("PLAT-022 the breach register: the ICO clock in words", () => {
       }),
       "overdue",
       "Check the ICO clock",
-      "Check the ICO clock with Harbour support",
+      "Check the ICO clock with Thapsus Care support",
     ],
   ])("%s", (_name, entry, status, label, words) => {
     const got = breachClockWords(entry, t);
@@ -249,7 +249,7 @@ describe("PLAT-022 the breach register: stages and the forms offered", () => {
   });
 });
 
-describe("PLAT-022 the breach register: Harbour's suggestion is decision support only", () => {
+describe("PLAT-022 the breach register: Thapsus Care's suggestion is decision support only", () => {
   it.each([
     [{ reportToIco: true, tellIndividuals: true }, false],
     [{ reportToIco: false, tellIndividuals: true }, true],
@@ -267,10 +267,10 @@ describe("PLAT-022 the breach register: Harbour's suggestion is decision support
     expect(againstSuggestion(low, choice)).toBe(against);
   });
 
-  it("says the suggestion as Harbour's, with the decision the person's, and each reason in words", () => {
+  it("says the suggestion as Thapsus Care's, with the decision the person's, and each reason in words", () => {
     expect(suggestionWords(suggestion, t)).toEqual({
       headline:
-        "Harbour suggests a high severity breach: consider reporting it to the ICO, and consider telling the people affected; the decision is yours.",
+        "Thapsus Care suggests a high severity breach: consider reporting it to the ICO, and consider telling the people affected; the decision is yours.",
       reasons: [
         "Identifiable data went outside the organisation",
         "Special category data has not been contained",
@@ -289,10 +289,10 @@ describe("PLAT-022 the breach register: Harbour's suggestion is decision support
       ),
     ).toEqual({
       headline:
-        "Harbour suggests a low severity breach: a report to the ICO may not be needed; the decision is yours.",
+        "Thapsus Care suggests a low severity breach: a report to the ICO may not be needed; the decision is yours.",
       reasons: [
         "The people cannot be identified from what was affected",
-        "Another reason Harbour does not describe yet",
+        "Another reason Thapsus Care does not describe yet",
       ],
     });
   });

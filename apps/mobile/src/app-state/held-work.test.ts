@@ -168,7 +168,7 @@ const keyOptions: KeyOptions = {
   protectedOptions: (p: KeyProtection) => ({
     requireAuthentication: p === "biometric",
     keychainAccessible: 6,
-    authenticationPrompt: "Unlock Harbour",
+    authenticationPrompt: "Unlock Thapsus Care",
   }),
   plainOptions: { keychainAccessible: 6 },
 };
@@ -837,13 +837,13 @@ describe("opening the database: the owner check before the device connects (S3, 
     expect(dev.count("held_entry")).toBe(1);
     // What the person sees on every screen (clinical review round 4, M4).
     expect(restoreProblem(outcome.kind === "connect" ? outcome.restore : "failed")).toBe(
-      "Your unsent entries could not be put back to be sent. They are still on this device. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
+      "Your unsent entries could not be put back to be sent. They are still on this device. Close Thapsus Care, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
     );
   });
 
   it("hazard HZ-006 says how many entries are still held when only some could not go back (round 4, M4)", () => {
     expect(restoreProblem({ restored: 2, parked: 0, remaining: 1 })).toBe(
-      "1 unsent entry could not be put back to be sent. It is still on this device. Close Harbour, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
+      "1 unsent entry could not be put back to be sent. It is still on this device. Close Thapsus Care, open it again and unlock to try again. If this keeps happening, tell the nurse in charge.",
     );
     expect(restoreProblem({ restored: 2, parked: 1, remaining: 0 })).toBeNull();
   });

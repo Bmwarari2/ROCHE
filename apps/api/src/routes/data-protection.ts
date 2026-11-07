@@ -846,7 +846,7 @@ export const dataProtectionRouter = createRouter()
       method: "get",
       path: "/v1/data-protection/breaches/{id}/subject-notice-draft",
       tags: ["platform"],
-      summary: "Draft the notice to the people affected from Harbour's template",
+      summary: "Draft the notice to the people affected from Thapsus Care's template",
       description:
         "quality.dsar.manage. The plain-English template (what happened, what it means for them, what has been done, what they can do, who to contact) filled from the entry and the organisation's data protection contact; the parts in square brackets are for a person to write. Nothing is stored.",
       security,

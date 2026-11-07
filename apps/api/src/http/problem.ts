@@ -61,7 +61,7 @@ export const problems = {
     new HttpProblem(
       403,
       "device_revoked",
-      "This device has been withdrawn from Harbour by a manager.",
+      "This device has been withdrawn from Thapsus Care by a manager.",
       "Care records leave the device. Entries not yet sent stay on it, protected, until they are handed over or deleted.",
     ),
   conflict: (detail?: string) =>
@@ -102,7 +102,7 @@ export const problems = {
     new HttpProblem(
       409,
       "entries_waiting",
-      "This device last reported entries that have not reached Harbour.",
+      "This device last reported entries that have not reached Thapsus Care.",
       `${count} ${count === 1 ? "entry is" : "entries are"} waiting on it. Confirm to withdraw it anyway: they stay on the device until handed over or deleted, and its task is due at once.`,
     ),
   /**
@@ -113,7 +113,7 @@ export const problems = {
     new HttpProblem(
       409,
       "entries_waiting",
-      "This person's phone has care entries that have not reached Harbour.",
+      "This person's phone has care entries that have not reached Thapsus Care.",
       `${count} ${count === 1 ? "entry is" : "entries are"} waiting. Signing them out also removes the care record from their phone until they sign in again. The entries not yet sent stay on the phone, protected, until then. Confirm to sign them out anyway.`,
     ),
   /**
@@ -124,8 +124,8 @@ export const problems = {
     new HttpProblem(
       409,
       "member_of_other_organisation",
-      "This person also works for another organisation in Harbour.",
-      "Signing them out here would sign them out there too, so they have not been signed out. Ask them to sign out of their own devices, or contact Harbour support.",
+      "This person also works for another organisation in Thapsus Care.",
+      "Signing them out here would sign them out there too, so they have not been signed out. Ask them to sign out of their own devices, or contact Thapsus Care support.",
     ),
 };
 

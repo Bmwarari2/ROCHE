@@ -342,7 +342,7 @@ describe("hazard HZ-013 incident workflow: the person who raised it cannot close
       { outputs: [{ kind: "riddor_death" }], pending: [], exclusions: [] },
       null,
     ],
-  ])("hazard HZ-091 reads Harbour's candour finding: %s", (_n, result, finding) => {
+  ])("hazard HZ-091 reads Thapsus Care's candour finding: %s", (_n, result, finding) => {
     expect(candourFindingOf(result)).toBe(finding);
   });
 

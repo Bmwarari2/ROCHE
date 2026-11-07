@@ -1072,7 +1072,10 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 4 
         token: h.tokens.manager,
         tenant: DEMO.tenantId,
         method: "POST",
-        body: { personId: WIL, justification: "Covering an emergency at Harbour Wynd tonight" },
+        body: {
+          personId: WIL,
+          justification: "Covering an emergency at Harbour Wynd tonight",
+        },
       });
       expect(opened.status).toBe(201);
       const { id } = (await opened.json()) as { id: string };

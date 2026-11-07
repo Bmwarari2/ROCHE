@@ -1,6 +1,6 @@
 # How to review the weekly break-glass report
 
-Harbour builds a report early every Monday of the break-glass openings and searches in the week
+Thapsus Care builds a report early every Monday of the break-glass openings and searches in the week
 before (Monday to Sunday), one report per home.
 
 **Who can do this**: the owner, Registered Manager, deputy manager, group executive and quality
@@ -17,7 +17,7 @@ lead. You cannot review a report that counts your own use of break-glass: someon
    outside their access 3 times or more.
 5. Read **Records opened** and **Break-glass searches**.
 6. Check each reason. The report shows counts only: the times and typed reasons are not shown
-   here yet. Ask whoever runs Harbour for your organisation for them.
+   here yet. Ask whoever runs Thapsus Care for your organisation for them.
 7. Under **Actions taken**, say what you did. Do not include anyone's health details: everyone who
    reads the report sees it.
 8. Choose **Record the review**. The review can be recorded once.

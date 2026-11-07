@@ -7,11 +7,24 @@ leaves the release in use unchanged until a whole new one has loaded.
 
 ## How it runs
 
-- **Where:** a Cloud Run job, `harbour-<env>-dmd`, running `node dist/dmd-job.js` as its own
-  database role, `harbour_dmd_job` (`DATABASE_DMD_URL`). That role may only call the dm+d loader and
-  read the dm+d tables. The job is never run in the shared worker, and the worker may no longer
-  call the loader. Cloud Scheduler starts it monthly, early on
-  the 3rd (H-1241).
+- **Where:** a Cloud Run job, `harbour-<env>-dmd`, running `node apps/api/dist/dmd-job.js` as its
+  own database role, `harbour_dmd_job` (`DATABASE_DMD_URL`). That role may only call the dm+d
+  loader and read the dm+d tables. The job is never run in the shared worker, and the worker may no
+  longer call the loader. Cloud Scheduler (`harbour-<env>-dmd-monthly`) starts it at 03:17 UK time
+  on the 3rd of each month (H-1241; `infra/modules/harbour_stack/services.tf`).
+- **Limits:** one task at a time, tried at most twice (one retry), with a 90-minute task timeout
+  (the 60-minute load limit, `DMD_LOAD_TIMEOUT_MINUTES`, plus 30 minutes for the download). The
+  archive and the unpacked release sit in `/tmp`, which on Cloud Run is memory, so the job has 6Gi
+  and 2 CPUs until a real release is measured (H-1243). No bucket is used.
+- **Environments:** the job runs with `NODE_ENV=production` and reads only its own settings
+  (`loadDmdJobConfig`: its database URL as `harbour_dmd_job` on the private address over verified TLS, TRUD's own host
+  and the loader's limits). Production mode counts as a place where real people work, so the job
+  only ever downloads from TRUD. Staging and prod have the TRUD key, the monthly schedule and the
+  alerts. Dev has no key, no schedule and no dm+d alerts: the job is defined there but a run by
+  hand fails with `trud_unconfigured` until a key is added.
+- **Egress:** the job reaches `isd.digital.nhs.uk` over HTTPS from the environment's NAT addresses.
+  The network has no egress firewall, so the job itself refuses any other host, redirects included
+  (`TRUD_ALLOWED_HOSTS`; H-1245).
 - **What one run does:**
   1. asks TRUD for the latest release of item 24;
   2. stops, without downloading, if that release is already loaded (`dmd.release.already_loaded`,
@@ -42,12 +55,14 @@ leaves the release in use unchanged until a whole new one has loaded.
 | `dmd.download.failed`, `code: archive_unsafe` or `archive_too_large` | A name inside the archive could reach outside its directory, or the archive inflates past the limit | Do not load it by hand. If the release is genuine and only larger, raise the limits after measuring it (H-1243) |
 | `dmd.release.refused` | The release failed a check, for example a concept in use missing with no successor, or a file the parser cannot read | Read the problems in the release history (`GET /v1/medicines/dmd/releases`). Follow H-653: a corrected or later release loads at the next run, or run the job by hand once NHSBSA re-issues it |
 | `dmd.release.failed` | A database error or the time limit (`timed_out`) | Check the database and the job's timeout (H-1243), then run the job again; nothing half-loaded is ever used |
-| `dmd.release.late` | No release has loaded for more than 35 days: the job has not run, or every run failed | Find the failed runs above and fix them. Until a release loads, every medicines screen warns that the data is out of date |
+| `dmd.release.late` | No release has loaded for more than 35 days: the job has not run, or every run failed | Find the failed runs above and fix them. Check that Cloud Scheduler's `harbour-<env>-dmd-monthly` is enabled and its last attempt succeeded. Until a release loads, every medicines screen warns that the data is out of date |
+| Alert "dmd job execution failed", with none of the lines above | The task ran out of memory, hit its timeout, or could not read a secret | Read the execution's logs. Out of memory or a timeout: measure the release and raise the job's memory or timeout (H-1243). A secret: check the bindings (H-1240, H-1501) |
 
 ## Run it by hand
 
-- **Deployed:** run an execution of the Cloud Run job `harbour-<env>-dmd`. It is safe to run at any
-  time: a release already loaded is not downloaded again.
+- **Deployed:** `gcloud run jobs execute harbour-<env>-dmd --region europe-west2 --wait`, or
+  "Force run" on `harbour-<env>-dmd-monthly` in Cloud Scheduler. It is safe to run at any time: a
+  release already loaded is not downloaded again, and the database loads one release at a time.
 - **On a developer's machine:** `pnpm --filter @harbour/api dmd:run` loads the newest invented
   fixture release through the mock and never calls TRUD.
 - **A release placed by hand** (for example to check the parser, H-654):

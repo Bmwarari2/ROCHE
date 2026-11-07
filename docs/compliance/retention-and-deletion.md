@@ -83,7 +83,7 @@ Each shredded batch produces a certificate, kept permanently as a signed record 
 | Method | Key destruction (key and key version IDs, the Cloud KMS scheduled-destruction delay and the date the version is destroyed), row purge, object version deletion; backup expiry date after which no ciphertext remains |
 | Approval | The requester and approver as opaque member references (names on the screens only; ADR-0109); both confirmed it was them by step-up (H-1221) |
 | Method | Key destruction (key IDs), row purge, object version deletion; backup expiry date after which no ciphertext remains |
-| Integrity | SHA-256 of the certificate, signed by the Harbour signing key |
+| Integrity | SHA-256 of the certificate, signed by the Thapsus Care signing key |
 
 ## 6. Phase plan
 

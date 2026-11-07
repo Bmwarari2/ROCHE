@@ -23,6 +23,6 @@
 
 ## Good to know
 
-- The signed paper form stays with the person. Harbour records it; it does not replace it.
+- The signed paper form stays with the person. Thapsus Care records it; it does not replace it.
 - A new record of the same type replaces the one in force. The old one stays in the history.
 - If two records disagree, the header says **CPR records disagree**. Sort it out straight away.

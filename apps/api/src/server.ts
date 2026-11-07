@@ -11,7 +11,7 @@ await assertStorageReady(config);
 const { app, close } = createApp(config, logger);
 
 const server = serve({ fetch: app.fetch, port: config.PORT }, (info) => {
-  logger.info({ port: info.port, version: config.APP_VERSION }, "Harbour API listening");
+  logger.info({ port: info.port, version: config.APP_VERSION }, "Thapsus Care API listening");
 });
 
 const shutdown = async () => {

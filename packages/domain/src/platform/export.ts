@@ -703,14 +703,14 @@ export const EXPORT_CONVENTIONS = {
   versions:
     "Mutable records hold their current state; earlier versions are in record_version. Only one care plan per person is published at a time (status published).",
   destroyed: `${EXPORT_DESTROYED_FILE} lists records destroyed past retention with their certificate id; they are not in the table files.`,
-  currentSummary: `${EXPORT_CURRENT_SUMMARY_FILE} has one row per person with the allergy status, the CPR decision in force (or conflicting, with every record), IDDSI levels and communication needs, worked out as Harbour shows them. Check these first when moving a person to another system.`,
+  currentSummary: `${EXPORT_CURRENT_SUMMARY_FILE} has one row per person with the allergy status, the CPR decision in force (or conflicting, with every record), IDDSI levels and communication needs, worked out as Thapsus Care shows them. Check these first when moving a person to another system.`,
   empty:
     "An empty CSV cell and JSON null both mean not recorded; unknown and not_recorded codes never mean none.",
   csvFormulas:
     "In CSV files only, a text cell starting with =, +, -, @, a tab, a carriage return or an apostrophe has an apostrophe added in front, so spreadsheets do not run it as a formula. Remove one leading apostrophe from such a cell to get the value. JSON Lines files hold the exact values.",
   documents:
     "documents/<document id>.<extension>, with checksums in manifest.json; quarantined files are listed but not included.",
-  mapping: "Field meanings and code lists: Harbour data-standards.md for this schema version.",
+  mapping: "Field meanings and code lists: Thapsus Care data-standards.md for this schema version.",
 } as const;
 
 function columnSchema(column: PlannedColumn): JsonSchema {
@@ -754,7 +754,7 @@ function columnSchema(column: PlannedColumn): JsonSchema {
 export function describeExportSchema(plan: ExportPlan): JsonSchema {
   return {
     $schema: "https://json-schema.org/draft/2020-12/schema",
-    title: "Harbour full organisation export",
+    title: "Thapsus Care full organisation export",
     format: EXPORT_FORMAT,
     schemaVersion: plan.schemaVersion,
     conventions: EXPORT_CONVENTIONS,

@@ -617,7 +617,7 @@ export function renderPdf(input: {
   const catalog = reserve();
   const pagesId = reserve();
   const fontIds = { F1: reserve(), F2: reserve() };
-  const info = add(`<< /Title ${infoString(input.title)} /Producer (Harbour) >>`);
+  const info = add(`<< /Title ${infoString(input.title)} /Producer (Thapsus Care) >>`);
   let imageId: number | null = null;
   if (image) {
     const maskId = image.mask

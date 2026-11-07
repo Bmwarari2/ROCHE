@@ -1,6 +1,6 @@
 # How to accept an invitation and set up your sign-in
 
-**Who this is for**: anyone a manager has invited to Harbour.
+**Who this is for**: anyone a manager has invited to Thapsus Care.
 
 **Register row**: PLAT-004.
 
@@ -17,7 +17,7 @@
    [How to set up a passkey or an authenticator app](set-up-a-second-sign-in-step.md)). You need one
    before you can open care records.
 
-If you already have a Harbour sign-in, Harbour asks you to **Sign in first**. Sign in, then choose
+If you already have a Thapsus Care sign-in, Thapsus Care asks you to **Sign in first**. Sign in, then choose
 **Accept invitation**.
 
 ## If the link does not work

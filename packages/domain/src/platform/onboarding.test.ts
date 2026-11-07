@@ -241,7 +241,7 @@ describe("onboarding checklist from the organisation's state", () => {
       true,
     ],
     [
-      "a default changed by Harbour after it was reviewed",
+      "a default changed by Thapsus Care after it was reviewed",
       (s) => ({
         ...s,
         tenantDefaults: [
@@ -812,7 +812,7 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
     expect(samplePrintWatermark([{ sample: false }])).toBeNull();
   });
 
-  it("stops anything about a sample record leaving Harbour", () => {
+  it("stops anything about a sample record leaving Thapsus Care", () => {
     expect(checkOutboundForSample(items)).toMatchObject({ ok: false, problem: "sample_data" });
     expect(checkOutboundForSample([{ sample: false }])).toEqual({ ok: true });
   });
@@ -902,7 +902,7 @@ describe("rule 27 onboarding decisions are records, never ticks", () => {
     ["accepting a tenant default", "accepted", true, false, null],
     ["setting its own figure", "set", true, true, null],
     ["saying it set its own with no figure", "set", true, false, "no_own_setting"],
-    ["a setting Harbour did not choose", "accepted", false, false, "not_a_tenant_default"],
+    ["a setting Thapsus Care did not choose", "accepted", false, false, "not_a_tenant_default"],
   ] as const)("setting: %s", (_, kind, isTenantDefault, hasOwnSetting, expected) => {
     expect(checkSettingDecision({ kind, isTenantDefault, hasOwnSetting })?.problem ?? null).toBe(
       expected,

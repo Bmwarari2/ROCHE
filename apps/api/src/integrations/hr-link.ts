@@ -29,6 +29,9 @@ import {
   hrStaleness,
   matchEmployee,
   ownersProblems,
+  PAY_CODE,
+  PAY_UNIT_KIND,
+  type PayRoute,
   realDay,
   type StaffCandidate,
   stalenessLimitProblem,
@@ -63,7 +66,37 @@ export interface HrLinkSettings {
   readonly thapsusDomain: string;
   readonly owners: HrOwners;
   readonly stalenessMinutes: number;
+  /** Who sends pay to payroll, a change waiting for a later period, and pay codes (slice 89). */
+  readonly pay: HrPaySettings;
 }
+
+/**
+ * The route to payroll (rule 12) and the pay code for each unit kind (rule 11; slice 89). The
+ * route is Harbour's export until a person moves it, from the start of a later pay period.
+ */
+export interface HrPaySettings {
+  readonly route: PayRoute;
+  readonly pendingRoute: PayRoute | null;
+  readonly pendingFrom: string | null;
+  readonly codes: Readonly<Record<string, string>>;
+}
+
+export const DEFAULT_HR_PAY: HrPaySettings = {
+  route: "harbour_export",
+  pendingRoute: null,
+  pendingFrom: null,
+  codes: {},
+};
+
+const PayRouteSchema = z.enum(["harbour_export", "thapsus_hr"]);
+const HrPaySchema = z
+  .object({
+    route: PayRouteSchema,
+    pendingRoute: PayRouteSchema.nullable(),
+    pendingFrom: z.string().nullable(),
+    codes: z.record(z.string().regex(PAY_UNIT_KIND), z.string().regex(PAY_CODE)),
+  })
+  .strict();
 
 const HR_DATA_KIND_KEYS = Object.keys(DEFAULT_HR_OWNERS) as HrDataKind[];
 
@@ -85,6 +118,8 @@ export function parseHrSettings(raw: unknown): HrLinkSettings | null {
       thapsusDomain: z.string(),
       owners: HrOwnersSchema,
       stalenessMinutes: z.number(),
+      // A link made before slice 89 has no pay settings: Harbour's export, as before.
+      pay: HrPaySchema.default(DEFAULT_HR_PAY),
     })
     .safeParse(raw);
   if (!parsed.success) return null;
@@ -93,7 +128,7 @@ export function parseHrSettings(raw: unknown): HrLinkSettings | null {
     stalenessLimitProblem(s.stalenessMinutes) === null
       ? s.stalenessMinutes
       : HR_STALENESS_DEFAULT_MINUTES;
-  return { ...s, owners: s.owners as HrOwners, stalenessMinutes: minutes };
+  return { ...s, owners: s.owners as HrOwners, stalenessMinutes: minutes, pay: s.pay };
 }
 
 /** Owners the tenant chose, refused where a fixed owner would change (rule 2). */
@@ -293,6 +328,32 @@ export const HR_ALERTS = {
     // Thapsus-HR's refusal is the rota manager's to resolve (rule 14).
     permission: "scheduling.rota.manage",
   },
+  pay_record_failed: {
+    title: "Check pay periods or rates the HR platform link could not apply",
+    urgent: true,
+    permission: "scheduling.pay.approve",
+  },
+  pay_member_unlinked: {
+    title: "Pay waits for the HR platform: confirm a staff match",
+    urgent: true,
+    permission: "scheduling.pay.approve",
+  },
+  pay_units_unsent: {
+    title: "Locked pay has not reached the HR platform",
+    urgent: true,
+    permission: "scheduling.pay.approve",
+  },
+  pay_units_refused: {
+    title: "Check pay units the HR platform refused",
+    urgent: true,
+    // Pay that did not reach payroll is the pay approver's to resolve (rule 11).
+    permission: "scheduling.pay.approve",
+  },
+  pay_codes_unmapped: {
+    title: "Map pay codes so locked pay can go to the HR platform",
+    urgent: true,
+    permission: "integrations.hr_link.manage",
+  },
 } as const;
 export type HrAlert = keyof typeof HR_ALERTS;
 
@@ -384,7 +445,7 @@ export async function closeHrAlert(
 /** Records a sync's outcome for its kind (rule 9 reads the last good sync from here). */
 export async function recordSync(
   tx: Transaction,
-  kind: "employees" | "locations" | "absences",
+  kind: "employees" | "locations" | "absences" | "rates",
   now: Date,
   errorCode: string | null,
 ): Promise<void> {

@@ -16,7 +16,7 @@ and the quality and compliance lead, who manage quality for the whole organisati
 ## Steps
 
 1. In the side bar, choose **Quality dashboard**, then **Set targets for** the location.
-2. The page **Indicator targets** has a section for each indicator Harbour counts: **Falls**,
+2. The page **Indicator targets** has a section for each indicator Thapsus Care counts: **Falls**,
    **Pressure ulcers**, **Medication incidents**, **Overdue reviews** and **Incidents reviewed in
    time**.
 3. Under **Organisation default** or the location's own target, see the current target or **No
@@ -39,7 +39,7 @@ and the quality and compliance lead, who manage quality for the whole organisati
 
 ## Good to know
 
-- Targets are your organisation's own, never a Harbour score. Harbour does not suggest one.
+- Targets are your organisation's own, never a Thapsus Care score. Thapsus Care does not suggest one.
 - A location's own target wins over the organisation default. On the dashboard, the organisation
   default is shown beside it.
 - A location's target cannot be less strict than the organisation's, unless someone who manages

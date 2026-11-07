@@ -81,7 +81,7 @@ test("hazard HZ-001 hazard HZ-015 the header shows the resuscitation status, all
   await expect(status).toHaveAttribute("data-resuscitation", "not_recorded");
   await expect(status.getByText("CPR decision not recorded")).toBeVisible();
   await expect(status.locator("svg")).toBeVisible();
-  await expect(page).toHaveTitle(`Overview | ${PEOPLE} | Harbour`);
+  await expect(page).toHaveTitle(`Overview | ${PEOPLE} | Thapsus Care`);
   await expectAccessible(page, "overview");
 
   const tabs = page.getByRole("navigation", { name: "Sections of Ben's record" });
@@ -105,7 +105,7 @@ test("hazard HZ-001 hazard HZ-015 the header shows the resuscitation status, all
     );
     await expect(page.getByRole("heading", { level: 2, name: tab, exact: true })).toBeVisible();
     // A new title on every tab, so the change of page is announced; never the person's name.
-    await expect(page).toHaveTitle(`${TAB_TITLES[tab]} | ${PEOPLE} | Harbour`);
+    await expect(page).toHaveTitle(`${TAB_TITLES[tab]} | ${PEOPLE} | Thapsus Care`);
     expect(await page.title()).not.toContain("Ben");
     await expectHeader(page, "Ben Sample", "No known allergies");
     await expect(header.getByText("CPR decision not recorded")).toBeVisible();
@@ -120,7 +120,7 @@ test("hazard HZ-001 hazard HZ-015 the header shows the resuscitation status, all
   await page.emulateMedia({ colorScheme: "dark" });
   for (const tab of Object.keys(TAB_TITLES)) {
     await tabs.getByRole("link", { name: tab, exact: true }).click();
-    await expect(page).toHaveTitle(`${TAB_TITLES[tab]} | ${PEOPLE} | Harbour`);
+    await expect(page).toHaveTitle(`${TAB_TITLES[tab]} | ${PEOPLE} | Thapsus Care`);
     await expectAccessible(page, `${tab} tab in the dark theme`);
   }
   await page.emulateMedia({ colorScheme: "light" });
@@ -293,7 +293,7 @@ test("hazard HZ-024 a draft care plan is labelled as not in use until it is publ
       .click();
   }
   await page.waitForURL(/\/care-plan\/[0-9a-f-]{36}$/);
-  await expect(page).toHaveTitle(`Care plan version | Care plan | ${PEOPLE} | Harbour`);
+  await expect(page).toHaveTitle(`Care plan version | Care plan | ${PEOPLE} | Thapsus Care`);
   await expect(page.getByText("This is a draft", { exact: true })).toBeVisible();
   await expect(page.locator('[data-plan-status="draft"]').first()).toBeVisible();
 
@@ -348,7 +348,7 @@ test("hazard HZ-014 vital signs show the NEWS2 result and the RCP response the A
 }) => {
   await page.goto(`/people/${demoPerson(3)}/charts?record=vitals`);
   await expectHeader(page, "Cara Placeholder");
-  await expect(page).toHaveTitle(`Vital signs | Charts | ${PEOPLE} | Harbour`);
+  await expect(page).toHaveTitle(`Vital signs | Charts | ${PEOPLE} | Thapsus Care`);
   const records = page.getByRole("navigation", { name: "Chart to record" });
   // A choice within the page: announced as current, not as the current page.
   await expect(records.getByRole("link", { name: "Vital signs" })).toHaveAttribute(
@@ -442,7 +442,7 @@ test("hazard HZ-016 food at a texture other than the prescribed level is refused
     .getByRole("navigation", { name: "Chart to record" })
     .getByRole("link", { name: "Food" })
     .click();
-  await expect(page).toHaveTitle(`Food | Charts | ${PEOPLE} | Harbour`);
+  await expect(page).toHaveTitle(`Food | Charts | ${PEOPLE} | Thapsus Care`);
   const form = page.getByRole("region", { name: "Record food" });
   const level = form.getByLabel("Texture given (IDDSI food level)");
   // The prescribed level shows beside the choice, but nothing is chosen for anyone.
@@ -530,7 +530,7 @@ test("keyboard only: move between tabs and record a body map mark with the area 
   await tabTo(page, tabs.getByRole("link", { name: "Body map", exact: true }));
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/body-map$/);
-  await expect(page).toHaveTitle(`Body map | ${PEOPLE} | Harbour`);
+  await expect(page).toHaveTitle(`Body map | ${PEOPLE} | Thapsus Care`);
 
   const form = page.getByRole("region", { name: "Record a mark" });
   const area = form.getByLabel("Body area, as marked on the drawing");
@@ -563,7 +563,7 @@ test("hazard HZ-012 a nurse runs MUST and sees the API's score, band, workings, 
   await expectAccessible(page, "assessments");
   await page.getByRole("link", { name: "Run MUST" }).click();
   await page.waitForURL(/\?run=must$/);
-  await expect(page).toHaveTitle(`Run MUST | Assessments | ${PEOPLE} | Harbour`);
+  await expect(page).toHaveTitle(`Run MUST | Assessments | ${PEOPLE} | Thapsus Care`);
 
   const form = page.getByRole("region", { name: "Run MUST" });
   // BMI 50 / 1.65² = 18.4 (2 points); 9% unplanned loss (1 point); no acute disease effect.

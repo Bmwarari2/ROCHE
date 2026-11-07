@@ -7,8 +7,8 @@ joined.
 
 ## Steps
 
-1. Sign in to Harbour with the email address the home has for you.
-2. The first time, Harbour asks you to confirm it is you. Choose
+1. Sign in to Thapsus Care with the email address the home has for you.
+2. The first time, Thapsus Care asks you to confirm it is you. Choose
    **Set up a passkey or a phone code** and follow the steps. You can use a passkey, or an
    authenticator app on your phone.
 3. You see **Updates**. The newest updates come first.

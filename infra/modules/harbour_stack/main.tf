@@ -32,6 +32,11 @@ locals {
     web       = { cpu = "1", memory = "1Gi", min = 1, max = 4 }
     powersync = { cpu = "1", memory = "2Gi", min = 1, max = 1 }
     migrate   = { cpu = "1", memory = "1Gi", min = 0, max = 0 }
+    # The dm+d job keeps the archive (DMD_ARCHIVE_MAX_BYTES, 256 MiB) and the unpacked release
+    # (DMD_RELEASE_MAX_BYTES, 2 GiB) in /tmp, which on Cloud Run is memory, beside the heap:
+    # 6Gi leaves headroom at those limits. Set from a real release's measured size (H-1243).
+    # More than 4Gi needs 2 CPUs.
+    dmd       = { cpu = "2", memory = "6Gi", min = 0, max = 0 }
     flagsmith = { cpu = "1", memory = "1Gi", min = 1, max = 1 }
   }
   sizes = merge(local.default_sizes, var.service_sizes)

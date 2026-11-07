@@ -7,7 +7,7 @@ for a limited time. A one-time code is sent to the inspector's email separately 
 
 ## What is available now
 
-Composing, releasing and opening a pack works through Harbour's system only. There is no page yet
+Composing, releasing and opening a pack works through Thapsus Care's system only. There is no page yet
 where an inspector types the code and downloads the pack, and no screen where the home composes
 it. Until there is, ask the home to share evidence another way.
 

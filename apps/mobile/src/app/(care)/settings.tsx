@@ -217,7 +217,7 @@ export default function SettingsScreen() {
 
         <Section title="Security">
           <Text tone="secondary">
-            Harbour locks after {describeTimeout(vault.autoLockMs)} without use.
+            Thapsus Care locks after {describeTimeout(vault.autoLockMs)} without use.
           </Text>
           <Text emphasis>This device is</Text>
           <Choice
@@ -282,14 +282,14 @@ export default function SettingsScreen() {
 
         <Section title="About">
           <Text testID="about-version">
-            Harbour {version} (build {build})
+            Thapsus Care {version} (build {build})
           </Text>
           <Text tone="secondary">Local database: {encryptionLabel()}</Text>
           <Text tone="secondary">
             Device check: {vault.integrity?.reasons[0] ?? "Not checked yet"}
           </Text>
           {appEnv.demoMode ? <Text tone="secondary">Demo mode: invented data only.</Text> : null}
-          <Text tone="secondary">Thapsus Cargo Ltd. Harbour is not a medical device.</Text>
+          <Text tone="secondary">Thapsus Cargo Ltd. Thapsus Care is not a medical device.</Text>
         </Section>
       </ScrollView>
     </Screen>

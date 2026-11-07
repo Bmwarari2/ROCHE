@@ -105,7 +105,7 @@ Competences (`COMPETENCES` in `packages/domain/src/workforce/competence-port.ts`
 `medicines_administration`, `controlled_drugs`, `insulin_administration`,
 `epilepsy_rescue_medication` (medicines: refreshed every `competence.medicines.refresh_months`),
 `moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` (every
-`competence.default_refresh_months`, a Harbour default to verify, H-690).
+`competence.default_refresh_months`, a Thapsus Care default to verify, H-690).
 
 Retention classes ([retention.md](retention.md)): `staff_file.after_leaving` or
 `staff_file.to_75th_birthday` (the tenant's choice) for the staff file and casework;
@@ -333,7 +333,7 @@ whatever the clock change.
    (`workforce.training.manage`) reviews it, after which the counts are fixed; the confirmation is
    recorded only by the confirmer, in their own name, never the nurse (HR or a line manager holding
    `workforce.supervision.manage`, ideally an NMC registrant, as the NMC's revalidation guidance
-   sets out). The nurse stays responsible for revalidating with the NMC; Harbour only tracks it
+   sets out). The nurse stays responsible for revalidating with the NMC; Thapsus Care only tracks it
    (H-693, recommended answer applied 31/10/2026). The NMC registration records the part of the
    register (`nmcPart`: nurse, midwife or nursing associate); only the nurse part counts as a
    registered nurse on duty, and a nursing associate never does (H-835).
@@ -389,7 +389,7 @@ whatever the clock change.
 14. **Who reads a case** (ADR-0089). Only the members named on it and not removed: no role, grant
     or break-glass reaches a case, the owner and the Registered Manager included, and a holder of
     `workforce.casework.manage` reads only the cases they are named on. The member of staff a case
-    is about is never a member of it (they are told in writing, outside Harbour, until slice 58).
+    is about is never a member of it (they are told in writing, outside Thapsus Care, until slice 58).
     Every route needs MFA.
 15. **How a case moves** (`casework.ts`, `checkCaseMove`). Stages `open`, `investigation`,
     `hearing`, `outcome`, `appeal`, `closed`. An investigation needs an investigator named; a
@@ -420,9 +420,9 @@ whatever the clock change.
     concern; a regulator decision when the member of staff is on a register and the case ended in
     dismissal or a final written warning (disciplinary or capability), or is linked to a
     safeguarding concern. A decision is `referred` on a date or `not_required` with a reason code.
-    Harbour never decides or makes a referral (H-802).
+    Thapsus Care never decides or makes a referral (H-802).
 
-    H-802 (recommended answer applied 31/10/2026, reviewed at testing): the DBS decision is also due when a disciplinary or capability case ends in redeployment, or in an action short of dismissal marked as removing the member from regulated activity (`removes_from_regulated_activity`, decided with the outcome), because the Safeguarding Vulnerable Groups Act 2006 s 35 duty applies to any such removal. Harbour still only asks for the decision.
+    H-802 (recommended answer applied 31/10/2026, reviewed at testing): the DBS decision is also due when a disciplinary or capability case ends in redeployment, or in an action short of dismissal marked as removing the member from regulated activity (`removes_from_regulated_activity`, decided with the outcome), because the Safeguarding Vulnerable Groups Act 2006 s 35 duty applies to any such removal. Thapsus Care still only asks for the decision.
 
     H-806: a case closed as a grievance, with no case to answer or withdrawn takes `casework_no_sanction` (6 years after closure); one ending in a sanction, dismissal or referral, or concerning safeguarding, stays with the staff file (`caseRetentionClass`; set by the database as the case closes, migration 0121). Expired warnings stay on the case marked as no longer counting.
 
@@ -1018,9 +1018,9 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 
 ## 12. Sponsor licence, staff data protection and LDSS (slice 35, migration 0097)
 
-Register rows WORK-003, WORK-007 and WORK-011 (section 12 of the master prompt). Harbour keeps the
+Register rows WORK-003, WORK-007 and WORK-011 (section 12 of the master prompt). Thapsus Care keeps the
 sponsor's records and clocks; it never decides a worker's immigration status. Every figure comes
-from the rate table; the rules are Harbour's reading of the Home Office guidance for sponsors, for
+from the rate table; the rules are Thapsus Care's reading of the Home Office guidance for sponsors, for
 an immigration adviser to confirm (H-524, H-900 to H-902).
 
 ### 12.1 Records
@@ -1042,7 +1042,7 @@ an immigration adviser to confirm (H-524, H-900 to H-902).
 - `staff_image_consent` (append-only): a member's decision on each optional use of their photo or
   image (`IMAGE_PURPOSES`); the latest stands, and no decision means no use.
 - `ldss_claim`: a Learning and Development Support Scheme claim for a member's course, with its
-  status, reference, dates and reason. Harbour holds no LDSS funding figure (H-903).
+  status, reference, dates and reason. Thapsus Care holds no LDSS funding figure (H-903).
 
 ### 12.2 Rules (`packages/domain/src/workforce/sponsorship.ts`, table-driven tests)
 
@@ -1318,7 +1318,7 @@ sponsored workers directly.
 ## 13. Imports of external training records (slice 78, migration 0132)
 
 Plan slice 78 (WORK-006, with the training matrix of WORK-005; ADR-0102). An organisation whose
-staff train on an external learning platform brings their completions into Harbour's training
+staff train on an external learning platform brings their completions into Thapsus Care's training
 records, from a file the platform exports or by a pull through the learning platform port. The
 platform is the organisation's own processor, not a Thapsus sub-processor, unless the DPO decides
 otherwise (H-520; ADR-0102). Nothing here is clinical: an imported completion is a training record
@@ -1399,13 +1399,13 @@ like any other (workforce.md rule 5), and it never creates a competence sign-off
    - Commits, links and mappings of one source take turns under a lock on the source, so a commit
      never imports by a link or mapping changed under it.
    - There is one imported record per member, topic, tier and date, whichever import brought it.
-   - It keeps an imported record's completion, member and source fixed. It never turns a Harbour
+   - It keeps an imported record's completion, member and source fixed. It never turns a Thapsus Care
      record into an imported one, or the reverse.
-   - Renewing a topic ends its open reminders, as recording it in Harbour does.
+   - Renewing a topic ends its open reminders, as recording it in Thapsus Care does.
    - Rows that are not ready stay pending; the import closes once none is pending.
 7. **Not twice.** A completion is `already_recorded` when this source has imported its record id
    before. It is also `already_recorded` when the member already has a live record of the same
-   topic, tier and completion date (made in Harbour or imported), or when an earlier row of the
+   topic, tier and completion date (made in Thapsus Care or imported), or when an earlier row of the
    same import is the same completion. The database's unique index on the platform's record id
    backs this up.
 8. **Certificates.** For an API source, each imported record's certificate is fetched after the
@@ -1476,14 +1476,14 @@ Audit events carry ids, codes and counts only, never a learner id, a name or a f
   - links only to someone else, in the linker's name, one live link each way;
   - dry runs counting up one at a time;
   - an imported record only from a ready row, exactly, once per record id, never changed;
-  - a Harbour record never made imported;
+  - a Thapsus Care record never made imported;
   - rows resolved once, only while the import is open;
   - only holders of the permission, inside the organisation;
   - certificates read as their record.
 - API (`lms-import.test.ts`):
   - a file staged and dry run, keeping no name or email;
   - a commit refused for a dry run that is not the latest, and when a link changed since;
-  - a Harbour record left alone;
+  - a Thapsus Care record left alone;
   - the importer's own row left for someone else;
   - rows skipped, and the import closing;
   - a second import of the same file all already recorded;

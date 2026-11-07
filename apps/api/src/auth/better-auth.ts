@@ -95,7 +95,7 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
   const firstEnrolments = new WeakSet<Request>();
 
   const auth = betterAuth({
-    appName: "Harbour",
+    appName: "Thapsus Care",
     baseURL: config.BETTER_AUTH_URL,
     basePath: "/api/auth",
     secret: config.BETTER_AUTH_SECRET,
@@ -278,8 +278,8 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
       }),
     },
     plugins: [
-      twoFactor({ issuer: "Harbour" }),
-      passkey({ rpID: config.PASSKEY_RP_ID, rpName: "Harbour", origin: passkeyOrigin }),
+      twoFactor({ issuer: "Thapsus Care" }),
+      passkey({ rpID: config.PASSKEY_RP_ID, rpName: "Thapsus Care", origin: passkeyOrigin }),
       bearer(),
       // OpenID Connect per organisation (ADR-0091). Keys come from the managed store at sign-in;
       // the callback runs the SSO policy (rules 15, 16, 20). Without hooks (scripts), no

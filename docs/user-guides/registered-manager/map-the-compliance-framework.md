@@ -35,9 +35,9 @@ carers and nurses cannot.
   version can be mapped."
 - Every save makes a new version of your mapping. Earlier versions stay in the history, so a past
   audit is read with the mapping of its time.
-- The framework's content is the regulator's, held as data. Harbour never changes a published
+- The framework's content is the regulator's, held as data. Thapsus Care never changes a published
   version: a change is a new version.
-- If someone else saved the mapping since you opened the page, Harbour says so. Reload the page,
+- If someone else saved the mapping since you opened the page, Thapsus Care says so. Reload the page,
   check it again and try once more.
 - To see which statements have evidence, choose **View evidence coverage** (see
   [How to check evidence coverage and its gaps](check-evidence-coverage.md)).

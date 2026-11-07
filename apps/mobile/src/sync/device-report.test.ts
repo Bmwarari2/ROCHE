@@ -154,7 +154,7 @@ describe("hazard HZ-006 the device tells the server what it has not sent (queue 
     expect(await buildDeviceReport(source, NOW)).toMatchObject({ refused: 3, blocked: 2 });
   });
 
-  it("hazard HZ-006 counts refused entries Harbour could not keep a copy of, so a manager knows only this device has them (#25 review round 2, low)", async () => {
+  it("hazard HZ-006 counts refused entries Thapsus Care could not keep a copy of, so a manager knows only this device has them (#25 review round 2, low)", async () => {
     const db = await openLocalDatabase();
     for (const [id, copy] of [
       ["c1", "copied"],

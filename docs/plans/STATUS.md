@@ -12,6 +12,10 @@ screens (#128, `docs/user-guides/`).
 names before loading, and runs as its own Cloud Run job with alerts on refused, failed and late
 releases. Migration 0131; human actions H-1240 to H-1245. The job's Terraform waits for #164
 (H-1241).
+**Committed on 07/11/2026, not pushed:** `feat/infra-dmd-download` (INTG-006 stays `partial`). It
+adds the Terraform for that job (H-1241): the Cloud Run job `harbour-<env>-dmd`, its monthly Cloud
+Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job is applied
+(H-1501 to H-1505).
 
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
@@ -27,6 +31,26 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
+
+## Product rename: Thapsus Care (07/11/2026)
+
+`docs/rename-plan-thapsus-care`, from `main` at 17a5dbbe (after batch 4, #180): ADR-0127 (accepted)
+and [rename-thapsus-care.md](rename-thapsus-care.md). Every user-visible use of the old name in the
+apps, emails, API messages, guides, specs, the safety case and the compliance documents now reads
+Thapsus Care (2,885 changes in 363 files, by `scripts/rename-product.mjs`); identifiers
+(`@harbour/*`, `HARBOUR_*`, roles, the tenant header, bundle ids, the deep link scheme, the passkey
+rpID, cloud and Terraform) and the demo names stay. Migration 0152 renames stored rows; CI runs the
+script's `--check`. Human actions H-1511 to H-1513.
+
+## Merge batch 4 (07/11/2026)
+
+`integration/phase-2-batch-4`, from `main` e1524309 (with #177, #178 and #179): mobile medicines
+sync (slice 68, 0149 renumbered 0147), the Thapsus-HR link's pay and screens (slices 89 and 90,
+0151 to 0148), the member lifecycle v2 (H-566, 0153 to 0149), web stock, homely remedies and
+errors (slice 55, 0155 to 0150), the web medicines round (slice 53), the printable MAR (slice 50),
+and definer owners last (ADR-0133, 0154 to 0151, extended to the definers 0146 and 0149 added).
+Slices 69 and 70 wait for a later batch. See
+`docs/changelog-dev/2026-11-07-integration-phase-2-batch-4.md`.
 
 ## No SMS at launch (07/11/2026)
 
@@ -161,7 +185,7 @@ on `docs/plan-thapsus-hr-link`, and takes migration 0141 (0139 went to slice 71,
 HZ-133 and DPIA risk R30. Slice 86 (port, mock, rules) is on `feat/integrations-hr-link-port`;
 slice 87 (connection, people, locations, the signed webhook, reconciliation; migration 0141) is on
 `feat/integrations-hr-link-connection`, branched from it. Next: slice 88 (absences and the rota's
-staleness notice). Harbour keeps the rota (confirmed 06/11/2026).
+staleness notice). Thapsus Care keeps the rota (confirmed 06/11/2026).
 
 **Next free numbers**: migration 0142, human actions block H-1350, hazard HZ-134, ADR-0127.
 
@@ -172,6 +196,29 @@ until after launch (H-09, H-105), and the other eight take their recommendation.
 officer items are provisional owner-accepted recommendations, pending CSO review at the testing phase.
 
 ## Where to pick up (resumed 31/10/2026)
+
+**Phase 2 slice 55, web stock, homely remedies, errors and reviews** (`feat/meds-web-stock-errors`,
+MEDS-007, MEDS-008, MEDS-012, MEDS-013, from batch 3b; no migration): stock, ordering and temperatures
+for a home and a person; homely remedy protocols and doses checked against them; the medication
+error record on the incident; medication reviews and the tracker; the override, PRN and trend reports.
+Reviewed (security, clinical and accessibility, two rounds); HZ-120 and HZ-132 fixed, H-1410 and
+H-1411 provisional. Follow-ups:
+- Security: an API to list the staff who may witness a disposal (the web reads the location's
+  members today); show the witness link only to the named witness; per-resident reads on the order
+  pages, so a reader who may not see a resident does not see their lines.
+- Accessibility (minor): unit plurals ("56 tablet"), page titles unique per record, corrections
+  shown struck through, keyboard-only steps in the three journeys, the period error summary linked
+  to its fields, the flag words for homely remedy doses taken from the API, a warning on the PRN
+  report when communication needs cannot be read.
+
+**Phase 2 slice 53, web medicines round** (`feat/meds-web-rounds-prn`, MEDS-002 to MEDS-004, from
+batch 3b; no migration): the home's and a person's medicines round, recording a dose on its own page
+with the person and allergies beside the medicine, when-required medicines with when last given, and
+the covert record beside the medicine. Next: slice 55 (stock, homely remedies, errors), then 50.
+
+**Phase 2 slice 50, printable MAR and register page** (`feat/meds-printable-mar`, MEDS-014, from
+batch 3b; no migration): the MAR chart for a month and a controlled drugs register page as PDFs, each
+with the printed time and "not the live record" on every page (HZ-122, new; HZ-007).
 
 **Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
 recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
@@ -535,7 +582,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
-- slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0149; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
+- slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0147; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
 - slice 69 the medicines round on the phone, `feat/mobile-meds-round` (no migration; ADR-0081; H-1432 to H-1438; on slice 68): the round shared with the API, GS1 pack scan and photo confirmation, offline records judged at the phone's time, integrity gate, reminders; MOB-007, MEDS-002 partial; Maestro flow written, not run;
 - slice 70 controlled drugs, corrections and conflicts on the phone, `feat/mobile-meds-cd-offline` (0153 for now, the integrator renumbers; ADR-0084; H-1439, H-1440, H-1521 to H-1525; on slice 69): PIN keys per member and phone, two signatures verified on upload, referenced corrections, conflict review; MOB-007, MEDS-005 partial; Maestro flows written, not run;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
@@ -963,7 +1010,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
      db:bootstrap` first, H-220, numbered H-216 until #60 review round 1; storage split for the DPO, H-217). Next, part 2, the API: the
      routes, public link routes and audit and outbox events of section 5, the PDF through the
      downtime pack writer (ADR-0040), the bundle deletion sweep at link end and the
-     notification-overdue job. Follow-ups: an inspector with a Harbour account
+     notification-overdue job. Follow-ups: an inspector with a Thapsus Care account
      (`quality.evidence.read`, scope `none`) opening a pack released to their address needs its
      own policy; the migration number 0057 follows 0056 (#50), so its journal `when` must stay
      after #50's at merge.
@@ -1009,7 +1056,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
      in the same transaction, a cap on open codes) and the PDF; built, PR open. Follow-ups: the web
      page that reads the token from the link's fragment and posts it (web step); throttles are per
      API instance (a shared table, as for invitations); the code email has a generic subject and the code in its body
-     (built in part 2a of the letter templates, H-225); an inspector with a Harbour account
+     (built in part 2a of the letter templates, H-225); an inspector with a Thapsus Care account
      (`quality.evidence.read`) still needs its own route.
    - #66 review round 1 (security and clinical), fixed in #66: the printed pack says when it was
      composed and released (GMT or BST) and that it shows the records as they stood at release
@@ -1019,7 +1066,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
      one shared bucket when no address is known; audit rows take the address from the trusted hop;
      the session cookie is `__Host-`, path `/`, encrypted (AES-256-GCM) and signed.
      Logged, not blocking this merge: the code email's subject and body need an email port with a
-     body (H-225; blocks a live tenant); the SES body's "Open Harbour..." line would confuse an
+     body (H-225; blocks a live tenant); the SES body's "Open Thapsus Care..." line would confuse an
      external recipient.
    - Slice 11, letter and email templates part 1, schema (`feat/comms-letter-templates`,
      migration 0059, stacked on #66 for the migration order; comms.md section 11): the three
@@ -1290,7 +1337,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
     `member_of_other_organisation` tells the calling organisation that the person is active
     elsewhere (consider a generic refusal), and its advice to ask them to sign out is wrong for a
     suspended member or suspected misuse (point to suspending the membership or withdrawing the
-    device); a member of several organisations can be signed out remotely only through Harbour
+    device); a member of several organisations can be signed out remotely only through Thapsus Care
     support, which needs a documented procedure; holds are chased only after the sessions end and
     the audit is written, so a failure there leaves the tasks unhurried; `suspected_misuse` is not
     in `CHASE_HELD`; `platform.user.manage` holders can now bring device holds due at once (before,
@@ -1407,7 +1454,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
       reworded line leaves an earlier answer under the old words (shown only in the API's
       content; a `requiredContent` key in the contract would fix it); "Who submitted" names
       the member only as "you" or "another member" (H-73).
-    - #58 review round 1 (built): "not required" on a notification Harbour found needed says
+    - #58 review round 1 (built): "not required" on a notification Thapsus Care found needed says
       so and takes a 20-character reason and a confirmation (H-265); the forms leave success to
       the page, which announces only a matching status and drops `?done=`; no future tolerance
       on the submission time. Left: "just now" still sends the server's time, since

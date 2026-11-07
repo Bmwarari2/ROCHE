@@ -55,7 +55,7 @@ test("the national data opt-out shows in words and an icon, and the manager reco
   await page.goto(PATH);
   await expect(page.getByRole("heading", { level: 2, name: "Personal details" })).toBeVisible();
   // The title names the tab, never the person.
-  await expect(page).toHaveTitle(`Personal details | ${PEOPLE} | Harbour`);
+  await expect(page).toHaveTitle(`Personal details | ${PEOPLE} | Thapsus Care`);
   expect(await page.title()).not.toContain("Frank");
   await expect(details(page).getByText("999 000 0069")).toBeVisible();
   await expect(details(page).getByText("25/01/1946")).toBeVisible();

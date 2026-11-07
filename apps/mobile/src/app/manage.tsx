@@ -4,7 +4,7 @@ export default function ManageScreen() {
   return (
     <ComingSoon
       title="Manage"
-      description="Approvals, alerts and dashboards for managers arrive in a later release. Use Care mode or the Harbour website for now."
+      description="Approvals, alerts and dashboards for managers arrive in a later release. Use Care mode or the Thapsus Care website for now."
     />
   );
 }

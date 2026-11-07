@@ -76,7 +76,7 @@ test("the owner names the data protection lead and sets the governance", async (
     .fill("https://harbour.example.invalid/privacy");
   await form.getByRole("button", { name: "Save responsibilities" }).click();
   await arrived(page, "Responsibilities saved.");
-  await expect(main(page).getByText("Harbour still needs these details")).toHaveCount(0);
+  await expect(main(page).getByText("Thapsus Care still needs these details")).toHaveCount(0);
 });
 
 test("the Registered Manager prepares it, and is offered neither the governance nor the signature", async ({

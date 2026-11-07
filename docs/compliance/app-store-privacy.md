@@ -1,6 +1,6 @@
 # App store privacy answers (MOB-011)
 
-What the Harbour mobile app (`apps/mobile`, bundle id `uk.co.thapsus.harbour`) collects and sends,
+What the Thapsus Care mobile app (`apps/mobile`, bundle id `uk.co.thapsus.harbour`) collects and sends,
 and the answers that follow from it for Apple's App Privacy section ("privacy nutrition label"),
 Google Play's Data safety form and the two stores' health declarations. Master prompt section 17.3.
 
@@ -17,12 +17,12 @@ H-561).
 
 ## 1. What the app sends, and to whom
 
-The app talks to two services only, both Harbour's own and in the UK (Google Cloud europe-west2, [ADR-0098](../decisions/0098-production-on-google-cloud.md)):
+The app talks to two services only, both Thapsus Care's own and in the UK (Google Cloud europe-west2, [ADR-0098](../decisions/0098-production-on-google-cloud.md)):
 
 | Destination | What goes | Code |
 | --- | --- | --- |
-| Harbour API | Sign-in (email, password, TOTP code; Better Auth), `/v1/me`, care entries the member records (notes, chart readings, body map marks, activities, visits, task moves, handover acknowledgements), the device report (counts only), the account deletion request | `src/auth/`, `src/sync/connector.ts`, `src/sync/care-upload.ts`, `src/sync/round-upload.ts`, `src/sync/device-report.ts`, `src/platform/account-deletion.ts` |
-| Harbour's self-hosted PowerSync service | Downloads of the people the member is assigned to and their records; uploads go through the API above | `src/sync/connector.ts` |
+| Thapsus Care API | Sign-in (email, password, TOTP code; Better Auth), `/v1/me`, care entries the member records (notes, chart readings, body map marks, activities, visits, task moves, handover acknowledgements), the device report (counts only), the account deletion request | `src/auth/`, `src/sync/connector.ts`, `src/sync/care-upload.ts`, `src/sync/round-upload.ts`, `src/sync/device-report.ts`, `src/platform/account-deletion.ts` |
+| Thapsus Care's self-hosted PowerSync service | Downloads of the people the member is assigned to and their records; uploads go through the API above | `src/sync/connector.ts` |
 
 Requests carry the member's session token and the organisation id (`x-harbour-tenant`). Sync,
 upload and device-report requests also carry the app's own per-install device id
@@ -40,7 +40,7 @@ one), location, audio, contacts, files, browsing history, purchases, financial i
 
 ## 2. Apple: App Privacy ("nutrition label")
 
-Apple asks about data **collected from the app's users**. Harbour's users are care staff. What they
+Apple asks about data **collected from the app's users**. Thapsus Care's users are care staff. What they
 record about the people they care for is health information and is declared as Health. Every type is
 **linked to the user** (it travels with their account) and **not used for tracking**. The only purpose
 is **App Functionality**.
@@ -79,7 +79,7 @@ are managed by their employer.
 | Location, Photos and videos, Audio, Files and docs, Calendar, Contacts, App activity, Web browsing, Messages, Financial info | Not collected |
 | Is data processed ephemerally? | No: records are kept by the care provider |
 
-"Shared" in Google's sense excludes service providers acting for Harbour (Google Cloud hosting, Harbour's own
+"Shared" in Google's sense excludes service providers acting for Thapsus Care (Google Cloud hosting, Thapsus Care's own
 PowerSync), so nothing is shared.
 
 ## 4. Health declarations
@@ -88,7 +88,7 @@ PowerSync), so nothing is shared.
   health and social care professionals (not consumers); it is **not a medical device** and makes no
   diagnosis, prognosis or treatment recommendation (docs/compliance/medical-device-boundary.md); it
   does not use Health Connect. Category: medical / health record management. The listing carries the
-  sentence "Harbour is not a medical device", as the About section in the app does.
+  sentence "Thapsus Care is not a medical device", as the About section in the app does.
 - **Apple**: category Medical; App Review notes say the app is for registered care providers' staff,
   accounts are created by the care provider, and a demo account is supplied for review (H-565). No
   HealthKit, no CareKit, no regulated medical device claim. Health data is never written to iCloud.
@@ -98,7 +98,7 @@ PowerSync), so nothing is shared.
 ## 5. Account deletion
 
 Apple guideline 5.1.1(v) and Google Play's account deletion policy require an in-app way to start
-deleting an account. A Harbour staff account belongs to the care provider that created it, and the
+deleting an account. A Thapsus Care staff account belongs to the care provider that created it, and the
 records written with it are the provider's care records (retained under the retention schedule,
 docs/specs/retention.md). So:
 
@@ -115,7 +115,7 @@ docs/specs/retention.md). So:
    due so unsent entries are handed over), then end it (`.../end`). The member row, display name
    and job title stay so care records stay attributable (Regulation 17); the staff file follows
    `staff_file` retention. Once the person has no membership anywhere that has not ended and is
-   not a Harbour operator, the manager erases the sign-in identity (`.../sign-in/erase`: its email
+   not a Thapsus Care operator, the manager erases the sign-in identity (`.../sign-in/erase`: its email
    address, password hash, passkeys, TOTP secret, sessions and verification tokens) within `account_deletion.confirmation_days`, and the request's
    task closes with the outcome audited by opaque id. **Nothing is deleted by the request itself,
    and care records are never deleted this way.** The web screens for these routes are still to

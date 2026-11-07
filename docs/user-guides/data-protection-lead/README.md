@@ -15,7 +15,7 @@ For the quality and compliance lead, and the person named as data protection lea
 - [How to record and handle a data breach](record-a-data-breach.md)
 - [How to send the response to a data rights request](send-the-response-to-a-data-rights-request.md)
 - [How to track DSPT assertions and their evidence](track-dspt-assertions-and-evidence.md)
-- [How to destroy the organisation's stored files when it leaves Harbour](shred-the-organisations-records.md)
+- [How to destroy the organisation's stored files when it leaves Thapsus Care](shred-the-organisations-records.md)
 
 ## Everyone
 

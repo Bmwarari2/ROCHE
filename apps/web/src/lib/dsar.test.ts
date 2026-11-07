@@ -56,7 +56,7 @@ describe("PLAT-022 the DSAR clock in words, never colour alone", () => {
   it("a clock the API could not work out says so", () => {
     const view = clockView(null, null, t);
     expect(view.status).toBe("notRecorded");
-    expect(view.words).toBe("Harbour could not work out the clock. Check the dates.");
+    expect(view.words).toBe("Thapsus Care could not work out the clock. Check the dates.");
   });
 });
 

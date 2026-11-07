@@ -94,7 +94,7 @@ mock, and no route may pass a client-supplied value.
 Every rule has a table-driven test in `packages/domain/src/medicines/` named with its hazard ID.
 Figures come from `rate_table` by key, resolved with `resolveMedicinesRates`; slice 2 reads only
 `medicines.ordering_cycle_days`, and a test fails if that figure appears as a literal in the rules.
-Harbour transcribes and applies what the prescriber wrote; it calculates no dose, suggests no time
+Thapsus Care transcribes and applies what the prescriber wrote; it calculates no dose, suggests no time
 and compares no ingredients ([medical-device boundary](../compliance/medical-device-boundary.md)).
 
 ### 4.1 Medicines record and reconciliation (slice 2, built)
@@ -117,13 +117,13 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    and uses the plural unless the quantity is exactly 1 ("0.5 tablets", "1 to 2 tablets",
    "0.5 to 1 tablet"). A compound unit keeps every part in full ("12 micrograms/hour" for
    "mcg/hr"); a measured unit is written "2 × 5 ml spoonfuls", so its size is never read as part of
-   the number. No thousands separator ("5000 units"). Harbour never converts a dose: a number with
+   the number. No thousands separator ("5000 units"). Thapsus Care never converts a dose: a number with
    more than 3 decimal places is refused with "ask the prescriber or pharmacist", never "use a
    smaller unit" (H-551). A quantity below 1 in g, mg or micrograms is refused
    (`smaller_unit_permitted`) where dm+d permits the next smaller unit for the product (mg,
    micrograms, nanograms), so "0.5 g" is never transcribed where the BNF's prescription-writing
    guidance asks for "500 mg"; the message names the smaller unit and says to ask the prescriber or
-   pharmacist for the dose in it, and Harbour never works out the converted figure (recommended
+   pharmacist for the dose in it, and Thapsus Care never works out the converted figure (recommended
    answer to H-551, 31/10/2026; the pharmacist confirms it at the testing phase). Mass units are
    recognised by their dm+d description. **Variable doses** (HZ-005): the day doses come from a dosing record (for
    example a warfarin schedule after an INR test, with its source), second-checked like an entry,
@@ -146,7 +146,7 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    when they go back is due once, at the first (BST) occurrence, and flagged `time_repeated`; an
    08:00 dose stays at 08:00 either side (23 or 25 hours apart). If a moved time lands on another
    prescribed time of the same entry, both doses stay and both name the other (`sameInstantAs`) for
-   the nurse in charge: Harbour never merges or drops a dose. `clockChangesIn` names the days in a
+   the nurse in charge: Thapsus Care never merges or drops a dose. `clockChangesIn` names the days in a
    cycle when the clocks change, so the MAR and the round can say so.
 5. **Non-daily schedules name the day** (HZ-005). Every dose of a non-daily pattern carries its day
    name for the MAR row (`MarDose.dayName`), and the schedule in words names the days
@@ -252,7 +252,7 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    person made: continue, change, stop or query. A
    decision is supported only by a line that says that thing about the same dm+d product (a VMP,
    by identity): a line that says something else, or names another product, never supports it,
-   whatever the note (`line_does_not_support`). Harbour never infers a stop because a source leaves
+   whatever the note (`line_does_not_support`). Thapsus Care never infers a stop because a source leaves
    a medicine out: a stop links the line that says it stops, from a current document; with no such
    line the decision is a query. A change keeps the entry's dm+d VMP (`change_different_product`
    otherwise: a switch, such as warfarin to apixaban, is a stop on the old product's line and a
@@ -287,7 +287,7 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    confirmed. What the person or family says is always asked but is not enough on its own to
    start, change or stop a medicine (`source_not_a_document`); the other kinds become the new
    entry's source document.
-10. **Differences and duplicates by identity only** (HZ-121; `linkDifference`). Harbour never pairs
+10. **Differences and duplicates by identity only** (HZ-121; `linkDifference`). Thapsus Care never pairs
     lines with entries itself and never compares ingredients. Continuing an entry on a line that
     names another brand of the same VMP needs a note. One entry per dm+d VMP (rule 6): a start of a
     VMP the MAR already holds is refused when the reconciliation completes (`start_refused`,
@@ -307,7 +307,7 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
     reconciliation completes, so a refusal shows then, not when the plan is applied
     (`change_refused`, `stop_refused`, `start_refused`), a product would be on the MAR twice, the completer's medicines
     competence (read from the workforce port, section 3) is not current, the allergies in the
-    sources have not been compared with the recorded allergies by the completer (Harbour matches no
+    sources have not been compared with the recorded allergies by the completer (Thapsus Care matches no
     allergen, ADR-0082 default), the person (or someone who speaks for them) was not involved and
     no reason is given, an entry belongs to someone else, or the entries to decide on are not the
     ones it began with (`record_changed`, medicine by medicine): a medicine added or gone, or
@@ -342,7 +342,7 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
 
 13. **Tags at transcription** (ADR-0082; `MEDICINE_TAGS`, `suggestedTags`). A MAR entry carries
     tags a person sets at transcription and the second check confirms: `time_critical`,
-    `paracetamol`, `bisphosphonate`, `psychotropic`. Harbour offers a tag only when the tenant's
+    `paracetamol`, `bisphosphonate`, `psychotropic`. Thapsus Care offers a tag only when the tenant's
     own list for it holds the product's exact VMP; never by ingredient or name. An entry also
     carries the minimum interval the prescription or PRN protocol states, and a when-required entry
     its maximum in 24 hours (the PRN status says when none is recorded, for entries from before
@@ -371,7 +371,7 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
 15. **Outstanding and escalation** (HZ-003). With no outcome after its window a dose is "Late: no
     outcome recorded" and stays outstanding until someone records what happened; nothing closes it.
     Its escalation falls due at the end of its window, so a time-critical dose escalates sooner
-    (slice 48 sends it). Harbour never makes a missed dose due again.
+    (slice 48 sends it). Thapsus Care never makes a missed dose due again.
 16. **Minimum intervals** (HZ-004, HZ-009, HZ-010; `intervals.ts`). A dose inside the entry's own
     prescribed interval (counting every version of the entry), or inside the paracetamol interval of
     a dose from any entry tagged paracetamol, before or after it, needs an override reason and is
@@ -461,8 +461,8 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     shows when it was last given, by whom and whether it has synced, the 24-hour total, what
     remains (the prescriber's maximum less the total, H-1065), and when the interval allows the
     next, with every notice that applies: no maximum recorded (the prescribed interval applies, with
-    no limit of Harbour's own), the maximum given, the last dose not synced, a dose in another unit
-    not counted. Harbour does not add up paracetamol across products
+    no limit of Thapsus Care's own), the maximum given, the last dose not synced, a dose in another unit
+    not counted. Thapsus Care does not add up paracetamol across products
     against a daily total; each entry's own maximum applies (H-1063).
 20. **When-required outcomes** (`prnOutcomeDueAt`). The outcome of a when-required dose falls due
     `medicines.prn.outcome_check_minutes` after it and is listed until recorded.
@@ -884,7 +884,7 @@ The person record's **Medicines** tab, for holders of `medicines.record.manage`,
 (name, photo, date of birth, NHS number and allergies) is above every medicine, and each form that
 records a medicine repeats, at its top, the person's name, date of birth and NHS number, the allergy
 status and every allergy with its severity and reaction, most severe first (`PersonCheck`; the full
-identity bar there is H-1287). Harbour never matches a medicine to an
+identity bar there is H-1287). Thapsus Care never matches a medicine to an
 allergy or to a person: the screens show both, and people compare them.
 
 **Rules**
@@ -927,7 +927,7 @@ allergy or to a person: the screens show both, and people compare them.
    unclear); a decision by a person for every current entry (continue, change, stop with a reason,
    or a query) and every line not matched to one (start, not started with a reason, or a query);
    and completion (allergies compared, the person's involvement or why not, and why there is no
-   discharge letter where the API asks). Harbour never decides: a line that says "stop" does not
+   discharge letter where the API asks). Thapsus Care never decides: a line that says "stop" does not
    stop anything until a person decides it. A refused completion shows every problem in the API's
    words (listing them by entry and line needs an API change: H-1283). Continuing or changing a
    medicine with a version that starts later asks why that version still stands. Each entry shows
@@ -1064,7 +1064,7 @@ a register.
 
 ### 13.8 Medicines on the phone (slice 68; ADR-0130)
 
-Built in slice 68 (migration 0149; the routing column of migration 0146, ADR-0134), for members holding `medicines.emar.administer` where `people.person.read` and `care.plan.read` reach too (so a MAR never syncs without the person's identity and allergies), in the two
+Built in slice 68 (migration 0147; the routing column of migration 0146, ADR-0134), for members holding `medicines.emar.administer` where `people.person.read` and `care.plan.read` reach too (so a MAR never syncs without the person's identity and allergies), in the two
 person scopes of the care streams (replication bypasses RLS, so the stream queries carry the scope;
 `medicines-streams.test.ts` proves it):
 - **`*_medicines`** (priority 1, with the allergy streams, HZ-002): MAR entry versions not
@@ -1122,7 +1122,7 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
 2. A controlled drug given needs the witness's PIN and the recorder's: both sign the dose statement
    and the API verifies them on upload, then writes the register entry with a `device_factor`
    witness. The phone always asks for a witness.
-3. A record that has reached Harbour is corrected by a new record naming it, with why (at least 20
+3. A record that has reached Thapsus Care is corrected by a new record naming it, with why (at least 20
    characters), sent to the corrections route; a record still waiting on the phone, or a controlled
    drug's record, is not corrected on the phone.
 4. The nurse in charge reviews doses recorded on two phones online on the phone: the same dose sent
@@ -1384,7 +1384,7 @@ A medication incident (incident `type` `medication`) may carry one **medication 
 (`medication_error`, one per incident, mutable with `expected_version`), about one person on the
 incident:
 
-- **What went wrong**: one or more kinds from Harbour's list, which follows the NRLS medication
+- **What went wrong**: one or more kinds from Thapsus Care's list, which follows the NRLS medication
   incident error categories (National Reporting and Learning System, NHS England; kept by Learn
   from Patient Safety Events) as the source, with the source named in the code
   (`MEDICATION_ERROR_SOURCE`): omitted dose, wrong dose or strength, wrong frequency, wrong
@@ -1410,7 +1410,7 @@ incident:
 
 Severity, harm and the statutory notifications stay on the incident and its classifier, which
 this slice does not change. The **prompts** (`medicationErrorTriage`) are returned with the record
-and shown, never sent anywhere by Harbour:
+and shown, never sent anywhere by Thapsus Care:
 
 - **Clinical advice** whenever it reached or may have reached the person, or a dose was omitted,
   with "if the person is unwell, call 999", until who was told, when, and their advice are all
@@ -1440,7 +1440,7 @@ a reason). The record takes its incident's retention class.
 A **medication review** (`medication_review`, mutable with `expected_version`) is scheduled for a
 person (`due_on`) and recorded as done (`done_on`) by a named clinician (`clinician_name`,
 `clinician_role`: GP, pharmacist, nurse or other prescriber, consultant, other), with the outcome in
-the clinician's words (`outcome`, text). Harbour never suggests a change. Once done, it cannot be
+the clinician's words (`outcome`, text). Thapsus Care never suggests a change. Once done, it cannot be
 changed except by a correction with a reason. A review not yet done can be moved to another date
 or cancelled, each with a reason (kept in history). The tracker (`reviewStatus`) shows for each
 person on medicines: the last review done, the earliest booked review, the date due by the interval
@@ -1506,7 +1506,7 @@ each person, so stock is kept per person and per product. Controlled drugs keep 
 (section 14): this section never moves their stock, and shows their balance from the register. The
 pharmacy is reached only through a contract-tested mock port (H-517). Nothing here says whether a
 medicine is still fit to use: after a temperature out of range, that is the pharmacist's call, and
-Harbour says so in those words (medical-device boundary).
+Thapsus Care says so in those words (medical-device boundary).
 
 ### 15.1 Tables
 
@@ -1589,7 +1589,7 @@ Harbour says so in those words (medical-device boundary).
      stays locked while the pharmacy is called, so it is never sent twice; the pharmacy has 15
      seconds to answer. The port receives the order's id to treat as idempotent, and each person
      as a keyed pseudonym (an HMAC with `PHARMACY_REF_SECRET`) stable within the organisation, never
-     Harbour's id or a name.
+     Thapsus Care's id or a name.
    - A receipt never fills more than a line asked for without saying so (an over-receipt is
      allowed, flagged).
 8. **Temperatures.** A reading is out of range below the minimum or above the maximum for its kind
@@ -1736,7 +1736,7 @@ and dark).
 ## 15. Covert administration, self-administration and homely remedies (slice 38; MEDS-004, MEDS-006, MEDS-007)
 
 Hazards HZ-026 and HZ-120; human actions H-1350 to H-1359. Section 14 is slice 45's (on its own
-branch). Harbour records and applies the organisation's decisions: it never recommends covert
+branch). Thapsus Care records and applies the organisation's decisions: it never recommends covert
 administration, a method, a level of self-administration or a remedy (medical-device boundary).
 Every limit is the rate table's or the home's own protocol's, never a literal.
 
@@ -1799,7 +1799,7 @@ agreed it and when, and a review date within `medicines.homely_remedy.review_max
 Changing it needs a new reason; a withdrawn protocol is closed.
 
 A **homely remedy dose** (`homely_remedy_administration`, append-only, client UUID) needs the giver
-to confirm they checked the person's allergies (Harbour never matches them: HZ-007, ADR-0082), and
+to confirm they checked the person's allergies (Thapsus Care never matches them: HZ-007, ADR-0082), and
 is recorded by the member who gives it (database). It can be checked first without recording
 (`POST .../homely-remedy-doses/check`). It is refused in words when (H-1356):
 
@@ -1861,10 +1861,452 @@ Sent to devices from slice 68 (section 13.8).
   by a named member once per id, refusals in words, entered in error, a prescribed product,
   withdrawal.
 
+## 18. Web: stock, homely remedies, errors and reviews (slice 55; MEDS-007, MEDS-008, MEDS-012, MEDS-013)
+
+No migration and no API change. In the side navigation: "Medicines stock" (`medicines.stock.manage`) and "Medicines reports" (`medicines.record.manage`); the person's Medicines tab links their stock, homely remedies and medication reviews.
+
+### Stock, ordering, disposal and temperatures screens (slice 55, MEDS-008)
+
+The web screens for section 15 (slice 42's API; no API, contract or database change). A home's
+stock page is at `/medicines-stock/{locationId}` (`/medicines-stock` sends the reader to the chosen
+home, or lists the homes when the shell shows every one). A person's stock is under their record's
+**Medicines** tab, at `/people/{id}/medicines/stock`, inside the record frame, so the point-of-care
+header is above it. Reading needs any of the API's readers (`medicines.record.manage`,
+`medicines.emar.administer` or `medicines.stock.manage`); every change needs
+`medicines.stock.manage`, except a temperature reading, which `medicines.emar.administer` may also
+record. The API checks each again, and its refusals are shown in its own words at the field they
+belong to.
+
+**Rules**
+
+1. **The home's page** has three sections. The **ordering cycle** shows the cycle's length (the rate
+   table's `medicines.ordering_cycle_days`, from the API), the day a cycle started and when the next
+   starts; a stock manager sets the first day of a cycle, against the version read. **Orders** lists
+   each order by its cycle, newest first, with its step as an icon and a word (draft, submitted,
+   part received, received, cancelled), its number of lines and how and when it was sent.
+   **Storage and temperatures** lists each fridge and medicines room or cupboard, each opening its
+   readings, and a stock manager adds one (a kind and a name of 2 to 80 characters).
+2. **Starting an order** (`/medicines-stock/{locationId}/orders/new`) lists each person at the home
+   the reader may see, with each medicine on their MAR in force and its dose unit. A quantity typed
+   for a medicine orders it; one left empty does not. The first day of the next cycle is offered.
+   At least one quantity is needed. The API checks each line is the person's own medicine at this
+   home and never a controlled drug.
+3. **An order** (`/medicines-stock/{locationId}/orders/{orderId}`) shows its step (icon and word),
+   when and how it was sent, the pharmacy's reference, and each line with the person, the medicine,
+   the quantity ordered and the quantity received (a line received beyond its quantity says so in
+   words). A draft is submitted by hand or through the pharmacy (the API says when the pharmacy is
+   not connected); an order not yet received can be cancelled.
+4. **A fridge's or room's readings** (`/medicines-stock/{locationId}/storage/{storageId}`) lists the
+   last 100, newest first. Each shows its state as an icon and words, never colour alone: "In
+   range" or "Out of range", with no direction or cause (the figures beside it say that). Whether a reading is out of range is the API's (the database's) decision,
+   from the rate table; the screen never works it out. Each shows the range that applied, as the API
+   stored it, and the thermometer's lowest and highest since the last reading. An out-of-range
+   reading with a task says a task was raised and points to the tasks list.
+5. **Recording a reading**: the temperature now and, optionally, the lowest and highest since the
+   last reading, each from -50 to 60 with at most one decimal place (8.04 is refused, so a reading at
+   a range's edge is never rounded into it; HZ-132). After it is recorded the form shows its state
+   (icon and words), the range that applied and the API's own words on what happens next. Nothing on
+   these screens says whether the medicines can still be used.
+6. **A person's stock** lists each item with its balance as the API counts it (never added up in the
+   browser), a balance below nought as an icon and the words "Below nought, count needed", and its
+   last movement. Each controlled drug shows its register's balance, says it is kept in the
+   register, and links to the register page; it is never counted here. A stock manager opens an
+   item from a medicine on the MAR in force that has none.
+7. **A stock item** (`/people/{id}/medicines/stock/{itemId}`) lists its latest movements in words
+   (received, given, returned, disposed of, a dose corrected, a count adjusted) with the signed
+   change, the balance after and who recorded it when. A stock manager records:
+   - a **receipt**, naming the open order line it fills when there is one (lines of submitted and
+     part-received orders for this person's medicine);
+   - a **return** to the pharmacy;
+   - a **count**, where a count that differs from the balance shown needs a reason (the API compares
+     again under a lock);
+   - a **disposal**: the quantity, a coded reason, a note, and either a witness (a member at the
+     home, never the recorder) or why no one could witness it (at least 10 characters), never both.
+     The organisation's policy decides whether a disposal may go unwitnessed; the API says so when it
+     may not. Where the reader cannot see the staff list (`platform.user.manage`), the form says to
+     ask a manager to record a witnessed disposal.
+8. **Witnessing a disposal** (`/people/{id}/medicines/stock/disposals/{disposalId}`): a disposal
+   movement links here for stock managers other than its recorder. The page shows the medicine, the
+   quantity and when, and the named witness confirms it once, in their own session; the API refuses
+   anyone else in its words. Only this closes the witness task.
+9. Quantities are numbers above nought with at most three decimal places and no leading zero; a
+   count may be nought. Dates are typed as day, month and year.
+
+**As built**: `apps/web/src/lib/medicine-stock.ts` (pure readers into the contract, chips as icon and
+word, the field for each stock refusal), `apps/web/src/app/actions/medicine-stock.ts` (each body
+checked against the contract's zod schema with only the form's fields),
+`apps/web/src/components/medicines/stock/LocationStockForms.tsx` and `PersonStockForms.tsx`, and the
+pages above. The home's stock page needs a link in the side navigation and the person's
+**Medicines** tab needs a link to the stock page (not built in this area; see the lead's notes).
+
+**Known gaps**: the API has no expiry date on a stock item, so no expiry state is shown (when one is
+added, show it as an icon and words, never colour alone). A disposal has no read route, so its
+witness state is shown only on arrival after recording it ("waiting for the witness to confirm it")
+and the witness page finds it among the item's latest ten movements. The new-order page reads each
+person's MAR one request at a time in parallel (one per person at the home).
+
+**Tests**: `apps/web/src/lib/medicine-stock.test.ts` (who sees and changes stock; an order's step,
+a reading's state, a balance below nought and a disposal's witness state each as an icon and a word;
+a temperature to one decimal place at most, 8.04 and 1.95 refused; a reading at the edge that the API
+found in range stays in range; receipts, returns, counts, disposals, the cycle, a new order, a
+submission and storage read into the contract with each mistake at its field; which order lines a
+receipt can fill; which entries an item can be opened from); `apps/web/e2e/medicine-stock.spec.ts`
+(the manager sets the cycle, adds a fridge, records a reading in range and one out of range, starts
+and submits an order, opens an item, receives the order line, counts with a reason, and records a
+disposal the nurse confirms as witness; axe in light and dark at every screen, with and without
+errors).
+
+### Homely remedies on the web (MEDS-007; slice 55; HZ-120, HZ-007)
+
+The home's homely remedy protocols and a person's homely remedy doses are on the web, on the slice
+38 API (section 15.3). The web keeps nothing: every rule (the rate table's limits on the days and
+the review, who is named, the dose, the gap, the 24 hours, the course, the same product prescribed)
+is the API's, and its words are shown as they are.
+
+**The home's protocols** (`/medicines-stock/{locationId}/homely-remedies`) list each protocol with
+its state as an icon and the API's words (in use; review overdue, not to be used until reviewed;
+withdrawn), the figures agreed with the GP or pharmacist (what it is for, one dose, the shortest gap,
+the most in 24 hours, the days before the GP is asked, who agreed it and when, the review date, how
+many staff it names, the dm+d code when coded), and why it was last changed or withdrawn. A
+medicines manager adds one (`.../new`), changes one (`.../{protocolId}/change`, every figure as it
+stands, the staff ticked, a new reason, the version read) and withdraws one (`.../{protocolId}/withdraw`,
+with a reason and the version read). A withdrawn protocol offers neither.
+
+**A person's homely remedies** (`/people/{id}/medicines/homely-remedies`, in the record's medicines
+tab) list the doses given, newest first: the product, the amount and unit ("quantity not
+recorded" when there is none, never zero), when, why, "Given by you"
+for the reader's own, when and why a dose was recorded afterwards, and any flags in words. A dose
+entered in error stays, struck through, with an "Entered in error" chip and the reason. Someone who
+may give homely remedies at the person's home sees "Give a homely remedy": the person and every
+allergy (`PersonCheck`), the person's current medicines on the MAR (stopped, replaced and withdrawn
+left out; if they cannot be read, a warning to check the MAR), the home's protocols in use, the
+chosen protocol's figures beside it (with a warning when the protocol has no dm+d product, so Thapsus Care
+cannot check it against the MAR), and the amount (the protocol's dose filled in). "Check against the protocol" asks the API
+(`POST .../homely-remedy-doses/check`) and shows its answer in its words; only a dose the check found
+within the protocol, for the same protocol and amount, offers why it is given, the allergy
+confirmation, the confirmation that the remedy was compared with the current medicines (HZ-120: the
+API matches only the same product, never an ingredient) and "Record the dose". The API requires the
+second confirmation too (`medicinesCompared: true` in `RecordHomelyDose`), stores it on the dose
+(`medicines_compared`, migration 0150, a database check on every dose given from then on) and puts
+it in the audit event's scope with the allergy confirmation.
+
+#### Rules
+
+1. The pages are shown to holders of `medicines.record.manage`, `medicines.emar.administer` or
+   `care.plan.read`; the location page also needs the home to be one of the reader's locations.
+   Adding, changing and withdrawing a protocol are offered only with `medicines.record.manage`.
+2. A protocol's state is always an icon and the API's words: in use (tick), review overdue
+   (warning triangle), withdrawn (circle with a line through it).
+3. The protocol form reads every field before anything is sent: the product (200 characters), an
+   optional dm+d code (6 to 18 digits), what it is for (500), one dose and the most in 24 hours
+   (above zero, at most three decimal places, never rounded, the most in 24 hours not below one
+   dose), the unit (60), the shortest gap in hours (above zero, at most 168, two decimal places),
+   the days before the GP is asked (a whole number from 1 to 365), at least one member of staff,
+   who agreed it, GP or pharmacist, the date agreed and a review after it. The organisation's
+   limits on the days and how far ahead the review may be are the rate table's, applied by the API
+   (no literal in the web).
+4. The staff a protocol may name are the organisation's staff the reader may list (by name and job
+   title), the reader, and anyone the protocol already names whom the reader cannot list (shown as
+   such, so a change never drops them unseen).
+5. A change sends every figure again, a new reason and the version read; a stale version is the
+   API's conflict, said in words. A withdrawal sends a reason and the version read.
+6. A dose is checked with the API before it can be recorded. A check that finds anything shows each
+   problem in the API's words and offers no way to record it; a changed protocol or amount needs a
+   new check.
+7. A dose is recorded now, by the person signed in, with why it is given and the giver's
+   confirmation that they compared the person's allergies with the remedy; Thapsus Care never compares
+   them (HZ-007, ADR-0082). The web never sends a dose as already given (`alreadyGiven` is null,
+   whatever a crafted call holds). The client's id is made by the page, so a resend is one record.
+8. A refusal shows the API's words at the field it belongs to (the dose at the amount; on the
+   protocol form the dose, the most in 24 hours, the gap, the days, the staff, the date agreed and
+   the review), and anything else above the form.
+9. A dose may be marked entered in error, with a reason, by the member who gave it (holding
+   `medicines.emar.administer`) or by a medicines manager, while it still stands; the API checks the
+   home again. The dose stays, struck through, with the reason.
+10. The server actions check every body against the contract's schema and send only the form's
+    fields; nothing about the person is logged.
+
+#### As built (slice 55)
+
+- `apps/web/src/lib/homely-remedies.ts` (pure readers, chips, permissions, addresses, the member
+  list) with `homely-remedies.test.ts`.
+- `apps/web/src/app/actions/homely-remedies.ts` (add, change, withdraw, check, record, entered in
+  error).
+- `apps/web/src/components/medicines/homely/` (`ProtocolSummary`, `ProtocolForm`,
+  `WithdrawProtocolForm`, `HomelyDoseForm`, `EnteredInErrorForm`, `load-members.ts`).
+- Pages: `apps/web/src/app/(shell)/medicines-stock/[locationId]/homely-remedies/` (list, `new`,
+  `[protocolId]/change`, `[protocolId]/withdraw`) and
+  `apps/web/src/app/(shell)/people/[id]/medicines/homely-remedies/page.tsx`.
+- Gap: a dose already given and recorded afterwards (`alreadyGiven`, recorded with flags and
+  escalated) is not offered on the web; the web lists such doses with their flags in words. Doses
+  show "Given by you" only, not the giver's name, because the reader may not be able to list staff.
+- Links to these pages from the medicines-stock location page and the person's medicines tab are
+  for the lead to add (those pages belong to other areas).
+
+#### Tests
+
+- Vitest `apps/web/src/lib/homely-remedies.test.ts`: `hazard HZ-120 who sees and changes homely
+  remedies`, `hazard HZ-120 a protocol's state is an icon and the API's words, never colour alone`,
+  `hazard HZ-120 reading the protocol form` (every field refusal, table-driven; the rate table's
+  limits left to the API), `hazard HZ-120 hazard HZ-007 checking and recording a dose` (amounts never
+  rounded; allergies confirmed; never sent as already given; the API's words; a new check after a
+  change), `hazard HZ-120 refuses without medicinesChecked`, `currentMedicines (hazard HZ-120)`, `hazard HZ-120 a dose entered in error stays, struck through, with its reason`,
+  `hazard HZ-120 the staff a protocol may name`.
+- Playwright `apps/web/e2e/homely-remedies.spec.ts`: `hazard HZ-120 hazard HZ-007 homely remedies
+  only within the home's protocol` (add with errors, change with a reason, check a dose outside the
+  protocol, record one with the allergies beside it, too soon in the API's words, entered in error,
+  withdraw; axe light and dark at every screen, with and without errors).
+
+### Medication errors, reviews and reports on the web (MEDS-012, MEDS-013)
+
+For docs/specs/medicines.md section 14 (a new subsection "14.7 Web screens (slice 55)"). Built on
+the slice 45 API (`apps/api/src/routes/medication-errors.ts`) with no API, contract, database or
+domain change. Hazard HZ-134 (with HZ-003 for an omitted dose and HZ-119 for the override report).
+
+#### Screens
+
+- **Medication error on an incident**: `/incidents/{id}/medication-error`, linked from the incident
+  page by one button, "Medication error details", shown on a medication incident the reader sees
+  whole. The page shows what was recorded (the kinds and stage in the API's words with their NRLS
+  source, whether it reached the person as an icon and words, the three questions, what was done,
+  who was told, when and their advice, the root cause and the controlled drug report), the
+  escalations ("What is still to do") in the API's own reasons, and the form that adds or changes
+  the details.
+- **A person's medication reviews**: `/people/{id}/medicines/reviews`, inside the medicines tab of
+  the record. Where the reviews stand (the tracker line), every review newest first, a form to book
+  one, and for each review a disclosure to record it done, move it or cancel it (booked), or
+  correct it (done).
+- **Medicines reports**: `/medicines-reports` chooses the location (or goes to the shell's chosen
+  one); `/medicines-reports/{locationId}` lists the four reports; `/reviews` is the review tracker;
+  `/overrides`, `/prn` and `/trend` are the override report, the PRN and psychotropic report and the
+  medication error trend.
+
+#### Rules
+
+1. The error page needs `safety.incident.read`; the form shows only to a holder of
+   `safety.incident.report` who raised the incident, manages incidents (`safety.incident.manage`)
+   or added the record, on an open incident. The API decides again (its raiser or a manager of
+   incidents where it happened, or the member who added the record; MFA; never a restricted or
+   closed incident).
+2. A restricted incident shows a notice and no record; an incident of another type says the
+   details go on a medication incident; a closed incident shows its record with a notice and no
+   form.
+3. Adding chooses the person from the people we support on the incident: one is chosen for the
+   reader; with several, the page lists each to record for. The medicine is chosen from the
+   person's medicines record and the dose record from their records in the 24 hours either side of
+   the incident (superseded records left out). A list that cannot be read keeps what was recorded.
+4. The form says each mistake at its field before anything is sent, mirroring
+   `checkMedicationErrorRecord`: unknown kinds or stage, an omitted dose answered as not reaching
+   the person (HZ-003), who was told without when (or the reverse), told before the incident or in
+   the future, a controlled drug report date without its reference (or the reverse) or in the
+   future, a report with "no controlled drug", and answers over 2,000 characters (120 for the
+   reference). An empty answer is sent as not answered, never as "no".
+5. The API's refusal sentences (`MEDICATION_ERROR_PROBLEM_WORDS`, `REVIEW_PROBLEM_WORDS`) are found
+   in its refusal and shown at their fields; any other refusal shows above the form in its words.
+6. The escalations are the API's `prompts`, in its order, each as an icon and a name with the API's
+   reason: clinical advice, the controlled drug report, the safeguarding consideration (each shown
+   as still to do) and how CQC is decided (information). The page says Thapsus Care sends none of them
+   and that each goes once what answers it is recorded. The web adds or removes none.
+7. Whether it reached the person is the API's `nearMiss` in words and an icon: reached, a near miss,
+   or not yet known. A controlled drug presumed from the medicine's schedule is said so.
+8. Reviews need `medicines.record.manage`. Booking takes the date due; recording done takes the
+   date (not in the future), the clinician's name and role and the outcome in the clinician's
+   words; moving takes the new date and a reason; cancelling takes a reason; correcting one done
+   takes a reason. The version read is sent back. Thapsus Care suggests no change to a medicine.
+9. Each review's state and the tracker's status are an icon and words (the API's `statusWords` for
+   the tracker: overdue, due soon, booked, due by the interval and not booked, none booked or
+   done), never colour alone; a booking later than the interval allows is said in words.
+10. The reports need `medicines.record.manage` and a location in the reader's list; the API also
+    refuses an assigned scope. The tracker lists people overdue first, as the API orders them, with
+    a count of overdue and due soon, and links each person to their reviews.
+11. The override, PRN and trend reports choose their period (the contract's `from` and `to`, UK
+    dates, inclusive) with date boxes in a form that uses the page's address, so the report can be
+    bookmarked. Defaults: the last 28 days, and for the trend the last six calendar months. A date
+    that is not real or an end before the start is said at its field and nothing is read; a period
+    longer than `medicines.report_max_days` is refused by the API in its words.
+12. Every report is a table with a caption and a row header, every count in its own cell, so it is
+    read without colour; no chart is drawn. The trend has three tables (reached or not, kinds,
+    stages), every month a column with zeros shown, a total column, and only kinds and stages that
+    happened listed; the NRLS source is named. The PRN report shows the API's note above its
+    table every time. The override report names a member no longer listed as such.
+13. Every report says it counts records for a person to look into and judges nothing.
+
+#### As built
+
+- `apps/web/src/lib/medication-errors.ts` (pure readers, chips, period reading, table rows) with
+  table-driven tests in `medication-errors.test.ts` (56 tests).
+- `apps/web/src/app/actions/medication-errors.ts`: `addMedicationError`, `changeMedicationError`,
+  `scheduleReview`, `changeReview` (done, reschedule, cancel); each body checked with the contract's
+  zod schema (`NewMedicationError`, `EditMedicationError`, `ScheduleMedicationReview`,
+  `RecordMedicationReview`, and the reschedule and cancel bodies built from the contract's pieces,
+  matching the API's `ChangeMedicationReview` and `CancelMedicationReview`).
+- Components in `apps/web/src/components/medicines/errors/`: `MedicationErrorForm`,
+  `MedicationErrorDetails` (with `MedicationErrorEscalations`), `ReviewForms`, `PeriodForm`,
+  `ReportTable`, `ReportFrame`, `report-location`.
+- E2E: `apps/web/e2e/medication-errors.spec.ts`.
+
+#### Tests
+
+- `apps/web/src/lib/medication-errors.test.ts`: `hazard HZ-134 the medication error form is read
+  into the contract` (every detail; empty is null, never no; 17 refusals at their fields including
+  `hazard HZ-003 an omitted dose answered as not reaching the person`), `hazard HZ-134 the
+  escalations are shown in the API's order as icon and word, never sent`, `hazard HZ-134 the API's
+  refusals show at their fields`, `hazard HZ-134 medication reviews: status as icon and words, each
+  change with its reason`, `hazard HZ-134 hazard HZ-119 the reports: periods, and tables readable
+  without colour`.
+- `apps/web/e2e/medication-errors.spec.ts`: `hazard HZ-134 hazard HZ-003 the manager records a
+  medication error and its follow-up`, `hazard HZ-134 the manager books, moves and records a
+  medication review`, `hazard HZ-134 hazard HZ-119 the home's review tracker and medicines reports`
+  (axe in light and dark at every screen, with and without errors).
+## 16. Web: rounds, administration, when-required medicines and covert (slice 53; MEDS-002, MEDS-003, MEDS-004)
+
+The round on the web for the office and the tablet browser, on slice 48's API. No migration and no
+API change. Holders of `medicines.emar.administer` see it; the API checks the permission again at
+each person's home.
+
+**Rules**
+
+1. **The home's round** (`/medicines-round/{locationId}`, in the side navigation as "Medicines
+   round"): each person living there whom the reader may see, in the API's order (room, then name),
+   with the point-of-care header. It lists their doses from two hours ago to two hours ahead, plus
+   any earlier dose still late or due (the API's reach). Doses are late first, then due, not yet due
+   and recorded, with time-critical first in each. Each dose shows:
+   - its state as an icon and a word;
+   - "Time-critical" with an icon;
+   - the entry's status and notice, any clock change, the dose's notices, and any conflict review.
+
+   When-required medicines show when last given, when the next may be given, and their notices.
+   If people's names, photos and allergies cannot be read, no dose is listed and the page says so
+   (HZ-001). A person whose round cannot be worked out shows the API's words.
+2. **A person's round** (`/people/{id}/medicines/round`, linked from the Medicines tab) says when it
+   was worked out. Each dose shows the same as rule 1, and beside the medicine:
+   - the **covert record**: its status as an icon and a word (anything but current is a warning),
+     how it is given and the pharmacist's advice;
+   - the **self-administration level** where the medicine has been assessed (H-1354).
+
+   If the covert records cannot be read, the page says to check the paper record. "Record … due …"
+   is offered only for a dose late or due, not recorded and not waiting for review (HZ-004).
+
+   Each when-required medicine shows:
+   - when it was last given (and when that was on a device not yet synced);
+   - the 24-hour total against the maximum, as an amount in the entry's unit, never a count of
+     doses;
+   - when the next may be given: "Not now: the most allowed in 24 hours has been given" once the
+     maximum is reached, "Not before …" while the minimum interval runs, otherwise "Now, if needed"
+     (HZ-004).
+3. **Recording a dose** (`…/round/record?entry=&due=`) on its own page. The page shows:
+   - a notice that controlled drugs cannot be recorded here yet, and where to record them;
+   - the medicine as the round gives it (product, dose, route, due time, time-critical, any clock
+     change, indication, special instructions, the when-required figures, the entry's status and
+     notices, the covert record and the self-administration level);
+   - above the form, the person's name, date of birth, NHS number, allergy status and every allergy,
+     most severe first (`PersonCheck`; HZ-007). Thapsus Care never matches them (ADR-0082).
+
+   The form asks:
+   - what happened ("Given" is not offered while the entry may not be given);
+   - the reason, for an outcome that takes one: the domain's codes, with words for "other";
+   - the amount, for a dose taken, offered as prescribed when the prescription gives one amount, in
+     the entry's unit. A range or variable dose is typed; an unknown unit stops it with a notice.
+   - "Given covertly", for a dose given. Its hint differs when the medicine has no current covert
+     record: the API then records it with its flag and a task for the nurse in charge (HZ-026).
+
+   Reasons the API may ask for (early or late, a different amount, before the minimum interval) are
+   optional fields. The server action sends only these fields, checked against the contract, so a
+   dose already given, another giver or a controlled drug's witness is never sent from the web.
+   The API's refusals show in its words at their field (`administration_*` codes). The record's id
+   is made by the page, so a resend is the same record. The server's time is used. After saving,
+   the person's round opens and focuses "Dose recorded".
+4. A dose not on the round any more, already recorded, not yet due or waiting for review says so on
+   the record page and offers the way back; no form is shown (HZ-004).
+5. **Clock changes** (HZ-009): a time the clocks skip says the dose is due an hour later, at its due
+   time; a repeated time says to give it once, at the first.
+6. **Not in this slice** (each a decision in H-1401 to H-1405):
+   - recording a dose already given, a controlled drug with its witness, and corrections on the web;
+   - the PRN protocol's text and the outcome check (slice 28's API, not in this base; HZ-117's entry
+     is on slice 28's branch);
+   - barcode scanning and the offline round (slices 68 to 70).
+
+**Tests**:
+- `apps/web/src/lib/medicine-round.test.ts`: the state chips, the dose offered, the next-allowed
+  state (HZ-004), which doses may be recorded (HZ-004), the covert record and self-administration
+  level beside the medicine (HZ-026), the outcomes and reasons matching the domain's, and the form
+  read into the request with every refusal at its field;
+- `apps/web/e2e/medicine-round.spec.ts`: the Medicines tab link, the side navigation, the home's
+  round, the person's round, a when-required dose given by keyboard and a scheduled dose refused.
+  It checks the 24-hour total, the focus after an error and after saving, and that a recorded dose
+  offers no second record. Axe runs in light and dark at each step.
+## 17. Printable MAR chart and controlled drugs register page (slice 50; MEDS-014)
+
+Both PDFs are drawn from the record when asked and never stored. The web streams them as downloads that are not cached;
+a downloaded file stays on the device, under the home's policy. No migration. HZ-122, with HZ-007.
+
+**Routes** (`apps/api/src/routes/medicines-print.ts`; at most `MEDICINES_PRINT_REQUESTS_PER_MINUTE`
+per member, default 20; a month from 2000 to next year):
+- `GET /v1/people/{id}/mar/print?month=yyyy-mm`: the MAR chart for one calendar month in UK time.
+  It needs a permission that reads the MAR (`medicines.record.manage`, `medicines.emar.administer`
+  or `care.plan.read`). Audited as `medicines.mar.printed`, with the month.
+- `GET /v1/controlled-drugs/pages/{pageId}/print`: a register page. It needs a permission that reads
+  the register. Audited as `medicines.cd.printed`. This replaces slice 54's plain print view as the
+  printable format (H-1331); the plain view stays for printing straight from the browser.
+
+**The MAR chart** (`apps/api/src/services/mar-pdf.ts`):
+1. Every page names the person (with a preferred name, date of birth and NHS number) and the month.
+   Every page says "Printed from the eMAR at … This is not the live record: check the eMAR before
+   giving or holding any medicine." The page footer says "Page n of m". The PDF's title names no one.
+2. **Allergies** come first. Every allergy is listed, most severe first, with its reaction. "No known
+   allergies" shows when it was recorded. A status not recorded says "Allergy status not recorded.
+   Find out before giving any medicine." and is never shown as none.
+3. **Communication needs** follow the allergies, or say that none are identified or that they are
+   not recorded (AIS).
+   **A key to the codes**, one per line: G given, R refused, N not given (with the reason), W
+   withheld (with the reason), U not available, S taken by the person themselves, F given by family.
+   It also explains "at" and a time, "covert", "corrected" and the giver's initials.
+4. **Each medicine** in force during the month, or with records in it, shows:
+   - the product and route, with "Time-critical:" first where tagged;
+   - the directions in the domain's words, the prescriber, and the start and end;
+   - its status on the eMAR when printed.
+5. **Scheduled doses** are listed by day ("Mon 02/11/2026: 08:00 G at 08:40 2 tablet AE; 20:00 R
+   (The person declined it) AE"). Each block is labelled with its version.
+   - **Which records:** those that stand over all the person's records, so a correction made in
+     another month still supersedes. A dose is matched by its due time in the month, so one given
+     after midnight stays on its day. A record of a scheduled dose that matches no dose time is
+     printed as "Recorded with no dose time on this chart", never dropped.
+   - **What a cell shows:** the time given when it differs, the amount, the reason, "covert" and
+     "corrected", and the giver's initials, or "giver not named". A time on a clock-change day
+     carries its zone.
+   - **With no record:** "no outcome recorded" when its time has passed, or "not yet due". A time
+     before the entry was recorded says "not due".
+6. **When-required doses** are listed as recorded, with the time, code, amount, marks and initials,
+   or "No dose recorded this month".
+7. **Staff initials on this chart** lists the initials and names of everyone who gave a dose. Two
+   people with the same initials get a number each ("AE1", "AE2").
+8. **Not printed** (H-1408): the superseded record struck through. The eMAR history shows both.
+
+**The register page** (`apps/api/src/services/cd-register-pdf.ts`):
+- the heading: the person, the drug as dm+d names it, the unit, and the balance when printed;
+- every entry in register order, so the running balance reads in order: movement, signed
+  quantity, running balance, when, counterparty and reference, who recorded it, and who witnessed it
+  or why there was no witness;
+- each correction saying which entry it corrects (a correction of a correction too) and why, and
+  each corrected entry saying which entries correct it;
+- every stock check: counted, expected, the result in words, and who counted and witnessed it;
+- on every page, the same printed-time notice.
+
+**Web**: the Medicines tab has "Print the MAR chart": choose one of the last 12 months and download
+the PDF. A register page has "Download the register page (PDF)". If no PDF comes back, the page says
+so.
+
+**Tests**:
+- `apps/api/test/medicines-print.test.ts`: the cells, the lines, the month in UK time and the
+  register lines, all pure and table-driven, and the routes (the notice on every page, audited,
+  another organisation refused);
+- `apps/web/src/lib/medicines-print.test.ts`;
+- `apps/web/e2e/medicines-print.spec.ts`: axe in light and dark, and the download.
+
 ## 16. PRN protocols, outcomes and the psychotropic report (slice 28; MEDS-003)
 
 Hazard HZ-117; human actions H-1380 to H-1389. Sections 14 and 15 are slices 45 and 38 (on their
-own branches). Harbour counts, compares with the protocol and displays; it never recommends a
+own branches). Thapsus Care counts, compares with the protocol and displays; it never recommends a
 dose, a medicine or an alternative (medical-device boundary).
 
 ### 16.1 PRN protocols

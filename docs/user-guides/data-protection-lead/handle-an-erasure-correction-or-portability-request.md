@@ -1,6 +1,6 @@
 # How to handle a request to erase, correct or move information
 
-Some requests ask you to erase information, correct it, or send it to another system. Harbour
+Some requests ask you to erase information, correct it, or send it to another system. Thapsus Care
 shows what each right allows for this request. It never deletes or changes a record from here.
 
 **Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
@@ -17,7 +17,7 @@ what they are asking for under **What they are asking for**.
 ### Erasing their information
 
 1. Open the request and choose **Find the records** first, as in
-   [How to find and review the records](find-and-review-the-records-for-a-request.md). Harbour
+   [How to find and review the records](find-and-review-the-records-for-a-request.md). Thapsus Care
    checks only the records it has found.
 2. Under **Erasing their information**, choose **Check what can be erased**.
 3. Read the result, for example "Checked 03/11/2026 14:20: 4 can be erased, 12 must be kept for
@@ -29,7 +29,7 @@ what they are asking for under **What they are asking for**.
 1. Open the request and read **Correcting their information**.
 2. Make each correction in the record itself, as a new version or a correcting entry.
 3. Keep a note of which records you corrected. Recording this on the request is not on the screen
-   yet; ask Harbour support.
+   yet; ask Thapsus Care support.
 
 ### Taking their information elsewhere
 
@@ -41,7 +41,7 @@ what they are asking for under **What they are asking for**.
 
 ## Good to know
 
-- **Harbour deletes nothing itself.** Records are removed by retention when their time comes. A
+- **Thapsus Care deletes nothing itself.** Records are removed by retention when their time comes. A
   record under a legal hold, or still within its retention period, is kept.
 - **Corrections are never made by the workbench.** The original stays in the record's history,
   with the correction after it.

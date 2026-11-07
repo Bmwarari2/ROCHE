@@ -35,6 +35,6 @@ describe("hazard HZ-021 the front sheet says when the paper MAR and PEEP places 
   it("hazard HZ-021 says nothing about the places once they are confirmed", () => {
     const text = frontSheet(true);
     expect(text).toContain("No warnings.");
-    expect(text).not.toContain("not confirmed in Harbour");
+    expect(text).not.toContain("not confirmed in Thapsus Care");
   });
 });

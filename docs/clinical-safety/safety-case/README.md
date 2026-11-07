@@ -1,6 +1,6 @@
 # Clinical safety case reports
 
-DCB0129 requires the manufacturer to produce a clinical safety case, and a clinical safety case report that summarises it, for each release of a health IT system. Harbour produces **one clinical safety case report per platform release**, kept in this folder under version control. Process: [clinical-risk-management-plan.md](../clinical-risk-management-plan.md), section 6.
+DCB0129 requires the manufacturer to produce a clinical safety case, and a clinical safety case report that summarises it, for each release of a health IT system. Thapsus Care produces **one clinical safety case report per platform release**, kept in this folder under version control. Process: [clinical-risk-management-plan.md](../clinical-risk-management-plan.md), section 6.
 
 ## Naming and versions
 

@@ -92,7 +92,7 @@ test("a nurse starts setting up an authenticator app and sees the QR code", asyn
   await page.getByRole("button", { name: "Set up an authenticator app" }).click();
   // Two-factor is switched on only after a code is verified, so the account is unchanged.
   await expect(
-    page.getByRole("img", { name: "QR code to add Harbour to your authenticator app" }),
+    page.getByRole("img", { name: "QR code to add Thapsus Care to your authenticator app" }),
   ).toBeVisible();
   await expect(page.getByText("Keep these backup codes somewhere safe")).toBeVisible();
   await expectAccessible(page, "authenticator set-up");

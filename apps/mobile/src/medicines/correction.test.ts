@@ -29,7 +29,7 @@ const base: CorrectionInput = {
   at: new Date("2026-11-03T09:00:00Z"),
 };
 
-describe("hazard HZ-004 a record that reached Harbour is corrected, never changed (slice 70)", () => {
+describe("hazard HZ-004 a record that reached Thapsus Care is corrected, never changed (slice 70)", () => {
   it.each([
     ["a correction with its reason", {}, []],
     [

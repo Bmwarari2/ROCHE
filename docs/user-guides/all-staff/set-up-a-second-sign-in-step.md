@@ -12,7 +12,7 @@ Go to **Settings** in the menu, or **Your account** then **Sign-in and security*
 
 1. Under **Passkeys**, give it a name if you like, for example "Work laptop".
 2. Choose **Add a passkey** and confirm on your device with your fingerprint, face or PIN.
-3. Harbour says "Passkey added".
+3. Thapsus Care says "Passkey added".
 
 ## Set up an authenticator app
 

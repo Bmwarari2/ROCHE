@@ -3,7 +3,7 @@
 | Item | Value |
 | --- | --- |
 | Law | UK GDPR Art 28(2) and (4); disclosure of processing outside the UK (master prompt 5.1, 6 hosting and residency rules) |
-| Shown to tenants | In Harbour (Settings, Data protection, Sub-processors), filtered to the features each tenant has enabled |
+| Shown to tenants | In Thapsus Care (Settings, Data protection, Sub-processors), filtered to the features each tenant has enabled |
 | Change notice | At least `[30]` days before a new or replacement sub-processor processes tenant data ([DPA clause 6](dpa-article-28-template.md#6-sub-processors-art-282-283d-284)) |
 | Owner | `[Thapsus DPO or named lead - human action]` |
 | Last reviewed | 31 October 2026: production hosting moved to Google Cloud ([ADR-0098](../decisions/0098-production-on-google-cloud.md)) |
@@ -15,7 +15,7 @@ Rule: a third-party service that would receive personal data is added here, and 
 | Sub-processor | Service | Purpose | Personal data | Where processed | Transfer safeguard | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | Google Cloud EMEA Limited | Cloud SQL for PostgreSQL (regional high availability, CMEK), Cloud Storage (CMEK), Cloud Run, Cloud KMS, Secret Manager, Artifact Registry, Cloud Logging and Monitoring, external HTTPS load balancer with Cloud Armor and Cloud CDN | Hosting, storage, backups, compute for the API, workers, PowerSync and Flagsmith, under the Google Cloud Data Processing Addendum (CDPA) | All tenant data | Google Cloud europe-west2 (London) | Stored and processed in the UK. Support access by Google staff outside the UK is covered by the CDPA, which incorporates the UK International Data Transfer Addendum to the EU SCCs `[to be confirmed when signed - human action H-1000]`. Cloud CDN caches only static assets, never API responses with personal data | In use (CDPA to be signed, H-1000) |
-| Email provider `[not yet chosen - human action H-08]` | Transactional email, reached through Harbour's SMTP adapter | Transactional email: invitations, sign-in and security notices, notifications | Recipient email address and name; message content kept to the minimum and without care details | UK or EU processing (required), under a data processing agreement | None needed (UK), or UK adequacy regulations for the EEA | Not yet chosen: joins this register by name when chosen (H-08); production email stays off until then |
+| Email provider `[not yet chosen - human action H-08]` | Transactional email, reached through Thapsus Care's SMTP adapter | Transactional email: invitations, sign-in and security notices, notifications | Recipient email address and name; message content kept to the minimum and without care details | UK or EU processing (required), under a data processing agreement | None needed (UK), or UK adequacy regulations for the EEA | Not yet chosen: joins this register by name when chosen (H-08); production email stays off until then |
 | Expo (650 Industries) | Expo push notification service | Delivering push notifications to the mobile apps | Device push token (an online identifier); notification content contains **no personal data** (for example "You have 3 new tasks"), only opaque IDs the app resolves locally | United States | `[UK Extension to the EU-US Data Privacy Framework, or IDTA - DPO to confirm, human action]` | In use once mobile push is switched on |
 | Apple (APNs) and Google (Firebase Cloud Messaging) | Platform push delivery, reached through Expo | Final delivery of push notifications to devices | Device push token; content as above | United States and global | As above `[DPO to confirm, human action]` | In use once mobile push is switched on |
 | Functional Software Inc. (Sentry) | Error monitoring | Diagnosing application errors | Error data scrubbed before sending: opaque IDs only, no names, NHS numbers, free text, request bodies or IP addresses | Sentry EU region (EEA), see [Sentry data location](https://docs.sentry.io/organization/data-storage-location/) | UK adequacy regulations for the EEA | In use |
@@ -51,14 +51,14 @@ needs the DPA check, the DPIA update and tenant notice before it processes famil
 | pg-boss, Typst, Playwright (PDF), antivirus scanning | Run inside Thapsus's Google Cloud projects (antivirus as a ClamAV sidecar beside the API on Cloud Run) |
 
 Download sources are not sub-processors either. The NHSBSA dm+d release, downloaded from TRUD (NHS
-England) for the medicines reference data, is national reference data Harbour fetches; TRUD receives
+England) for the medicines reference data, is national reference data Thapsus Care fetches; TRUD receives
 only Thapsus's account credentials, never tenant or personal data ([ADR-0080](../decisions/0080-dmd-reference-data.md);
 H-510, H-511).
 ### 2a. The organisation's own processors (not Thapsus sub-processors)
 
 | Service | Why it is not a Thapsus sub-processor | Status |
 | --- | --- | --- |
-| A learning platform the organisation imports training completions from (workforce.md section 13; ADR-0102) | The organisation chooses and contracts the platform; Harbour receives its completions (a file the organisation uploads, or a pull through the learning platform port with the organisation's own credentials) and sends it nothing but the request. Whether a platform holds data in the UK, or under an adequacy decision or the IDTA, is the organisation's to check, and the DPO confirms this treatment (H-520, H-1254) | No live client: mock only (H-1250) |
+| A learning platform the organisation imports training completions from (workforce.md section 13; ADR-0102) | The organisation chooses and contracts the platform; Thapsus Care receives its completions (a file the organisation uploads, or a pull through the learning platform port with the organisation's own credentials) and sends it nothing but the request. Whether a platform holds data in the UK, or under an adequacy decision or the IDTA, is the organisation's to check, and the DPO confirms this treatment (H-520, H-1254) | No live client: mock only (H-1250) |
 
 ## 3. Optional AI providers (off by default, enabled per tenant)
 
@@ -71,7 +71,7 @@ Used only when a tenant enables the AI module after signing the DPIA AI addendum
 | Anthropic | Claude via the Anthropic API under a zero-data-retention agreement | As stated in [Anthropic's data residency documentation](https://platform.claude.com/docs/en/build-with-claude/data-residency) for the configuration chosen; outside the UK `[confirm and state before enabling - human action]` | Zero data retention under signed agreement `[human action]` | Optional per tenant |
 | Tenant's own provider (bring your own key) | Tenant-chosen model API | Stated by the tenant | Under the tenant's own contract with the provider; Thapsus acts only as a conduit | Optional per tenant |
 
-Amazon Bedrock is an AI provider only. Since [ADR-0098](../decisions/0098-production-on-google-cloud.md) AWS no longer hosts Harbour, so a tenant that chooses Bedrock adds Amazon Web Services as a separate sub-processor for the AI module, reached from the AI gateway in Google Cloud. Whether Bedrock stays the default provider is `[to be decided by ADR - engineering and DPO]`.
+Amazon Bedrock is an AI provider only. Since [ADR-0098](../decisions/0098-production-on-google-cloud.md) AWS no longer hosts Thapsus Care, so a tenant that chooses Bedrock adds Amazon Web Services as a separate sub-processor for the AI module, reached from the AI gateway in Google Cloud. Whether Bedrock stays the default provider is `[to be decided by ADR - engineering and DPO]`.
 
 Sources: [Bedrock model and region support](https://docs.aws.amazon.com/bedrock/latest/userguide/models-region-compatibility.html), [Bedrock inference profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html).
 
@@ -109,5 +109,5 @@ organisation's own records) and the DPIA. The mock is refused in production.
 
 ## Payroll providers (Phase 2, slice 76; ADR-0097)
 
-An organisation's payroll provider (Xero Payroll UK, Staffology, Sage or BrightPay) is the organisation's own processor, under the organisation's own contract with it: not a Thapsus sub-processor (H-520 recommended answer, applied 31/10/2026; the DPO confirms it at testing). Harbour sends a locked pay run's figures to it only when someone in the organisation exports them, with step-up. A file export is downloaded by that person and moved by the organisation. The Xero Payroll UK adapter sends over its API to the organisation's own Xero account, with tokens the organisation granted, kept in the managed secret store. Before the adapter is switched on, the DPO records where Xero processes the data and the transfer mechanism if it is outside the UK (H-1192). What leaves is the payroll reference, hours, pay elements, the total, holiday accrued and the auto-enrolment flags: never a name, date of birth, NI number, bank detail or health information.
+An organisation's payroll provider (Xero Payroll UK, Staffology, Sage or BrightPay) is the organisation's own processor, under the organisation's own contract with it: not a Thapsus sub-processor (H-520 recommended answer, applied 31/10/2026; the DPO confirms it at testing). Thapsus Care sends a locked pay run's figures to it only when someone in the organisation exports them, with step-up. A file export is downloaded by that person and moved by the organisation. The Xero Payroll UK adapter sends over its API to the organisation's own Xero account, with tokens the organisation granted, kept in the managed secret store. Before the adapter is switched on, the DPO records where Xero processes the data and the transfer mechanism if it is outside the UK (H-1192). What leaves is the payroll reference, hours, pay elements, the total, holiday accrued and the auto-enrolment flags: never a name, date of birth, NI number, bank detail or health information.
 

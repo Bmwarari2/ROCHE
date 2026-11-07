@@ -1,4 +1,4 @@
-# Harbour sources (Part C of the master prompt)
+# Thapsus Care sources (Part C of the master prompt)
 
 Moved from `docs/00-MASTER-PROMPT.md` in Phase 0. Section numbering is unchanged so references to "section 21" still resolve.
 

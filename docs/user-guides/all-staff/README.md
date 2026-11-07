@@ -1,6 +1,6 @@
 # User guides: all staff
 
-Guides for everyone who uses Harbour.
+Guides for everyone who uses Thapsus Care.
 
 ## Your guides
 

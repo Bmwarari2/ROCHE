@@ -1,4 +1,4 @@
-# Harbour mobile (`@harbour/mobile`)
+# Thapsus Care mobile (`@harbour/mobile`)
 
 One Expo app for iOS and Android (master prompt section 17). **Care mode** works with no signal from
 an encrypted on-device database: sign in, unlock, see the people assigned to you on Today with the
@@ -33,7 +33,7 @@ Or build the dev client in the cloud: `eas build --profile development` (simulat
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `EXPO_PUBLIC_API_URL` | `http://localhost:4000` | Harbour API. Release builds require `https`; plain `http` is accepted only for `localhost`, `10.0.2.2` (Android emulator) and `*.local` in development builds. |
+| `EXPO_PUBLIC_API_URL` | `http://localhost:4000` | Thapsus Care API. Release builds require `https`; plain `http` is accepted only for `localhost`, `10.0.2.2` (Android emulator) and `*.local` in development builds. |
 | `EXPO_PUBLIC_DEMO_MODE` | `0` | `1` runs without the API (below). |
 
 ### SQLCipher must be switched on where op-sqlite looks

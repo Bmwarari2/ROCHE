@@ -427,7 +427,8 @@ describe("hazard HZ-022 app.family_can_see agrees with checkFeedItemVisibility",
       )
       .then((r) => r.rows);
     expect(fn).toMatchObject({ prosecdef: true, owner: "harbour_family_reader" });
-    expect(fn?.proconfig).toContain("search_path=pg_catalog, public");
+    // Pinned with pg_temp last since migration 0151 (ADR-0133).
+    expect(fn?.proconfig).toContain("search_path=pg_catalog, public, pg_temp");
   });
 });
 

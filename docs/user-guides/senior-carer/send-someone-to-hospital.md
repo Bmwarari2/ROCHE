@@ -1,6 +1,6 @@
 # How to send someone to hospital
 
-Harbour makes the hospital transfer pack (the "red bag" summary) from the record in one step.
+Thapsus Care makes the hospital transfer pack (the "red bag" summary) from the record in one step.
 
 **Who can do this**: senior carers and team leaders, nurses, managers and the owner. Care workers
 cannot: tell the person in charge.

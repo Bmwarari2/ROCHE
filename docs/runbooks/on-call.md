@@ -34,7 +34,7 @@ Alerts are defined as code with the infrastructure and route through Grafana Clo
 
 | Alert | Why it matters | First action |
 | --- | --- | --- |
-| API error rate or latency above threshold; synthetic sign-in or person-list check failing | Staff cannot use Harbour | Check recent deploys, roll back if correlated |
+| API error rate or latency above threshold; synthetic sign-in or person-list check failing | Staff cannot use Thapsus Care | Check recent deploys, roll back if correlated |
 | PowerSync service unhealthy or replication lag above threshold | Devices stop receiving changes (hazards HZ-002, HZ-006) | Check the service, the replication slot and the bucket-storage database |
 | Upload rejection rate or upload queue age above threshold across devices | Records may not be reaching the server (HZ-006) | Check API upload handlers, schema version mismatch after a release |
 | Device clock-drift flags above baseline | Recorded times may be wrong (HZ-010) | Check server time; check whether one tenant's MDM changed |

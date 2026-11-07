@@ -261,7 +261,7 @@ export default function SignInScreen() {
                 ? t("mobile.held.discardSignInTitle")
                 : handingOver
                   ? t("mobile.held.handOverSignInTitle")
-                  : "Sign in to Harbour"}
+                  : "Sign in to Thapsus Care"}
             </Text>
             <Text tone="secondary">
               {discarding

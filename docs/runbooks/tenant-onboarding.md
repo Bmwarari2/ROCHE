@@ -38,7 +38,7 @@ Items marked **Human action** cannot be done by the software and are recorded in
 
 ## 4. Governance roles
 
-| Role | Recorded in Harbour |
+| Role | Recorded in Thapsus Care |
 | --- | --- |
 | Owner(s), Nominated Individual | Yes |
 | Registered Manager per location | Yes |
@@ -54,7 +54,7 @@ Items marked **Human action** cannot be done by the software and are recorded in
 | 5.2 | Invite users with role and scope (location, team, assigned people) |
 | 5.3 | **MFA enrolment**: every user in a role that can read care records enrols a passkey or a TOTP app before they can open a care record. SMS is allowed only as a documented exception per user |
 | 5.4 | Personal devices: users install the app and sign in once with full MFA, then set biometric or PIN unlock |
-| 5.5 | Shared and kiosk devices: tenant's MDM enrols each device; a manager enrols it in Harbour; staff set their PINs ([kiosk.md](../compliance/kiosk.md)) **Human action** (tenant IT) |
+| 5.5 | Shared and kiosk devices: tenant's MDM enrols each device; a manager enrols it in Thapsus Care; staff set their PINs ([kiosk.md](../compliance/kiosk.md)) **Human action** (tenant IT) |
 | 5.6 | Check: MFA enrolment report shows 100% for care-record roles |
 
 ## 6. Data
@@ -71,7 +71,7 @@ Items marked **Human action** cannot be done by the software and are recorded in
 | Step | Detail | Owner |
 | --- | --- | --- |
 | 7.1 | DPIA generated pre-filled from configuration ([template](../compliance/dpia-template.md)); tenant completes and the DPO signs in-app **Human action** | Tenant DPO |
-| 7.2 | Harbour's clinical safety case report for the release the tenant will run, **signed by Thapsus's CSO**, supplied with the hazard log extract **Human action** | Thapsus CSO |
+| 7.2 | Thapsus Care's clinical safety case report for the release the tenant will run, **signed by Thapsus's CSO**, supplied with the hazard log extract **Human action** | Thapsus CSO |
 | 7.3 | Tenant's DCB0160 assessment completed and signed ([template](../clinical-safety/dcb0160-deployment-template.md)) **Human action** | Tenant CSO or clinical lead |
 | 7.4 | Safety-relevant configuration agreed (DCB0160 section 7): auto-lock times, controlled-drug witness, time-critical medicines, escalation policies linked to NEWS2, MUST and Waterlow | Tenant clinical lead |
 

@@ -93,6 +93,6 @@ Option 2.
 
 ## More information
 
-Migration 0149; `packages/sync/src/streams/sync-config.yaml`; `medicines-streams.test.ts`;
+Migration 0147; `packages/sync/src/streams/sync-config.yaml`; `medicines-streams.test.ts`;
 `apps/api/src/services/dmd.ts` (`dmdDeviceRows`); `apps/mobile/src/medicines/dmd-subset.ts`.
 Questions for people: H-1421 to H-1427.

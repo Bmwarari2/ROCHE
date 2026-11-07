@@ -4,7 +4,7 @@
 updates this file in the same PR (master prompt section 20, item 7).
 
 This document is the **contract for import and export**. The migration import wizard (PLAT-014) accepts
-data in this shape, and the free full tenant export (PLAT-015) produces it. It maps Harbour fields to
+data in this shape, and the free full tenant export (PLAT-015) produces it. It maps Thapsus Care fields to
 the Minimum Operational Data Standard (MODS), the NHS Data Dictionary, SNOMED CT, the Organisation Data
 Service (ODS), PRSB About Me and the PRSB personalised care and support plan (section 18, "Data-standard
 alignment"). A change to a mapped field, a code list or the export shape is a contract change: it bumps
@@ -17,7 +17,7 @@ the DSCR data migration schema.
   (`tables/person.csv`, `tables/person.jsonl`), plus a `documents/` folder keyed by document ID
   (`documents/<id>.<extension>`, never the title or file name), `destroyed.csv` (records destroyed past
   retention, with their certificate ids), `current_summary.csv` (one row per person with the essentials
-  as Harbour shows them, below), `schema.json` (JSON Schema 2020-12 for every table, generated from the
+  as Thapsus Care shows them, below), `schema.json` (JSON Schema 2020-12 for every table, generated from the
   same plan as the files, with a description for every column, a unit for every number and the codes of
   every coded column) and a `manifest.json` holding the export schema version (1.1.0), tenant ID, the
   snapshot instant, row counts and SHA-256 checksums (fields below). Only columns the export catalogue
@@ -34,7 +34,7 @@ the DSCR data migration schema.
   Lines files hold the exact values.
 - **Column names**: identical to the database column names (`snake_case`); JSON uses the same names.
 - **Identifiers**: `id` is a UUIDv7 string. Foreign keys keep their column names (`location_id`). On
-  import, source IDs are kept in an `import_source_id` mapping and Harbour assigns new IDs and the
+  import, source IDs are kept in an `import_source_id` mapping and Thapsus Care assigns new IDs and the
   importing tenant's `tenant_id`; an imported file's `tenant_id` is ignored.
 - **Dates and times**: dates as `YYYY-MM-DD` and always UK calendar dates; timestamps as ISO 8601 in
   UTC with `Z` (`2026-10-11T09:30:00Z`). UK local time is the instant converted to Europe/London
@@ -80,30 +80,31 @@ the DSCR data migration schema.
 Field names for the platform tables are defined with the schema in `docs/specs/platform.md`; the
 names below are the concepts this contract carries and must be kept in step with that file.
 
-| Harbour field | Standard | Format and validation | Notes |
+| Thapsus Care field | Standard | Format and validation | Notes |
 | --- | --- | --- | --- |
 | `tenant.cqc_provider_id` | CQC provider ID | `^1-[0-9]+$` | One tenant is one CQC provider (section 4). Null for tenants regulated elsewhere (nation packs). |
 | `location.cqc_location_id` | CQC location ID | `^1-[0-9]+$` | Shown on CQC notifications and the Capacity Tracker prefill. |
 | `location.ods_code` | ODS organisation code | Upper-case letters and digits, 3 to 10 characters | Format check only in Phase 0; ODS lookup in Phase 5. Used for NHS integrations and UKHSA outbreak reports. |
-| `location.nation` | Harbour code list | `england`, `wales`, `scotland`, `northern_ireland` | Selects the rate table rows and nation pack (`docs/specs/rates.md`). |
-| `location.regulator` | Harbour code list | `cqc`, `ciw`, `care_inspectorate`, `rqia`, `ofsted` | Drives the compliance framework version. |
+| `location.nation` | Thapsus Care code list | `england`, `wales`, `scotland`, `northern_ireland` | Selects the rate table rows and nation pack (`docs/specs/rates.md`). |
+| `location.regulator` | Thapsus Care code list | `cqc`, `ciw`, `care_inspectorate`, `rqia`, `ofsted` | Drives the compliance framework version. |
 | `location.postcode` | NHS Data Dictionary POSTCODE format | Upper case, single space before the inward code | Also used for UKHSA outbreak reports. |
-| `service.service_type` | Harbour code list | `residential`, `nursing`, `supported_living`, `domiciliary`, `complex_care`, `live_in`, `respite`, `day_service` | Section 4 service types; drives which modules are active. |
+| `service.service_type` | Thapsus Care code list | `residential`, `nursing`, `supported_living`, `domiciliary`, `complex_care`, `live_in`, `respite`, `day_service` | Section 4 service types; drives which modules are active. |
 | `invitation.email` | RFC 5321 address | Printable ASCII, shaped like local@domain.tld, at most 254 characters (`isPlausibleEmail`), stored normalised | Migration 0054 (platform.md, Invitations and MFA enrolment). Copied from the member's record by a trigger, never taken from a request; required while the invitation is open and cleared when it is accepted, revoked or lapses (#43 review M4). The sign-in is created only for exactly this address. Never in the audit trail or logs. Handed with the link to the organisation's email adapter when the invitation is sent, never queued in `notification_delivery`; masked (first character and domain) on the link's page. |
 | `invitation.token_hash` | SHA-256 | 64 lower-case hex characters of the hash of a 256-bit random token | Migration 0054. The token travels only in the link's URL fragment and POST bodies, never stored or logged; the application role may insert the hash but cannot read it back. |
-| `invitation.expires_at`, `accepted_at`, `revoked_at`, `revocation_reason` | ISO 8601 UTC; Harbour code list | `expires_at` after `created_at` by `invitation.expiry_hours`, at most `invitation.expiry_hours_max`; reason `superseded`, `revoked`, `member_removed`, `member_changed`, `expired` | Migration 0054. Single use: accepted or revoked is final. Retention class `invitation`. |
+| `invitation.expires_at`, `accepted_at`, `revoked_at`, `revocation_reason` | ISO 8601 UTC; Thapsus Care code list | `expires_at` after `created_at` by `invitation.expiry_hours`, at most `invitation.expiry_hours_max`; reason `superseded`, `revoked`, `member_removed`, `member_changed`, `expired` | Migration 0054. Single use: accepted or revoked is final. Retention class `invitation`. |
 | `invitation.claimed_auth_user_id`, `claimed_at` | Better Auth user id; ISO 8601 UTC | Text; set once (again only if that sign-in no longer exists), in its own transaction before the sign-in is linked; only a sign-in at the invitation's address created after the invitation | Migration 0054 (#48 review H1, M1). The sign-in an acceptance created, recorded so the nightly sweep can delete one left unlinked, and never a sign-in any membership or operator record names. Audited as `platform.invitation.claimed` (opaque ids). Internal: never exported. |
-| `task.kind` `platform.account_deletion_request` | Harbour code list | `source_type` `tenant_user`, `source_id` the member who asked; `required_permission` `platform.user.manage`; `due_at` the request plus `account_deletion.confirmation_days` | MOB-011 ([app-store-privacy.md](../compliance/app-store-privacy.md) section 5). No new column. At most one open per member; the notification `platform.account_deletion.requested` carries no name or address; audited as `platform.account_deletion.requested` with opaque ids. Nothing is deleted by the request. |
-| `tenant_user.status` changes by a manager; the reason codes of `platform.member.suspended` and `platform.member.ended` | Harbour code list (`MEMBERSHIP_CHANGE_REASONS`; H-566) | `active` or `invited` to `suspended`, `suspended` back to `active` (or `invited` with no sign-in), then `suspended` to `left`; only through `app.change_membership` (migration 0129), and the sign-in link is set once and only ever removed after the membership ends; reasons `staff_left`, `account_deletion_request`, `investigation`, `safeguarding_concern`, `long_absence`, `other` | No new column. Erasing the sign-in deletes the auth user (email, password hash, passkeys, TOTP secret, sessions) and sets `tenant_user.auth_user_id` to null; `display_name`, `job_title` and the organisation's own `email` stay with the member row under `staff_file` retention, so care records stay attributable. Audited with opaque ids and codes only. |
+| `task.kind` `platform.account_deletion_request` | Thapsus Care code list | `source_type` `tenant_user`, `source_id` the member who asked; `required_permission` `platform.user.manage`; `due_at` the request plus `account_deletion.confirmation_days` | MOB-011 ([app-store-privacy.md](../compliance/app-store-privacy.md) section 5). No new column. At most one open per member; the notification `platform.account_deletion.requested` carries no name or address; audited as `platform.account_deletion.requested` with opaque ids. Nothing is deleted by the request. |
+| `tenant_user.status_changed_at`, `tenant_user.sign_in_erasure_requested_at`, `tenant_user.sign_in_erased_at`; `MEMBER_REINSTATE_REASONS`; `MEMBER_DEVICE_CHECKS` | Thapsus Care (timestamps); Thapsus Care code lists | ISO 8601 UTC timestamps, null until set; reinstate: `suspended_in_error`, `investigation_cleared`, `returned_from_absence`, `other`; device check: `device_returned_checked`, `device_lost_incident_raised` | Migration 0149 (H-566). When the status last changed (set by `app.change_membership`); when the member asked for deletion (`app.request_sign_in_erasure`, own row); when the sign-in was erased (the link removed). The application role cannot write them. Returned only in `MemberLifecycle` to holders of `platform.user.manage`. Codes in `platform.member.reinstated` and `platform.member.ended` (`scope.deviceCheck`). |
+| `tenant_user.status` changes by a manager; the reason codes of `platform.member.suspended` and `platform.member.ended` | Thapsus Care code list (`MEMBERSHIP_CHANGE_REASONS`; H-566) | `active` or `invited` to `suspended`, `suspended` back to `active` (or `invited` with no sign-in), then `suspended` to `left`; only through `app.change_membership` (migration 0129), and the sign-in link is set once and only ever removed after the membership ends; reasons `staff_left`, `account_deletion_request`, `investigation`, `safeguarding_concern`, `long_absence`, `other` | No new column. Erasing the sign-in deletes the auth user (email, password hash, passkeys, TOTP secret, sessions) and sets `tenant_user.auth_user_id` to null; `display_name`, `job_title` and the organisation's own `email` stay with the member row under `staff_file` retention, so care records stay attributable. Audited with opaque ids and codes only. |
 
 ## Person
 
-| Harbour column | Type | Standard mapping | Code list or format | Notes |
+| Thapsus Care column | Type | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- | --- |
-| `id` | UUIDv7 | - | - | Harbour identifier; never shown as the person's identifier. |
+| `id` | UUIDv7 | - | - | Thapsus Care identifier; never shown as the person's identifier. |
 | `tenant_id` | UUIDv7 | - | - | Ignored on import (see conventions). |
 | `location_id` | UUIDv7 | - | - | The location currently responsible for the person. |
-| `status` | enum | - | `enquiry`, `pre_admission`, `active`, `on_leave`, `in_hospital`, `discharged`, `deceased`, `archived`, `not_admitted` | Harbour lifecycle (section 9.2; [people.md](people.md) rule 1). `pre_admission` and `not_admitted` arrive with the Phase 1 schema step. `discharged` and `deceased` make the record read-only except post-event records. The web shows every status but `active` beside the name as an icon and a word (`archived` as "Archived"). |
+| `status` | enum | - | `enquiry`, `pre_admission`, `active`, `on_leave`, `in_hospital`, `discharged`, `deceased`, `archived`, `not_admitted` | Thapsus Care lifecycle (section 9.2; [people.md](people.md) rule 1). `pre_admission` and `not_admitted` arrive with the Phase 1 schema step. `discharged` and `deceased` make the record read-only except post-event records. The web shows every status but `active` beside the name as an icon and a word (`archived` as "Archived"). |
 | `status_changed_at` | timestamp | - | ISO 8601 UTC | When the current status began (Phase 1). For `discharged` and `deceased` it equals `discharged_at` or `deceased_at`. For `enquiry` it is when the enquiry came in (`POST /v1/people` `receivedAt`, never later than now; the request time when left out). |
 | `nhs_number` | 10 digits | NHS Data Dictionary NHS NUMBER; MODS person identifier | Modulus 11 check (below); stored without spaces, shown as `999 000 0018` | The consistent identifier (Health and Social Care (Safety and Quality) Act 2015) but never the only one. PDS verification arrives in Phase 5. |
 | `local_identifier` | text | MODS local identifier | Tenant's own reference | Required when there is no NHS number. |
@@ -123,7 +124,7 @@ names below are the concepts this contract carries and must be kept in step with
 | `town` | text | MODS usual address | Free text | |
 | `postcode` | text | NHS Data Dictionary POSTCODE OF USUAL ADDRESS | Upper case, single space | For domiciliary clients this is also the visit address. The API normalises what is typed (`zz993zz` is stored `ZZ99 3ZZ`) and refuses anything that is not a full UK postcode (PEOP-001). |
 | `gp_practice_ods_code` | code | NHS Data Dictionary GENERAL MEDICAL PRACTICE CODE (PATIENT REGISTRATION); ODS | `^[A-Z][0-9]{5}$` for practices in England and Wales | Format for Scotland and Northern Ireland practices to be confirmed with the Phase 7 packs. |
-| `legal_status` | enum | - | Harbour code list, defined in `docs/specs/people.md` | Legal frameworks that apply (for example DoLS, Mental Health Act, Court of Protection order). The code list is not written yet, so the API returns it and the web shows it but neither changes it (PEOP-001). |
+| `legal_status` | enum | - | Thapsus Care code list, defined in `docs/specs/people.md` | Legal frameworks that apply (for example DoLS, Mental Health Act, Court of Protection order). The code list is not written yet, so the API returns it and the web shows it but neither changes it (PEOP-001). |
 | `photo_document_id` | UUIDv7 | - | Reference to `document` | Photo shown on every point-of-care screen (wrong-person hazard). Exported in `documents/`. |
 | `communication_needs` | JSON array | Accessible Information Standard; SNOMED CT | `[{ "code", "display", "preferredFormat" }]` (below) | Flags on every screen and print (section 5.4). |
 | `communication_needs_status` | code | Accessible Information Standard (identify and record) | `not_recorded`, `none_identified`, `recorded` | Phase 1. An empty list is never read as "no needs": `none_identified` is recorded positively, and `communication_needs_confirmed_by` and `_at` name who recorded the needs, or that there are none, on every change (hazard HZ-023). |
@@ -196,7 +197,7 @@ Worked example with the test number 9990000018: 9×10 + 9×9 + 9×8 + 0×7 + 0×
 
 The Accessible Information Standard groups needs as contact method, information format, communication
 support and communication professional. Each need is recorded with its SNOMED CT concept from the UK
-edition (loaded from TRUD, never typed by hand) and the format Harbour should use. The example below is
+edition (loaded from TRUD, never typed by hand) and the format Thapsus Care should use. The example below is
 illustrative: the display text is whatever the loaded concept's preferred term is.
 
 ```json
@@ -210,15 +211,15 @@ illustrative: the display text is whatever the loaded concept's preferred term i
 | --- | --- |
 | `code` | SNOMED CT concept ID (string of digits) for the need. Validated against the loaded AIS concepts. |
 | `display` | The SNOMED CT preferred term at the time of recording. |
-| `preferredFormat` | Harbour code for how to deliver information: `standard_print`, `large_print`, `easy_read`, `braille`, `audio`, `electronic`, `email`, `telephone`, `text_message`, `in_person`, `other`. Must match the Zod schema in `packages/contracts`; change both in the same PR. |
+| `preferredFormat` | Thapsus Care code for how to deliver information: `standard_print`, `large_print`, `easy_read`, `braille`, `audio`, `electronic`, `email`, `telephone`, `text_message`, `in_person`, `other`. Must match the Zod schema in `packages/contracts`; change both in the same PR. |
 
 ## Related tables
 
 ### `contact`
 
-| Harbour field | Mapping | Notes |
+| Thapsus Care field | Mapping | Notes |
 | --- | --- | --- |
-| `role` | Harbour code list, aligned to MODS related-person roles and MCA 2005 | `next_of_kin`, `lpa_health_welfare` (lasting power of attorney for health and welfare), `lpa_property_finance` (lasting power of attorney for property and financial affairs), `deputy` (Court of Protection deputy), `imca` (independent mental capacity advocate), `advocate`, `appointee` (DWP appointee), `gp`, `social_worker`, `other` |
+| `role` | Thapsus Care code list, aligned to MODS related-person roles and MCA 2005 | `next_of_kin`, `lpa_health_welfare` (lasting power of attorney for health and welfare), `lpa_property_finance` (lasting power of attorney for property and financial affairs), `deputy` (Court of Protection deputy), `imca` (independent mental capacity advocate), `advocate`, `appointee` (DWP appointee), `gp`, `social_worker`, `other` |
 | Authority evidence | Document reference, OPG reference where registered, expiry | An attorney or deputy sees only what the authority covers (section 15.1). Evidence is required before a legal role grants portal access. |
 | `authority_scope` | Mental Capacity Act 2005 (Court of Protection deputyship orders) | `personal_welfare`, `property_affairs`, `both`; null for other roles | Phase 1, deputies only. Sharing checks what the authority covers (people.md rule 13). Required for a deputy and refused for any other role (PEOP-001). |
 | `valid_until` | Date the role or authority ends | `YYYY-MM-DD` | From 1900 to 2199. Read as ended (`expired`) from the day after, in UK time; ended contacts stay listed, last. A sharing decision keeps the end date it was recorded with, and a change that ends the authority sooner suspends it (people.md section 6). |
@@ -227,7 +228,7 @@ illustrative: the display text is whatever the loaded concept's preferred term i
 
 ### `allergy`
 
-| Harbour field | Mapping | Code list or format |
+| Thapsus Care field | Mapping | Code list or format |
 | --- | --- | --- |
 | `substance` | MODS allergies and adverse reactions; free text as recorded | Free text |
 | `snomed_code` | SNOMED CT substance or product concept for the cause | SNOMED CT concept ID (string); null when only free text is known |
@@ -242,12 +243,12 @@ concept from the loaded UK edition.
 
 ### `placement`
 
-| Harbour field | Mapping | Code list |
+| Thapsus Care field | Mapping | Code list |
 | --- | --- | --- |
-| `type` | Harbour code list | `permanent`, `respite`, `trial`, `package` (domiciliary or supported-living package of care) |
+| `type` | Thapsus Care code list | `permanent`, `respite`, `trial`, `package` (domiciliary or supported-living package of care) |
 | Admission and end dates, end reason | MODS admission and discharge | One person can hold several placements over time under one record (section 9.2). |
-| `trial_ends_on`, `trial_reviewed_on` | Harbour | `YYYY-MM-DD` | Phase 1. A trial placement's review is due by its end. |
-| `local_authority_funded`, `nhs_funded` | Harbour | `true` or `false` | Phase 1 flags for the review scheduler and exit notifications; funding detail moves to finance in Phase 3. |
+| `trial_ends_on`, `trial_reviewed_on` | Thapsus Care | `YYYY-MM-DD` | Phase 1. A trial placement's review is due by its end. |
+| `local_authority_funded`, `nhs_funded` | Thapsus Care | `true` or `false` | Phase 1 flags for the review scheduler and exit notifications; funding detail moves to finance in Phase 3. |
 
 ### `about_me` (PRSB About Me v2.01)
 
@@ -286,11 +287,11 @@ Every section is optional. Media is stored as documents (never inline) and expor
 
 The PRSB standard has four main sections (About Me, Care and support plan, Contingency plans and
 Additional support plans) and supporting sections (person demographics, GP practice, professional
-contacts, personal contacts and, where appropriate, formulation). Harbour maps them as follows. A plan
+contacts, personal contacts and, where appropriate, formulation). Thapsus Care maps them as follows. A plan
 version is one `care_plan` row: drafts are edited, publishing makes a draft `active` and the previous
 version `superseded`, and every change is kept in `record_version`.
 
-| PRSB PCSP section | Harbour | Notes |
+| PRSB PCSP section | Thapsus Care | Notes |
 | --- | --- | --- |
 | About Me | `about_me` (PRSB About Me, above) | Linked by person, not copied into the plan |
 | Care and support plan | `care_plan` (status, `published_version`, `review_due_on`, sign-off) with one `care_plan_section` per need domain (`need`, `outcome` in the person's words, `strengths`) and its `care_plan_action` rows (`action`; who: `role_key`; when: `recurrence` or `when_text`) | "Who is responsible for delivery" is a role, so the plan survives staff changes; `generates_tasks` marks actions that become scheduled tasks (slice 5: a task series of kind `care.plan_action`, never in the medicines domain) |
@@ -385,10 +386,10 @@ recorded" when there is none (hazard HZ-015).
 
 Code lists for the tables in [care.md](care.md) section 2 (rules 8 and 14). They mirror the domain
 constants in `packages/domain/src/care/handover.ts` and `plan-tasks.ts`; no national standard
-codes a shift handover or a care round, so these are Harbour code lists, exported with their
+codes a shift handover or a care round, so these are Thapsus Care code lists, exported with their
 meanings in `schema.json`.
 
-| Harbour field | Code list or format | Notes |
+| Thapsus Care field | Code list or format | Notes |
 | --- | --- | --- |
 | `task.kind`, `task_series.kind` | `care.plan_action` for a round a care plan action generates | `source_type` `care_plan_action` and `source_id` the action; `title` "Care plan: " and the need domain in lower case; `assignee_role_key` the action's role; one live series per action |
 | `care_plan_action.based_on_action_id` | Reference to `care_plan_action` | The action of the earlier version a copied draft's action came from; an unchanged action takes over its series |
@@ -409,10 +410,10 @@ Code lists for the tables in [care.md](care.md) section 2. They mirror the domai
 Capacity Act 2005 concepts have no national code list; SNOMED CT concepts for capacity and DoLS
 findings are an open item below.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `consent_record.decision` | Harbour (master prompt 5.1, 9.2, 10.4) | `care_plan`, `photos`, `social_media`, `sharing`, `marketing`, `ai_processing`, `bed_rails`, `covert_medicines` | `CONSENT_DECISION_KINDS`; also `capacity_assessment.decision_kind` |
-| `consent_record.outcome` | Harbour | `given`, `refused` | A refusal is a record too |
+| `consent_record.decision` | Thapsus Care (master prompt 5.1, 9.2, 10.4) | `care_plan`, `photos`, `social_media`, `sharing`, `marketing`, `ai_processing`, `bed_rails`, `covert_medicines` | `CONSENT_DECISION_KINDS`; also `capacity_assessment.decision_kind` |
+| `consent_record.outcome` | Thapsus Care | `given`, `refused` | A refusal is a record too |
 | `consent_record.given_by_kind`, `representative_kind` | Mental Capacity Act 2005 s.9, s.16, s.20; DWP appointeeship | `person`, `representative`; `lpa_health_welfare`, `lpa_property_financial`, `deputy`, `appointee`, `imca`, `advocate`, `family_or_friend` | With the OPG reference and registration, or the deputy's `personal_welfare` or `property_and_affairs` scope, decisions, end and court reference |
 | `consent_record.capacity_status` | Mental Capacity Act 2005 s.1(2) | `assumed`, `has_capacity`, `lacks_capacity` | Found from the assessments of the decision, with the assessment id |
 | `capacity_assessment.practicable_steps` | Mental Capacity Act 2005 s.1(3) | `[{ step, detail }]`, step one of `simple_language`, `visual_aids`, `best_time_or_place`, `interpreter_or_communication_aid`, `trusted_person_present`, `information_repeated`, `other` | |
@@ -427,52 +428,52 @@ findings are an open item below.
 Code lists for the tables in [safety.md](safety.md) section 2. They mirror the domain constants in
 `packages/domain/src/safety/`; the database CHECKs and the API tests keep them in step. Harm grades
 follow the NHS England Learn from Patient Safety Events (LFPSE) physical harm levels and severity
-the NPSA consequence scale, both as staff judge them (Harbour never computes them). A national
+the NPSA consequence scale, both as staff judge them (Thapsus Care never computes them). A national
 mapping of incident types to LFPSE categories is an open item below.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `incident.type` | Harbour (master prompt 11.1) | `fall`, `medication`, `skin`, `behaviour`, `missing_person`, `safeguarding_concern`, `injury`, `near_miss`, `environmental`, `ipc`, `staff_injury`, `violence_to_staff`, `self_harm`, `sexual_safety`, `absconding`, `fire_setting`, `substance_use`, `data_breach` | `INCIDENT_TYPES` |
+| `incident.type` | Thapsus Care (master prompt 11.1) | `fall`, `medication`, `skin`, `behaviour`, `missing_person`, `safeguarding_concern`, `injury`, `near_miss`, `environmental`, `ipc`, `staff_injury`, `violence_to_staff`, `self_harm`, `sexual_safety`, `absconding`, `fire_setting`, `substance_use`, `data_breach` | `INCIDENT_TYPES` |
 | `incident.severity` | NPSA risk matrix consequence scale (2008) | `negligible`, `minor`, `moderate`, `major`, `catastrophic` | Staff judgement |
 | `incident.harm_grade` | LFPSE physical harm | `none`, `low`, `moderate`, `severe`, `fatal` | Staff judgement |
-| `incident.status` | Harbour (`INCIDENT_WORKFLOW`) | `open`, `under_review`, `closed` | Closed by someone other than `raised_by` |
+| `incident.status` | Thapsus Care (`INCIDENT_WORKFLOW`) | `open`, `under_review`, `closed` | Closed by someone other than `raised_by` |
 | `incident.retention_class` | [retention.md](retention.md) | `care_record`, `serious_incident` | `serious_incident` once any notification applies |
-| `incident.emergency_services_called`, `incident.gp_contacted` | Harbour | `true`, `false`, or null for "Not known yet" (migration 0118, H-264) | Asked every time, never assumed no (HZ-090); null leaves an urgent `safety.record_contacts` task until both are answered. Default `false` kept for earlier clients |
+| `incident.emergency_services_called`, `incident.gp_contacted` | Thapsus Care | `true`, `false`, or null for "Not known yet" (migration 0118, H-264) | Asked every time, never assumed no (HZ-090); null leaves an urgent `safety.record_contacts` task until both are answered. Default `false` kept for earlier clients |
 | `incident_person.learning_disability`, `incident_person.autistic` | LeDeR (concept) | `true`, `false`, or null when not known yet | Asked on the web form for a person we support who died (H-482); null leaves a `safety.record_learning_disability_autism` task, and LeDeR is decided from the answers (HZ-013) |
 | `incident_person.kind`, `role` | RIDDOR 2013 reg 4 and 5 (worker, person not at work) | `service_user`, `worker`, `other_not_at_work`; `affected`, `witness`, `involved` | `infection` is `{ syndrome (acute_respiratory, diarrhoea_vomiting), onsetAt, couldBeLinkedWithinSetting, fluConfirmedAt, link ({ group } or not_linked) }` |
 | `classifier_answer.question_key`, `value` | The regulations each question quotes (`CLASSIFIER_QUESTIONS`) | `CLASSIFIER_QUESTION_KEYS`; `yes`, `no`, `unsure`, a whole number of days or hours, or option values | Append-only; the latest answer per key counts |
 | `statutory_notification.kind` | CQC Registration Regulations 2009 regs 16 and 18; RIDDOR 2013; Care Act 2014 s.42; regulation 20 of the 2014 Regulations; LeDeR; UKHSA; death certification reforms | `cqc_reg16_death`, `cqc_reg18_serious_injury`, `cqc_reg18_abuse`, `cqc_reg18_police`, `cqc_reg18_service_disruption`, `cqc_reg18_dols_outcome`, `riddor_death`, `riddor_specified_injury`, `riddor_non_worker_hospital`, `riddor_over_7_day`, `riddor_dangerous_occurrence`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person` | `STATUTORY_NOTIFICATION_KINDS` |
-| `statutory_notification.status` | Harbour (`STATUTORY_NOTIFICATION_WORKFLOW`) | `draft`, `ready`, `submitted` (time and reference or form), `not_required` (reason) | `deadlines` are `[{ key, dueAt, wording, statutory }]` |
-| `outbreak` (migration 0093) | Harbour; UKHSA outbreak reporting | syndrome `acute_respiratory`, `flu`, `covid_19`, `diarrhoea_vomiting`, `other`; state `declared`, `closed`; organism (2 to 200 characters, as recorded); health protection team reference (1 to 100); closure reason (3 to 1000) | One open outbreak per illness at a location |
-| `outbreak_case` (migration 0093) | Harbour; UKHSA report fields | case type `resident` (person id), `staff` (member id) or `staff_unnamed` (an agency or bank worker not in Harbour: no id, nothing identifying, counted once; H-782); onset, test and outcome dates `YYYY-MM-DD` (UK, never in the future); symptoms from `fever`, `cough`, `sore_throat`, `shortness_of_breath`, `loss_of_taste_or_smell`, `diarrhoea`, `vomiting`, `new_confusion`, `other`; test type `lateral_flow`, `pcr`, `stool_sample`, `other`; result `not_tested`, `pending`, `positive`, `negative`; flu and COVID-19 vaccination `yes`, `no`, `unknown`; outcome `unwell`, `recovered`, `hospitalised`, `died` | Append-only; an update supersedes the person's current row (correction reason 3 to 500 characters) |
-| `ipc_code_criterion` (migration 0093) | DHSC Code of Practice on the prevention and control of infections | `criterion_1` to `criterion_10`, Harbour's summary title (H-765) | Global reference data; IPC audit questions name them in `ipcCriteria` |
+| `statutory_notification.status` | Thapsus Care (`STATUTORY_NOTIFICATION_WORKFLOW`) | `draft`, `ready`, `submitted` (time and reference or form), `not_required` (reason) | `deadlines` are `[{ key, dueAt, wording, statutory }]` |
+| `outbreak` (migration 0093) | Thapsus Care; UKHSA outbreak reporting | syndrome `acute_respiratory`, `flu`, `covid_19`, `diarrhoea_vomiting`, `other`; state `declared`, `closed`; organism (2 to 200 characters, as recorded); health protection team reference (1 to 100); closure reason (3 to 1000) | One open outbreak per illness at a location |
+| `outbreak_case` (migration 0093) | Thapsus Care; UKHSA report fields | case type `resident` (person id), `staff` (member id) or `staff_unnamed` (an agency or bank worker not in Thapsus Care: no id, nothing identifying, counted once; H-782); onset, test and outcome dates `YYYY-MM-DD` (UK, never in the future); symptoms from `fever`, `cough`, `sore_throat`, `shortness_of_breath`, `loss_of_taste_or_smell`, `diarrhoea`, `vomiting`, `new_confusion`, `other`; test type `lateral_flow`, `pcr`, `stool_sample`, `other`; result `not_tested`, `pending`, `positive`, `negative`; flu and COVID-19 vaccination `yes`, `no`, `unknown`; outcome `unwell`, `recovered`, `hospitalised`, `died` | Append-only; an update supersedes the person's current row (correction reason 3 to 500 characters) |
+| `ipc_code_criterion` (migration 0093) | DHSC Code of Practice on the prevention and control of infections | `criterion_1` to `criterion_10`, Thapsus Care's summary title (H-765) | Global reference data; IPC audit questions name them in `ipcCriteria` |
 | `candour_record.state` | Regulation 20 of the 2014 Regulations (`CANDOUR_WORKFLOW`) | `threshold_assessment`, `not_notifiable`, `verbal_due`, `no_contact`, `written_due`, `enquiries_open`, `closed` | |
 | `complaint.state` | Regulation 16 of the 2014 Regulations (`COMPLAINT_WORKFLOW`) | `received`, `acknowledged`, `investigating`, `responded`, `appealed`, `appeal_responded`, `closed` (reason) | Targets in working days from `complaint.acknowledge_working_days` and `complaint.response_working_days`, paused while waiting for the complainant |
-| `complaint.complainant_relationship`, `compliment.from_relationship` | Harbour | `person_using_service`, `family_or_friend`, `representative`, `professional`, `member_of_public`, `other` | |
-| `complaint.channel` | Harbour | `in_person`, `phone`, `email`, `letter`, `other` | |
+| `complaint.complainant_relationship`, `compliment.from_relationship` | Thapsus Care | `person_using_service`, `family_or_friend`, `representative`, `professional`, `member_of_public`, `other` | |
+| `complaint.channel` | Thapsus Care | `in_person`, `phone`, `email`, `letter`, `other` | |
 | `complaint.knew_of_matter_on` | Local Government Act 1974 s.34D(4) | ISO date (UK) | The Ombudsman's time limit (`lgsco.time_limit_months`) runs from it |
-| `complaint.pauses` | Harbour | `[{ from, to, reason }]`, ISO dates, inclusive | |
-| `speak_up_concern.identity` | Harbour (ADR-0089) | `named`, `confidential`, `anonymous` | Anonymous stores no identity; a reply token's SHA-256 (hex) instead, or nothing |
-| `speak_up_concern.category` | Harbour | `care_quality_or_safety`, `staff_safety`, `conduct`, `bullying_or_harassment`, `fraud_or_finance`, `other` | |
+| `complaint.pauses` | Thapsus Care | `[{ from, to, reason }]`, ISO dates, inclusive | |
+| `speak_up_concern.identity` | Thapsus Care (ADR-0089) | `named`, `confidential`, `anonymous` | Anonymous stores no identity; a reply token's SHA-256 (hex) instead, or nothing |
+| `speak_up_concern.category` | Thapsus Care | `care_quality_or_safety`, `staff_safety`, `conduct`, `bullying_or_harassment`, `fraud_or_finance`, `other` | |
 | `speak_up_concern.state` | National Guardian's Office guidance (`SPEAK_UP_WORKFLOW`) | `received`, `acknowledged`, `under_review`, `outcome_shared`, `closed` (reason) | Acknowledgement target `whistleblowing.acknowledge_working_days`; the outcome is shared before closing unless no one can be told |
-| `speak_up_concern.received_on` | Harbour | ISO date (UK) | A date only, so its time never lines up with other activity |
-| `speak_up_concern.retention_class` | Harbour (retention.md) | `speak_up_concern` (6 years after closing; H-721) | Rows from before migration 0122 were moved from `complaint`. |
-| Speak-up reply token | Harbour (ADR-0089) | 256 random bits, base64url (43 characters) | Shown once; sent only in request bodies; stored only as `reply_token_hash`; expires at `reply_token_expires_at` (`speak_up.reply_token_days` after raising) |
-| `speak_up_intake.bucket` | Harbour (ADR-0089) | `net:` and an HMAC-SHA256 (hex) of the UK date and network, `tenant` or `day` | The network is an IPv6 /64 or an IPv4 address, never stored itself |
-| `complaint.response`, `appeal_response` | Harbour (`complaintResponseProblems`) | `{ outcome: upheld, partly_upheld or not_upheld, actionsTaken, ombudsmanSignposted: true, documentId }` | A response is refused without the Ombudsman signposted and a kept copy |
+| `speak_up_concern.received_on` | Thapsus Care | ISO date (UK) | A date only, so its time never lines up with other activity |
+| `speak_up_concern.retention_class` | Thapsus Care (retention.md) | `speak_up_concern` (6 years after closing; H-721) | Rows from before migration 0122 were moved from `complaint`. |
+| Speak-up reply token | Thapsus Care (ADR-0089) | 256 random bits, base64url (43 characters) | Shown once; sent only in request bodies; stored only as `reply_token_hash`; expires at `reply_token_expires_at` (`speak_up.reply_token_days` after raising) |
+| `speak_up_intake.bucket` | Thapsus Care (ADR-0089) | `net:` and an HMAC-SHA256 (hex) of the UK date and network, `tenant` or `day` | The network is an IPv6 /64 or an IPv4 address, never stored itself |
+| `complaint.response`, `appeal_response` | Thapsus Care (`complaintResponseProblems`) | `{ outcome: upheld, partly_upheld or not_upheld, actionsTaken, ombudsmanSignposted: true, documentId }` | A response is refused without the Ombudsman signposted and a kept copy |
 | `compliment.evidence_statement_ids` | The compliance framework's quality statement identifiers (slice 14) | Up to 50 identifiers | Not checked against the framework until slice 14 lands |
 | `complaint.retention_class`, `compliment.retention_class` | [retention.md](retention.md) | `complaint` | |
-| `investigation.method`, `status`, `actions` | Harbour | `root_cause_analysis`, `five_whys`, `fishbone`, `after_action_review`, `swarm_huddle`, `other`; `open`, `completed`; actions `[{ id, action, ownerTenantUserId, dueOn, status (open, done, cancelled), taskId }]` | |
+| `investigation.method`, `status`, `actions` | Thapsus Care | `root_cause_analysis`, `five_whys`, `fishbone`, `after_action_review`, `swarm_huddle`, `other`; `open`, `completed`; actions `[{ id, action, ownerTenantUserId, dueOn, status (open, done, cancelled), taskId }]` | |
 
 ### Deaths and missing persons (Phase 2, slice 37)
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `death_record.status` | Harbour | `open`, `closed`, `withdrawn` | Withdrawn when the death is corrected as recorded in error |
-| `death_record.expected`, `possibly_unnatural`, `judged_by` | Death certification reforms (9 September 2024); the clinician's judgement (concept) | `true`, `false` or empty until recorded; the clinician's name and role | Harbour never decides either; empty means the plan assumes the safer answer |
-| `death_step.step`, `outcome` | Harbour (`deathPlan`) | `verification_of_death`, `family_informed`, `medical_examiner_pack`, `cqc_reg16_notification`, `leder_notification`, `police_informed`, `preserve_room_and_equipment`; `done`, `not_needed` | A notification step is recorded here only as `not_needed` with a reason of at least 20 characters |
-| `missing_episode.status` | Harbour | `open`, `found`, `closed` | One open episode per person |
-| `missing_event.kind` | Harbour (`MISSING_TIMELINE_KINDS`); the Herbert Protocol | `last_seen`, `noticed_missing`, `search_started`, `search`, `sighting`, `police_called`, `found`, `welfare_check`, `debrief`, `note` | `police_called` carries the police reference (1 to 100 characters); `search` the area (1 to 500) |
+| `death_record.status` | Thapsus Care | `open`, `closed`, `withdrawn` | Withdrawn when the death is corrected as recorded in error |
+| `death_record.expected`, `possibly_unnatural`, `judged_by` | Death certification reforms (9 September 2024); the clinician's judgement (concept) | `true`, `false` or empty until recorded; the clinician's name and role | Thapsus Care never decides either; empty means the plan assumes the safer answer |
+| `death_step.step`, `outcome` | Thapsus Care (`deathPlan`) | `verification_of_death`, `family_informed`, `medical_examiner_pack`, `cqc_reg16_notification`, `leder_notification`, `police_informed`, `preserve_room_and_equipment`; `done`, `not_needed` | A notification step is recorded here only as `not_needed` with a reason of at least 20 characters |
+| `missing_episode.status` | Thapsus Care | `open`, `found`, `closed` | One open episode per person |
+| `missing_event.kind` | Thapsus Care (`MISSING_TIMELINE_KINDS`); the Herbert Protocol | `last_seen`, `noticed_missing`, `search_started`, `search`, `sighting`, `police_called`, `found`, `welfare_check`, `debrief`, `note` | `police_called` carries the police reference (1 to 100 characters); `search` the area (1 to 500) |
 | `herbert_profile` | The Herbert Protocol (national scheme adopted by police forces; each force's form may differ, H-773) | Photograph (`document.id`); physical description and places likely (required, 10 to 4,000 characters); distinguishing features, usual clothing, medical needs, mobility, communication, people likely, routines, earlier episodes, approach (up to 4,000 each); phone or tracker (up to 1,000); who it was checked with (up to 500); review date (UK date) and reviewer | Prefilled parts say where they came from (the record, About Me); out of date `herbert_protocol.review_months` after the review date |
 
 ## Safeguarding log (Phase 2, slice 13)
@@ -482,18 +483,18 @@ They mirror `packages/domain/src/safety/safeguarding.ts` and `ABUSE_TYPES`; the 
 contract and the API tests keep them in step. No national data standard exists for a provider's
 safeguarding log; the local authority's referral form sets what a referral carries.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `safeguarding_concern.abuse_types` | Care and support statutory guidance 14.17 | One or more of `physical`, `domestic`, `sexual`, `psychological`, `financial_or_material`, `modern_slavery`, `discriminatory`, `organisational`, `neglect`, `self_neglect` | Never empty |
-| `safeguarding_concern.state` | Harbour (`SAFEGUARDING_WORKFLOW`) | `concern`, `no_referral` (reason and who decided), `referred`, `enquiry`, `outcome`, `closed` (reason, who and when) | `no_referral` and `closed` end it |
-| `safeguarding_concern.referral_due_at` | Tenant target (`safeguarding.referral_hours`, [rates.md](rates.md)) | Instant, UTC | The law says without delay; shown as Harbour's target |
-| `safeguarding_concern.referral_method` | Harbour | `phone`, `online_form`, `email`, `in_person` | With the local authority, time and reference |
+| `safeguarding_concern.state` | Thapsus Care (`SAFEGUARDING_WORKFLOW`) | `concern`, `no_referral` (reason and who decided), `referred`, `enquiry`, `outcome`, `closed` (reason, who and when) | `no_referral` and `closed` end it |
+| `safeguarding_concern.referral_due_at` | Tenant target (`safeguarding.referral_hours`, [rates.md](rates.md)) | Instant, UTC | The law says without delay; shown as Thapsus Care's target |
+| `safeguarding_concern.referral_method` | Thapsus Care | `phone`, `online_form`, `email`, `in_person` | With the local authority, time and reference |
 | `safeguarding_concern.enquiry_kind` | Care Act 2014 s.42(2) | `s42_local_authority`, `s42_caused_to_provider` | With when it opened |
 | `safeguarding_concern.finding` | Safeguarding Adults Collection (NHS England) outcome of the enquiry, at concept level | `substantiated`, `partly_substantiated`, `not_substantiated`, `inconclusive`, `no_s42_enquiry` | Cross-checked with the SAC definitions before Phase 5 (H-597) |
 | `safeguarding_concern.msp_asked`, `msp_desired_outcomes`, `msp_achieved` | Making Safeguarding Personal; Safeguarding Adults Collection "outcomes expressed and achieved" | Boolean; free text; `fully`, `partly`, `not` | A reason when not asked |
 | `safeguarding_concern.staff_harm` | Safeguarding Vulnerable Groups Act 2006 s.35 (removed, or would or might have been) | `removed`, `would_have_removed`, `not_removed`, `no_staff_involved` | No default: answered before the outcome and before the concern ends |
 | `safeguarding_concern.dbs_decision` | Safeguarding Vulnerable Groups Act 2006 s.35 | `referred`, `not_required` (reason) | Needed before the concern ends when `staff_harm` is `removed` or `would_have_removed` (whether `not_required` may then be recorded is H-599) |
-| `safeguarding_concern.measures_outcome` | Harbour | `carried_into_care_plan`, `no_longer_needed` | Needed before a concern with protective measures ends |
+| `safeguarding_concern.measures_outcome` | Thapsus Care | `carried_into_care_plan`, `no_longer_needed` | Needed before a concern with protective measures ends |
 | `safeguarding_concern.retention_class` | [retention.md](retention.md) | `serious_incident` | DPO to confirm (H-596) |
 
 ## Lifecycle records (Phase 1)
@@ -502,117 +503,117 @@ Code lists for the tables in [people.md](people.md) section 2. MODS and NHS Data
 alignments are concept-level, like the rest of this file, and are cross-checked before the Phase 5
 assurance pack.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `pre_admission_assessment.sections` | Harbour; content aligned to the PRSB personalised care and support plan headings where they exist | JSON keyed by `PRE_ADMISSION_SECTIONS` (`personal_details_and_contacts`, `views_and_wishes`, `health_and_medical_history`, `medicines`, `allergies`, `communication`, `mobility_and_falls`, `eating_drinking_and_swallowing`, `skin_integrity`, `continence_and_personal_care`, `cognition_and_mental_health`, `capacity_and_legal_status`, `resuscitation_and_advance_care`, `infection_status`, `equipment`, `risks`, `dependency`, `funding`, `social_cultural_and_spiritual`, `hospital_passport`) with `status` (`in_progress`, `complete`, `not_applicable`), reason, completed by and at | Allergies follow the `allergy` mapping; IDDSI levels the care profile; communication needs the AIS mapping above. |
-| `pre_admission_assessment.sources` | Harbour | `person`, `family_or_representative`, `hospital`, `gp`, `social_worker`, `previous_provider`, `other` | At least one. |
-| `admission_decision.can_meet_needs` | Harbour | `yes`, `yes_with_conditions`, `no` | With reasons, conditions, decided by and at. |
-| `admission_condition` | Harbour | `condition` (free text, never blank), `position` (from 0); met by and at, both or neither | One row per condition of a "yes, with conditions" decision, confirmed as met before admission. |
-| `welcome_checklist_item.status` | Harbour | `pending`, `done`, `not_applicable` (with a reason, only where the item allows it); `required`, `safety_critical` flags | Copied from `welcome_checklist_template` at admission; item keys stay as the template set them. |
-| `key_issue.issued_to` | Harbour | `person`, `representative`; `issued_on`, then `returned_on` or `reported_lost_on` (`YYYY-MM-DD`, never both, never before issue) | A key neither returned nor reported lost blocks the exit. |
+| `pre_admission_assessment.sections` | Thapsus Care; content aligned to the PRSB personalised care and support plan headings where they exist | JSON keyed by `PRE_ADMISSION_SECTIONS` (`personal_details_and_contacts`, `views_and_wishes`, `health_and_medical_history`, `medicines`, `allergies`, `communication`, `mobility_and_falls`, `eating_drinking_and_swallowing`, `skin_integrity`, `continence_and_personal_care`, `cognition_and_mental_health`, `capacity_and_legal_status`, `resuscitation_and_advance_care`, `infection_status`, `equipment`, `risks`, `dependency`, `funding`, `social_cultural_and_spiritual`, `hospital_passport`) with `status` (`in_progress`, `complete`, `not_applicable`), reason, completed by and at | Allergies follow the `allergy` mapping; IDDSI levels the care profile; communication needs the AIS mapping above. |
+| `pre_admission_assessment.sources` | Thapsus Care | `person`, `family_or_representative`, `hospital`, `gp`, `social_worker`, `previous_provider`, `other` | At least one. |
+| `admission_decision.can_meet_needs` | Thapsus Care | `yes`, `yes_with_conditions`, `no` | With reasons, conditions, decided by and at. |
+| `admission_condition` | Thapsus Care | `condition` (free text, never blank), `position` (from 0); met by and at, both or neither | One row per condition of a "yes, with conditions" decision, confirmed as met before admission. |
+| `welcome_checklist_item.status` | Thapsus Care | `pending`, `done`, `not_applicable` (with a reason, only where the item allows it); `required`, `safety_critical` flags | Copied from `welcome_checklist_template` at admission; item keys stay as the template set them. |
+| `key_issue.issued_to` | Thapsus Care | `person`, `representative`; `issued_on`, then `returned_on` or `reported_lost_on` (`YYYY-MM-DD`, never both, never before issue) | A key neither returned nor reported lost blocks the exit. |
 | `placement.start_date` | MODS admission date (concept) | `YYYY-MM-DD` | The admission date of the current placement. |
-| `bed_occupancy.from_date`, `to_date` | Harbour | `YYYY-MM-DD`, `to_date` exclusive | The person's room and bed over time; `person.room_label` is a display cache of the current one. |
-| `property_item.category` | Harbour | `clothing`, `jewellery`, `watch`, `electronics`, `mobility_aid`, `sensory_aid`, `dentures`, `documents`, `furniture`, `ornament_or_picture`, `toiletries`, `other` | Cash is never an inventory item (residents' money ledger). |
-| `property_item.status` | Harbour | `held`, `sent_with_person`, `returned`, `disposed`, `lost` | |
-| `property_item` recipient capacity | Harbour | `person`, `representative`, `personal_representative`, `receiving_provider` | After a death only `personal_representative` (executor or administrator). |
-| `property_item` signatures | Harbour typed-name signature | Signer `person`, `representative` or `unable_to_sign` with a reason; typed name; time | A second staff member witnesses valuables and unsigned items. |
-| `care_plan_change.kind` | Harbour | `return_from_hospital`, `fall`, `change_in_needs`, `new_diagnosis`, `safeguarding`, `end_of_life`, `other` | Raises the care plan review on change. |
-| `review_record.kind` | Harbour | `care_plan`, `la_review`, `family_involvement`, `trial_review` | |
-| `review_record` family involvement | Harbour | `attended_review`, `contributed`, `invited_declined`, `person_declines_involvement`, `no_family_or_representative` | The last two stop the family involvement clock. |
+| `bed_occupancy.from_date`, `to_date` | Thapsus Care | `YYYY-MM-DD`, `to_date` exclusive | The person's room and bed over time; `person.room_label` is a display cache of the current one. |
+| `property_item.category` | Thapsus Care | `clothing`, `jewellery`, `watch`, `electronics`, `mobility_aid`, `sensory_aid`, `dentures`, `documents`, `furniture`, `ornament_or_picture`, `toiletries`, `other` | Cash is never an inventory item (residents' money ledger). |
+| `property_item.status` | Thapsus Care | `held`, `sent_with_person`, `returned`, `disposed`, `lost` | |
+| `property_item` recipient capacity | Thapsus Care | `person`, `representative`, `personal_representative`, `receiving_provider` | After a death only `personal_representative` (executor or administrator). |
+| `property_item` signatures | Thapsus Care typed-name signature | Signer `person`, `representative` or `unable_to_sign` with a reason; typed name; time | A second staff member witnesses valuables and unsigned items. |
+| `care_plan_change.kind` | Thapsus Care | `return_from_hospital`, `fall`, `change_in_needs`, `new_diagnosis`, `safeguarding`, `end_of_life`, `other` | Raises the care plan review on change. |
+| `review_record.kind` | Thapsus Care | `care_plan`, `la_review`, `family_involvement`, `trial_review` | |
+| `review_record` family involvement | Thapsus Care | `attended_review`, `contributed`, `invited_declined`, `person_declines_involvement`, `no_family_or_representative` | The last two stop the family involvement clock. |
 | `hospital_transfer` pack sections | NHS England hospital transfer pathway (red bag) content; allergies as `allergy`; About Me as `about_me`; communication needs as AIS; resuscitation as the care module's advance care record (ReSPECT, DNACPR); IDDSI levels as the care profile | `photo`, `allergies`, `medicines`, `communication`, `resuscitation`, `about_me`, `eating_and_drinking` (safety-critical); `reason_for_transfer`, `baseline`, `capacity_and_legal`, `contacts`, `infection`, `items_sent`, `home_contact` | The snapshot is stored as JSON (`pack`) with the missing critical sections and `attention` (codes `resuscitation_conflict`, `resuscitation_review_overdue`, `medicines_need_checking`, `photo_not_printable`, `allergy_confirmation_not_recorded`); the resuscitation section holds the CPR `decision` in force, `conflicting`, the review date and the ReSPECT and DNACPR records; the PDF is rendered from it on request (ADR-0040), never from the live record. Packs stored before the review keep their older shape and print as they were. Medicines are dm+d-coded from Phase 2. |
-| `exit_record.kind` | Harbour | `discharge`, `transfer`, `death` | |
+| `exit_record.kind` | Thapsus Care | `discharge`, `transfer`, `death` | |
 | `exit_record` destination | MODS discharge destination (concept); NHS Data Dictionary discharge destination items to be checked | Destination type (`own_home`, `family_home`, `care_home`, `hospital`, `hospice`, `supported_living`, `other`) and the receiving provider's CQC location ID or ODS code | Sets `person.discharged_at`. |
 | `exit_record` death details | NHS Data Dictionary PERSON DEATH DATE (date part of `person.deceased_at`); place of death (concept) | Place `care_home`, `hospital`, `elsewhere`; expected or not; verified by (name, role) and at | Sets `person.deceased_at`. |
 | `exit_record.learning_disability_or_autism` | LeDeR (concept) | `true` or `false`, no default (migration 0023) | An explicit answer for every death, never assumed; a discharge or transfer that does not say records `false`. Decides the LeDeR notification. |
-| `exit_record.status_before`, `status_before_since` | Harbour | `active`, `on_leave`, `in_hospital`; ISO 8601 UTC | Phase 1 (migration 0023). The person's status when the exit was recorded and when it began: a correction of the exit as recorded in error returns the person to it (people.md rule 2). Null for exits recorded before the migration, which return to `active`. |
-| `exit_record.state` | Harbour (`DISCHARGE_WORKFLOW`, `TRANSFER_WORKFLOW`, `DEATH_WORKFLOW`) | `planned`, `left`, `recorded`, `awaiting_return`, `closed`, `cancelled` (with a reason) | Mirrors the exit workflow instance; `regulator` is `cqc`, `ciw`, `care_inspectorate` or `rqia`. |
-| `exit_checklist_item.status` | Harbour | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
-| `sharing_decision.sections` | Harbour | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `benefits`, `documents`; care plan domains as the PCSP domains | `benefits` is the only section a DWP appointee covers; `finance` and `benefits` need a property and financial affairs authority. |
+| `exit_record.status_before`, `status_before_since` | Thapsus Care | `active`, `on_leave`, `in_hospital`; ISO 8601 UTC | Phase 1 (migration 0023). The person's status when the exit was recorded and when it began: a correction of the exit as recorded in error returns the person to it (people.md rule 2). Null for exits recorded before the migration, which return to `active`. |
+| `exit_record.state` | Thapsus Care (`DISCHARGE_WORKFLOW`, `TRANSFER_WORKFLOW`, `DEATH_WORKFLOW`) | `planned`, `left`, `recorded`, `awaiting_return`, `closed`, `cancelled` (with a reason) | Mirrors the exit workflow instance; `regulator` is `cqc`, `ciw`, `care_inspectorate` or `rqia`. |
+| `exit_checklist_item.status` | Thapsus Care | `pending`, `done`, `not_required` (with a reason, only where allowed) | Item keys from `exitChecklist` in `packages/domain/src/people/exit.ts`. |
+| `sharing_decision.sections` | Thapsus Care | `about_me`, `daily_updates`, `photos`, `activities_and_visits`, `care_plan`, `health_summary`, `medicines`, `appointments`, `finance`, `benefits`, `documents`; care plan domains as the PCSP domains | `benefits` is the only section a DWP appointee covers; `finance` and `benefits` need a property and financial affairs authority. |
 | `sharing_decision.basis` | UK GDPR and Caldicott principle 7 (direct care) | `consent`, `legal_authority`, `best_interests`, `direct_care` | Consent covers optional processing only (records of processing B8). |
 | `sharing_decision` authority role | Mental Capacity Act 2005 (Office of the Public Guardian registrations, Court of Protection orders); DWP appointeeship | `lpa_health_welfare`, `lpa_property_finance`, `deputy_personal_welfare`, `deputy_property_affairs`, `appointee` | From `contact.role` and `contact.authority_scope`, with reference, evidence document and end date. |
 | `sharing_decision` deputy order sections | Court of Protection order (Mental Capacity Act 2005 s.16 and s.20) | `sharing_decision.sections` codes, as recorded from the order | Required for `deputy_personal_welfare` and `deputy_property_affairs`; a deputy is never shown a section outside it. |
-| `sharing_decision_suspension` | Harbour | `suspended_at`, `lifted_at` (UTC; `lifted_at` empty while it lasts), reason, lifted by and the reason it was lifted | Periods, not a single flag (migration 0025): an update from a suspension period stays closed after it ends (comms.md rule 2). `lifted_at` after `suspended_at`; one open period per decision; `sharing_decision.suspended_at` mirrors the open one. |
+| `sharing_decision_suspension` | Thapsus Care | `suspended_at`, `lifted_at` (UTC; `lifted_at` empty while it lasts), reason, lifted by and the reason it was lifted | Periods, not a single flag (migration 0025): an update from a suspension period stays closed after it ends (comms.md rule 2). `lifted_at` after `suspended_at`; one open period per decision; `sharing_decision.suspended_at` mirrors the open one. |
 | `sharing_decision` capacity | Mental Capacity Act 2005 s.1(2) (presumption of capacity) | `presumed`, `assessed_has_capacity`, `assessed_lacks_capacity` | Links the capacity assessment where one exists. |
-| `about_me_share_link.token_hash` | Harbour | Lower-case hex SHA-256 of the link token (64 characters) | The token itself is shown once and never stored; expiry no later than the sharing decision's end. |
-| `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
-| `handed_over_by` on `care_note`, `observation`, `body_map_mark`, `activity_record` and `visit_log` | Harbour | UUIDv7 (`tenant_user.id`) or null | Phase 1 (migration 0041). "Sent by": the manager who handed the entry over from a device for its author (`created_by`), when one did (care.md section 6, Device integrity part 6); null when its author sent it. Returned as `handedOverBy` with every entry item. |
-| `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Harbour (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked`, `medicines_conflict` (migration 0026) | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge; `medicines_conflict` (a medicines task the entry could not complete) for an urgent conflict review. |
-| `body_map_mark.drawn_x`, `drawn_y`, `drawn_zone`, `drawn_side` | Harbour (`BODY_MAP_DRAWING` in `packages/domain`) | `drawn_x` 0 to 120 and `drawn_y` 0 to 240 in the drawing's own units (x from the viewer's left, y from the top), or both null when a zone was chosen with the buttons; `drawn_zone` `viewer_left`, `centre`, `viewer_right`; `drawn_side` `left`, `right`, `midline` (the person's own) | Phase 1 (migration 0043; care API follow-ups). Where the mark was placed and the side the server worked out from it and the view (care.md rule 7, HZ-019). Set together (check `body_map_mark_drawing`); null on marks recorded before. Returned as `drawnSide` on `BodyMapMarkItem`. |
-| `body_map_mark.drawn_from_device_side` | Harbour | `true` or `false` (default) | Phase 1 (migration 0045; #26 review round 2, C4). True when a phone from before the server read the drawing sent only the side it worked out, and the zone was taken from that side on the view; then `drawn_x` is null (check `body_map_mark_drawn_from_device_side`). Returned as `drawnFromDeviceSide`. |
-| `FluidDay.flaggedEntries`, `flaggedIntakeMl`, `flaggedOutputMl` (API) | Harbour | Whole numbers (count, ml) | Phase 1 (#26 review round 2, C3). Of the fluid entries counted for the day, those a device recorded deleting (`entry_device_deletion_flag`) and the intake and output they add; they stay in the totals, shown beside them (care.md rule 6; HZ-040; H-165). |
-| `FluidDay.refusedEntries`, `refusedOfferedMl` (API) | Harbour | Whole numbers (count, ml) | Phase 1 (#26 review round 3). Drinks offered and refused that day and the amount offered; a refused drink adds nothing to `intakeMl` or the shortfall (care.md rule 6; HZ-014; H-167). |
-| `observation.flags.alertRoute` | Harbour | `nurse_in_charge`, `fallback`, `no_one` | Phase 1 (#26 review round 3). Who an entry's urgent alert reached, worked out before the entry is written: the nurse in charge, the fallback (someone else who can open the record), or no one; absent when the entry raised no alert, and on entries saved before it was kept (care.md rule 6; HZ-014, HZ-016). |
-| `care_plan.copy_from_active` | Harbour | `true`, `false`, or null | Phase 1 (migration 0047; #26 review round 3). Whether starting the draft asked to copy the active plan (`CreateCarePlan.copyFromActive`), so a start sent again with its client id is compared with it (HZ-029); null for drafts started before. |
-| `care.alert.unrouted` audit event | Harbour | Reason and `scope.reasonCode`: `news2_threshold`, `iddsi_level_not_recorded`, `iddsi_reason_missing`, `iddsi_prescribed_unreadable`, `iddsi_unsafe_level`, or `urgent_result` for an alert stored before codes were kept | Phase 1 (#26 review rounds 2 and 3). An urgent result alert no one who can open the record could be told about: the result's opaque ids, the person and location ids, and a coded reason, never the result in words (HZ-014). |
-| `observation.flags.iddsiProblem` | Harbour | `level_not_recorded`, `reason_missing`, `prescribed_unreadable` | Phase 1 (care API follow-ups). On a food or drink entry kept from a device although the web form would have refused it for its IDDSI level (care.md rule 6, HZ-016, C3), beside `iddsi` (`outcome` adds `level_not_recorded` and `prescribed_unreadable`) and `iddsiAlert`; absent otherwise. |
-| `observation.flags.iddsiChangedSince` | Harbour | `{ prescribedThen, prescribedNow }`, each an IDDSI level code or null | Since 31/10/2026 (H-166). On a food or drink entry whose prescribed level changed between the time it was given and its upload: the entry is judged against `prescribedThen` (the care profile's history) and the web shows the level now (care.md rule 6, HZ-016); absent otherwise. Codes only, no free text. |
-| `StaffName` on API outputs (`recordedByStaff`, `handedOverByStaff`, `changedByStaff`, `publishedByStaff`, `assigneeStaff`, `completedByStaff`, `createdByStaff`, `decidedByStaff`, `authorStaff`, `sentByStaff`, a handover's `staff` and acknowledgements, the weekly break-glass report's `staff`) | Harbour (from `tenant_user.display_name` and `job_title`) | `{ id, displayName, jobTitle }` or null | Phase 1 (care API follow-ups; care.md section 5). Beside every opaque staff id a care response returns, read under the caller's row-level security and only on records the route already lets them read; null for a member not of the organisation (a system job). Never the email. Regulation 17 attribution. |
-| `escalation_policy_link` | Harbour (`ESCALATION_POLICY_TOOL_BANDS` in `packages/domain`) | Tool `news2`, `must`, `waterlow`, `braden`, `ng249_falls`; band one of the tool's bands (NEWS2 `low`, `low_medium`, `medium`, `high`; MUST `low`, `medium`, `high`; Waterlow `not_at_risk`, `at_risk`, `high_risk`, `very_high_risk`; Braden `severe_risk`, `high_risk`, `moderate_risk`, `at_risk`, `below_at_risk_threshold`; none for the falls pathway) or null for every band; location or null for the organisation; title (3 to 200 characters), reference (up to 100), policy document | Phase 1 (migration 0043; care API follow-ups). The organisation's escalation policy a validated tool's result links (care.md rule 5, HZ-012, HZ-014): a location's own policy for the band wins, then the location's for the tool, then the organisation's for the band, then for the tool; otherwise `not_configured`. Returned as `EscalationPolicyRef`. Configuration, not personal data; mutable, versioned, soft-deleted; one live link per tool, band and place. |
-| `discard_reason` | Harbour (`DEFAULT_DISCARD_REASONS` in `packages/domain`) | Code `^[a-z][a-z0-9_]{1,39}$`; English and Welsh labels; order; seeded; retired at | Phase 1 (migrations 0043 and 0044; care API follow-ups). The organisation's coded reasons for deleting unsent entries on a device (care.md section 6, Device integrity part 8; HZ-040, H-146). Every organisation starts with the five the phone offers (`recorded_elsewhere`, `entered_in_error`, `staff_left`, `nurse_in_charge_informed`, `other`), seeded by a trigger on `tenant`; a code is never deleted, only retired. Configuration, not personal data. A deletion with an organisation's own code is audited as `other` with the reason's id (`organisationReasonId`), never the code, so words an organisation writes never enter the hash-chained trail (#26 review round 2). Adding, changing and retiring a reason are audited by its id only, and a reason is changed by its id (`PUT /v1/discard-reasons/{reasonId}`; `DiscardReasonItem.id`), never its code in a URL (#26 review round 3). |
-| `device_discard_record` | Harbour | Deletion id, stage `requested`, `deleted`, `failed`; kind `held_deleted`, `signed_out_with_unsent`, `refused_removed`; coded reason (a `discard_reason` code); owner, deleter and sender `tenant_user` ids; device id; count; when deleted and recorded | Phase 1 (migrations 0043 and 0044; care API follow-ups). One row per stage of each deletion record (the discard replay index: unique on deletion and stage), written only in the system's view, append-only; the audit events stay the hash-chained record. Filled from the audit trail by migration 0044. Retention class `audit_event`. |
-| `entry_device_deletion_flag` | Harbour (`DEVICE_DELETION_FLAGS`) | Entry id and table (`care_note`, `observation`, `body_map_mark`, `activity_record`, `visit_log`, `assessment`); flag `uploaded_after_deletion`, `deleted_after_upload`; person, location, owner, deletion id, review task | Phase 1 (migrations 0043 and 0044; care API follow-ups). The server's flag on an entry its device recorded deleting (care.md section 6, Device integrity part 8; HZ-040), one per entry (unique on table and entry id, migration 0045), append-only, written only in the system's view and read like the entry. Returned as `deviceDeletion` on every entry item. Filled from the audit trail by migration 0044. Retention class `care_record`. |
-| `break_glass_event.reason_code` | Harbour | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
-| `people.person.break_glass` audit event, outcome `denied` | Harbour | Reason `person_not_found` (no such person in the organisation) or `outside_read_scope` (the member's read permissions could not open the record even by break-glass); resource the person's id | Phase 1 (ADR-0071 review round 2). Written after the refused attempt is rolled back, in its own transaction, so a refusal leaves a record; the typed justification is not kept for a refused attempt. |
-| `care.refused_entry.unrouted` audit event | Harbour | Reason and `scope.reasonCode` `refused_entry_urgent`; resource the review task; `scope.personId`, `scope.locationId` (opaque ids) | Phase 1 (ADR-0071 review round 2, C2-M1). Written as the system when an urgent refused-entry review could be told to no one: no nurse in charge who can read the person's record and notes, no holder of `care.plan.write` who can see the person, and no fallback. |
-| `PersonSummary.access` (API output, not stored) | Harbour | `reaching` (the permission keys the caller may use whose scope reaches the person without break-glass, sorted), `recordCare` and `editCarePlan` (booleans: whether `care.note.write` and `care.plan.write` are among them), `readOnlyReason` `break_glass`, `scope` or null | Phase 1 (ADR-0071 review rounds 2 and 3, C2-M2 and C3-M1). Decides which forms each tab of the record offers; the API still checks every write. No two-step sign-in field: a session without it cannot read the person at all (review round 5). |
-| Sync token write claims | Harbour | `entries_write_location_ids` (location ids), `entries_write_assigned` (boolean), `entries_write_person_ids` (the ids of the people the user is assigned to, when `entries_write_assigned`, at most 100, else absent) | Phase 1 (ADR-0071 review rounds 2 and 3, C2-M3 and C3-M2). Where `care.note.write` reaches; no stream reads them. The phone keeps the last token's values in its keystore (`harbour.write-scope.v1`: location ids, person ids and a flag, no names or care data), cleared at sign-out and when a session is held, to decide where it offers recording. When the item cannot be removed it is overwritten with `null`, so no older scope is found; with none known the phone records about no one (review round 5). |
-| Sync token handover claims | Harbour | `handover_location_ids` (location ids), `handover_assigned` (boolean) | Phase 1 slice 10 part 2. Where `care.handover.manage` reaches (ADR-0071): the locations whose handovers sync whole, and whether the handovers where the user's assigned people live sync, limited to those people. Read by the `*_handovers` streams only; the open tasks follow the care claims (`care.plan.read`). The token's audit event counts them (`handoverLocations`, `handoverAssigned`). |
-| Device copies of the round and the handover | Harbour (`packages/sync/src/client/schema.ts`) | `task` (open tasks: ids, kind, title (free text, 3 to 120 characters, as the round view shows it), required permission, source, assignee, due window, priority, evidence required, status, restore code, escalation level, updated time, version), `handover` (location, shift name, start and end, compiled and locked times), `handover_item` (the server's `key` as `item_key`, position, kind, person, source, `at`, late addition, added time, and `summary`: a catalogue key and its parameters, which for a task carry its title (up to 120 characters), the care plan action it carries out (the plan's own words) and why it was not done (`status_reason`, up to 500 characters, staff's free text)), `handover_note` (item key, person, body, created time and author), `handover_acknowledgement` (the user's own: user, item keys as a JSON array, server time), `handover_staff_acknowledgement` (for a whole reader, who acknowledged and when: user and server time, never item keys, which name people and what happened to them); times ISO 8601 UTC, booleans 0 or 1 | Phase 1 slice 10 part 2. Read-only on the device. An open task syncs without its details or reasons; a handover item's summary carries a task's title, plan action and reason not done to the readers who see that item (#123 security review, L1). No handover refresh time or version, no device ids. Kept while in scope and in the offline window, cleared with the rest of the device's copy at sign-out or wipe. |
-| Handover item summary and earlier-plan flag | Harbour (`packages/domain` `HANDOVER_SUMMARY_KEYS`; migration 0071) | `handover_item.summary` (JSON: `key`, a catalogue key `handover.summary.*`; `params`, codes such as a NEWS2 band and score, a chart, an incident type, an alert kind and for a care result its reason code (`news2_threshold` or an `iddsi_*` problem), a mark's type, view, region and side, and for a task its title, the care plan action it carries out (`planAction`, the plan's own words), whether it was from an earlier plan (`earlierPlan`, `yes` or `no`) and why it was not done; never a person's name, never whether an alert was acknowledged); `task.from_earlier_plan` (boolean, kept by the database from the series and its plan); the sync token's `handover_shifts` (nation to day and night start minutes, UK time) | Phase 1 slice 10 part 2. The summary syncs with the item to the readers who see the item; the flag with the open task; the claim is read by the phone only (ADR-0074). |
-| Device-only columns for the round and the handover | Harbour (`packages/sync/src/client/schema.ts`) | `task.queued_transition` (JSON: the move's UUIDv7, `done` or `skipped`, the reason, the version seen, the member's `tenant_user` id, the device time, tenant, person, the task's home (`location_id`), due time and title); `handover_acknowledgement.location_id` and `seen_token` (43 characters, base64url); `task_id` on the five entry tables (the round's task the entry is the evidence for, sent as `taskId`) | Phase 1 slice 10 part 2. Written on the device only and never sent by the server, so the server's copy clears them; a refused move or acknowledgement is kept with them in `upload_issue` until removed with a coded reason. |
-| `task.escalation_unrouted` audit event | Harbour | Reason and `scope.reasonCode`: `assignee_only` (only the assignee could be told, and was; review round 4), `no_one_sees_person` (a task about a person), `no_one_reaches_location` (one about no one); resource the task; `scope` kind, location id, required permission, due time | Phase 1 (ADR-0071 review round 3, C3-M3). Written as the system on the first occurrence and then at most once a day per task and reason while an overdue task can be told to no one active other than its assignee; the task is not marked escalated and is tried again every hour, every such task in each run (review rounds 3 to 5). |
-| `people.break_glass_alert.unrouted` audit event | Harbour | Reason and `scope.reasonCode` `no_recipient` (no one) or `opener_only` (only the person who opened it holds the roles alerted; review round 5); resource the break-glass record; `scope.personId`, `scope.locationId` (opaque ids) | Phase 1 (ADR-0071 review round 4). Written as the system when a record is opened by break-glass and no Registered Manager reaching the home and no quality lead other than the opener is active to be alerted; the record still opens. |
-| `escalation.unrouted.daily` (operator log line, not stored) | Harbour | `tenantId` (opaque), `counts` per unrouted audit action over the last 25 hours | Phase 1 (ADR-0071 review rounds 4 and 5). One line a day per organisation with any unrouted safety work; no personal data and no free text. A CloudWatch metric filter on the worker's log group counts it for an alarm ([on-call runbook](../runbooks/on-call.md)). |
-| `worker.job.failed` (operator log line, not stored) | Harbour | `queue` (the job's queue), `error` (the error's kind), `code` (a database code, or null), `tenantId` (opaque, when one organisation's part of a sweep failed) | Phase 1 (ADR-0071 review round 5, C5-M1). One line per failed job or failed organisation's part; never an error message, which may hold data. A CloudWatch metric filter counts it for an alarm ([on-call runbook](../runbooks/on-call.md)). |
-| `safety.notification.unrouted` audit event | Harbour | Reason and `scope.reasonCode` `no_active_submitter`; resource the statutory notification; `scope.locationId` (opaque id), `scope.dueAt` | Phase 1 (ADR-0071 review round 5, C5-M3; HZ-013). Written as the system at most once a day per notification while an overdue draft has no active holder of `safety.notification.submit` at its location to alert; the draft stays unalerted and every run tries again. Counted in `escalation.unrouted.daily`. |
-| `platform.escalation.unrouted` audit event | Harbour | Reason and `scope.reasonCode` `no_recipient`; resource the notification; `scope` chain id, step index, role key, location id | Phase 1 (ADR-0071 review round 3, C3-M4). Written as the system when an escalation chain step, and its fallback (a Registered Manager reaching the home, else the owner), reach no one active. |
+| `about_me_share_link.token_hash` | Thapsus Care | Lower-case hex SHA-256 of the link token (64 characters) | The token itself is shown once and never stored; expiry no later than the sharing decision's end. |
+| `recorded_after_exit` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Thapsus Care | `true` or `false` | Phase 1. True when an entry about an event at or before a discharge, death or move to hospital, or within the clock tolerance after it (`sync.clock_drift_flag_minutes`), is accepted after it (people.md rule 3, HZ-006); shown with the late-entry flag. |
+| `handed_over_by` on `care_note`, `observation`, `body_map_mark`, `activity_record` and `visit_log` | Thapsus Care | UUIDv7 (`tenant_user.id`) or null | Phase 1 (migration 0041). "Sent by": the manager who handed the entry over from a device for its author (`created_by`), when one did (care.md section 6, Device integrity part 6); null when its author sent it. Returned as `handedOverBy` with every entry item. |
+| `task_id`, `task_outcome` on `care_note`, `observation`, `body_map_mark`, `assessment`, `activity_record` and `visit_log` | Thapsus Care (`TASK_LINK_OUTCOMES`) | UUIDv7; `completed`, `task_cancelled`, `task_already_closed`, `not_linked`, `medicines_conflict` (migration 0026) | Phase 1 (migration 0023). The task the entry named and what the entry did to it (care.md rule 13, HZ-004, HZ-006): set together or not at all (check `<table>_task_outcome`). `task_already_closed` and `not_linked` are listed for review by the nurse in charge; `medicines_conflict` (a medicines task the entry could not complete) for an urgent conflict review. |
+| `body_map_mark.drawn_x`, `drawn_y`, `drawn_zone`, `drawn_side` | Thapsus Care (`BODY_MAP_DRAWING` in `packages/domain`) | `drawn_x` 0 to 120 and `drawn_y` 0 to 240 in the drawing's own units (x from the viewer's left, y from the top), or both null when a zone was chosen with the buttons; `drawn_zone` `viewer_left`, `centre`, `viewer_right`; `drawn_side` `left`, `right`, `midline` (the person's own) | Phase 1 (migration 0043; care API follow-ups). Where the mark was placed and the side the server worked out from it and the view (care.md rule 7, HZ-019). Set together (check `body_map_mark_drawing`); null on marks recorded before. Returned as `drawnSide` on `BodyMapMarkItem`. |
+| `body_map_mark.drawn_from_device_side` | Thapsus Care | `true` or `false` (default) | Phase 1 (migration 0045; #26 review round 2, C4). True when a phone from before the server read the drawing sent only the side it worked out, and the zone was taken from that side on the view; then `drawn_x` is null (check `body_map_mark_drawn_from_device_side`). Returned as `drawnFromDeviceSide`. |
+| `FluidDay.flaggedEntries`, `flaggedIntakeMl`, `flaggedOutputMl` (API) | Thapsus Care | Whole numbers (count, ml) | Phase 1 (#26 review round 2, C3). Of the fluid entries counted for the day, those a device recorded deleting (`entry_device_deletion_flag`) and the intake and output they add; they stay in the totals, shown beside them (care.md rule 6; HZ-040; H-165). |
+| `FluidDay.refusedEntries`, `refusedOfferedMl` (API) | Thapsus Care | Whole numbers (count, ml) | Phase 1 (#26 review round 3). Drinks offered and refused that day and the amount offered; a refused drink adds nothing to `intakeMl` or the shortfall (care.md rule 6; HZ-014; H-167). |
+| `observation.flags.alertRoute` | Thapsus Care | `nurse_in_charge`, `fallback`, `no_one` | Phase 1 (#26 review round 3). Who an entry's urgent alert reached, worked out before the entry is written: the nurse in charge, the fallback (someone else who can open the record), or no one; absent when the entry raised no alert, and on entries saved before it was kept (care.md rule 6; HZ-014, HZ-016). |
+| `care_plan.copy_from_active` | Thapsus Care | `true`, `false`, or null | Phase 1 (migration 0047; #26 review round 3). Whether starting the draft asked to copy the active plan (`CreateCarePlan.copyFromActive`), so a start sent again with its client id is compared with it (HZ-029); null for drafts started before. |
+| `care.alert.unrouted` audit event | Thapsus Care | Reason and `scope.reasonCode`: `news2_threshold`, `iddsi_level_not_recorded`, `iddsi_reason_missing`, `iddsi_prescribed_unreadable`, `iddsi_unsafe_level`, or `urgent_result` for an alert stored before codes were kept | Phase 1 (#26 review rounds 2 and 3). An urgent result alert no one who can open the record could be told about: the result's opaque ids, the person and location ids, and a coded reason, never the result in words (HZ-014). |
+| `observation.flags.iddsiProblem` | Thapsus Care | `level_not_recorded`, `reason_missing`, `prescribed_unreadable` | Phase 1 (care API follow-ups). On a food or drink entry kept from a device although the web form would have refused it for its IDDSI level (care.md rule 6, HZ-016, C3), beside `iddsi` (`outcome` adds `level_not_recorded` and `prescribed_unreadable`) and `iddsiAlert`; absent otherwise. |
+| `observation.flags.iddsiChangedSince` | Thapsus Care | `{ prescribedThen, prescribedNow }`, each an IDDSI level code or null | Since 31/10/2026 (H-166). On a food or drink entry whose prescribed level changed between the time it was given and its upload: the entry is judged against `prescribedThen` (the care profile's history) and the web shows the level now (care.md rule 6, HZ-016); absent otherwise. Codes only, no free text. |
+| `StaffName` on API outputs (`recordedByStaff`, `handedOverByStaff`, `changedByStaff`, `publishedByStaff`, `assigneeStaff`, `completedByStaff`, `createdByStaff`, `decidedByStaff`, `authorStaff`, `sentByStaff`, a handover's `staff` and acknowledgements, the weekly break-glass report's `staff`) | Thapsus Care (from `tenant_user.display_name` and `job_title`) | `{ id, displayName, jobTitle }` or null | Phase 1 (care API follow-ups; care.md section 5). Beside every opaque staff id a care response returns, read under the caller's row-level security and only on records the route already lets them read; null for a member not of the organisation (a system job). Never the email. Regulation 17 attribution. |
+| `escalation_policy_link` | Thapsus Care (`ESCALATION_POLICY_TOOL_BANDS` in `packages/domain`) | Tool `news2`, `must`, `waterlow`, `braden`, `ng249_falls`; band one of the tool's bands (NEWS2 `low`, `low_medium`, `medium`, `high`; MUST `low`, `medium`, `high`; Waterlow `not_at_risk`, `at_risk`, `high_risk`, `very_high_risk`; Braden `severe_risk`, `high_risk`, `moderate_risk`, `at_risk`, `below_at_risk_threshold`; none for the falls pathway) or null for every band; location or null for the organisation; title (3 to 200 characters), reference (up to 100), policy document | Phase 1 (migration 0043; care API follow-ups). The organisation's escalation policy a validated tool's result links (care.md rule 5, HZ-012, HZ-014): a location's own policy for the band wins, then the location's for the tool, then the organisation's for the band, then for the tool; otherwise `not_configured`. Returned as `EscalationPolicyRef`. Configuration, not personal data; mutable, versioned, soft-deleted; one live link per tool, band and place. |
+| `discard_reason` | Thapsus Care (`DEFAULT_DISCARD_REASONS` in `packages/domain`) | Code `^[a-z][a-z0-9_]{1,39}$`; English and Welsh labels; order; seeded; retired at | Phase 1 (migrations 0043 and 0044; care API follow-ups). The organisation's coded reasons for deleting unsent entries on a device (care.md section 6, Device integrity part 8; HZ-040, H-146). Every organisation starts with the five the phone offers (`recorded_elsewhere`, `entered_in_error`, `staff_left`, `nurse_in_charge_informed`, `other`), seeded by a trigger on `tenant`; a code is never deleted, only retired. Configuration, not personal data. A deletion with an organisation's own code is audited as `other` with the reason's id (`organisationReasonId`), never the code, so words an organisation writes never enter the hash-chained trail (#26 review round 2). Adding, changing and retiring a reason are audited by its id only, and a reason is changed by its id (`PUT /v1/discard-reasons/{reasonId}`; `DiscardReasonItem.id`), never its code in a URL (#26 review round 3). |
+| `device_discard_record` | Thapsus Care | Deletion id, stage `requested`, `deleted`, `failed`; kind `held_deleted`, `signed_out_with_unsent`, `refused_removed`; coded reason (a `discard_reason` code); owner, deleter and sender `tenant_user` ids; device id; count; when deleted and recorded | Phase 1 (migrations 0043 and 0044; care API follow-ups). One row per stage of each deletion record (the discard replay index: unique on deletion and stage), written only in the system's view, append-only; the audit events stay the hash-chained record. Filled from the audit trail by migration 0044. Retention class `audit_event`. |
+| `entry_device_deletion_flag` | Thapsus Care (`DEVICE_DELETION_FLAGS`) | Entry id and table (`care_note`, `observation`, `body_map_mark`, `activity_record`, `visit_log`, `assessment`); flag `uploaded_after_deletion`, `deleted_after_upload`; person, location, owner, deletion id, review task | Phase 1 (migrations 0043 and 0044; care API follow-ups). The server's flag on an entry its device recorded deleting (care.md section 6, Device integrity part 8; HZ-040), one per entry (unique on table and entry id, migration 0045), append-only, written only in the system's view and read like the entry. Returned as `deviceDeletion` on every entry item. Filled from the audit trail by migration 0044. Retention class `care_record`. |
+| `break_glass_event.reason_code` | Thapsus Care | `emergency_care`, `covering_another_area`, `safeguarding`, `incident_or_complaint`, `request_from_professional`, `other` | Phase 1; the typed justification is kept as well. |
+| `people.person.break_glass` audit event, outcome `denied` | Thapsus Care | Reason `person_not_found` (no such person in the organisation) or `outside_read_scope` (the member's read permissions could not open the record even by break-glass); resource the person's id | Phase 1 (ADR-0071 review round 2). Written after the refused attempt is rolled back, in its own transaction, so a refusal leaves a record; the typed justification is not kept for a refused attempt. |
+| `care.refused_entry.unrouted` audit event | Thapsus Care | Reason and `scope.reasonCode` `refused_entry_urgent`; resource the review task; `scope.personId`, `scope.locationId` (opaque ids) | Phase 1 (ADR-0071 review round 2, C2-M1). Written as the system when an urgent refused-entry review could be told to no one: no nurse in charge who can read the person's record and notes, no holder of `care.plan.write` who can see the person, and no fallback. |
+| `PersonSummary.access` (API output, not stored) | Thapsus Care | `reaching` (the permission keys the caller may use whose scope reaches the person without break-glass, sorted), `recordCare` and `editCarePlan` (booleans: whether `care.note.write` and `care.plan.write` are among them), `readOnlyReason` `break_glass`, `scope` or null | Phase 1 (ADR-0071 review rounds 2 and 3, C2-M2 and C3-M1). Decides which forms each tab of the record offers; the API still checks every write. No two-step sign-in field: a session without it cannot read the person at all (review round 5). |
+| Sync token write claims | Thapsus Care | `entries_write_location_ids` (location ids), `entries_write_assigned` (boolean), `entries_write_person_ids` (the ids of the people the user is assigned to, when `entries_write_assigned`, at most 100, else absent) | Phase 1 (ADR-0071 review rounds 2 and 3, C2-M3 and C3-M2). Where `care.note.write` reaches; no stream reads them. The phone keeps the last token's values in its keystore (`harbour.write-scope.v1`: location ids, person ids and a flag, no names or care data), cleared at sign-out and when a session is held, to decide where it offers recording. When the item cannot be removed it is overwritten with `null`, so no older scope is found; with none known the phone records about no one (review round 5). |
+| Sync token handover claims | Thapsus Care | `handover_location_ids` (location ids), `handover_assigned` (boolean) | Phase 1 slice 10 part 2. Where `care.handover.manage` reaches (ADR-0071): the locations whose handovers sync whole, and whether the handovers where the user's assigned people live sync, limited to those people. Read by the `*_handovers` streams only; the open tasks follow the care claims (`care.plan.read`). The token's audit event counts them (`handoverLocations`, `handoverAssigned`). |
+| Device copies of the round and the handover | Thapsus Care (`packages/sync/src/client/schema.ts`) | `task` (open tasks: ids, kind, title (free text, 3 to 120 characters, as the round view shows it), required permission, source, assignee, due window, priority, evidence required, status, restore code, escalation level, updated time, version), `handover` (location, shift name, start and end, compiled and locked times), `handover_item` (the server's `key` as `item_key`, position, kind, person, source, `at`, late addition, added time, and `summary`: a catalogue key and its parameters, which for a task carry its title (up to 120 characters), the care plan action it carries out (the plan's own words) and why it was not done (`status_reason`, up to 500 characters, staff's free text)), `handover_note` (item key, person, body, created time and author), `handover_acknowledgement` (the user's own: user, item keys as a JSON array, server time), `handover_staff_acknowledgement` (for a whole reader, who acknowledged and when: user and server time, never item keys, which name people and what happened to them); times ISO 8601 UTC, booleans 0 or 1 | Phase 1 slice 10 part 2. Read-only on the device. An open task syncs without its details or reasons; a handover item's summary carries a task's title, plan action and reason not done to the readers who see that item (#123 security review, L1). No handover refresh time or version, no device ids. Kept while in scope and in the offline window, cleared with the rest of the device's copy at sign-out or wipe. |
+| Handover item summary and earlier-plan flag | Thapsus Care (`packages/domain` `HANDOVER_SUMMARY_KEYS`; migration 0071) | `handover_item.summary` (JSON: `key`, a catalogue key `handover.summary.*`; `params`, codes such as a NEWS2 band and score, a chart, an incident type, an alert kind and for a care result its reason code (`news2_threshold` or an `iddsi_*` problem), a mark's type, view, region and side, and for a task its title, the care plan action it carries out (`planAction`, the plan's own words), whether it was from an earlier plan (`earlierPlan`, `yes` or `no`) and why it was not done; never a person's name, never whether an alert was acknowledged); `task.from_earlier_plan` (boolean, kept by the database from the series and its plan); the sync token's `handover_shifts` (nation to day and night start minutes, UK time) | Phase 1 slice 10 part 2. The summary syncs with the item to the readers who see the item; the flag with the open task; the claim is read by the phone only (ADR-0074). |
+| Device-only columns for the round and the handover | Thapsus Care (`packages/sync/src/client/schema.ts`) | `task.queued_transition` (JSON: the move's UUIDv7, `done` or `skipped`, the reason, the version seen, the member's `tenant_user` id, the device time, tenant, person, the task's home (`location_id`), due time and title); `handover_acknowledgement.location_id` and `seen_token` (43 characters, base64url); `task_id` on the five entry tables (the round's task the entry is the evidence for, sent as `taskId`) | Phase 1 slice 10 part 2. Written on the device only and never sent by the server, so the server's copy clears them; a refused move or acknowledgement is kept with them in `upload_issue` until removed with a coded reason. |
+| `task.escalation_unrouted` audit event | Thapsus Care | Reason and `scope.reasonCode`: `assignee_only` (only the assignee could be told, and was; review round 4), `no_one_sees_person` (a task about a person), `no_one_reaches_location` (one about no one); resource the task; `scope` kind, location id, required permission, due time | Phase 1 (ADR-0071 review round 3, C3-M3). Written as the system on the first occurrence and then at most once a day per task and reason while an overdue task can be told to no one active other than its assignee; the task is not marked escalated and is tried again every hour, every such task in each run (review rounds 3 to 5). |
+| `people.break_glass_alert.unrouted` audit event | Thapsus Care | Reason and `scope.reasonCode` `no_recipient` (no one) or `opener_only` (only the person who opened it holds the roles alerted; review round 5); resource the break-glass record; `scope.personId`, `scope.locationId` (opaque ids) | Phase 1 (ADR-0071 review round 4). Written as the system when a record is opened by break-glass and no Registered Manager reaching the home and no quality lead other than the opener is active to be alerted; the record still opens. |
+| `escalation.unrouted.daily` (operator log line, not stored) | Thapsus Care | `tenantId` (opaque), `counts` per unrouted audit action over the last 25 hours | Phase 1 (ADR-0071 review rounds 4 and 5). One line a day per organisation with any unrouted safety work; no personal data and no free text. A CloudWatch metric filter on the worker's log group counts it for an alarm ([on-call runbook](../runbooks/on-call.md)). |
+| `worker.job.failed` (operator log line, not stored) | Thapsus Care | `queue` (the job's queue), `error` (the error's kind), `code` (a database code, or null), `tenantId` (opaque, when one organisation's part of a sweep failed) | Phase 1 (ADR-0071 review round 5, C5-M1). One line per failed job or failed organisation's part; never an error message, which may hold data. A CloudWatch metric filter counts it for an alarm ([on-call runbook](../runbooks/on-call.md)). |
+| `safety.notification.unrouted` audit event | Thapsus Care | Reason and `scope.reasonCode` `no_active_submitter`; resource the statutory notification; `scope.locationId` (opaque id), `scope.dueAt` | Phase 1 (ADR-0071 review round 5, C5-M3; HZ-013). Written as the system at most once a day per notification while an overdue draft has no active holder of `safety.notification.submit` at its location to alert; the draft stays unalerted and every run tries again. Counted in `escalation.unrouted.daily`. |
+| `platform.escalation.unrouted` audit event | Thapsus Care | Reason and `scope.reasonCode` `no_recipient`; resource the notification; `scope` chain id, step index, role key, location id | Phase 1 (ADR-0071 review round 3, C3-M4). Written as the system when an escalation chain step, and its fallback (a Registered Manager reaching the home, else the owner), reach no one active. |
 
 ## Packs and governance (Phase 1, slice 11)
 
 Code lists for [operations.md](operations.md), [quality.md](quality.md) and [comms.md](comms.md).
-None of these fields has a national standard; they are Harbour's, and are exported in the full
+None of these fields has a national standard; they are Thapsus Care's, and are exported in the full
 tenant export with these names.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `downtime_pack.source` | Harbour | `server_nightly`, `server_rebuild` (the system again after someone moved or their status changed; migration 0055), `server_on_demand`, `kiosk_cache` | |
-| `downtime_pack.generated_at`, `as_at`, `valid_until` | Harbour | ISO 8601 UTC; shown dd/mm/yyyy hh:mm UK time | `valid_until` = `as_at` + `downtime_pack.valid_hours` |
-| `downtime_pack` content sections | Harbour; allergies as `allergy`, communication needs as AIS, resuscitation as `advance_care_record`, IDDSI levels as the care profile (IDDSI framework codes, food and drink separately), care plan domains as the PRSB PCSP domains | `identity`, `allergies`, `resuscitation`, `iddsi_food`, `iddsi_drink`, `communication`, `evacuation`, `medicines_due`, `contacts`, `care_plan`, `risks`, each with status `included`, `not_recorded`, `held_elsewhere`, `withheld`, `conflicting` (resuscitation records that disagree) or `unreadable` (a stored value that is not a valid code) | The snapshot is stored as JSON only; the PDF is drawn on request and never stored (#45, #46). The resuscitation section lists every active ReSPECT and DNACPR record. Medicines due list scheduled doses (`due`, `given`, `not_given`) and PRN medicines with their last-given time, dm+d-coded from Phase 2. From slice 49, from the eMAR: a dose still open from before carries `outstanding`, a dose of an entry that may not be given now `onHold`, the entry's notice `notice`, and the list carries `producedAt` (when it was read); `medicines_due` may be `unreadable` (with warning `medicines_unreadable`) when the eMAR could not be read; a held when-required medicine carries `onHold` and `notice`. The stored content also holds `buildSnapshot`, the database snapshot the pack was built from (`xmin:xmax:xip`, migration 0144), never shown. The transfer pack's `medicines` from the eMAR (`source: "emar"`) carries `producedAt` and, per item, `lastGivenAt` and `status` (the home's record of the entry in words); the attention code `medicines_emar_unreadable` says when the eMAR could not be read (medicines.md section 16) |
-| Location settings `downtime.mar_location`, `downtime.peep_location` | Harbour | Plain text, worded for the printed page | Where the paper MAR and the PEEPs are kept until the eMAR (Phase 2) and PEEPs (Phase 3) |
-| `outage.kind` | Harbour | `power`, `network`, `harbour_unavailable`, `device_failure`, `planned_maintenance`, `other` | With a free-text description |
-| `outage.started_at`, `ended_at`, `declared_at`, `closed_at`, `back_entry_due_at` | Harbour | ISO 8601 UTC | `ended_at` null while open; the outage window used by back-entry |
-| `outage` state | Harbour | `declared`, `closed`, `reconciled`, `cancelled` | |
-| `late_entry_reason` (care events) | Harbour | `downtime` or null | With `outage_id`, `outside_outage_reason` (free text, only outside the window), `paper_reference` and `not_from_paper_reason` (free text, for an entry inside an outage that was not copied from paper) |
-| `paper_date`, `paper_time`, `paper_occurrence` (care events) | Harbour | `YYYY-MM-DD` and `HH:MM` as written on the form, UK wall-clock time (stored as a date and a time of day to the minute, migration 0053); `only`, `earlier` (BST) or `later` (GMT) for the repeated autumn hour | Kept beside the resolved event instant (`resolvePaperTime`) |
-| `outage` reconciliation | Harbour | reconciled by and at, statement (free text), reviewed entry ids, forms entered (count) | The reconciler cannot have entered records for the outage |
-| `outage` declaration, correction and cancellation | Harbour | declared by and at (set by the database), `declared_late` (worked out by the database: declared more than `care_note.late_entry_hours` after the start, or no figure found); `correction_reason` (free text, why the start or end was last corrected; each correction in the history); cancelled by and at, cancellation reason (free text) | Migrations 0050 and 0051. A cancelled outage is final and does not count against overlaps |
-| `downtime_pack` row | Harbour | `person_ids` (the people on its pages, worked out from the content by the database), `generated_by` (null for the nightly job), `warnings` (JSON: counts only, keyed by kind or section), `document_id` (always null: the PDF is never stored; a CHECK from migration 0055 keeps it so) | Migration 0050. Append-only; the row-level security policy reads `person_ids` |
-| `location.downtime_mar_location`, `location.downtime_peep_location`, `downtime_places_confirmed_at`, `downtime_places_confirmed_by` | Harbour | Plain text, 1 to 200 characters; ISO 8601 UTC and a `tenant_user` id, both empty until confirmed | Migrations 0050 and 0051. The location settings `downtime.mar_location` and `downtime.peep_location`, seeded with `DEFAULT_PAPER_MAR_LOCATION` and `DEFAULT_PEEP_LOCATION`, changed and confirmed only by holders of `platform.location.manage`; a changed place is unconfirmed again |
-| `evidence_pack.recipient` | Harbour | name, organisation, work email (lower case) | The recipient is personal data (records of processing) |
-| `evidence_pack.purpose`, date range, locations, statements | Harbour; statements as the CQC quality statement ids of the framework model (QUAL-001, Phase 2) | Free text; `YYYY-MM-DD` inclusive; location ids; statement ids | |
-| `evidence_pack_item` field outcome | Harbour | key; kind `organisational`, `care_content`, `direct_identifier`, `staff_name`, `third_party`, `free_text` (from `EVIDENCE_FIELD_KIND_MAP` by record type, [quality.md](quality.md) rule 3); `included`, `redacted`, `withheld`, with reason `third_party`, `staff_role_only`, `free_text_redacted_by_hand`, `person_not_in_scope`, `person_unknown`, `identifier_not_needed`, `free_text_not_reviewed`, `redaction_incomplete`; redacted by (user id) | Roles printed in place of names come from `EVIDENCE_PARTY_ROLES` and `EVIDENCE_STAFF_ROLES` |
-| `evidence_pack_item` record type | Harbour | `incident`, `care_note`, `observation`, `body_map_mark`, `assessment`, `care_plan_section`, `risk_assessment`, `activity_record`, `visit_log`, `advance_care_record` | |
-| `evidence_pack_item` exclusion | Harbour | `restricted_record`, `outside_date_range`, `location_not_requested`, `not_tagged`, `statement_not_requested`, `person_not_in_scope` | Internal manifest only |
-| `evidence_pack_link` | Harbour | token hash (SHA-256, never the token), issued by and at, replaces link, `expires_at`, `revoked_at`, failed code attempts (never decreases) | ADR-0050 |
-| `evidence_pack_link_code` | Harbour | code hash (HMAC-SHA256 of the link and code under the server key `EVIDENCE_LINK_SECRET`; never the code), `issued_at`, `used_at` | Six digits, single use, valid `evidence_pack.code_valid_minutes`, at most three open per link; verification lives in an encrypted (AES-256-GCM) and signed `__Host-` HttpOnly, Secure, SameSite=Strict session cookie per link (organisation, link and pack ids, the verified address, its expiry), not in the database |
+| `downtime_pack.source` | Thapsus Care | `server_nightly`, `server_rebuild` (the system again after someone moved or their status changed; migration 0055), `server_on_demand`, `kiosk_cache` | |
+| `downtime_pack.generated_at`, `as_at`, `valid_until` | Thapsus Care | ISO 8601 UTC; shown dd/mm/yyyy hh:mm UK time | `valid_until` = `as_at` + `downtime_pack.valid_hours` |
+| `downtime_pack` content sections | Thapsus Care; allergies as `allergy`, communication needs as AIS, resuscitation as `advance_care_record`, IDDSI levels as the care profile (IDDSI framework codes, food and drink separately), care plan domains as the PRSB PCSP domains | `identity`, `allergies`, `resuscitation`, `iddsi_food`, `iddsi_drink`, `communication`, `evacuation`, `medicines_due`, `contacts`, `care_plan`, `risks`, each with status `included`, `not_recorded`, `held_elsewhere`, `withheld`, `conflicting` (resuscitation records that disagree) or `unreadable` (a stored value that is not a valid code) | The snapshot is stored as JSON only; the PDF is drawn on request and never stored (#45, #46). The resuscitation section lists every active ReSPECT and DNACPR record. Medicines due list scheduled doses (`due`, `given`, `not_given`) and PRN medicines with their last-given time, dm+d-coded from Phase 2. From slice 49, from the eMAR: a dose still open from before carries `outstanding`, a dose of an entry that may not be given now `onHold`, the entry's notice `notice`, and the list carries `producedAt` (when it was read); `medicines_due` may be `unreadable` (with warning `medicines_unreadable`) when the eMAR could not be read; a held when-required medicine carries `onHold` and `notice`. The stored content also holds `buildSnapshot`, the database snapshot the pack was built from (`xmin:xmax:xip`, migration 0144), never shown. The transfer pack's `medicines` from the eMAR (`source: "emar"`) carries `producedAt` and, per item, `lastGivenAt` and `status` (the home's record of the entry in words); the attention code `medicines_emar_unreadable` says when the eMAR could not be read (medicines.md section 16) |
+| Location settings `downtime.mar_location`, `downtime.peep_location` | Thapsus Care | Plain text, worded for the printed page | Where the paper MAR and the PEEPs are kept until the eMAR (Phase 2) and PEEPs (Phase 3) |
+| `outage.kind` | Thapsus Care | `power`, `network`, `harbour_unavailable`, `device_failure`, `planned_maintenance`, `other` | With a free-text description |
+| `outage.started_at`, `ended_at`, `declared_at`, `closed_at`, `back_entry_due_at` | Thapsus Care | ISO 8601 UTC | `ended_at` null while open; the outage window used by back-entry |
+| `outage` state | Thapsus Care | `declared`, `closed`, `reconciled`, `cancelled` | |
+| `late_entry_reason` (care events) | Thapsus Care | `downtime` or null | With `outage_id`, `outside_outage_reason` (free text, only outside the window), `paper_reference` and `not_from_paper_reason` (free text, for an entry inside an outage that was not copied from paper) |
+| `paper_date`, `paper_time`, `paper_occurrence` (care events) | Thapsus Care | `YYYY-MM-DD` and `HH:MM` as written on the form, UK wall-clock time (stored as a date and a time of day to the minute, migration 0053); `only`, `earlier` (BST) or `later` (GMT) for the repeated autumn hour | Kept beside the resolved event instant (`resolvePaperTime`) |
+| `outage` reconciliation | Thapsus Care | reconciled by and at, statement (free text), reviewed entry ids, forms entered (count) | The reconciler cannot have entered records for the outage |
+| `outage` declaration, correction and cancellation | Thapsus Care | declared by and at (set by the database), `declared_late` (worked out by the database: declared more than `care_note.late_entry_hours` after the start, or no figure found); `correction_reason` (free text, why the start or end was last corrected; each correction in the history); cancelled by and at, cancellation reason (free text) | Migrations 0050 and 0051. A cancelled outage is final and does not count against overlaps |
+| `downtime_pack` row | Thapsus Care | `person_ids` (the people on its pages, worked out from the content by the database), `generated_by` (null for the nightly job), `warnings` (JSON: counts only, keyed by kind or section), `document_id` (always null: the PDF is never stored; a CHECK from migration 0055 keeps it so) | Migration 0050. Append-only; the row-level security policy reads `person_ids` |
+| `location.downtime_mar_location`, `location.downtime_peep_location`, `downtime_places_confirmed_at`, `downtime_places_confirmed_by` | Thapsus Care | Plain text, 1 to 200 characters; ISO 8601 UTC and a `tenant_user` id, both empty until confirmed | Migrations 0050 and 0051. The location settings `downtime.mar_location` and `downtime.peep_location`, seeded with `DEFAULT_PAPER_MAR_LOCATION` and `DEFAULT_PEEP_LOCATION`, changed and confirmed only by holders of `platform.location.manage`; a changed place is unconfirmed again |
+| `evidence_pack.recipient` | Thapsus Care | name, organisation, work email (lower case) | The recipient is personal data (records of processing) |
+| `evidence_pack.purpose`, date range, locations, statements | Thapsus Care; statements as the CQC quality statement ids of the framework model (QUAL-001, Phase 2) | Free text; `YYYY-MM-DD` inclusive; location ids; statement ids | |
+| `evidence_pack_item` field outcome | Thapsus Care | key; kind `organisational`, `care_content`, `direct_identifier`, `staff_name`, `third_party`, `free_text` (from `EVIDENCE_FIELD_KIND_MAP` by record type, [quality.md](quality.md) rule 3); `included`, `redacted`, `withheld`, with reason `third_party`, `staff_role_only`, `free_text_redacted_by_hand`, `person_not_in_scope`, `person_unknown`, `identifier_not_needed`, `free_text_not_reviewed`, `redaction_incomplete`; redacted by (user id) | Roles printed in place of names come from `EVIDENCE_PARTY_ROLES` and `EVIDENCE_STAFF_ROLES` |
+| `evidence_pack_item` record type | Thapsus Care | `incident`, `care_note`, `observation`, `body_map_mark`, `assessment`, `care_plan_section`, `risk_assessment`, `activity_record`, `visit_log`, `advance_care_record` | |
+| `evidence_pack_item` exclusion | Thapsus Care | `restricted_record`, `outside_date_range`, `location_not_requested`, `not_tagged`, `statement_not_requested`, `person_not_in_scope` | Internal manifest only |
+| `evidence_pack_link` | Thapsus Care | token hash (SHA-256, never the token), issued by and at, replaces link, `expires_at`, `revoked_at`, failed code attempts (never decreases) | ADR-0050 |
+| `evidence_pack_link_code` | Thapsus Care | code hash (HMAC-SHA256 of the link and code under the server key `EVIDENCE_LINK_SECRET`; never the code), `issued_at`, `used_at` | Six digits, single use, valid `evidence_pack.code_valid_minutes`, at most three open per link; verification lives in an encrypted (AES-256-GCM) and signed `__Host-` HttpOnly, Secure, SameSite=Strict session cookie per link (organisation, link and pack ids, the verified address, its expiry), not in the database |
 | `statement_of_purpose_version` sections | CQC (Registration) Regulations 2009 Schedule 3 | `aims_and_objectives`, `services_and_needs`, `contact_details`, `legal_status`, `locations` | Contact details are business details of the provider and registered managers |
-| `statement_of_purpose_version.legal_status` | Harbour | `individual`, `partnership`, `limited_company`, `limited_liability_partnership`, `charitable_incorporated_organisation`, `community_interest_company`, `nhs_body`, `local_authority`, `other` (with detail) | |
-| `statement_of_purpose_version` kind and state | Harbour | kind `baseline`, `revision`; state `draft`, `approved`, `superseded`, `discarded` | |
-| `statement_of_purpose_version` approval and notification | Harbour | `version_number` (1, 2, 3 in the organisation, set by the database), author, contributors, `supersedes_id`, approved by and at, `notification_due_at` (approval plus `cqc.statement_of_purpose.revision_notice_days` UK days, worked out by the database; null for the baseline), notified by and at, `notification_evidence` (the CQC reference or how it was sent), discard reason | Migration 0057. One draft and one approved version at a time; approved versions are fixed |
-| `evidence_pack_item` row | Harbour | `fields` (JSON array: key (at most 64 characters), label (at most 80), kind, outcome, reason, `redactedBy`; never the shown values or a redacted copy), `title` (a generic label, at most 120 characters), `redacted_by` (worked out by the database), `supersedes_id` (a hand redaction adds a row replacing the item) | Migration 0057. Append-only |
-| `evidence_pack_bundle` | Harbour | `content` (JSON: the shown value of each included field, hand-redacted copies included, by item id and field key), `deleted_at`, `deletion_reason` `link_ended`, `pack_revoked`, `pack_discarded` | Migration 0057. The PDF is drawn from it on request and never stored; not exported (a temporary copy of records exported in their own tables) |
-| `evidence_pack_link` and `evidence_pack_link_code` (migration 0057) | Harbour | link: `revocation_reason` `pack_revoked`, `reissued`; `last_opened_at`; code: `valid_until` (the issue plus `evidence_pack.code_valid_minutes`, at most 10 minutes, worked out by the database) | Token and code hashes are SHA-256 hex; secret in the export |
+| `statement_of_purpose_version.legal_status` | Thapsus Care | `individual`, `partnership`, `limited_company`, `limited_liability_partnership`, `charitable_incorporated_organisation`, `community_interest_company`, `nhs_body`, `local_authority`, `other` (with detail) | |
+| `statement_of_purpose_version` kind and state | Thapsus Care | kind `baseline`, `revision`; state `draft`, `approved`, `superseded`, `discarded` | |
+| `statement_of_purpose_version` approval and notification | Thapsus Care | `version_number` (1, 2, 3 in the organisation, set by the database), author, contributors, `supersedes_id`, approved by and at, `notification_due_at` (approval plus `cqc.statement_of_purpose.revision_notice_days` UK days, worked out by the database; null for the baseline), notified by and at, `notification_evidence` (the CQC reference or how it was sent), discard reason | Migration 0057. One draft and one approved version at a time; approved versions are fixed |
+| `evidence_pack_item` row | Thapsus Care | `fields` (JSON array: key (at most 64 characters), label (at most 80), kind, outcome, reason, `redactedBy`; never the shown values or a redacted copy), `title` (a generic label, at most 120 characters), `redacted_by` (worked out by the database), `supersedes_id` (a hand redaction adds a row replacing the item) | Migration 0057. Append-only |
+| `evidence_pack_bundle` | Thapsus Care | `content` (JSON: the shown value of each included field, hand-redacted copies included, by item id and field key), `deleted_at`, `deletion_reason` `link_ended`, `pack_revoked`, `pack_discarded` | Migration 0057. The PDF is drawn from it on request and never stored; not exported (a temporary copy of records exported in their own tables) |
+| `evidence_pack_link` and `evidence_pack_link_code` (migration 0057) | Thapsus Care | link: `revocation_reason` `pack_revoked`, `reissued`; `last_opened_at`; code: `valid_until` (the issue plus `evidence_pack.code_valid_minutes`, at most 10 minutes, worked out by the database) | Token and code hashes are SHA-256 hex; secret in the export |
 | `framework_version` and its key questions, statements and evidence categories (migration 0076) | CQC single assessment framework (version 1, ADR-0096); later CIW, Care Inspectorate, RQIA and KLOE versions | regulator `cqc`, `ciw`, `care_inspectorate`, `rqia`; state `draft`, `published`, `retired`; ids matching `^[A-Za-z0-9._-]{1,64}$` (statements `<key question>.<title in snake case>`); source name, provision and https link | Global reference data, no personal data |
-| `framework_mapping` (migration 0076) | Harbour | mapping version (1, 2, 3 per framework version, set by the database); entries: statement id, local title (at most 200 characters), owner role, evidence category ids | Tenant configuration |
-| `evidence_link` (migration 0076) | Harbour | record type (an evidence pack record type until later slices add theirs), record id, framework version, statement ids (1 to 20), tagged by and at, removed by, at and reason | The record's id only, never its content; staff ids as user ids |
-| `audit_template`, `audit_starter_template` (migration 0081) | Harbour | kind `medication`, `care_plans`, `ipc`, `environment`, `dignity`, `night_visit`, `mock_inspection`, `other`; key matching `^[a-z0-9_-]{1,64}$`; state `active`, `retired`; questions (1 to 200): key matching `^[a-z0-9_]{1,64}$`, text, weight (a positive whole number), statement ids, action required | Tenant configuration; no personal data |
-| `audit_record` (migration 0081) | Harbour; CQC rating scale from the rate table | state `in_progress`, `completed`; answers `yes`, `partial`, `no`, `not_applicable` by question key; score percent (0 to 100, three decimals) with points achieved and possible; self-rating a whole number on `cqc.rating_scale.min` to `.max`, given by a person | Staff ids as user ids; no person receiving care |
-| `audit_action` (migration 0081) | Harbour | question key, description (3 to 1000 characters), owner (a member), due date (default `quality.audit.action_due_days` after the audit), task id | Staff ids as user ids |
-| `letter_template.kind`, `channel` | Harbour | kind `admission`, `fee_review`, `incident_follow_up`, `duty_of_candour`, `general`; channel `letter`, `email` | |
-| `letter_template_version.state` | Harbour (`TEMPLATE_WORKFLOW`) | `draft`, `approved`, `superseded`, `retired` (with a reason), `discarded` (with a reason); `version_number` per template; author, contributors, approved by and at | Approved never by its author or a contributor; subject for email only. |
-| Merge fields | Harbour (`MERGE_FIELDS` in `packages/domain/src/comms/templates.ts`) | `{{field.name}}`; types `text`, `date` (`YYYY-MM-DD`), `datetime` (ISO 8601), `money` (whole pence), `number`; data classes `none`, `personal`, `special_category`; flags `multiLine` (never in a subject), `notInEmail` (NHS number, date of birth), `allowsResultsToFollow` (`candour.results` only) | ADR-0051 |
-| `letter` | Harbour | template version, person, recipient (`recipient_kind` `person` or `contact` with `contact_id`, one of the person's own contacts), channel, `personal_fields` (the merge field keys used that hold personal data), `special_category` (letters only), `results_to_follow` (candour), `incident_id` and `incident_serious`, `document_id` (a letter's PDF) or `delivery_reference` (an email), sent by and at | The rendered letter is a document about the person; never an email's content; retention by `letterRetentionClass` (`retention_class`, migration 0059) |
-| Candour relevant person | Harbour; Health and Social Care Act 2008 (Regulated Activities) Regulations 2014 regulation 20(7) | `service_user`, or `representative` with contact id and basis `death`, `under_16_not_competent`, `lacks_capacity` | Held on the candour record ([safety.md](safety.md)); the letter goes to this person |
+| `framework_mapping` (migration 0076) | Thapsus Care | mapping version (1, 2, 3 per framework version, set by the database); entries: statement id, local title (at most 200 characters), owner role, evidence category ids | Tenant configuration |
+| `evidence_link` (migration 0076) | Thapsus Care | record type (an evidence pack record type until later slices add theirs), record id, framework version, statement ids (1 to 20), tagged by and at, removed by, at and reason | The record's id only, never its content; staff ids as user ids |
+| `audit_template`, `audit_starter_template` (migration 0081) | Thapsus Care | kind `medication`, `care_plans`, `ipc`, `environment`, `dignity`, `night_visit`, `mock_inspection`, `other`; key matching `^[a-z0-9_-]{1,64}$`; state `active`, `retired`; questions (1 to 200): key matching `^[a-z0-9_]{1,64}$`, text, weight (a positive whole number), statement ids, action required | Tenant configuration; no personal data |
+| `audit_record` (migration 0081) | Thapsus Care; CQC rating scale from the rate table | state `in_progress`, `completed`; answers `yes`, `partial`, `no`, `not_applicable` by question key; score percent (0 to 100, three decimals) with points achieved and possible; self-rating a whole number on `cqc.rating_scale.min` to `.max`, given by a person | Staff ids as user ids; no person receiving care |
+| `audit_action` (migration 0081) | Thapsus Care | question key, description (3 to 1000 characters), owner (a member), due date (default `quality.audit.action_due_days` after the audit), task id | Staff ids as user ids |
+| `letter_template.kind`, `channel` | Thapsus Care | kind `admission`, `fee_review`, `incident_follow_up`, `duty_of_candour`, `general`; channel `letter`, `email` | |
+| `letter_template_version.state` | Thapsus Care (`TEMPLATE_WORKFLOW`) | `draft`, `approved`, `superseded`, `retired` (with a reason), `discarded` (with a reason); `version_number` per template; author, contributors, approved by and at | Approved never by its author or a contributor; subject for email only. |
+| Merge fields | Thapsus Care (`MERGE_FIELDS` in `packages/domain/src/comms/templates.ts`) | `{{field.name}}`; types `text`, `date` (`YYYY-MM-DD`), `datetime` (ISO 8601), `money` (whole pence), `number`; data classes `none`, `personal`, `special_category`; flags `multiLine` (never in a subject), `notInEmail` (NHS number, date of birth), `allowsResultsToFollow` (`candour.results` only) | ADR-0051 |
+| `letter` | Thapsus Care | template version, person, recipient (`recipient_kind` `person` or `contact` with `contact_id`, one of the person's own contacts), channel, `personal_fields` (the merge field keys used that hold personal data), `special_category` (letters only), `results_to_follow` (candour), `incident_id` and `incident_serious`, `document_id` (a letter's PDF) or `delivery_reference` (an email), sent by and at | The rendered letter is a document about the person; never an email's content; retention by `letterRetentionClass` (`retention_class`, migration 0059) |
+| Candour relevant person | Thapsus Care; Health and Social Care Act 2008 (Regulated Activities) Regulations 2014 regulation 20(7) | `service_user`, or `representative` with contact id and basis `death`, `under_16_not_competent`, `lacks_capacity` | Held on the candour record ([safety.md](safety.md)); the letter goes to this person |
 
 `downtime_pack`, `outage` and `evidence_pack_link` are operational records; they are exported in the
 full tenant export but map to no national standard.
@@ -622,61 +623,61 @@ full tenant export but map to no national standard.
 Code lists for the tables in [comms.md](comms.md) section 2. No national data standard covers a
 family feed; addresses follow the internet and telephone standards named below.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `feed_item.kind` | Harbour | `activity`, `visit`, `appointment`, `shared_note`, `photo`, `care_plan_update`, `finance_statement` | Section from `FEED_ITEM_SECTIONS` (the `sharing_decision.sections` codes); `finance_statement` is a placeholder until Phase 3. |
-| `document.category = feed_photo` | Harbour | `feed_photo` (with `person_photo`, `care_attachment`, `person_document`, `organisation_document`) | The only category a family feed photo comes from (JPEG, PNG or WebP, 10 MB; `care_record`). |
-| `feed_item.text` | Harbour | Plain text, at most 1,000 characters; an approved phrase (`phrase_key`) or a member of staff's words | Never a clinical note: a shared note's words are written for the family when it is published (the publisher and time are the marking; `source_id` names the note). |
+| `feed_item.kind` | Thapsus Care | `activity`, `visit`, `appointment`, `shared_note`, `photo`, `care_plan_update`, `finance_statement` | Section from `FEED_ITEM_SECTIONS` (the `sharing_decision.sections` codes); `finance_statement` is a placeholder until Phase 3. |
+| `document.category = feed_photo` | Thapsus Care | `feed_photo` (with `person_photo`, `care_attachment`, `person_document`, `organisation_document`) | The only category a family feed photo comes from (JPEG, PNG or WebP, 10 MB; `care_record`). |
+| `feed_item.text` | Thapsus Care | Plain text, at most 1,000 characters; an approved phrase (`phrase_key`) or a member of staff's words | Never a clinical note: a shared note's words are written for the family when it is published (the publisher and time are the marking; `source_id` names the note). |
 | `feed_item.carePlanDomain` | PRSB PCSP need domains (as `care_plan_section.domain`) | `PCSP_DOMAINS` marked `may_appear` in `FEED_CARE_PLAN_DOMAINS` | Required for `care_plan_update` and empty otherwise (CHECK constraint); the CSO confirms the allow-list (H-110). |
-| `feed_item` confirmation | Harbour | Confirmed by (tenant user id) and reason (plain text, at least `FEED_CONFIRMATION_MIN_REASON_LENGTH` characters) | Only when staff words carry an event or wellbeing term (comms.md rule 12); both set or both empty. |
-| `feed_item.photoDocumentId` | Harbour | Document id | Only for `kind = 'photo'` (CHECK constraint). |
-| `feed_item.staff_shown` | Harbour | Member ids (at most 20) | Only for `kind = 'photo'` (CHECK constraint); each had given `family_feed` image consent when published (H-905). |
-| `feed_item_withdrawal.reason` | Harbour | `source_corrected`, `published_in_error`, `person_asked`, `photo_consent_withdrawn` | |
-| `feed_view` | Harbour | Item, contact, decision, section, care plan domain, person status, capacity for sharing (`presumed`, `assessed_has_capacity`, `assessed_lacks_capacity`), `viewed_by` (the portal account), `viewed_at` (UTC) | The exposure history (comms.md rule 4). Section and domain are copied from the update by the database (migration 0061). |
-| `family_portal_user` | Harbour | Tenant user id, person id and contact id (one open link per account and contact); revoked at, by and reason | The link a portal session is resolved from (ADR-0061); never paired with a `person_assignment` (refused by the database both ways); revoked, never deleted (migration 0061). Linked only when the account's verified email equals `contact.email` (trimmed, compared case-insensitively); otherwise refused as `account_not_contact`. |
-| `family_channel.kind` | Harbour | `email`, `sms`, `push` | |
+| `feed_item` confirmation | Thapsus Care | Confirmed by (tenant user id) and reason (plain text, at least `FEED_CONFIRMATION_MIN_REASON_LENGTH` characters) | Only when staff words carry an event or wellbeing term (comms.md rule 12); both set or both empty. |
+| `feed_item.photoDocumentId` | Thapsus Care | Document id | Only for `kind = 'photo'` (CHECK constraint). |
+| `feed_item.staff_shown` | Thapsus Care | Member ids (at most 20) | Only for `kind = 'photo'` (CHECK constraint); each had given `family_feed` image consent when published (H-905). |
+| `feed_item_withdrawal.reason` | Thapsus Care | `source_corrected`, `published_in_error`, `person_asked`, `photo_consent_withdrawn` | |
+| `feed_view` | Thapsus Care | Item, contact, decision, section, care plan domain, person status, capacity for sharing (`presumed`, `assessed_has_capacity`, `assessed_lacks_capacity`), `viewed_by` (the portal account), `viewed_at` (UTC) | The exposure history (comms.md rule 4). Section and domain are copied from the update by the database (migration 0061). |
+| `family_portal_user` | Thapsus Care | Tenant user id, person id and contact id (one open link per account and contact); revoked at, by and reason | The link a portal session is resolved from (ADR-0061); never paired with a `person_assignment` (refused by the database both ways); revoked, never deleted (migration 0061). Linked only when the account's verified email equals `contact.email` (trimmed, compared case-insensitively); otherwise refused as `account_not_contact`. |
+| `family_channel.kind` | Thapsus Care | `email`, `sms`, `push` | |
 | `family_channel.address` | Email: RFC 5321 and 5322 (at most 254 characters); SMS: ITU-T E.164 (`+` and 8 to 15 digits); push: the Expo push token | Text | Proof of the address is the verification, not the format check. |
-| `family_channel.opted_out_via` | Harbour | `sms_reply`, `email_link`, `portal` | SMS replies STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT opt out; START or UNSTOP opt back in. |
-| `family_channel.suspended_reason` | Harbour | `hard_bounce`, `complaint`, `device_not_registered` | Cleared when the address changes. |
-| `family_notification.status` | Harbour | `planned`, `held`, `sent`, `failed`, `cancelled` | Held until quiet hours end (UK time). |
-| `family_notification_setting` quiet hours | Harbour | `HH:MM` to `HH:MM`, UK local time; a window may cross midnight | The tenant's window comes from the rate table (`comms.family_notifications.*`). |
-| `visit_booking.status` | Harbour | `confirmed`, `cancelled` | With `sequence` for the calendar file. |
-| `visit_booking_setting` hours | Harbour | Minutes after midnight, UK time (`minute_of_day`); end up to 1440 (midnight) | No product default. |
-| `location_visit_restriction.kind` | Harbour | `outbreak`, `other`; with `from`, `to` (UTC) and a reason for staff only | Refuses online booking at the location with the usual "call the home" message. |
-| `visit_log.accompaniment_purpose` | Harbour (Regulation 9A accompanying) | `planned_appointment`, `unplanned_appointment`, `emergency` (`ACCOMPANIMENT_PURPOSES`) | Required for `visit_log.kind = 'accompaniment'`; only planned appointments reach the feed. |
+| `family_channel.opted_out_via` | Thapsus Care | `sms_reply`, `email_link`, `portal` | SMS replies STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT opt out; START or UNSTOP opt back in. |
+| `family_channel.suspended_reason` | Thapsus Care | `hard_bounce`, `complaint`, `device_not_registered` | Cleared when the address changes. |
+| `family_notification.status` | Thapsus Care | `planned`, `held`, `sent`, `failed`, `cancelled` | Held until quiet hours end (UK time). |
+| `family_notification_setting` quiet hours | Thapsus Care | `HH:MM` to `HH:MM`, UK local time; a window may cross midnight | The tenant's window comes from the rate table (`comms.family_notifications.*`). |
+| `visit_booking.status` | Thapsus Care | `confirmed`, `cancelled` | With `sequence` for the calendar file. |
+| `visit_booking_setting` hours | Thapsus Care | Minutes after midnight, UK time (`minute_of_day`); end up to 1440 (midnight) | No product default. |
+| `location_visit_restriction.kind` | Thapsus Care | `outbreak`, `other`; with `from`, `to` (UTC) and a reason for staff only | Refuses online booking at the location with the usual "call the home" message. |
+| `visit_log.accompaniment_purpose` | Thapsus Care (Regulation 9A accompanying) | `planned_appointment`, `unplanned_appointment`, `emergency` (`ACCOMPANIMENT_PURPOSES`) | Required for `visit_log.kind = 'accompaniment'`; only planned appointments reach the feed. |
 | Visit calendar file | iCalendar, RFC 5545 | `text/calendar`; UID `visit-{booking id}@{portal domain}`; DTSTART and DTEND with `TZID=Europe/London` and a VTIMEZONE, UTC in the repeated autumn hour | Names the home, never the person. |
 | Click-to-call | RFC 3966 `tel:` URI with an E.164 number | `tel:+441632960001` | The home's own number only. |
-| `consent_record.decision = photos` | Harbour (care consent kinds) | As `CONSENT_DECISION_KINDS` | The basis for photos in the feed, with `best_interests_decision` (decision kind `photos`, a yes or no outcome) where the person lacks capacity. |
+| `consent_record.decision = photos` | Thapsus Care (care consent kinds) | As `CONSENT_DECISION_KINDS` | The basis for photos in the feed, with `best_interests_decision` (decision kind `photos`, a yes or no outcome) where the person lacks capacity. |
 
 ## Platform completions (Phase 1, slice 13)
 
 Code lists for [platform-completions.md](platform-completions.md). None maps to a national standard.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `manifest.json` | Harbour export contract | `format` (`harbour-tenant-export`), `schemaVersion` (semantic version, `EXPORT_SCHEMA_VERSION`, 1.1.0), `kind` (`full`, `changes_since`), `since` (UTC or empty), `exportId`, `tenantId`, `requestedBy`, `generatedAt` (UTC), `snapshotAt` (UTC) and `snapshotAtUk` (local time with offset, zone `BST` or `GMT`), `schema` (path, SHA-256, bytes), `tables` (name as `schema.table`, rows, legal-hold rows, excluded soft-deleted and sample, files with path, format `csv` or `jsonl`, SHA-256, bytes, rows), `currentSummary` (path, SHA-256, bytes, rows; empty for a changes-since export), `notExported` (name, reason), `documents` (included, bytes, quarantined, excluded, destroyed, files with id, path, SHA-256, bytes), `destroyed` (path, count, by table, certificate ids), `auditChain` (verified, first broken position), `complete`, `problems` (`table_missing`, `unexpected_table`, `unclassified`, `file_missing`, `row_count_mismatch`, `foreign_tenant_rows`, `summary_missing`, `summary_row_count_mismatch`, `document_not_written`, `document_checksum_mismatch`), `warnings` (`audit_chain_broken`, `destroyed_without_certificate`) | An export with any problem is never offered (HZ-070, HZ-071). Version 1.1.0 added `kind`, `since`, the snapshot, the current summary, the `_uk_date` columns, units, codes and the CSV guard. |
-| `current_summary.csv` | Harbour export contract | `person_id`, `allergy_status`, `allergies` (substance and severity, most severe first, separated by semicolons), `cpr_decision` (`attempt_cpr`, `do_not_attempt_cpr`, `not_recorded`, `conflicting`), `cpr_record_ids`, `cpr_review_overdue`, `iddsi_food` and `iddsi_drink` (level with name and colour, or `not recorded`), `communication_needs_status`, `communication_needs` (need and preferred format), `as_of` (UTC), `as_of_uk` | One row per exported person, worked out by the same functions as the point-of-care header and the transfer pack. `conflicting` lists every record in force. Check these first when moving a person to another system (HZ-071). |
-| Export column classification | Harbour (`EXPORT_TABLES`) | `exported`, `internal`, `secret` | Only `exported` columns are written; only the `public` schema is read. Internal and secret columns (`document.storage_key`, `tenant_user.auth_user_id`, `integration_connection.secret_ref`) never leave (HZ-070). |
-| `destroyed.csv` | Harbour | `table`, `id`, `destroyed_at` (UTC), `certificate_id` | Records destroyed past retention; their rows are not in the table files. |
-| `tenant_export.status` | Harbour | `queued`, `running`, `ready`, `failed`, `expired`, `revoked` | A ready export past its expiry reads as `expired`. |
-| `tenant_export.kind`, `downloaded_at`, `downloaded_by` | Harbour | `full`, `changes_since` (with `since`, UTC); the single download's instant (UTC) and member (`tenant_user.id`, always the requester) | Migration 0062. The archive is fetched once and then deleted. |
-| `dpia.status` | Harbour | `draft`, `prepared`, `signed`, `superseded` | The onboarding state adds `not_started` and `review_due`. Migration 0063: `dpia_version` from 1, `prepared_by` (tenant_user ids), `version_sha256` (lower-case hex of the canonical JSON of prefill, answers, ratings and ICO reference), `typed_name`, `statement`, `basis` (JSON). |
-| `tenant` data protection governance | Harbour | `data_protection_lead_id` (tenant_user id), `sector` (`independent`, `public`), `privacy_notice_url` (https), `dpa_signed_on` (UK date), `uses_data_beyond_direct_care` (boolean or empty: not answered), `marketing_enabled`, `ai_free_text_enabled`, `ai_provider` (`bedrock_london`, `bedrock_eu`, `anthropic`, `tenant_own`) | Migration 0063. |
+| `manifest.json` | Thapsus Care export contract | `format` (`harbour-tenant-export`), `schemaVersion` (semantic version, `EXPORT_SCHEMA_VERSION`, 1.1.0), `kind` (`full`, `changes_since`), `since` (UTC or empty), `exportId`, `tenantId`, `requestedBy`, `generatedAt` (UTC), `snapshotAt` (UTC) and `snapshotAtUk` (local time with offset, zone `BST` or `GMT`), `schema` (path, SHA-256, bytes), `tables` (name as `schema.table`, rows, legal-hold rows, excluded soft-deleted and sample, files with path, format `csv` or `jsonl`, SHA-256, bytes, rows), `currentSummary` (path, SHA-256, bytes, rows; empty for a changes-since export), `notExported` (name, reason), `documents` (included, bytes, quarantined, excluded, destroyed, files with id, path, SHA-256, bytes), `destroyed` (path, count, by table, certificate ids), `auditChain` (verified, first broken position), `complete`, `problems` (`table_missing`, `unexpected_table`, `unclassified`, `file_missing`, `row_count_mismatch`, `foreign_tenant_rows`, `summary_missing`, `summary_row_count_mismatch`, `document_not_written`, `document_checksum_mismatch`), `warnings` (`audit_chain_broken`, `destroyed_without_certificate`) | An export with any problem is never offered (HZ-070, HZ-071). Version 1.1.0 added `kind`, `since`, the snapshot, the current summary, the `_uk_date` columns, units, codes and the CSV guard. |
+| `current_summary.csv` | Thapsus Care export contract | `person_id`, `allergy_status`, `allergies` (substance and severity, most severe first, separated by semicolons), `cpr_decision` (`attempt_cpr`, `do_not_attempt_cpr`, `not_recorded`, `conflicting`), `cpr_record_ids`, `cpr_review_overdue`, `iddsi_food` and `iddsi_drink` (level with name and colour, or `not recorded`), `communication_needs_status`, `communication_needs` (need and preferred format), `as_of` (UTC), `as_of_uk` | One row per exported person, worked out by the same functions as the point-of-care header and the transfer pack. `conflicting` lists every record in force. Check these first when moving a person to another system (HZ-071). |
+| Export column classification | Thapsus Care (`EXPORT_TABLES`) | `exported`, `internal`, `secret` | Only `exported` columns are written; only the `public` schema is read. Internal and secret columns (`document.storage_key`, `tenant_user.auth_user_id`, `integration_connection.secret_ref`) never leave (HZ-070). |
+| `destroyed.csv` | Thapsus Care | `table`, `id`, `destroyed_at` (UTC), `certificate_id` | Records destroyed past retention; their rows are not in the table files. |
+| `tenant_export.status` | Thapsus Care | `queued`, `running`, `ready`, `failed`, `expired`, `revoked` | A ready export past its expiry reads as `expired`. |
+| `tenant_export.kind`, `downloaded_at`, `downloaded_by` | Thapsus Care | `full`, `changes_since` (with `since`, UTC); the single download's instant (UTC) and member (`tenant_user.id`, always the requester) | Migration 0062. The archive is fetched once and then deleted. |
+| `dpia.status` | Thapsus Care | `draft`, `prepared`, `signed`, `superseded` | The onboarding state adds `not_started` and `review_due`. Migration 0063: `dpia_version` from 1, `prepared_by` (tenant_user ids), `version_sha256` (lower-case hex of the canonical JSON of prefill, answers, ratings and ICO reference), `typed_name`, `statement`, `basis` (JSON). |
+| `tenant` data protection governance | Thapsus Care | `data_protection_lead_id` (tenant_user id), `sector` (`independent`, `public`), `privacy_notice_url` (https), `dpa_signed_on` (UK date), `uses_data_beyond_direct_care` (boolean or empty: not answered), `marketing_enabled`, `ai_free_text_enabled`, `ai_provider` (`bedrock_london`, `bedrock_eu`, `anthropic`, `tenant_own`) | Migration 0063. |
 | DPIA risk ratings | ICO DPIA template terms | Likelihood `remote`, `possible`, `probable`; severity `minimal`, `significant`, `severe`; overall and residual `low`, `medium`, `high` | Risk ids R1 to R19 as the DPIA template (R13 to R19 for the Phase 1 processing). |
-| DPIA review triggers | Harbour | `new_purpose`, `new_sub_processor`, `new_data_category`, `feature_enabled`, `yearly_review` | |
-| `tenant_setting_decision.kind` | Harbour | `accepted`, `set` | `set` needs the organisation's own rate table row for the key (`checkSettingDecision`). Migration 0064. |
-| `retention_decision.kind` | Harbour | `accepted`, `lengthened`, `period_set`, `not_used` | `accepted` and `lengthened` for classes with a default; `period_set` and `not_used` for classes the tenant policy sets; lengthening or setting needs the organisation's own period, a lengthened one longer than the default (`checkRetentionDecision`). Migration 0064. |
+| DPIA review triggers | Thapsus Care | `new_purpose`, `new_sub_processor`, `new_data_category`, `feature_enabled`, `yearly_review` | |
+| `tenant_setting_decision.kind` | Thapsus Care | `accepted`, `set` | `set` needs the organisation's own rate table row for the key (`checkSettingDecision`). Migration 0064. |
+| `retention_decision.kind` | Thapsus Care | `accepted`, `lengthened`, `period_set`, `not_used` | `accepted` and `lengthened` for classes with a default; `period_set` and `not_used` for classes the tenant policy sets; lengthening or setting needs the organisation's own period, a lengthened one longer than the default (`checkRetentionDecision`). Migration 0064. |
 | `tenant.staff_file_option` | retention.md | `staff_file.after_leaving`, `staff_file.to_75th_birthday`, or null until chosen | One option for all staff files. Migration 0064. |
-| `dcb0160_record.safety_case_version` | Harbour safety case | Free text, 1 to 40 characters, the release's safety case (for example `v0.0`) | Must equal the API's `SAFETY_CASE_VERSION` when recorded (`checkDcb0160Recording`). |
-| Sub-processor objection resolution | Harbour (DPA clause 6.2) | `objection_withdrawn`, `not_used_for_tenant`, `services_ended` | |
-| `sub_processor_response.kind` | Harbour | `acknowledged`, `objected`, `objection_resolved` | An objection has a notice and grounds of 20 to 4,000 characters; a resolution has a notice and one of the resolutions above; an acknowledgement with no notice acknowledges the register entry. Migration 0065. |
-| `sub_processor_notice.kind` | Harbour | `new`, `replacement` | `use` is the `SubProcessorUse` JSON (`always`, `capability`, `ai_provider`). |
-| Sample flag | Harbour | `person.is_sample` (boolean), `person.sample_batch_id` (UUID; set exactly when `is_sample`, check `person_sample`); `sample_batch` (`people`, `loaded_by`, `loaded_at`, `removed_by`, `removed_at`; one not removed per organisation) | Sample people: family name `Example`, 999-range NHS numbers that pass the check digit, `example.invalid` emails, Ofcom drama telephone numbers (to verify, H-123), invented addresses (an "Example" street, no postcode or `ZZ99`). Shown with a "Sample" badge; prints carry the watermark "SAMPLE DATA: NOT A REAL PERSON" (HZ-072). Migration 0069. Sample people are left out of the full export and counted. The removal's audit scope is `people` (count) and `records` (table name to count of practice records removed with them). |
-| `person.national_data_opt_out_checked_at` | Harbour; NHS national data opt-out | Timestamp (UTC) or empty for "not checked" | The existing boolean cannot say "not checked". |
-| Search audit scope | Harbour | `queryKind` (`text`, `nhs_number`), `termCount`, `entityTypes` (`person`, `staff`, `document`, `note`), `omitted` (kind and reason `not_permitted`, `no_scope`, `mfa_required`, `not_applicable`), `includeArchived`, `personScope` (`tenant`, `locations`, `assigned`, or empty when no person record was searched), `locationIds`, `validUntil` (UTC), `resultCounts`, `total`, `resultIds`, `personIds`, `careRecordView`; break-glass: `breakGlassRecordId`, `reasonCode` | Never the words typed or the typed break-glass reason, which stays in the break-glass record (HZ-011). |
-| Search vectors | Harbour | `person.search_names`, `person.search_room`, `tenant_user.search_name`, `document.search_title`, `care_note.search_body`: generated `tsvector` columns of the terms `app.search_terms` gives (migration 0066) | Derived plain-text copies of the names, room, display name, document title and note text, in their own rows (never a separate store; ADR-0070): deleting or purging the row removes them, but like the row they stay in backups for 35 days, and crypto-shredding would not reach them if their source column were later encrypted (H-380). Internal in the export catalogue, since they can be rebuilt from the exported columns. |
-| `break_glass_event.kind` | Harbour | `open`, `search` | A break-glass search names no person (`person_id` empty) and lasts no time (`expires_at` equals `opened_at`); the people shown are in its audit event, and the homes they live at in `shown_location_ids` for the weekly report (migration 0070). |
-| Search match quality | Harbour | `exact` (every term a whole word), `prefix` | Ranks results; a break-glass search shows only `exact` matches. |
+| `dcb0160_record.safety_case_version` | Thapsus Care safety case | Free text, 1 to 40 characters, the release's safety case (for example `v0.0`) | Must equal the API's `SAFETY_CASE_VERSION` when recorded (`checkDcb0160Recording`). |
+| Sub-processor objection resolution | Thapsus Care (DPA clause 6.2) | `objection_withdrawn`, `not_used_for_tenant`, `services_ended` | |
+| `sub_processor_response.kind` | Thapsus Care | `acknowledged`, `objected`, `objection_resolved` | An objection has a notice and grounds of 20 to 4,000 characters; a resolution has a notice and one of the resolutions above; an acknowledgement with no notice acknowledges the register entry. Migration 0065. |
+| `sub_processor_notice.kind` | Thapsus Care | `new`, `replacement` | `use` is the `SubProcessorUse` JSON (`always`, `capability`, `ai_provider`). |
+| Sample flag | Thapsus Care | `person.is_sample` (boolean), `person.sample_batch_id` (UUID; set exactly when `is_sample`, check `person_sample`); `sample_batch` (`people`, `loaded_by`, `loaded_at`, `removed_by`, `removed_at`; one not removed per organisation) | Sample people: family name `Example`, 999-range NHS numbers that pass the check digit, `example.invalid` emails, Ofcom drama telephone numbers (to verify, H-123), invented addresses (an "Example" street, no postcode or `ZZ99`). Shown with a "Sample" badge; prints carry the watermark "SAMPLE DATA: NOT A REAL PERSON" (HZ-072). Migration 0069. Sample people are left out of the full export and counted. The removal's audit scope is `people` (count) and `records` (table name to count of practice records removed with them). |
+| `person.national_data_opt_out_checked_at` | Thapsus Care; NHS national data opt-out | Timestamp (UTC) or empty for "not checked" | The existing boolean cannot say "not checked". |
+| Search audit scope | Thapsus Care | `queryKind` (`text`, `nhs_number`), `termCount`, `entityTypes` (`person`, `staff`, `document`, `note`), `omitted` (kind and reason `not_permitted`, `no_scope`, `mfa_required`, `not_applicable`), `includeArchived`, `personScope` (`tenant`, `locations`, `assigned`, or empty when no person record was searched), `locationIds`, `validUntil` (UTC), `resultCounts`, `total`, `resultIds`, `personIds`, `careRecordView`; break-glass: `breakGlassRecordId`, `reasonCode` | Never the words typed or the typed break-glass reason, which stays in the break-glass record (HZ-011). |
+| Search vectors | Thapsus Care | `person.search_names`, `person.search_room`, `tenant_user.search_name`, `document.search_title`, `care_note.search_body`: generated `tsvector` columns of the terms `app.search_terms` gives (migration 0066) | Derived plain-text copies of the names, room, display name, document title and note text, in their own rows (never a separate store; ADR-0070): deleting or purging the row removes them, but like the row they stay in backups for 35 days, and crypto-shredding would not reach them if their source column were later encrypted (H-380). Internal in the export catalogue, since they can be rebuilt from the exported columns. |
+| `break_glass_event.kind` | Thapsus Care | `open`, `search` | A break-glass search names no person (`person_id` empty) and lasts no time (`expires_at` equals `opened_at`); the people shown are in its audit event, and the homes they live at in `shown_location_ids` for the weekly report (migration 0070). |
+| Search match quality | Thapsus Care | `exact` (every term a whole word), `prefix` | Ranks results; a break-glass search shows only `exact` matches. |
 
 ## Data subject requests (Phase 2, slice 15)
 
@@ -685,42 +686,42 @@ Code lists for the DSAR workbench ([platform.md](platform.md), Phase 2: the DSAR
 to a national standard; the rights are those of UK GDPR Articles 15 to 20. Every column of
 `dsar_case` and `dsar_item` is exported. Retention class `data_rights_case`.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `dsar_case.request_kind` | UK GDPR Arts 15, 16, 17, 20 | `access`, `rectification`, `erasure`, `portability` | |
-| `dsar_case.subject_kind`, `subject_person_id`, `subject_contact_id`, `subject_staff_id` | Harbour | `person`, `contact`, `staff`; exactly one subject of its kind (a contact names its person too), by composite foreign keys (check `dsar_case_subject`) | |
-| `dsar_case.requester_kind`, `requester_name`, `requester_address`, `authority` | Harbour; Mental Capacity Act 2005 | `subject`, `representative`; authority `lpa_health_welfare`, `lpa_property_finance`, `deputy`, `written_authority`, `other` (required for a representative, with a name) | The name and address are as the requester gave them; never in the audit trail or logs. |
-| `dsar_case.channel` | Harbour | `email`, `post`, `phone`, `in_person`, `portal` | |
+| `dsar_case.subject_kind`, `subject_person_id`, `subject_contact_id`, `subject_staff_id` | Thapsus Care | `person`, `contact`, `staff`; exactly one subject of its kind (a contact names its person too), by composite foreign keys (check `dsar_case_subject`) | |
+| `dsar_case.requester_kind`, `requester_name`, `requester_address`, `authority` | Thapsus Care; Mental Capacity Act 2005 | `subject`, `representative`; authority `lpa_health_welfare`, `lpa_property_finance`, `deputy`, `written_authority`, `other` (required for a representative, with a name) | The name and address are as the requester gave them; never in the audit trail or logs. |
+| `dsar_case.channel` | Thapsus Care | `email`, `post`, `phone`, `in_person`, `portal` | |
 | `dsar_case.received_on`, `identity_verified_on`, `extension_decided_on`, `responded_on` | ISO 8601 date | `YYYY-MM-DD` (UK calendar), shown dd/mm/yyyy; none in the future, none before `received_on` | The due date is never stored: `dsarClock` works it out on read. |
-| `dsar_case.identity_required`, `identity_method` | Harbour | Boolean; `document_seen`, `known_to_staff`, `authority_checked`, `portal_account` (set with the day, check `dsar_case_identity`) | How identity was confirmed, never a copy of the document. |
-| `dsar_case.pauses` | Harbour | JSON array of `{from, to}` dates; `to` null while open; at most one open | Checked by `dsarClock` (no overlap, after the clock starts). |
+| `dsar_case.identity_required`, `identity_method` | Thapsus Care | Boolean; `document_seen`, `known_to_staff`, `authority_checked`, `portal_account` (set with the day, check `dsar_case_identity`) | How identity was confirmed, never a copy of the document. |
+| `dsar_case.pauses` | Thapsus Care | JSON array of `{from, to}` dates; `to` null while open; at most one open | Checked by `dsarClock` (no overlap, after the clock starts). |
 | `dsar_case.extension_months`, `extension_grounds`, `extension_reason` | UK GDPR Art 12(3) | 1 to `dsar.extension_months` months; `complex`, `multiple_requests`; reason free text | All four extension fields together or none (check `dsar_case_extension`). |
-| `dsar_case.status`, `outcome`, `outcome_reason` | Harbour | `open`, `closed`, `withdrawn`; `fulfilled`, `partly_fulfilled`, `refused`, `withdrawn`; a reason for a partial response or a refusal | A closed or withdrawn case never changes (trigger `dsar_case_guard`). |
-| `dsar_case.not_searched`, `collected_at` | Harbour (`EXPORT_TABLES`) | Table names; UTC | Tables with personal data and no subject column (`dsarSubjectMap`). |
-| `dsar_case.rectification` | Harbour | JSON array of `{table, recordId, field, decision, reason, decidedOn}`; decision `corrected`, `declined`, `statement_added` | The correction itself is a new version in its module. |
-| `dsar_case.erasure` | Harbour; retention.md | JSON `{assessedAt, held, retained, erasable, byClass[{recordClass, outcome, count, until}]}` | `erasureAssessment`; nothing is deleted by the workbench. |
+| `dsar_case.status`, `outcome`, `outcome_reason` | Thapsus Care | `open`, `closed`, `withdrawn`; `fulfilled`, `partly_fulfilled`, `refused`, `withdrawn`; a reason for a partial response or a refusal | A closed or withdrawn case never changes (trigger `dsar_case_guard`). |
+| `dsar_case.not_searched`, `collected_at` | Thapsus Care (`EXPORT_TABLES`) | Table names; UTC | Tables with personal data and no subject column (`dsarSubjectMap`). |
+| `dsar_case.rectification` | Thapsus Care | JSON array of `{table, recordId, field, decision, reason, decidedOn}`; decision `corrected`, `declined`, `statement_added` | The correction itself is a new version in its module. |
+| `dsar_case.erasure` | Thapsus Care; retention.md | JSON `{assessedAt, held, retained, erasable, byClass[{recordClass, outcome, count, until}]}` | `erasureAssessment`; nothing is deleted by the workbench. |
 | `dsar_case.bundle_sha256`, `bundle_issued_at`, `bundle_storage_key` | SHA-256; storage key | 64 lower-case hex characters of the canonical JSON (sorted keys) of the records, redacted count and withheld count; UTC; `tenants/<tenant>/dsar/<case>/<bundle>.json` (ids only) | Set together on respond; never change once set. The key is internal. |
 | `dsar_item.content_sha256` | SHA-256 | 64 lower-case hex characters of the canonical JSON of the record's exported columns as the reviewer opened it; set exactly when decided | A record whose hash no longer matches goes back to pending (#149 M3). |
-| `dsar_item.table_name`, `record_id` | Harbour (`EXPORT_TABLES`) | A table in the export catalogue; the record's id as text | Unique per case; content is never copied. |
-| `dsar_item.decision`, `redacted_fields`, `reason`, `reviewed_by`, `reviewed_at` | Harbour; DPA 2018 Schs 2 to 4 | `pending`, `disclose`, `redact`, `withhold`; fields from the table's exported columns; a reason for `redact` and `withhold`; a `tenant_user` id and UTC once decided | Redacted fields read `[redacted]` in the bundle; withheld records are left out with a count. |
+| `dsar_item.table_name`, `record_id` | Thapsus Care (`EXPORT_TABLES`) | A table in the export catalogue; the record's id as text | Unique per case; content is never copied. |
+| `dsar_item.decision`, `redacted_fields`, `reason`, `reviewed_by`, `reviewed_at` | Thapsus Care; DPA 2018 Schs 2 to 4 | `pending`, `disclose`, `redact`, `withhold`; fields from the table's exported columns; a reason for `redact` and `withhold`; a `tenant_user` id and UTC once decided | Redacted fields read `[redacted]` in the bundle; withheld records are left out with a count. |
 ## Breach register and data protection complaints (Phase 2, slice 20)
 Code lists for [platform.md](platform.md) rules 18 to 26 (migration 0082). None maps to a national
 standard; dates are UK calendar dates (`YYYY-MM-DD`, shown dd/mm/yyyy) and instants UTC. Clocks are
 never stored: they are worked out from these fields and the rate table.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `dp_breach.source` | Harbour | `tenant`, `processor_notice` | Only Thapsus's definer function writes `processor_notice`. |
+| `dp_breach.source` | Thapsus Care | `tenant`, `processor_notice` | Only Thapsus's definer function writes `processor_notice`. |
 | `dp_breach.aware_at`, `occurred_at` | UK GDPR Art 33(1) | Instants (UTC) | The ICO clock runs `ico.breach.report_hours` from `aware_at`; it may change only until `reported_at` is set. |
 | `dp_breach.factors` | breach-response.md section 4 | JSON `BreachFactors`: `peopleAffected` (whole number), `identifiable`, `specialCategory`, `safeguardingOrLocationAtRisk`, `disclosedOutsideOrganisation`, `careRecordsUnavailable`, `contained` (booleans) | Set with the suggestion; reassessing after a decision is refused. |
-| `dp_breach.suggested_severity` | Harbour severity guide | `low`, `medium`, `high`, `critical` | Decision support only (`assessBreach`); `suggested_report_to_ico` and `suggested_tell_individuals` beside it. |
+| `dp_breach.suggested_severity` | Thapsus Care severity guide | `low`, `medium`, `high`, `critical` | Decision support only (`assessBreach`); `suggested_report_to_ico` and `suggested_tell_individuals` beside it. |
 | `dp_breach` decision | UK GDPR Arts 33(5) and 34 | `report_to_ico`, `tell_individuals` (booleans), `decision_reasoning` (20 to 4,000 characters), `acknowledged_suggestion`, `decided_by` (tenant_user id), `decided_at` | All set together (check `dp_breach_decided`). |
 | `dp_breach.ico_reference` | ICO | Free text, 1 to 100 characters, as the ICO gives it | Set with `reported_at`; needs `report_to_ico`; `delay_reason` when late. |
 | `dp_breach.subject_notice`, `individuals_told_on` | UK GDPR Art 34 | Notice text 20 to 10,000 characters; UK date | From the template (`subjectNoticeDraft`); refused while a `[Write ...]` prompt remains. |
-| `dp_breach.status` | Harbour | `open`, `closed` | Closing needs the decision, its report and notice, and `lessons` (20 to 4,000 characters). |
+| `dp_breach.status` | Thapsus Care | `open`, `closed` | Closing needs the decision, its report and notice, and `lessons` (20 to 4,000 characters). |
 | `processor_breach_notice` | UK GDPR Art 33(2); DPA clause 8.2 | `nature`, `data_categories`, `approx_people`, `approx_records` (whole numbers or empty), `likely_consequences`, `measures`, `tenant_actions`, `contact`; `follows_id` for a follow-up | Append-only; no names of the people affected. |
-| `dp_complaint.channel` | Harbour | `form`, `email`, `letter`, `phone`, `in_person`, `forwarded_by_thapsus`, `other` | |
-| `dp_complaint.complainant_kind` | Harbour | `person_supported`, `representative`, `family`, `staff`, `other` | `complainant_name` (1 to 200 characters) and `complainant_contact` (as given) are personal data. |
+| `dp_complaint.channel` | Thapsus Care | `form`, `email`, `letter`, `phone`, `in_person`, `forwarded_by_thapsus`, `other` | |
+| `dp_complaint.complainant_kind` | Thapsus Care | `person_supported`, `representative`, `family`, `staff`, `other` | `complainant_name` (1 to 200 characters) and `complainant_contact` (as given) are personal data. |
 | `dp_complaint.about` | data-protection-complaints.md section 1 | `access`, `accuracy`, `sharing`, `security`, `retention`, `other` | |
 | `dp_complaint` dates | DPA 2018 as amended (DUAA 2025) | `received_on`, `acknowledged_on`, `last_contact_on`, `closed_on` (UK dates, none before receipt) | Acknowledgement due `dp_complaint.acknowledge_days` after receipt for complaints from 19/06/2026; closing needs an outcome (20 to 10,000 characters) stating the right to complain to the ICO (`ico_right_stated`). |
 ## Import wizard (Phase 2, slice 26)
@@ -756,27 +757,27 @@ its key. A pair of rows is warned of once, on the later row, naming the earliest
 row names at most three existing records (`recordMatchesCapped`); a file with more than 50 rows on
 one date of birth, or more than 500 possible duplicates, is refused (`IMPORT_WARNING_LIMITS`,
 product limits), so every warning found is listed and can be acknowledged.
-| `import_batch.record_type` | Harbour | `people`, `medicines`, `care_plans`, `staff_files` | Slice 51 adds the last three (migration 0136); contacts and allergies follow. |
-| Medicines import columns (slice 51) | dm+d, SNOMED CT (route and unit codes), Harbour | `person_nhs_number`, `vmp_id` and `amp_id` (dm+d codes, check digit), `route_code`, `directions` (`regular`, `when_required`), `dose_quantity` (above zero, at most three decimals), `dose_unit_code`, `times` (24-hour `HH:MM`, each once; regular only), `indication` (when-required), `special_instructions`, `prescriber`, `starts_on`, `stops_on` (dd/mm/yyyy), `source_kind`, `source_reference` | No name column: the product's name is dm+d's. Stored as a MAR entry with `origin` `import`, not yet checked |
+| `import_batch.record_type` | Thapsus Care | `people`, `medicines`, `care_plans`, `staff_files` | Slice 51 adds the last three (migration 0136); contacts and allergies follow. |
+| Medicines import columns (slice 51) | dm+d, SNOMED CT (route and unit codes), Thapsus Care | `person_nhs_number`, `vmp_id` and `amp_id` (dm+d codes, check digit), `route_code`, `directions` (`regular`, `when_required`), `dose_quantity` (above zero, at most three decimals), `dose_unit_code`, `times` (24-hour `HH:MM`, each once; regular only), `indication` (when-required), `special_instructions`, `prescriber`, `starts_on`, `stops_on` (dd/mm/yyyy), `source_kind`, `source_reference` | No name column: the product's name is dm+d's. Stored as a MAR entry with `origin` `import`, not yet checked |
 | Care plans import columns (slice 51) | PCSP need domains | `person_nhs_number`, `domain`, `need`, `outcome` (each up to 4,000 characters), `strengths`, `contingency` | One draft per person, a section per row |
 | Staff files import columns (slice 51) | As the staff file (above) | `member_email`, `kind` (`identity_with_photo`, `dbs_certificate`, `right_to_work`, `professional_registration`, `references`, `relevant_qualifications`) and that check's own columns | Stored unverified; health, conduct and employment history are never imported |
-| `medication.import_batch_id`, `care_plan.import_batch_id`, `compliance_item.import_batch_id` | Harbour | `import_batch.id` or empty | The batch that created the record; set only as it commits, never changed (migration 0136). `medication.origin` is `import` exactly when it is set |
-| Import dry run `rowOutcomes` (slice 51) | Harbour | `row` (1-based), `outcome` (`creates`, `refused`) | Every row, in file order; no value |
+| `medication.import_batch_id`, `care_plan.import_batch_id`, `compliance_item.import_batch_id` | Thapsus Care | `import_batch.id` or empty | The batch that created the record; set only as it commits, never changed (migration 0136). `medication.origin` is `import` exactly when it is set |
+| Import dry run `rowOutcomes` (slice 51) | Thapsus Care | `row` (1-based), `outcome` (`creates`, `refused`) | Every row, in file order; no value |
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `import_batch.record_type` | Harbour | `people` | Contacts, allergies and staff follow (slice 51). |
-| `import_batch.status` | Harbour | `staged`, `committed`, `undone`, `discarded`, `expired` | Forward only (a guard in migration 0088). `expires_at` is `uploaded_at` plus `import.staging_expiry_days`; `dry_run_errors` and `dry_run_warnings` are counts; `closed_by` is empty when the system expired it. No file name, heading or value is kept. |
-| `import_row.cells` | Harbour | JSON object: field key to the cell's text exactly as uploaded; `row_number` from 1, the first row under the header | Quarantine: personal data, deleted when the batch commits, is discarded or expires; not exported (the organisation holds its file). |
-| `import_commit.record_ids`, `record_count` | Harbour | Array of `person.id` (UUIDv7); a count | Kept after an undo as opaque ids; `undone_at` and `undone_by` set once. |
-| `person.import_batch_id` | Harbour | `import_batch.id` (UUIDv7) or empty | The batch that created the person; set only as the batch commits and never changed; an undo removes only people carrying it. Exported; not synced to devices. |
-| Dry-run report codes | Harbour | Errors: `unknown_column`, `required`, `too_long`, `invalid_nhs_number`, `invalid_date`, `date_in_future`, `date_too_early`, `invalid_code`, `invalid_postcode`, `control_character`, `identifier_required`, `test_nhs_number`, `duplicate`, `already_in_harbour` (with the record's `personId`), `too_many_same_birth_date` and `too_many_possible_duplicates` (row 0, the file). Warnings: `possible_duplicate`, with `match` (`same_name`, `names_swapped`, `same_family_name`, `same_given_name`), `otherRow` or `personId`, and a `key` | Each by row number and field key with plain words; never the value or the heading. The report also lists the rows whose file stated no status, no known allergies or allergies, the warning keys, `mayCommit`, `needsAcknowledgement`, `recordMatchesCapped`, `phonesInUse` and `whatHappens` (plain words). The commit's `acknowledgedWarnings` lists exactly the keys found (at most 500), and `acceptNoUndo` is needed while `phonesInUse` (`no_undo_not_accepted`); its result lists the people whose status the file stated with their tasks (`allergyStatusToConfirm`: `personId`, `taskId`, `stated`), `undoAvailable` and `undoClosesAt`. |
-| `task` (kind `people.allergy_status_check`) | Harbour | `source_type` `import_batch`, `source_id` the batch; `required_permission` `people.person.update`; `assignee_role_key` `registered_manager`; `priority` `urgent` for `has_allergies`, else `routine`; `details.importedAllergyStatus` `no_known_allergies` or `has_allergies` | One per imported person whose file stated a status (HZ-007); the title says what the file said in words. Removed by an undo while still open. |
-| `import_batch` view: `undoAvailable`, `undoClosesAt` | Harbour | Boolean; ISO 8601 date-time or empty | `undoAvailable` is true only while committed, not undone, within `import.undo_window_days` and before a phone may hold the people; `undoClosesAt` is empty otherwise. |
-| Undo refusals | Harbour | `already_undone`, `window_passed`, `sent_to_devices`, `changed_since`, `referenced_since`, `not_committed` | `sent_to_devices`: a sync token carrying people was issued in the organisation from one token's lifetime before the commit. |
-| Import audit scope | Harbour | `platform.import.uploaded` (`recordType`, `rows`, `columns`, `columnsLeftOut`); `platform.import.dry_run` (`rows`, `validRows`, `errors`, `warnings`, `byCode`); `platform.import.committed` (`records`, `possibleDuplicatesAcknowledged`, `allergyStatusChecks`, `noUndoAccepted`, or `replayed`); `people.person.imported` (`importBatchId`, one per person); `platform.import.undone` (`records`); `platform.import.discarded` and `platform.import.expired` (`rows`) | Ids and counts only. |
+| `import_batch.record_type` | Thapsus Care | `people` | Contacts, allergies and staff follow (slice 51). |
+| `import_batch.status` | Thapsus Care | `staged`, `committed`, `undone`, `discarded`, `expired` | Forward only (a guard in migration 0088). `expires_at` is `uploaded_at` plus `import.staging_expiry_days`; `dry_run_errors` and `dry_run_warnings` are counts; `closed_by` is empty when the system expired it. No file name, heading or value is kept. |
+| `import_row.cells` | Thapsus Care | JSON object: field key to the cell's text exactly as uploaded; `row_number` from 1, the first row under the header | Quarantine: personal data, deleted when the batch commits, is discarded or expires; not exported (the organisation holds its file). |
+| `import_commit.record_ids`, `record_count` | Thapsus Care | Array of `person.id` (UUIDv7); a count | Kept after an undo as opaque ids; `undone_at` and `undone_by` set once. |
+| `person.import_batch_id` | Thapsus Care | `import_batch.id` (UUIDv7) or empty | The batch that created the person; set only as the batch commits and never changed; an undo removes only people carrying it. Exported; not synced to devices. |
+| Dry-run report codes | Thapsus Care | Errors: `unknown_column`, `required`, `too_long`, `invalid_nhs_number`, `invalid_date`, `date_in_future`, `date_too_early`, `invalid_code`, `invalid_postcode`, `control_character`, `identifier_required`, `test_nhs_number`, `duplicate`, `already_in_harbour` (with the record's `personId`), `too_many_same_birth_date` and `too_many_possible_duplicates` (row 0, the file). Warnings: `possible_duplicate`, with `match` (`same_name`, `names_swapped`, `same_family_name`, `same_given_name`), `otherRow` or `personId`, and a `key` | Each by row number and field key with plain words; never the value or the heading. The report also lists the rows whose file stated no status, no known allergies or allergies, the warning keys, `mayCommit`, `needsAcknowledgement`, `recordMatchesCapped`, `phonesInUse` and `whatHappens` (plain words). The commit's `acknowledgedWarnings` lists exactly the keys found (at most 500), and `acceptNoUndo` is needed while `phonesInUse` (`no_undo_not_accepted`); its result lists the people whose status the file stated with their tasks (`allergyStatusToConfirm`: `personId`, `taskId`, `stated`), `undoAvailable` and `undoClosesAt`. |
+| `task` (kind `people.allergy_status_check`) | Thapsus Care | `source_type` `import_batch`, `source_id` the batch; `required_permission` `people.person.update`; `assignee_role_key` `registered_manager`; `priority` `urgent` for `has_allergies`, else `routine`; `details.importedAllergyStatus` `no_known_allergies` or `has_allergies` | One per imported person whose file stated a status (HZ-007); the title says what the file said in words. Removed by an undo while still open. |
+| `import_batch` view: `undoAvailable`, `undoClosesAt` | Thapsus Care | Boolean; ISO 8601 date-time or empty | `undoAvailable` is true only while committed, not undone, within `import.undo_window_days` and before a phone may hold the people; `undoClosesAt` is empty otherwise. |
+| Undo refusals | Thapsus Care | `already_undone`, `window_passed`, `sent_to_devices`, `changed_since`, `referenced_since`, `not_committed` | `sent_to_devices`: a sync token carrying people was issued in the organisation from one token's lifetime before the commit. |
+| Import audit scope | Thapsus Care | `platform.import.uploaded` (`recordType`, `rows`, `columns`, `columnsLeftOut`); `platform.import.dry_run` (`rows`, `validRows`, `errors`, `warnings`, `byCode`); `platform.import.committed` (`records`, `possibleDuplicatesAcknowledged`, `allergyStatusChecks`, `noUndoAccepted`, or `replayed`); `people.person.imported` (`importBatchId`, one per person); `platform.import.undone` (`records`); `platform.import.discarded` and `platform.import.expired` (`rows`) | Ids and counts only. |
 Not yet in the contract (open, slice 26 later part and slice 51): the round trip with the full export
-(HZ-071), whose `person.csv` writes `YYYY-MM-DD` dates and Harbour column names and would come back
+(HZ-071), whose `person.csv` writes `YYYY-MM-DD` dates and Thapsus Care column names and would come back
 through a JSON or export-format mapping keeping `import_source_id`; contacts, allergies, staff and
 medicines.
 
@@ -784,12 +785,12 @@ medicines.
 
 Code lists for [quality.md](quality.md) section 22 (migration 0094). Statuses are never stored.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `dspt_assertion.financial_year`, `dspt_submission.financial_year` | DSPT (NHS England) | `YYYY/YY`, the financial year the toolkit closes (`2025/26` for the deadline of 30/06/2026) | From `dsptDeadline`; one submission per year. |
 | `dspt_assertion.assertion_ref` | DSPT assertion numbering | Two to four numbers separated by full stops (`1.1.1`) | Unique per organisation and year. |
-| `dspt_assertion.status` | Harbour | `not_started`, `in_progress`, `met`, `not_met`, `not_applicable` | `met` needs evidence linked; `not_met` and `not_applicable` need notes. |
-| `dspt_evidence.kind` | Harbour | `linked`, `unlinked` | Append-only; each document's latest event says whether it is evidence now; an organisation document only. |
+| `dspt_assertion.status` | Thapsus Care | `not_started`, `in_progress`, `met`, `not_met`, `not_applicable` | `met` needs evidence linked; `not_met` and `not_applicable` need notes. |
+| `dspt_evidence.kind` | Thapsus Care | `linked`, `unlinked` | Append-only; each document's latest event says whether it is evidence now; an organisation document only. |
 | `dspt_submission.outcome` | DSPT status | `standards_exceeded` (earlier toolkit years; H-917), `standards_met`, `approaching_standards`, `standards_not_met` | `standards_not_met` is submitted but flagged. |
 | `security_certificate.kind` | NCSC Cyber Essentials; ICO data protection fee | `cyber_essentials`, `cyber_essentials_plus`, `ico_registration` | `reference` is the certificate or ICO registration number (1 to 100 characters); `expires_on` only when the certificate states it, after `issued_on`. |
 
@@ -799,14 +800,14 @@ Fields for [platform.md](platform.md), Phase 2: single sign-on ([ADR-0091](../de
 migration 0095). OpenID Connect Core 1.0 and Discovery 1.0; RFC 7523 for `private_key_jwt`; RFC 7636
 for PKCE. Retention: tenant configuration, kept while current.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `sso_connection.provider_id` | Harbour | `harbour-<tenant id>` (check `sso_connection_provider_id`) | The id in Better Auth's provider row and the callback path. |
+| `sso_connection.provider_id` | Thapsus Care | `harbour-<tenant id>` (check `sso_connection_provider_id`) | The id in Better Auth's provider row and the callback path. |
 | `sso_connection.issuer`, `discovery_url` | OIDC Discovery `issuer`, `/.well-known/openid-configuration` | https URLs | The discovered issuer must equal the configured one. |
 | `sso_connection.client_id` | OAuth 2.0 `client_id` | Text, 1 to 200 characters | |
 | `sso_connection.private_key_ref`, `private_key_id` | RFC 7523 client assertion key; JWK `kid` | Store name `harbour/sso/<tenant id>/<name>` (`isSsoKeyRefFor`, and a database check); optional key id | Never a key. Internal: not exported. |
-| `sso_connection.allowed_role_keys` | Harbour role keys | At least one, each an existing role | Rule 16. |
-| `sso_connection.enabled` | Harbour | Boolean | On needs a verified domain and a successful discovery. |
+| `sso_connection.allowed_role_keys` | Thapsus Care role keys | At least one, each an existing role | Rule 16. |
+| `sso_connection.enabled` | Thapsus Care | Boolean | On needs a verified domain and a successful discovery. |
 | `sso_domain.domain` | DNS name | Lower case, two or more labels, not a public mail domain (`checkSsoDomain`) | One organisation may verify a domain at a time. |
 | `sso_domain.token_sha256` | SHA-256 | 64 lower-case hex characters of the TXT token | Secret: never exported or returned. Record `_harbour-verification.<domain>` = `harbour-verification=<token>`. |
 | `sso_domain.verified_at`, `verified_by`, `removed_at` | ISO 8601 UTC; `tenant_user` id | Set together when proved | |
@@ -819,19 +820,19 @@ None maps to a national standard. Every column of `disclosure_request` and `disc
 exported except `disclosure_request.pack_storage_key` (internal). Retention class
 `serious_incident` (H-820).
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `disclosure_request.type` | Harbour (`DISCLOSURE_TYPES`) | `coroner`, `safeguarding_adults_review`, `domestic_homicide_review`, `police`, `solicitor`, `access_to_health_records` | An Access to Health Records Act request needs the person's status `deceased`. |
+| `disclosure_request.type` | Thapsus Care (`DISCLOSURE_TYPES`) | `coroner`, `safeguarding_adults_review`, `domestic_homicide_review`, `police`, `solicitor`, `access_to_health_records` | An Access to Health Records Act request needs the person's status `deceased`. |
 | `disclosure_request.legal_basis` | Statute as named by `legalBasis` | Free text, 10 to 500 characters | Stored as stated when the request was logged, so a later change to the wording does not rewrite history. |
-| `disclosure_request.requester_name`, `requester_organisation`, `requester_reference`, `stated_purpose` | Harbour | Free text (1 to 200; 1 to 200; 1 to 100; 3 to 2,000 characters) | A stated purpose is required for police and solicitor requests before they move on (check `disclosure_request_purpose`). Never in the audit trail or logs. |
+| `disclosure_request.requester_name`, `requester_organisation`, `requester_reference`, `stated_purpose` | Thapsus Care | Free text (1 to 200; 1 to 200; 1 to 100; 3 to 2,000 characters) | A stated purpose is required for police and solicitor requests before they move on (check `disclosure_request_purpose`). Never in the audit trail or logs. |
 | `disclosure_request.pack_downloaded_at`, `pack_downloaded_by` | ISO 8601 instant (UTC); tenant user id | Set once, when the pack is downloaded as a PDF (H-958) | Never changed or cleared afterwards. |
-| `disclosure_request.handed_over_route` | Harbour | `secure_portal`, `secure_email`, `encrypted_media`, `in_person`, `recorded_delivery` (`DISCLOSURE_HAND_OVER_ROUTES`) | Never ordinary email. With `handed_over_at` (not before the release) and `handed_over_by`, recorded once. |
-| `disclosure_request.handed_over_reference` | Harbour | Free text, 1 to 200 characters, optional | The recipient's own reference; no names. |
+| `disclosure_request.handed_over_route` | Thapsus Care | `secure_portal`, `secure_email`, `encrypted_media`, `in_person`, `recorded_delivery` (`DISCLOSURE_HAND_OVER_ROUTES`) | Never ordinary email. With `handed_over_at` (not before the release) and `handed_over_by`, recorded once. |
+| `disclosure_request.handed_over_reference` | Thapsus Care | Free text, 1 to 200 characters, optional | The recipient's own reference; no names. |
 | `disclosure_request.received_at`, `due_at` | ISO 8601 date-time, UTC | `due_at` only for an Access to Health Records Act request (`ahraDueAt`, rates `ahra.*`) | Shown dd/mm/yyyy, 24-hour. |
-| `disclosure_request.state`, `reason` | Harbour (`DISCLOSURE_WORKFLOW`) | `requested`, `prepared`, `approved`, `released`, `refused`, `withdrawn`; a reason for refused and withdrawn | Released, refused and withdrawn requests never change except the Regulation 28 dates (trigger `disclosure_request_guard`). |
-| `disclosure_request.prepared_by`, `decided_by`, `released_by` and their times | Harbour | `tenant_user` ids; UTC | The decider is never `created_by` (check `disclosure_request_approver`). |
+| `disclosure_request.state`, `reason` | Thapsus Care (`DISCLOSURE_WORKFLOW`) | `requested`, `prepared`, `approved`, `released`, `refused`, `withdrawn`; a reason for refused and withdrawn | Released, refused and withdrawn requests never change except the Regulation 28 dates (trigger `disclosure_request_guard`). |
+| `disclosure_request.prepared_by`, `decided_by`, `released_by` and their times | Thapsus Care | `tenant_user` ids; UTC | The decider is never `created_by` (check `disclosure_request_approver`). |
 | `disclosure_request.pack_sha256`, `pack_storage_key` | SHA-256; storage key | 64 lower-case hex characters of the canonical JSON of the records, redacted count and withheld count; `tenants/<tenant>/documents/<document>`, the pack's `document` row (category `disclosure_pack`, ids only); packs issued before 01/11/2026 carry the legacy `tenants/<tenant>/disclosures/<request>/<pack>.json` | Set together on release (check `disclosure_request_pack`). The key is internal. |
-| `disclosure_request.not_searched`, `collected_at` | Harbour (`EXPORT_TABLES`) | Table names; UTC | As `dsar_case`. |
+| `disclosure_request.not_searched`, `collected_at` | Thapsus Care (`EXPORT_TABLES`) | Table names; UTC | As `dsar_case`. |
 | `disclosure_request.prevention_report_on`, `prevention_responded_on` | Coroners (Investigations) Regulations 2013, regulation 28 and 29 | `YYYY-MM-DD`; coroner requests only; the response on or after the report | The response is due `coroner.prevention_report_response_days` (rate table) after the report; never stored. |
 | `disclosure_item.*` | As `dsar_item` | `pending`, `disclose`, `redact`, `withhold`; redacted fields from the table's exported columns; `content_sha256` of the record as reviewed | Redacted fields read `[redacted]` in the pack; withheld records are counted. Records are in date order (the chronology). |
 
@@ -844,50 +845,50 @@ a test keeps in step with the schema. Every column of these tables is classified
 row also has `id`, `tenant_id` and the created, updated, version and deleted columns. None maps to
 a national standard beyond those named.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `admission_condition` (`person_id`, `decision_id`, `position`, `condition`, `met_by`, `met_at`) | Harbour | `condition` free text, never blank; `position` from 0, unique per decision; `met_by` a `tenant_user` id and `met_at` UTC, both set or both empty | Personal data about the person (a condition may mention health: special category). Retention `care_record`. Schema `people-lifecycle.ts`. |
-| `welcome_checklist_item` (`person_id`, `placement_id`, `item_key`, `title`, `required`, `safety_critical`, `allow_not_applicable`, `position`, `status`, `reason`, `done_by`, `done_at`) | Harbour | `status` `pending`, `done`, `not_applicable` (a CHECK; `not_applicable` only where `allow_not_applicable`, with a `reason`); `item_key` stable from `welcome_checklist_template`, unique per placement; `done_by` and `done_at` set unless `pending` | Personal data about the person and the member of staff who did the item; the reason may mention health (special category). Retention `care_record`. Schema `people-lifecycle.ts`. |
-| `key_issue` (`person_id`, `label`, `issued_on`, `issued_to`, `returned_on`, `reported_lost_on`) | Harbour | `issued_to` `person` or `representative`; dates `YYYY-MM-DD` (UK calendar), `returned_on` and `reported_lost_on` never before issue and never both | Personal data, not special category. A key neither returned nor reported lost blocks the exit. Retention `care_record`. Schema `people-lifecycle.ts`. |
-| `document_signature` (`document_id`, `person_id`, `signer_tenant_user_id`, `signer_name`, `signer_capacity`, `statement`, `document_sha256`, `signed_at`) | Harbour typed-name signature | `signer_capacity` `staff`, `person`, `representative`; `signer_name` as typed, whitespace normalised; `document_sha256` lower-case hex SHA-256 of the bytes signed; `signed_at` UTC | Personal data about the signer; the signed document may be special category. Append-only. Retention: the class of the signed document (`as_subject`). Schema `records.ts`. |
-| `legal_hold` (`person_id`, `subject_type`, `subject_id`, `reason`, `placed_at`, `released_at`, `released_by`, `release_reason`) | Harbour | A person, or a subject type and id (a CHECK); `reason` and `release_reason` free text; instants UTC; `released_by` a `tenant_user` id | Personal data; the reason may mention legal proceedings. A hold on a person covers every record about them and stops destruction ([retention.md](retention.md)). Retention `permanent`: never destroyed by the engine. Schema `records.ts`. |
-| `workflow_instance` (`definition_key`, `definition_version`, `subject_type`, `subject_id`, `person_id`, `state`, `entered_state_at`, `sla_due_at`) | Harbour (workflow definitions in `packages/domain/src/platform/workflow.ts`) | `definition_key` the workflow (for example `safety.incident`); `state` one of that definition's states; instants UTC; one instance per subject and definition | Personal data where `person_id` is set: the instance then follows the person's scope. Moves are in `workflow_transition`. Retention: the class of the record it concerns (`as_subject`). Schema `work.ts`. |
-| `letter_template_version` (`template_id`, `version_number`, `state`, `name`, `subject`, `body`, `author_id`, `contributor_ids`, `approved_by`, `approved_at`, `retired_by`, `retired_at`, `retirement_reason`, `discard_reason`) | Harbour (`TEMPLATE_WORKFLOW`); merge fields as `MERGE_FIELDS` above | `state` `draft`, `approved`, `superseded`, `retired`, `discarded`; `name` 1 to 200 characters, `body` 1 to 20,000, `subject` 1 to 80 (email only) | Personal data about staff only (author, contributors, approver); a template holds merge fields, never a person's details. Retention `organisation_document`. Schema `comms.ts`. |
-| `notification_preference` (`tenant_user_id`, `quiet_hours_start`, `quiet_hours_end`, `channels`) | Harbour | Quiet hours as UK wall-clock `HH:MM` (Europe/London, not UTC); `channels` JSON of channel choices per notification kind; one row per member | Personal data about the member of staff; urgent safety notifications ignore quiet hours. Retention: tenant configuration, kept while current. Schema `platform.ts`. |
+| `admission_condition` (`person_id`, `decision_id`, `position`, `condition`, `met_by`, `met_at`) | Thapsus Care | `condition` free text, never blank; `position` from 0, unique per decision; `met_by` a `tenant_user` id and `met_at` UTC, both set or both empty | Personal data about the person (a condition may mention health: special category). Retention `care_record`. Schema `people-lifecycle.ts`. |
+| `welcome_checklist_item` (`person_id`, `placement_id`, `item_key`, `title`, `required`, `safety_critical`, `allow_not_applicable`, `position`, `status`, `reason`, `done_by`, `done_at`) | Thapsus Care | `status` `pending`, `done`, `not_applicable` (a CHECK; `not_applicable` only where `allow_not_applicable`, with a `reason`); `item_key` stable from `welcome_checklist_template`, unique per placement; `done_by` and `done_at` set unless `pending` | Personal data about the person and the member of staff who did the item; the reason may mention health (special category). Retention `care_record`. Schema `people-lifecycle.ts`. |
+| `key_issue` (`person_id`, `label`, `issued_on`, `issued_to`, `returned_on`, `reported_lost_on`) | Thapsus Care | `issued_to` `person` or `representative`; dates `YYYY-MM-DD` (UK calendar), `returned_on` and `reported_lost_on` never before issue and never both | Personal data, not special category. A key neither returned nor reported lost blocks the exit. Retention `care_record`. Schema `people-lifecycle.ts`. |
+| `document_signature` (`document_id`, `person_id`, `signer_tenant_user_id`, `signer_name`, `signer_capacity`, `statement`, `document_sha256`, `signed_at`) | Thapsus Care typed-name signature | `signer_capacity` `staff`, `person`, `representative`; `signer_name` as typed, whitespace normalised; `document_sha256` lower-case hex SHA-256 of the bytes signed; `signed_at` UTC | Personal data about the signer; the signed document may be special category. Append-only. Retention: the class of the signed document (`as_subject`). Schema `records.ts`. |
+| `legal_hold` (`person_id`, `subject_type`, `subject_id`, `reason`, `placed_at`, `released_at`, `released_by`, `release_reason`) | Thapsus Care | A person, or a subject type and id (a CHECK); `reason` and `release_reason` free text; instants UTC; `released_by` a `tenant_user` id | Personal data; the reason may mention legal proceedings. A hold on a person covers every record about them and stops destruction ([retention.md](retention.md)). Retention `permanent`: never destroyed by the engine. Schema `records.ts`. |
+| `workflow_instance` (`definition_key`, `definition_version`, `subject_type`, `subject_id`, `person_id`, `state`, `entered_state_at`, `sla_due_at`) | Thapsus Care (workflow definitions in `packages/domain/src/platform/workflow.ts`) | `definition_key` the workflow (for example `safety.incident`); `state` one of that definition's states; instants UTC; one instance per subject and definition | Personal data where `person_id` is set: the instance then follows the person's scope. Moves are in `workflow_transition`. Retention: the class of the record it concerns (`as_subject`). Schema `work.ts`. |
+| `letter_template_version` (`template_id`, `version_number`, `state`, `name`, `subject`, `body`, `author_id`, `contributor_ids`, `approved_by`, `approved_at`, `retired_by`, `retired_at`, `retirement_reason`, `discard_reason`) | Thapsus Care (`TEMPLATE_WORKFLOW`); merge fields as `MERGE_FIELDS` above | `state` `draft`, `approved`, `superseded`, `retired`, `discarded`; `name` 1 to 200 characters, `body` 1 to 20,000, `subject` 1 to 80 (email only) | Personal data about staff only (author, contributors, approver); a template holds merge fields, never a person's details. Retention `organisation_document`. Schema `comms.ts`. |
+| `notification_preference` (`tenant_user_id`, `quiet_hours_start`, `quiet_hours_end`, `channels`) | Thapsus Care | Quiet hours as UK wall-clock `HH:MM` (Europe/London, not UTC); `channels` JSON of channel choices per notification kind; one row per member | Personal data about the member of staff; urgent safety notifications ignore quiet hours. Retention: tenant configuration, kept while current. Schema `platform.ts`. |
 
 ## Workforce: staff profile and pre-employment file (Phase 2, slice 11)
 
 Code lists for [workforce.md](workforce.md) section 2a (migration 0073). No national standard
-covers these fields; they are Harbour's, exported in the full tenant export with these names. The
+covers these fields; they are Thapsus Care's, exported in the full tenant export with these names. The
 Schedule 3 items follow the Health and Social Care Act 2008 (Regulated Activities) Regulations 2014
 Schedule 3; registration bodies are the UK statutory registers.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `staff_profile.tenant_user_id` | Harbour | `tenant_user.id` | One profile per member of staff |
-| `staff_profile.job_title`, `pathway_category` | Harbour; Care Workforce Pathway role categories (DHSC) as the organisation names them | Plain text, 2 to 120 and 2 to 80 characters | |
+| `staff_profile.tenant_user_id` | Thapsus Care | `tenant_user.id` | One profile per member of staff |
+| `staff_profile.job_title`, `pathway_category` | Thapsus Care; Care Workforce Pathway role categories (DHSC) as the organisation names them | Plain text, 2 to 120 and 2 to 80 characters | |
 | `staff_profile.registration_body` | UK statutory registers | `nmc`, `hcpc`, `swe`, `gmc` or empty | Adds `professional_registration` |
 | `staff_profile.previous_care_work` | Schedule 3 paragraph 4 | Boolean | Adds `conduct_in_care_work` |
-| `staff_profile.date_of_birth`, `starts_on`, `left_on` | Harbour | `YYYY-MM-DD` (UK dates) | Date of birth optional: the 75th-birthday retention row and the under-18 rules only |
+| `staff_profile.date_of_birth`, `starts_on`, `left_on` | Thapsus Care | `YYYY-MM-DD` (UK dates) | Date of birth optional: the 75th-birthday retention row and the under-18 rules only |
 | `compliance_item.kind` | Schedule 3 | `identity_with_photo`, `dbs_certificate`, `conduct_in_care_work`, `references`, `relevant_qualifications`, `employment_history`, `health_fitness`, `right_to_work`, `professional_registration` | One row per kind per profile |
-| `compliance_item.detail` (`identity_with_photo`) | Harbour | `document`: `passport`, `photocard_driving_licence`, `national_identity_card`, `biometric_residence_permit`, `other_photo_document` | |
+| `compliance_item.detail` (`identity_with_photo`) | Thapsus Care | `document`: `passport`, `photocard_driving_licence`, `national_identity_card`, `biometric_residence_permit`, `other_photo_document` | |
 | `compliance_item.detail` (`dbs_certificate`) | DBS certificate levels | `certificate`: `level` (`enhanced_adults_barred`, `enhanced`, `standard`, `basic`), `issuedOn`, `number` (12 digits), `result` (`clear`, `information_disclosed`); `updateService`: `subscribed`, `lastCheckedOn`, `lastResult` (`no_new_information`, `new_information`); `barredListClearOn` | Never what a certificate disclosed, never a copy (retention.md) |
 | `compliance_item.detail` (`right_to_work`) | Home Office employer's guide | `checks[]`: `checkedOn`, `method` (`manual_document`, `online_share_code`, `idsp`), `permission` (`unlimited`, `time_limited`), `expiresOn` | Never the share code |
 | `compliance_item.detail` (`employment_history`) | Schedule 3 paragraph 7 | `historyStart`, `applicationMonth` (`YYYY-MM`); `periods[]`: `from`, `to` (`YYYY-MM` or null), `kind` (`employment`, `education`, `explained_gap`), `explanation` (plain text, 2 to 500 characters) | An explanation may mention health (special category) |
 | `compliance_item.detail` (`health_fitness`) | Schedule 3 paragraph 8 | `declaredFit`, `adjustmentsAgreed` (booleans) | No health details; a questionnaire is an HR-only document |
 | `compliance_item.detail` (`references`, `conduct_in_care_work`, `relevant_qualifications`) | Schedule 3 paragraphs 4 to 6 | `received` or `employersContacted` (counts); `qualifications[]` (names) | |
 | `compliance_item.detail` (`professional_registration`) | NMC, HCPC, SWE, GMC | `body`, `pin` (capitals and digits, 4 to 12), `renewalDueOn`, `revalidationDueOn` | |
-| `compliance_item.verified_on`, `verified_by` | Harbour | `YYYY-MM-DD`; `tenant_user.id` | Set together; never the worker |
-| `compliance_item.risk_assessment_signed_on`, `_by` | Harbour | `YYYY-MM-DD`; `tenant_user.id` | DBS only; never the worker |
-| `compliance_item.expires_on`, `recheck_due_on` | Harbour | `YYYY-MM-DD` | Worked out from the detail when saved |
-| `compliance_item.evidence_source`, `vetting_check_id` | Harbour (slice 77) | `manual` (default), `idsp_right_to_work`, `dbs_application`, `dbs_status_check`, `nmc_register_check`; `vetting_check.id` | Set together; recorded by hand sets `manual` |
+| `compliance_item.verified_on`, `verified_by` | Thapsus Care | `YYYY-MM-DD`; `tenant_user.id` | Set together; never the worker |
+| `compliance_item.risk_assessment_signed_on`, `_by` | Thapsus Care | `YYYY-MM-DD`; `tenant_user.id` | DBS only; never the worker |
+| `compliance_item.expires_on`, `recheck_due_on` | Thapsus Care | `YYYY-MM-DD` | Worked out from the detail when saved |
+| `compliance_item.evidence_source`, `vetting_check_id` | Thapsus Care (slice 77) | `manual` (default), `idsp_right_to_work`, `dbs_application`, `dbs_status_check`, `nmc_register_check`; `vetting_check.id` | Set together; recorded by hand sets `manual` |
 | `vetting_consent.purpose`, `given_on`, `withdrawn_on` | DBS (slice 77) | `dbs_application`, `dbs_update_service`; `YYYY-MM-DD` | Recorded and withdrawn by HR in their own name, never the worker; one in force per purpose |
-| `vetting_check.kind`, `state` | Harbour (slice 77) | `idsp_right_to_work`, `dbs_application`, `dbs_status_check`, `nmc_register_check`; `pending`, `completed`, `failed` | Moves forward only; applied once |
-| `vetting_check.checked` | Harbour (slice 77) | `{ document }` (`british_passport`, `irish_passport`, `irish_passport_card`), `{ certificateNumber }` (12 digits), `{ pin }`, or `{}` | What was checked, so a result for a replaced certificate or PIN is not applied |
+| `vetting_check.kind`, `state` | Thapsus Care (slice 77) | `idsp_right_to_work`, `dbs_application`, `dbs_status_check`, `nmc_register_check`; `pending`, `completed`, `failed` | Moves forward only; applied once |
+| `vetting_check.checked` | Thapsus Care (slice 77) | `{ document }` (`british_passport`, `irish_passport`, `irish_passport_card`), `{ certificateNumber }` (12 digits), `{ pin }`, or `{}` | What was checked, so a result for a replaced certificate or PIN is not applied |
 | `vetting_check.result` | The port's strict schema (`packages/contracts/src/vetting.ts`) | IDSP: `outcome` (`identity_verified`, `not_verified`), `checkedOn`, `document`. DBS application: `outcome` (`certificate_issued`, `withdrawn`), `checkedOn`, `issuedOn`, `certificateNumber`, `level`, `result` (`clear`, `information_disclosed`). Update Service: `outcome` (`no_new_information`, `new_information`, `details_not_matched`), `checkedOn`. NMC: `outcome` (`registered`, `registered_with_conditions`, `not_registered`), `checkedOn`, `renewalDueOn` | Criminal offence data (DBS). An answer with any other field is refused; never what a certificate disclosed |
-| `vetting_check.error` | Harbour | A short code (`provider_unavailable`, `invalid_answer`, `provider_error`, `unknown_reference`) | Never the provider's text |
-| `document.category` `staff_hr_document` | Harbour | JPEG, PNG, WebP or PDF up to 15 MB; subject `compliance_item` | HR-only; retention `staff_file`, or `right_to_work_copy` for right to work copies |
-| `task.details` of a `workforce.compliance_expiry` task | Harbour | `staffProfileId`, `complianceItemKind`, `reminderDueOn` (`YYYY-MM-DD`), `reminderDays` | Opaque; the title is generic |
+| `vetting_check.error` | Thapsus Care | A short code (`provider_unavailable`, `invalid_answer`, `provider_error`, `unknown_reference`) | Never the provider's text |
+| `document.category` `staff_hr_document` | Thapsus Care | JPEG, PNG, WebP or PDF up to 15 MB; subject `compliance_item` | HR-only; retention `staff_file`, or `right_to_work_copy` for right to work copies |
+| `task.details` of a `workforce.compliance_expiry` task | Thapsus Care | `staffProfileId`, `complianceItemKind`, `reminderDueOn` (`YYYY-MM-DD`), `reminderDays` | Opaque; the title is generic |
 ## Dependency tool (Phase 2, slice 12)
 
 Code lists for [scheduling.md](scheduling.md) section 13. No national standard defines a
@@ -895,55 +896,55 @@ dependency scale or its categories: the scale is the organisation's own, so its 
 organisation's codes, not a national code, and an export carries the scale version beside every
 category so a receiving system can read it.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `dependency_scale_version.definition.periods` | Harbour | `[{ key, label, startMinute }]`; `startMinute` is minutes after midnight, UK local time (`minute_of_day`, 0 to 1439), strictly increasing | Each period ends where the next starts; the last ends at the first's start the next day. Lengths are elapsed time across clock changes. |
-| `dependency_scale_version.definition.categories` | Harbour (the organisation's own scale) | `[{ key, label, description, careMinutes: [{ periodKey, minutes }] }]`; keys lower case letters, digits and underscores, starting with a letter, at most 40 characters; whole minutes, 0 or more, one entry per period | Care minutes per person per period. Never a national dependency code. |
-| `dependency_scale_version.definition.skillMix` | Harbour | `[{ skill, periodKey, minimumStaff }]`; skills `registered_nurse`, `medicines_competent`, `moving_and_handling`, `driver` (`STAFFING_SKILLS`) | Whole staff, 1 or more, once per skill and period. |
-| `dependency_scale_version.definition.reviewIntervalDays` | Harbour | Whole days, 1 or more, or null | A category older than this is flagged for review, still counted. |
-| `dependency_scale_version.state` | Harbour | `draft`, `approved`, `superseded`, `discarded` (`DEPENDENCY_SCALE_STATES`) | |
-| `dependency_assessment.category_key` | Harbour | A category key of the version in `scale_version_id` | Health data (B1). |
-| `dependency_assessment.one_to_one` | Harbour | `[{ periodKey, minutes }]`; whole minutes, more than 0, once per period | One-to-one minutes beyond the category's. Two-to-one support is not modelled yet (H-714). |
-| `dependency_assessment.kind` | Harbour | `initial`, `review`, `correction` (`DEPENDENCY_ASSESSMENT_KINDS`) | A correction applies from the corrected record's date; a review from its own date, on or after it. |
+| `dependency_scale_version.definition.periods` | Thapsus Care | `[{ key, label, startMinute }]`; `startMinute` is minutes after midnight, UK local time (`minute_of_day`, 0 to 1439), strictly increasing | Each period ends where the next starts; the last ends at the first's start the next day. Lengths are elapsed time across clock changes. |
+| `dependency_scale_version.definition.categories` | Thapsus Care (the organisation's own scale) | `[{ key, label, description, careMinutes: [{ periodKey, minutes }] }]`; keys lower case letters, digits and underscores, starting with a letter, at most 40 characters; whole minutes, 0 or more, one entry per period | Care minutes per person per period. Never a national dependency code. |
+| `dependency_scale_version.definition.skillMix` | Thapsus Care | `[{ skill, periodKey, minimumStaff }]`; skills `registered_nurse`, `medicines_competent`, `moving_and_handling`, `driver` (`STAFFING_SKILLS`) | Whole staff, 1 or more, once per skill and period. |
+| `dependency_scale_version.definition.reviewIntervalDays` | Thapsus Care | Whole days, 1 or more, or null | A category older than this is flagged for review, still counted. |
+| `dependency_scale_version.state` | Thapsus Care | `draft`, `approved`, `superseded`, `discarded` (`DEPENDENCY_SCALE_STATES`) | |
+| `dependency_assessment.category_key` | Thapsus Care | A category key of the version in `scale_version_id` | Health data (B1). |
+| `dependency_assessment.one_to_one` | Thapsus Care | `[{ periodKey, minutes }]`; whole minutes, more than 0, once per period | One-to-one minutes beyond the category's. Two-to-one support is not modelled yet (H-714). |
+| `dependency_assessment.kind` | Thapsus Care | `initial`, `review`, `correction` (`DEPENDENCY_ASSESSMENT_KINDS`) | A correction applies from the corrected record's date; a review from its own date, on or after it. |
 | `dependency_assessment.effective_from` | ISO 8601 date | `YYYY-MM-DD`, UK date, today or earlier | In force from 00:00 UK time on that date. |
-| `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
-| `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
+| `dependency_assessment.reason`, `decided_by` | Thapsus Care | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
+| `placement.dependency_category` | Thapsus Care (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
 
 ## Lone-worker safety (Phase 2, slice 46)
 Code lists for [scheduling.md](scheduling.md) section 19. No national standard defines lone-worker
 check-ins (BS 8484 covers lone-worker devices and alarm receiving centres, a later choice; H-539),
-so the codes are Harbour's. Times are instants in UTC, shown in UK local time (24-hour).
-| `lone_worker_session.work_kind` | Harbour | `domiciliary_visit`, `night_shift`, `other` | No place name or address is held: where the worker is comes only from optional location evidence. |
-| `lone_worker_session.interval_minutes` | Harbour | Whole minutes between `lone_worker.check_in_min_minutes` and `lone_worker.check_in_max_minutes` (rates.md) | The planned length is at most `lone_worker.session_max_hours`. |
-| `lone_worker_event.kind` | Harbour | `check_in`, `duress`, `help`, `finish` (`LONE_WORKER_EVENT_KINDS`) | A duress event is shown to the worker, and audited, as `check_in`. |
+so the codes are Thapsus Care's. Times are instants in UTC, shown in UK local time (24-hour).
+| `lone_worker_session.work_kind` | Thapsus Care | `domiciliary_visit`, `night_shift`, `other` | No place name or address is held: where the worker is comes only from optional location evidence. |
+| `lone_worker_session.interval_minutes` | Thapsus Care | Whole minutes between `lone_worker.check_in_min_minutes` and `lone_worker.check_in_max_minutes` (rates.md) | The planned length is at most `lone_worker.session_max_hours`. |
+| `lone_worker_event.kind` | Thapsus Care | `check_in`, `duress`, `help`, `finish` (`LONE_WORKER_EVENT_KINDS`) | A duress event is shown to the worker, and audited, as `check_in`. |
 | `lone_worker_event.device_at`, `received_at`, `effective_at`, `late` | ISO 8601 instant (UTC) | `effective_at` is `device_at`, never later than `received_at`; `late` is true when received `lone_worker.offline_flag_minutes` or more after it was made | A device clock ahead by more than `sync.clock_drift_flag_minutes` is refused, except for help and duress. |
-| `lone_worker_alarm.reason` | Harbour | `overdue`, `not_finished`, `duress`, `help` (`LONE_WORKER_ALARM_REASONS`) | |
-| `lone_worker_alarm.state` | Harbour | `open`, `acknowledged`, `resolved_by_check_in`, `resolved_late_check_in` (`LONE_WORKER_ALARM_STATES`) | Shown with words (`ALARM_STATE_WORDS`), never by colour alone. |
-| `lone_worker_alarm.outcome` | Harbour | `safe_confirmed`, `help_sent`, `emergency_services_called`, `other` (`LONE_WORKER_OUTCOMES`) | Any outcome but `safe_confirmed` suggests an incident report. |
-| `lone_worker_alarm.note` | Harbour | Plain text, 1 to 2,000 characters | Required to acknowledge. |
+| `lone_worker_alarm.reason` | Thapsus Care | `overdue`, `not_finished`, `duress`, `help` (`LONE_WORKER_ALARM_REASONS`) | |
+| `lone_worker_alarm.state` | Thapsus Care | `open`, `acknowledged`, `resolved_by_check_in`, `resolved_late_check_in` (`LONE_WORKER_ALARM_STATES`) | Shown with words (`ALARM_STATE_WORDS`), never by colour alone. |
+| `lone_worker_alarm.outcome` | Thapsus Care | `safe_confirmed`, `help_sent`, `emergency_services_called`, `other` (`LONE_WORKER_OUTCOMES`) | Any outcome but `safe_confirmed` suggests an incident report. |
+| `lone_worker_alarm.note` | Thapsus Care | Plain text, 1 to 2,000 characters | Required to acknowledge. |
 | `lone_worker_location.latitude`, `longitude` | WGS 84 decimal degrees | Five decimal places (about one metre); empty once erased | Evidence only (H-527); erased at `delete_after`. |
-| `lone_worker_location.accuracy_metres` | Harbour | Whole metres, 0 to 100,000, or empty | As the device reported it. |
-| `LoneWorkerBoardItem.workerName` (API, slice 61) | Harbour | The member's display name, or null when none is held | Read from `tenant_user`, never stored on the session; shown to monitors as "Name not held" when null, never as an id. |
-| `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Retired (recommended answer to H-716, 31/10/2026): no longer collected or written; an existing value is shown read-only as `admissionFormCategory` to whoever records the person's first structured category, never prefilled into it, and the column is dropped by a later contract migration (expand and contract). Never read by the required care hours. |
+| `lone_worker_location.accuracy_metres` | Thapsus Care | Whole metres, 0 to 100,000, or empty | As the device reported it. |
+| `LoneWorkerBoardItem.workerName` (API, slice 61) | Thapsus Care | The member's display name, or null when none is held | Read from `tenant_user`, never stored on the session; shown to monitors as "Name not held" when null, never as an id. |
+| `placement.dependency_category` | Thapsus Care (Phase 1, free text from the admission form) | Text, at most 20 characters | Retired (recommended answer to H-716, 31/10/2026): no longer collected or written; an existing value is shown read-only as `admissionFormCategory` to whoever records the person's first structured category, never prefilled into it, and the column is dropped by a later contract migration (expand and contract). Never read by the required care hours. |
 
 ## Quality: policy library and read-and-sign (Phase 2, slice 25)
 
 Code lists for [quality.md](quality.md) section 19 (migration 0087). No national standard covers
 these fields; exported with these names.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `policy.policy_key` | Harbour | `^[a-z][a-z0-9_]{1,63}$`, unique in the organisation | |
-| `policy.title` | Harbour | Plain text, 2 to 160 characters | |
-| `policy.require_second_reviewer` | Harbour | Boolean | Someone other than the author publishes |
-| `policy_version.state` | Harbour | `draft`, `published`, `superseded`, `retired` | At most one `published` per policy |
-| `policy_version.change` | Harbour | `minor`, `major` | A minor change keeps earlier signatures |
-| `policy_version.change_summary` | Harbour | Plain text, 2 to 2,000 characters | The change log |
-| `policy_version.body`, `document_id` | Harbour | Plain text or Markdown up to 100,000 characters; an organisation document (PDF) | At least one |
-| `policy_version.roles` | Harbour | Role keys (`^[a-z][a-z0-9_]{1,63}$`), up to 40 | Matched against a role's key or the built-in key it is based on |
-| `policy_version.review_due_on`, `published_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
-| `policy_signature.signed_at` | Harbour | ISO 8601 UTC | One per member and version |
-| Outbox `quality.policy.published` | Harbour | `policyId`, `versionNumber`, `change` | |
+| `policy.policy_key` | Thapsus Care | `^[a-z][a-z0-9_]{1,63}$`, unique in the organisation | |
+| `policy.title` | Thapsus Care | Plain text, 2 to 160 characters | |
+| `policy.require_second_reviewer` | Thapsus Care | Boolean | Someone other than the author publishes |
+| `policy_version.state` | Thapsus Care | `draft`, `published`, `superseded`, `retired` | At most one `published` per policy |
+| `policy_version.change` | Thapsus Care | `minor`, `major` | A minor change keeps earlier signatures |
+| `policy_version.change_summary` | Thapsus Care | Plain text, 2 to 2,000 characters | The change log |
+| `policy_version.body`, `document_id` | Thapsus Care | Plain text or Markdown up to 100,000 characters; an organisation document (PDF) | At least one |
+| `policy_version.roles` | Thapsus Care | Role keys (`^[a-z][a-z0-9_]{1,63}$`), up to 40 | Matched against a role's key or the built-in key it is based on |
+| `policy_version.review_due_on`, `published_on` | Thapsus Care | `YYYY-MM-DD` (UK dates) | |
+| `policy_signature.signed_at` | Thapsus Care | ISO 8601 UTC | One per member and version |
+| Outbox `quality.policy.published` | Thapsus Care | `policyId`, `versionNumber`, `change` | |
 
 ## Medicines record and reconciliation (Phase 2, slice 16)
 
@@ -951,42 +952,42 @@ Migration 0111 ([medicines.md](medicines.md) sections 2 and 12). Retention class
 every column is exported. dm+d (NHSBSA, SNOMED CT UK Drug Extension) is the coding standard;
 until slice 10 the identifiers are checked by shape and check digit, not against the release.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `medication.vmp_id`, `amp_id`, `medication_reconciliation_item.vmp_id`, `amp_id` | dm+d VPID and APID (SNOMED CT concept ids) | 6 to 18 digits, partition `00` or `10`, Verhoeff check digit (`isDmdId`) | No foreign key until slice 10's tables (an expand step adds it). |
 | `medication.product_name` | dm+d VMP or AMP description | As dm+d words it at transcription | Kept as transcribed; a later dm+d release does not rewrite it. |
 | `medication.route_code`, `route_name` | dm+d route of administration lookup | Code and description | Permitted routes per product from dm+d (slice 10). |
 | `medication_schedule.unit_code`, `unit_name`, `medication.prn_dose.unit` | dm+d unit of measure | Code and description | Written in full on screen ("micrograms", "units") by `formatDose`. |
-| `medication_schedule.quantity`, `from_quantity`, `to_quantity` | Harbour (structured dose) | Numeric, more than zero, at most 3 decimal places | A range is from less than to; variable has no quantity. |
+| `medication_schedule.quantity`, `from_quantity`, `to_quantity` | Thapsus Care (structured dose) | Numeric, more than zero, at most 3 decimal places | A range is from less than to; variable has no quantity. |
 | `medication_schedule.time` | ISO 8601 local time | `HH:MM`, 24-hour, UK time | Expanded to instants with the time-zone database (rule 4). |
-| `medication.pattern_kind` and its columns | Harbour (section 18 schedule type) | `every_day`; `every_n_days` (`interval_days`, `anchor_on`); `weekly` (`weekdays`, `interval_weeks`, `anchor_on`); `monthly` (`day_of_month`) | The anchor is its own date (rule 6a). |
-| `medication.state`, `origin`, `directions` | Harbour | As medicines.md rule 6 | |
-| `medication.source_kind`, `stop_source_kind`, `medication_reconciliation_source.kind` | Harbour (`MAR_SOURCE_KINDS`) | `prescription`, `pharmacy_label`, `pharmacy_mar`, `discharge_letter`, `transfer_letter`, `gp_record`, `clinic_letter`, `prescriber_instruction`, `previous_mar`; a source may also be `person_or_family` | No verbal instruction (H-552). |
+| `medication.pattern_kind` and its columns | Thapsus Care (section 18 schedule type) | `every_day`; `every_n_days` (`interval_days`, `anchor_on`); `weekly` (`weekdays`, `interval_weeks`, `anchor_on`); `monthly` (`day_of_month`) | The anchor is its own date (rule 6a). |
+| `medication.state`, `origin`, `directions` | Thapsus Care | As medicines.md rule 6 | |
+| `medication.source_kind`, `stop_source_kind`, `medication_reconciliation_source.kind` | Thapsus Care (`MAR_SOURCE_KINDS`) | `prescription`, `pharmacy_label`, `pharmacy_mar`, `discharge_letter`, `transfer_letter`, `gp_record`, `clinic_letter`, `prescriber_instruction`, `previous_mar`; a source may also be `person_or_family` | No verbal instruction (H-552). |
 | `medication.cd_schedule` | Misuse of Drugs Regulations 2001 schedules, from dm+d | `1`, `2`, `3`, `4`, `4.1`, `4.2`, `5`; null until slice 10 | |
-| `medication_reconciliation.trigger` | Harbour; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
-| `medication_reconciliation_item.says` | Harbour | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
+| `medication_reconciliation.trigger` | Thapsus Care; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
+| `medication_reconciliation_item.says` | Thapsus Care | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
 
 ## Administrations (Phase 2, slice 22)
 
 Migration 0123 ([medicines.md](medicines.md) section 13). Retention class `mar_chart`; every column
 is exported. Times are instants in UTC; on screen they are UK time, 24-hour, dd/mm/yyyy.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `medication_administration.id` | Harbour (client UUID) | UUID, chosen by the device or browser | A resend with the same id is the same record. |
-| `medication_administration.outcome` | Harbour; PRSB eMAR administration outcome (not yet coded) | `given`, `refused`, `omitted`, `not_available`, `self_administered`, `given_by_family`, `withheld` | Words from `OUTCOME_WORDS`. |
-| `medication_administration.reason_code` | Harbour (`OUTCOME_REASONS`) | For example `declined`, `asleep`, `nil_by_mouth`, `out_of_stock`, `prescriber_instruction`, `other` | "Other" and "withheld" carry words. |
+| `medication_administration.id` | Thapsus Care (client UUID) | UUID, chosen by the device or browser | A resend with the same id is the same record. |
+| `medication_administration.outcome` | Thapsus Care; PRSB eMAR administration outcome (not yet coded) | `given`, `refused`, `omitted`, `not_available`, `self_administered`, `given_by_family`, `withheld` | Words from `OUTCOME_WORDS`. |
+| `medication_administration.reason_code` | Thapsus Care (`OUTCOME_REASONS`) | For example `declined`, `asleep`, `nil_by_mouth`, `out_of_stock`, `prescriber_instruction`, `other` | "Other" and "withheld" carry words. |
 | `medication_administration.quantity`, `unit_code` | dm+d unit of measure | Numeric, more than zero, 3 decimal places; dm+d unit code | Never converted between units. |
-| `medication_administration.flags` | Harbour | As medicines.md rule 17, with `given_before_recorded` and `clock_drift` | Shown in words. |
+| `medication_administration.flags` | Thapsus Care | As medicines.md rule 17, with `given_before_recorded` and `clock_drift` | Shown in words. |
 | `medication_administration.due_at`, `given_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
-| `medication_administration.supersedes_id` | Harbour | The record corrected | Shown struck through beside its correction. |
-| `medication_administration.scan_evidence` | Harbour (ADR-0081); GS1 GTIN-14 and AI 10 and 17 | JSON: `identity` (`photo` or `wristband`), `pack` (`method` `scanned` with `gtin`, `batch`, `expiry` (ISO date) and `amppId` (dm+d AMPP), or `override` with a `code` from `PACK_OVERRIDE_REASONS` and up to 500 characters of words) | Sent by a phone with each record (slice 69); empty on a web record, meaning not checked at the point of care. No pack serial and no image. Kept with the record and its retention class (H-1437). |
-| `member_device_key.public_key` | Harbour (ADR-0084); SEC 1 uncompressed P-256 point | 65 bytes, base64 | One member's signing key for one phone database; the private half never leaves the phone. Append-only; the newest for the member and phone signs. |
-| `controlled_drug_witness_assertion.method`, `device_key_id`, `signature`, `signed_at` | Harbour (ADR-0084) | `step_up` or `device_factor`; for `device_factor` the key, the ECDSA P-256 signature (r and s, base64) over `cdDoseStatementText`, and when the witness signed by the phone's clock (UTC) | The signature is internal (not exported); the method and time are on the register. |
-| `medication_administration_witness.method` | Harbour (ADR-0084) | `step_up`, `device_factor` | |
-| `medication_dosing_record.doses` | Harbour | JSON: `date` (ISO 8601 date), `time` (`HH:MM`, UK), `quantity` | In the entry's unit. |
-| `medication.tags` | Harbour (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |
-| `medication.minimum_interval_minutes`, `prn_max_per_24h` | Harbour | Minutes; numeric in the dose's unit | As the prescription states. |
+| `medication_administration.supersedes_id` | Thapsus Care | The record corrected | Shown struck through beside its correction. |
+| `medication_administration.scan_evidence` | Thapsus Care (ADR-0081); GS1 GTIN-14 and AI 10 and 17 | JSON: `identity` (`photo` or `wristband`), `pack` (`method` `scanned` with `gtin`, `batch`, `expiry` (ISO date) and `amppId` (dm+d AMPP), or `override` with a `code` from `PACK_OVERRIDE_REASONS` and up to 500 characters of words) | Sent by a phone with each record (slice 69); empty on a web record, meaning not checked at the point of care. No pack serial and no image. Kept with the record and its retention class (H-1437). |
+| `member_device_key.public_key` | Thapsus Care (ADR-0084); SEC 1 uncompressed P-256 point | 65 bytes, base64 | One member's signing key for one phone database; the private half never leaves the phone. Append-only; the newest for the member and phone signs. |
+| `controlled_drug_witness_assertion.method`, `device_key_id`, `signature`, `signed_at` | Thapsus Care (ADR-0084) | `step_up` or `device_factor`; for `device_factor` the key, the ECDSA P-256 signature (r and s, base64) over `cdDoseStatementText`, and when the witness signed by the phone's clock (UTC) | The signature is internal (not exported); the method and time are on the register. |
+| `medication_administration_witness.method` | Thapsus Care (ADR-0084) | `step_up`, `device_factor` | |
+| `medication_dosing_record.doses` | Thapsus Care | JSON: `date` (ISO 8601 date), `time` (`HH:MM`, UK), `quantity` | In the entry's unit. |
+| `medication.tags` | Thapsus Care (ADR-0082) | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic` | Set by a person at transcription. |
+| `medication.minimum_interval_minutes`, `prn_max_per_24h` | Thapsus Care | Minutes; numeric in the dose's unit | As the prescription states. |
 
 ## Medicines stock, ordering, disposal and temperatures (Phase 2, slice 42)
 
@@ -994,17 +995,17 @@ Migration 0138 ([medicines.md](medicines.md) section 15; ADR-0103). Retention cl
 (cycles and storage `tenant_configuration`); every column is exported. Quantities are in the item's
 dm+d unit; temperatures in tenths of a degree Celsius.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `medicine_stock_item.vmp_id`, `product_name`, `unit_code`, `unit_name` | dm+d VMP and unit of measure | SNOMED CT concept id; dm+d description and unit | One item per person and VMP; never a controlled drug. |
-| `medicine_stock_movement.movement` | Harbour (`STOCK_MOVEMENTS`) | `receipt`, `carried_forward`, `administration`, `returned`, `disposal`, `administration_correction`, `count_adjustment` | |
-| `medicine_stock_movement.change`, `balance_after` | Harbour | Numeric, 3 decimal places, signed | A balance may be below zero. |
-| `medicine_disposal.reason` | Harbour (`DISPOSAL_REASONS`) | `refused_dose`, `dropped_or_spoilt`, `out_of_date`, `discontinued`, `person_left`, `other` | `other` needs a note. |
-| `medicine_order.status` | Harbour (`ORDER_STATUSES`) | `draft`, `submitted`, `part_received`, `received`, `cancelled` | |
-| `medicine_order.sent_via` | Harbour | `manual`, `pharmacy_port` | |
-| `medicine_order_cycle.anchor_on`, `medicine_order.cycle_starts_on` | Harbour | `YYYY-MM-DD` | Cycles every `medicines.ordering_cycle_days`. |
-| `medicine_storage.kind` | Harbour (`STORAGE_KINDS`) | `fridge`, `room` | |
-| `medicine_temperature_reading.reading_tenths`, `min_tenths`, `max_tenths`, `low_tenths`, `high_tenths` | Harbour | Integer tenths of a degree Celsius | The range from the rate table at the time. |
+| `medicine_stock_movement.movement` | Thapsus Care (`STOCK_MOVEMENTS`) | `receipt`, `carried_forward`, `administration`, `returned`, `disposal`, `administration_correction`, `count_adjustment` | |
+| `medicine_stock_movement.change`, `balance_after` | Thapsus Care | Numeric, 3 decimal places, signed | A balance may be below zero. |
+| `medicine_disposal.reason` | Thapsus Care (`DISPOSAL_REASONS`) | `refused_dose`, `dropped_or_spoilt`, `out_of_date`, `discontinued`, `person_left`, `other` | `other` needs a note. |
+| `medicine_order.status` | Thapsus Care (`ORDER_STATUSES`) | `draft`, `submitted`, `part_received`, `received`, `cancelled` | |
+| `medicine_order.sent_via` | Thapsus Care | `manual`, `pharmacy_port` | |
+| `medicine_order_cycle.anchor_on`, `medicine_order.cycle_starts_on` | Thapsus Care | `YYYY-MM-DD` | Cycles every `medicines.ordering_cycle_days`. |
+| `medicine_storage.kind` | Thapsus Care (`STORAGE_KINDS`) | `fridge`, `room` | |
+| `medicine_temperature_reading.reading_tenths`, `min_tenths`, `max_tenths`, `low_tenths`, `high_tenths` | Thapsus Care | Integer tenths of a degree Celsius | The range from the rate table at the time. |
 
 ## Workforce: training, competence, supervision and revalidation (Phase 2, slice 17)
 
@@ -1013,28 +1014,28 @@ Skills for Care's core and mandatory training guidance; the Oliver McGowan Manda
 are the Code of Practice's (England). No national standard covers the rest; exported with these
 names.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `medication.vmp_id`, `amp_id`, `medication_reconciliation_item.vmp_id`, `amp_id` | dm+d VPID and APID (SNOMED CT concept ids) | 6 to 18 digits, partition `00` or `10`, Verhoeff check digit (`isDmdId`) | No foreign key until slice 10's tables (an expand step adds it). |
 | `medication.product_name` | dm+d VMP or AMP description | As dm+d words it at transcription | Kept as transcribed; a later dm+d release does not rewrite it. |
 | `medication.route_code`, `route_name` | dm+d route of administration lookup | Code and description | Permitted routes per product from dm+d (slice 10). |
 | `medication_schedule.unit_code`, `unit_name`, `medication.prn_dose.unit` | dm+d unit of measure | Code and description | Written in full on screen ("micrograms", "units") by `formatDose`. |
-| `medication_schedule.quantity`, `from_quantity`, `to_quantity` | Harbour (structured dose) | Numeric, more than zero, at most 3 decimal places | A range is from less than to; variable has no quantity. |
+| `medication_schedule.quantity`, `from_quantity`, `to_quantity` | Thapsus Care (structured dose) | Numeric, more than zero, at most 3 decimal places | A range is from less than to; variable has no quantity. |
 | `medication_schedule.time` | ISO 8601 local time | `HH:MM`, 24-hour, UK time | Expanded to instants with the time-zone database (rule 4). |
-| `medication.pattern_kind` and its columns | Harbour (section 18 schedule type) | `every_day`; `every_n_days` (`interval_days`, `anchor_on`); `weekly` (`weekdays`, `interval_weeks`, `anchor_on`); `monthly` (`day_of_month`) | The anchor is its own date (rule 6a). |
-| `medication.state`, `origin`, `directions` | Harbour | As medicines.md rule 6 | |
-| `medication.source_kind`, `stop_source_kind`, `medication_reconciliation_source.kind` | Harbour (`MAR_SOURCE_KINDS`) | `prescription`, `pharmacy_label`, `pharmacy_mar`, `discharge_letter`, `transfer_letter`, `gp_record`, `clinic_letter`, `prescriber_instruction`, `previous_mar`; a source may also be `person_or_family` | No verbal instruction (H-552). |
+| `medication.pattern_kind` and its columns | Thapsus Care (section 18 schedule type) | `every_day`; `every_n_days` (`interval_days`, `anchor_on`); `weekly` (`weekdays`, `interval_weeks`, `anchor_on`); `monthly` (`day_of_month`) | The anchor is its own date (rule 6a). |
+| `medication.state`, `origin`, `directions` | Thapsus Care | As medicines.md rule 6 | |
+| `medication.source_kind`, `stop_source_kind`, `medication_reconciliation_source.kind` | Thapsus Care (`MAR_SOURCE_KINDS`) | `prescription`, `pharmacy_label`, `pharmacy_mar`, `discharge_letter`, `transfer_letter`, `gp_record`, `clinic_letter`, `prescriber_instruction`, `previous_mar`; a source may also be `person_or_family` | No verbal instruction (H-552). |
 | `medication.cd_schedule` | Misuse of Drugs Regulations 2001 schedules, from dm+d | `1`, `2`, `3`, `4`, `4.1`, `4.2`, `5`; null until slice 10 | |
-| `medication_reconciliation.trigger` | Harbour; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
-| `medication_reconciliation_item.says` | Harbour | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
+| `medication_reconciliation.trigger` | Thapsus Care; NICE NG5 and SC1 medicines reconciliation | `admission`, `transfer`, `return_from_hospital`, `change` | An admission is a placement; a return a hospital transfer. |
+| `medication_reconciliation_item.says` | Thapsus Care | `start`, `continue`, `change`, `stop`, `unclear` | As the person recording reads the line. |
 
 ## Workforce: e-learning (Phase 2, slice 43)
 
 Code lists for [workforce.md](workforce.md) section 14 (migration 0112; ADR-0093). SCORM 1.2 and
-2004 (ADL) and xAPI 1.0.3 (ADL) define the data model and statements; Harbour keeps the subset
+2004 (ADL) and xAPI 1.0.3 (ADL) define the data model and statements; Thapsus Care keeps the subset
 below, exported with these names.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `elearning_course.standard` | ADL SCORM, xAPI | `scorm_1_2`, `scorm_2004`, `xapi` | From the manifest's schema version, or `tincan.xml` |
 | `elearning_course.topic`, `tier` | `TRAINING_TOPICS` (rule 5) | As `training_record` | What a completion records |
@@ -1045,68 +1046,68 @@ below, exported with these names.
 | `elearning_attempt.total_seconds` | `cmi.core.session_time` (HHHH:MM:SS.SS), `cmi.session_time` (ISO 8601 duration) | Whole seconds | Counted when the content finishes |
 | `elearning_statement.statement` | xAPI statement | JSON, at most 16 KB | Kept as sent, once per `statement_id` |
 | `elearning_course.package_index` | ZIP central directory (PKWARE APPNOTE) | JSON array, one entry per file: `p` path, `o` data offset, `c` packed size, `u` unpacked size, `k` CRC-32, `m` method (0 stored, 8 deflate) | Written once at upload, after every file was checked; no personal data |
-| `elearning_attempt.launch_nonce` | Harbour | UUID | Replaced at every start or resume; only the latest launch token works |
+| `elearning_attempt.launch_nonce` | Thapsus Care | UUID | Replaced at every start or resume; only the latest launch token works |
 
 ## Rota builder (Phase 2, slice 21)
 
 Code lists for [scheduling.md](scheduling.md) section 14. No national standard defines a care
-home rota; the fields below are Harbour's.
+home rota; the fields below are Thapsus Care's.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `shift_template.start_minute`, `end_minute` | Harbour | Minutes after midnight, UK local time, 0 to 1439 | An end at or before the start is the next day; shown as 24-hour times. |
-| `shift.kind`, `shift_template.kind` | Harbour (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training` (`SHIFT_KINDS`) | Only `work` counts as care minutes on the staffing comparison. |
+| `shift_template.start_minute`, `end_minute` | Thapsus Care | Minutes after midnight, UK local time, 0 to 1439 | An end at or before the start is the next day; shown as 24-hour times. |
+| `shift.kind`, `shift_template.kind` | Thapsus Care (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training` (`SHIFT_KINDS`) | Only `work` counts as care minutes on the staffing comparison. |
 | `shift.starts_at`, `ends_at` | ISO 8601 date-time, UTC | `timestamptz` | A shift starts on one of its rota's UK dates. |
-| `shift.required_competences` | Harbour | `COMPETENCES` (workforce.md section 2b) | Applied by the rostering rule. |
-| `shift.required_skills` | Harbour | `STAFFING_SKILLS` | Describe the position; not a blocker (H-836). |
-| `shift.counts_as_care`, `shift_template.counts_as_care` | Harbour | Boolean, default true | False for shifts the organisation does not count as care on the floor. |
-| `shift_pattern.entries` | Harbour | `[{ day, templateId, count }]`; `day` from 0 within `cycle_days` | |
-| `roster_override.blocker_keys` | Harbour | `dbs:<reason>`, `dbs_supervised_only`, `registration`, `competence:<competence>:<reason>`; never a right to work or `not_active` (checked by the table) | The reason is a code (`no_certificate`, `expired`, ...), never what a DBS certificate disclosed. |
-| `rota_publication.staffing` | Harbour | `[{ date, periodKey, status }]`; status `below`, `incomplete`, `met_with_warnings`, `met`, `no_scale` | What the publisher was shown. |
-| `rota_publication.notice_minutes` | Harbour | Whole minutes, 0 or more | From publication to the first shift it published. |
+| `shift.required_competences` | Thapsus Care | `COMPETENCES` (workforce.md section 2b) | Applied by the rostering rule. |
+| `shift.required_skills` | Thapsus Care | `STAFFING_SKILLS` | Describe the position; not a blocker (H-836). |
+| `shift.counts_as_care`, `shift_template.counts_as_care` | Thapsus Care | Boolean, default true | False for shifts the organisation does not count as care on the floor. |
+| `shift_pattern.entries` | Thapsus Care | `[{ day, templateId, count }]`; `day` from 0 within `cycle_days` | |
+| `roster_override.blocker_keys` | Thapsus Care | `dbs:<reason>`, `dbs_supervised_only`, `registration`, `competence:<competence>:<reason>`; never a right to work or `not_active` (checked by the table) | The reason is a code (`no_certificate`, `expired`, ...), never what a DBS certificate disclosed. |
+| `rota_publication.staffing` | Thapsus Care | `[{ date, periodKey, status }]`; status `below`, `incomplete`, `met_with_warnings`, `met`, `no_scale` | What the publisher was shown. |
+| `rota_publication.notice_minutes` | Thapsus Care | Whole minutes, 0 or more | From publication to the first shift it published. |
 
 ## Bank and agency workers (Phase 2, slice 27)
 
 Code lists for [scheduling.md](scheduling.md) section 15. No national standard defines these; the
-fields are Harbour's.
+fields are Thapsus Care's.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `absence.starts_on`, `ends_on` | ISO 8601 date | `YYYY-MM-DD` (UK calendar), shown dd/mm/yyyy; `ends_on` null while a sickness is open | Leave always has a last day. |
-| `absence.decided_by`, `decided_at`, `decision_reason` | Harbour | `tenant_user` id, UTC; a reason of 3 to 500 characters for a decline or a manager's cancellation | The decider is never the member (check `absence_decider_is_member`). The reason is about the rota, never health. |
-| `absence.self_certified_at`, `bradford_excluded_reason` | Harbour | UTC; free text of 3 to 500 characters | Self-certification covers `ssp.self_certification_days`; the exclusion reason is HR's only. |
+| `absence.decided_by`, `decided_at`, `decision_reason` | Thapsus Care | `tenant_user` id, UTC; a reason of 3 to 500 characters for a decline or a manager's cancellation | The decider is never the member (check `absence_decider_is_member`). The reason is about the rota, never health. |
+| `absence.self_certified_at`, `bradford_excluded_reason` | Thapsus Care | UTC; free text of 3 to 500 characters | Self-certification covers `ssp.self_certification_days`; the exclusion reason is HR's only. |
 | `fit_note.issued_on`, `covers_from`, `covers_to` | ISO 8601 date | `YYYY-MM-DD` | `covers_to` on or after `covers_from`; issued no later than `covers_to`. |
-| `fit_note.fitness` and adjustments | The fit note form (Statement of Fitness for Work) | `not_fit`, `may_be_fit`; booleans `phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations` (ticked only when `may_be_fit`) | The condition stays on the document; never typed into Harbour. |
-| `fit_note.document_id` | Harbour | A `document` of category `staff_hr_document`, subject `fit_note`, retention `sickness_absence` | Opened only by holders of `workforce.hr_document.read`, audited. |
-| `return_to_work.*` | Harbour | `held_on` date; `held_by` (never the member); `fit_for_usual_duties`; the four adjustments; `notes` up to 4,000 characters | One per absence, after it ends. Notes never in an audit event. |
-| `revalidation_evidence.review_state`, `reviewed_by`, `reviewed_at`, `confirmed_by`, `confirmed_on` (H-693) | Harbour | `draft`, `submitted`, `reviewed`; `tenant_user` ids; UTC; UK date | The nurse writes their own counts; HR reviews; the confirmer is never the nurse |
+| `fit_note.fitness` and adjustments | The fit note form (Statement of Fitness for Work) | `not_fit`, `may_be_fit`; booleans `phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations` (ticked only when `may_be_fit`) | The condition stays on the document; never typed into Thapsus Care. |
+| `fit_note.document_id` | Thapsus Care | A `document` of category `staff_hr_document`, subject `fit_note`, retention `sickness_absence` | Opened only by holders of `workforce.hr_document.read`, audited. |
+| `return_to_work.*` | Thapsus Care | `held_on` date; `held_by` (never the member); `fit_for_usual_duties`; the four adjustments; `notes` up to 4,000 characters | One per absence, after it ends. Notes never in an audit event. |
+| `revalidation_evidence.review_state`, `reviewed_by`, `reviewed_at`, `confirmed_by`, `confirmed_on` (H-693) | Thapsus Care | `draft`, `submitted`, `reviewed`; `tenant_user` ids; UTC; UK date | The nurse writes their own counts; HR reviews; the confirmer is never the nurse |
 | `compliance_item.detail` for `driving_for_work` (H-835) | DVLA licence categories | `licenceCheckedOn` date; `categories` as the DVLA shows them (`^[A-Z][A-Z0-9+]{0,3}$`); `insuranceExpiresOn` date | Never the licence number or the DVLA check code. Current for `workforce.driving_licence_check_months` and while insured |
 | `compliance_item.detail.nmcPart` (H-835) | NMC register parts | `nurse`, `midwife`, `nursing_associate` | Required for an NMC registration; only `nurse` counts as a registered nurse on duty |
-| `shift_cover_need.resolution` | Harbour | `assignment_removed`, `absence_ended` | Raised once, resolved once (trigger `shift_cover_need_guard`). |
+| `shift_cover_need.resolution` | Thapsus Care | `assignment_removed`, `absence_ended` | Raised once, resolved once (trigger `shift_cover_need_guard`). |
 
 ## Time and attendance (Phase 2, slice 30)
 
 Code lists for [scheduling.md](scheduling.md) section 16. No national standard defines these;
 payroll exports (slice 76) map them to each provider.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `clock_event.kind` | Harbour | `in`, `out`, `break_start`, `break_end` | |
-| `clock_event.nfc_tag_ref`, `clock_setting.nfc_tag_refs` | Harbour | 1 to 64 of A-Z, a-z, 0-9, `_`, `-` | One of the location's tags. |
-| `clock_event.device_id` | Harbour | 1 to 120 of A-Z, a-z, 0-9, `.`, `_`, `:`, `-` | Opaque. |
+| `clock_event.kind` | Thapsus Care | `in`, `out`, `break_start`, `break_end` | |
+| `clock_event.nfc_tag_ref`, `clock_setting.nfc_tag_refs` | Thapsus Care | 1 to 64 of A-Z, a-z, 0-9, `_`, `-` | One of the location's tags. |
+| `clock_event.device_id` | Thapsus Care | 1 to 120 of A-Z, a-z, 0-9, `.`, `_`, `:`, `-` | Opaque. |
 | `clock_event.device_time`, `recorded_at` | ISO 8601 date-time, UTC | `timestamptz` | The device's time is the time worked; both are kept (HZ-010). |
-| `clock_event.evidence`, `clock_setting.evidence` | Harbour | `none`, `at_location`, `nfc` | Never a position; `at_location` is the phone's word only (H-527). Kept only as the location's setting asks. |
-| `clock_event.flags` | Harbour | `late_upload`, `device_clock_ahead`, `outside_access_window`, `no_shift`, `not_eligible`, `no_induction`, `no_booking`, `not_on_shift`, `other_location`, `no_permission`, `evidence_not_matched`, and the pairing problems `no_clock_in`, `no_clock_out`, `break_not_ended`, `break_not_started`, `out_of_order` | |
-| `timesheet_entry.kind` | Harbour (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training`, `travel` | |
-| `timesheet_entry.travel` | Harbour (NMW travel time) | `between_assignments`, `home_to_first_assignment`, `last_assignment_to_home`, `commute_to_fixed_workplace` | |
-| `timesheet_entry.mileage_tenths` | Harbour | Whole tenths of a mile | Travel entries only. |
-| `timesheet_entry.breaks` | Harbour | `[{ start, end }]`, ISO 8601 UTC | Inside the entry. |
-| `timesheet_entry.status` | Harbour | `draft`, `approved` | Approved entries never change; a correction supersedes (`supersedes_id`). |
-| `TimesheetEntryItem.workerName` (API only) | Harbour | `tenant_user.display_name`, or null when the reader cannot see the member | Not stored on the entry; looked up under the reader's rights (slice 60). |
-| `WorkingTimeResultList.memberName` (API only) | Harbour | `tenant_user.display_name`; null when there are no results | Not stored; looked up under the reader's rights (slice 60). |
-| `PayRunLineItem.memberName`, `PayRunExceptionItem.memberName` (API only) | Harbour | `tenant_user.display_name`, or null | Not stored on the line; organisation-wide pay holders only (slice 60). |
-| `working_time_opt_out.notice_unit` | Harbour (WTR reg 5) | `days`, `months` | |
-| `working_time_result.findings` | Harbour | As `WorkingTimeFindingItem` (rule, citation, outcome, minutes) | With `input_hash`, so a result reproduces. |
+| `clock_event.evidence`, `clock_setting.evidence` | Thapsus Care | `none`, `at_location`, `nfc` | Never a position; `at_location` is the phone's word only (H-527). Kept only as the location's setting asks. |
+| `clock_event.flags` | Thapsus Care | `late_upload`, `device_clock_ahead`, `outside_access_window`, `no_shift`, `not_eligible`, `no_induction`, `no_booking`, `not_on_shift`, `other_location`, `no_permission`, `evidence_not_matched`, and the pairing problems `no_clock_in`, `no_clock_out`, `break_not_ended`, `break_not_started`, `out_of_order` | |
+| `timesheet_entry.kind` | Thapsus Care (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training`, `travel` | |
+| `timesheet_entry.travel` | Thapsus Care (NMW travel time) | `between_assignments`, `home_to_first_assignment`, `last_assignment_to_home`, `commute_to_fixed_workplace` | |
+| `timesheet_entry.mileage_tenths` | Thapsus Care | Whole tenths of a mile | Travel entries only. |
+| `timesheet_entry.breaks` | Thapsus Care | `[{ start, end }]`, ISO 8601 UTC | Inside the entry. |
+| `timesheet_entry.status` | Thapsus Care | `draft`, `approved` | Approved entries never change; a correction supersedes (`supersedes_id`). |
+| `TimesheetEntryItem.workerName` (API only) | Thapsus Care | `tenant_user.display_name`, or null when the reader cannot see the member | Not stored on the entry; looked up under the reader's rights (slice 60). |
+| `WorkingTimeResultList.memberName` (API only) | Thapsus Care | `tenant_user.display_name`; null when there are no results | Not stored; looked up under the reader's rights (slice 60). |
+| `PayRunLineItem.memberName`, `PayRunExceptionItem.memberName` (API only) | Thapsus Care | `tenant_user.display_name`, or null | Not stored on the line; organisation-wide pay holders only (slice 60). |
+| `working_time_opt_out.notice_unit` | Thapsus Care (WTR reg 5) | `days`, `months` | |
+| `working_time_result.findings` | Thapsus Care | As `WorkingTimeFindingItem` (rule, citation, outcome, minutes) | With `input_hash`, so a result reproduces. |
 
 ## Absence and leave (Phase 2, slice 40)
 
@@ -1115,10 +1116,10 @@ Code lists for absence and leave ([scheduling.md](scheduling.md) section 17; SCH
 are health data (special category, records-of-processing.md). Retention `sickness_absence`, cover
 needs `rota_and_timesheet`.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `absence.kind` | Harbour (`ABSENCE_KINDS`) | `annual_leave`, `sickness`, `compassionate`, `carers_leave`, `parental_leave`, `maternity`, `paternity`, `adoption`, `unpaid`, `other` | Only `sickness` takes self-certification, fit notes, return to work, SSP and the Bradford factor; never a diagnosis. |
-| `absence.state` | Harbour (`ABSENCE_STATES`) | `requested`, `approved`, `declined`, `cancelled`, `recorded` | `requested` moves to `approved`, `declined` or `cancelled`; `approved` and `recorded` to `cancelled`; nothing back (trigger `absence_guard`). |
+| `absence.kind` | Thapsus Care (`ABSENCE_KINDS`) | `annual_leave`, `sickness`, `compassionate`, `carers_leave`, `parental_leave`, `maternity`, `paternity`, `adoption`, `unpaid`, `other` | Only `sickness` takes self-certification, fit notes, return to work, SSP and the Bradford factor; never a diagnosis. |
+| `absence.state` | Thapsus Care (`ABSENCE_STATES`) | `requested`, `approved`, `declined`, `cancelled`, `recorded` | `requested` moves to `approved`, `declined` or `cancelled`; `approved` and `recorded` to `cancelled`; nothing back (trigger `absence_guard`). |
 
 ## Pay calculation runs (Phase 2, slice 36)
 
@@ -1126,122 +1127,122 @@ Code lists for [scheduling.md](scheduling.md) section 18. No national standard d
 payroll export (slice 76) maps them to each payroll provider. Money is whole pence (shown as
 "£1,234.56"); time is whole minutes; dates are UK dates (`YYYY-MM-DD`, shown dd/mm/yyyy).
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `pay_profile.frequency`, `pay_run.frequency` | Harbour (pay reference period) | `weekly`, `monthly` | Auto-enrolment thresholds follow the period. |
-| `pay_profile.employment` | Harbour | `staff`, `bank`, `agency` | Agency workers are paid by their agency: their line pays nothing. |
-| `pay_profile.role_key`, `pay_rule_set.role_rates` keys | Harbour | Lower-case key, 1 to 60 of a-z, 0-9, `_` | The rule set's rate for the role. |
+| `pay_profile.frequency`, `pay_run.frequency` | Thapsus Care (pay reference period) | `weekly`, `monthly` | Auto-enrolment thresholds follow the period. |
+| `pay_profile.employment` | Thapsus Care | `staff`, `bank`, `agency` | Agency workers are paid by their agency: their line pays nothing. |
+| `pay_profile.role_key`, `pay_rule_set.role_rates` keys | Thapsus Care | Lower-case key, 1 to 60 of a-z, 0-9, `_` | The rule set's rate for the role. |
 | `pay_profile.qualifying_weekdays` | ISO 8601 weekday | 1 (Monday) to 7 (Sunday) | For SSP qualifying days. |
-| `pay_rule_set.enhancements` | Harbour | `[{ kind, mode, value }]`; kind `night`, `weekend`, `bank_holiday`, `overtime`; mode `percent` or `flat_per_hour` | Only the highest applies unless the set stacks them. |
-| `pay_rule_set.night_start_minute`, `night_end_minute` | Harbour | Minutes from UK midnight, 0 to 1439 | A window may cross midnight. |
-| `pay_run.kind`, `status` | Harbour | `regular`, `correction`; `draft`, `locked` | A locked run never changes. |
+| `pay_rule_set.enhancements` | Thapsus Care | `[{ kind, mode, value }]`; kind `night`, `weekend`, `bank_holiday`, `overtime`; mode `percent` or `flat_per_hour` | Only the highest applies unless the set stacks them. |
+| `pay_rule_set.night_start_minute`, `night_end_minute` | Thapsus Care | Minutes from UK midnight, 0 to 1439 | A window may cross midnight. |
+| `pay_run.kind`, `status` | Thapsus Care | `regular`, `correction`; `draft`, `locked` | A locked run never changes. |
 | `pay_run_line.nmw_band` | National Minimum Wage Regulations 2015 | `21_plus`, `18_to_20`, `under_18`, `apprentice` | From the date of birth on the period's first day. |
 | `pay_run_line.ae_category` | Pensions Act 2008 | `eligible_jobholder`, `non_eligible_jobholder`, `entitled_worker`, `outside_age_range` | A flag only. |
 | `pay_run_line.input_hash` | SHA-256 | 64 lower-case hex characters | Of the canonical inputs, stored with the line. |
-| `pay_run_exception.kind` | Harbour | `unapproved_timesheet`, `no_pay_profile`, `no_role_rate`, `no_date_of_birth`, `below_nmw`, `ssp_earnings_missing`, `rate_missing` | Blocks locking until put right or overridden with a reason. |
+| `pay_run_exception.kind` | Thapsus Care | `unapproved_timesheet`, `no_pay_profile`, `no_role_rate`, `no_date_of_birth`, `below_nmw`, `ssp_earnings_missing`, `rate_missing` | Blocks locking until put right or overridden with a reason. |
 
 ## Workforce: applicant tracking (Phase 2, slice 23)
 
-Code lists for [workforce.md](workforce.md) section 2c (migration 0085). Harbour's own fields; the
+Code lists for [workforce.md](workforce.md) section 2c (migration 0085). Thapsus Care's own fields; the
 Care Workforce Pathway categories follow Skills for Care's Pathway (H-730) and the equality
 monitoring questions follow the Equality Act 2010 protected characteristics, with the categories
 of the census for England and Wales (H-733).
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `job_template.pathway_category` | Care Workforce Pathway (Skills for Care) | `new_to_care`, `care_worker`, `senior_care_worker`, `lead_practitioner`, `deputy_manager`, `registered_manager`, `registered_nurse` | H-730 |
-| `job_template.essential_criteria` | Harbour | JSON array of 2 to 20 statements, 2 to 200 characters each | Assessed in order at shortlisting |
+| `job_template.essential_criteria` | Thapsus Care | JSON array of 2 to 20 statements, 2 to 200 characters each | Assessed in order at shortlisting |
 | `job_template.values_questions` | Values-based recruitment (Skills for Care; the 6Cs) | JSON array of 2 to 12 `{ key, value, question }`; `value` one of `care`, `compassion`, `competence`, `communication`, `courage`, `commitment` | H-730 |
-| `vacancy.status` | Harbour | `draft`, `open`, `closed`, `filled`, `withdrawn` | |
-| `vacancy.opens_on`, `closes_on` | Harbour | `YYYY-MM-DD` | Closing on or after opening |
-| `applicant.given_name`, `family_name`, `email`, `phone` | Harbour | Plain text (1 to 100), email, phone (up to 40) | Cleared when redacted |
-| `applicant.talent_pool_until`, `retain_until` | Harbour | `YYYY-MM-DD` | From `applicant.talent_pool` and `applicant.unsuccessful` |
-| `application.stage` | Harbour | `applied`, `shortlisted`, `interviewed`, `offered`, `accepted`, `rejected`, `withdrawn`, `declined` | Closed stages never reopen |
-| `application.stage_reason` | Harbour | `criteria_not_met`, `not_selected_after_interview`, `position_filled`, `vacancy_withdrawn`, `applicant_withdrew`, `offer_declined`, `offer_withdrawn`, `pre_employment_checks_failed` | |
-| `application.shortlist` | Harbour | `{ criteria: boolean[], decidedBy, decidedAt }` | |
-| `interview.scores`, `recommendation` | Harbour | `{ questionKey: 1 to 4 }`; `proceed` or `do_not_proceed` | The total is shown, never a decision |
+| `vacancy.status` | Thapsus Care | `draft`, `open`, `closed`, `filled`, `withdrawn` | |
+| `vacancy.opens_on`, `closes_on` | Thapsus Care | `YYYY-MM-DD` | Closing on or after opening |
+| `applicant.given_name`, `family_name`, `email`, `phone` | Thapsus Care | Plain text (1 to 100), email, phone (up to 40) | Cleared when redacted |
+| `applicant.talent_pool_until`, `retain_until` | Thapsus Care | `YYYY-MM-DD` | From `applicant.talent_pool` and `applicant.unsuccessful` |
+| `application.stage` | Thapsus Care | `applied`, `shortlisted`, `interviewed`, `offered`, `accepted`, `rejected`, `withdrawn`, `declined` | Closed stages never reopen |
+| `application.stage_reason` | Thapsus Care | `criteria_not_met`, `not_selected_after_interview`, `position_filled`, `vacancy_withdrawn`, `applicant_withdrew`, `offer_declined`, `offer_withdrawn`, `pre_employment_checks_failed` | |
+| `application.shortlist` | Thapsus Care | `{ criteria: boolean[], decidedBy, decidedAt }` | |
+| `interview.scores`, `recommendation` | Thapsus Care | `{ questionKey: 1 to 4 }`; `proceed` or `do_not_proceed` | The total is shown, never a decision |
 | `job_offer.conditions` | Schedule 3 | JSON array of `compliance_item.kind` codes | Listed as outstanding on the staff file |
-| `job_offer.status` | Harbour | `made`, `accepted`, `declined`, `withdrawn` | |
+| `job_offer.status` | Thapsus Care | `made`, `accepted`, `declined`, `withdrawn` | |
 | `equality_monitoring.answers` | Equality Act 2010 protected characteristics; census for England and Wales categories | `age_band` (`16_24` to `65_plus`), `sex`, `gender_same_as_registered_at_birth`, `ethnic_group` (`asian`, `black`, `mixed`, `white`, `other`), `disability`, `religion`, `sexual_orientation`; each also `prefer_not_to_say`; all optional | Special category; counts only, under 5 suppressed (H-731, H-733) |
-| `equality_monitoring.id` | Harbour | Random UUID (never time-ordered); no date is kept | No link to the applicant |
-| `vacancy.equality_summarised_at` | Harbour | ISO 8601 UTC | When the counts were first released; no form after |
+| `equality_monitoring.id` | Thapsus Care | Random UUID (never time-ordered); no date is kept | No link to the applicant |
+| `vacancy.equality_summarised_at` | Thapsus Care | ISO 8601 UTC | When the counts were first released; no form after |
 
 ## Workforce: employee relations casework (Phase 2, slice 39)
 
-Code lists for [workforce.md](workforce.md) section 2d (migration 0101). Harbour's own fields,
+Code lists for [workforce.md](workforce.md) section 2d (migration 0101). Thapsus Care's own fields,
 following the Acas Code of Practice on disciplinary and grievance procedures (H-801); referral
 decisions follow the Safeguarding Vulnerable Groups Act 2006 section 35 and the regulators'
 referral guidance (H-802). A restricted silo (ADR-0089): read only by the members named on a case
 and left out of the organisation-wide export (H-805).
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `employee_case.case_type` | Acas Code (disciplinary, grievance); Acas guidance (capability, sickness absence, probation) | `grievance`, `disciplinary`, `capability`, `sickness_absence`, `probation` | Kept for the life of the case |
 | `employee_case.stage` | Acas Code steps | `open`, `investigation`, `hearing`, `outcome`, `appeal`, `closed` | Moves forward only; closed never reopens |
-| `employee_case.summary` | Harbour | Plain text, 3 to 10,000 characters | Special category or allegation data possible |
-| `employee_case.opened_on`, `stage_since`, `outcome_decided_on`, `appeal_decided_on`, `closed_on` | Harbour | `YYYY-MM-DD` (UK date) | The timeline |
-| `employee_case.outcome` | Acas Code (warnings, dismissal) and Harbour | Grievance `upheld`, `partly_upheld`, `not_upheld`; disciplinary `no_action`, `first_written_warning`, `final_written_warning`, `action_short_of_dismissal`, `dismissal`; capability adds `improvement_plan`, `redeployment`; sickness absence adds `support_plan`, `reasonable_adjustments`; probation `passed`, `extended`, `not_passed` | Per case type (`CASE_OUTCOMES`) |
+| `employee_case.summary` | Thapsus Care | Plain text, 3 to 10,000 characters | Special category or allegation data possible |
+| `employee_case.opened_on`, `stage_since`, `outcome_decided_on`, `appeal_decided_on`, `closed_on` | Thapsus Care | `YYYY-MM-DD` (UK date) | The timeline |
+| `employee_case.outcome` | Acas Code (warnings, dismissal) and Thapsus Care | Grievance `upheld`, `partly_upheld`, `not_upheld`; disciplinary `no_action`, `first_written_warning`, `final_written_warning`, `action_short_of_dismissal`, `dismissal`; capability adds `improvement_plan`, `redeployment`; sickness absence adds `support_plan`, `reasonable_adjustments`; probation `passed`, `extended`, `not_passed` | Per case type (`CASE_OUTCOMES`) |
 | `employee_case.warning_expires_on` | Tenant policy | `YYYY-MM-DD`, after the decision | Warnings only (H-808) |
 | `employee_case.appeal_outcome` | Acas Code | `upheld`, `partly_upheld`, `not_upheld` | Decided by the appeal chair |
-| `employee_case.closed_reason` | Harbour | `outcome_accepted`, `appeal_decided`, `resolved_informally`, `no_case_to_answer`, `withdrawn`, `left_employment` | |
+| `employee_case.closed_reason` | Thapsus Care | `outcome_accepted`, `appeal_decided`, `resolved_informally`, `no_case_to_answer`, `withdrawn`, `left_employment` | |
 | `employee_case.removes_from_regulated_activity` | Safeguarding Vulnerable Groups Act 2006 s 35 | Boolean | Only with `action_short_of_dismissal`; decided with the outcome (H-802) |
 | `employee_case.retention_class` | retention.md | `staff_file`, `casework_no_sanction` | Set by the database as the case closes (H-806) |
-| `casework_support_ticket` | Harbour | `case_id`, `new_manager_id`, `requested_by`, `reason` (10 to 1,000 characters), `approved_by`, `approved_at`, `used_by_operator`, `used_at` | H-804: ids only; never the case's content |
+| `casework_support_ticket` | Thapsus Care | `case_id`, `new_manager_id`, `requested_by`, `reason` (10 to 1,000 characters), `approved_by`, `approved_at`, `used_by_operator`, `used_at` | H-804: ids only; never the case's content |
 | `employee_case.suspended_on`, `suspension_review_on` | Acas Code (suspension a precaution) | `YYYY-MM-DD`, set together; review after the start | Disciplinary only; ends before closing |
-| `employee_case.dbs_referral`, `regulator_referral` | SVGA 2006 s.35; NMC, HCPC, SWE, GMC guidance | `referred` (with `_on`, a date) or `not_required` (with `_reason`: `harm_test_not_met`, `not_regulated_activity`, `referred_by_another_body`, `other_recorded_in_case`) | The people's decision; Harbour refers nobody |
-| `employee_case.subject_registered` | Harbour | Boolean, from the staff profile's `registration_body` when opened | Makes the regulator decision due |
-| `employee_case.safeguarding_incident_id` | Harbour | The incident's id (safeguarding log) | Set once, only by someone who can see it |
+| `employee_case.dbs_referral`, `regulator_referral` | SVGA 2006 s.35; NMC, HCPC, SWE, GMC guidance | `referred` (with `_on`, a date) or `not_required` (with `_reason`: `harm_test_not_met`, `not_regulated_activity`, `referred_by_another_body`, `other_recorded_in_case`) | The people's decision; Thapsus Care refers nobody |
+| `employee_case.subject_registered` | Thapsus Care | Boolean, from the staff profile's `registration_body` when opened | Makes the regulator decision due |
+| `employee_case.safeguarding_incident_id` | Thapsus Care | The incident's id (safeguarding log) | Set once, only by someone who can see it |
 | `employee_case_member.member_role` | Acas Code (different people where practicable) | `case_manager`, `investigator`, `hearing_chair`, `appeal_chair`, `note_taker`, `hr_adviser` | Membership is what lets someone read the case |
 | `employee_case_member.independence_exception` | Acas Code ("where practicable") | `no_other_manager_available` or empty | Recorded when one person takes two parts |
 | `employee_case_hearing.kind`, `state` | Acas Code; Employment Relations Act 1999 s.10 | `investigation_meeting`, `hearing`, `appeal_hearing`; `scheduled`, `held`, `not_attended`, `postponed`, `cancelled` | A held, unattended or cancelled one is final |
 | `employee_case_hearing.issue_set_out`, `evidence_shared`, `companion_right_given`, `accompanied` | Acas Code paras 9 to 14; ERA 1999 s.10 | Booleans | Never who accompanied the employee |
-| `employee_case_hearing.postponed_reason` | Harbour | `companion_unavailable`, `employee_unwell`, `employer_request`, `other` | |
-| `employee_case_event.kind` | Harbour | `opened`, `stage_changed`, `member_added`, `member_removed`, `hearing_arranged`, `hearing_updated`, `suspension_started`, `suspension_reviewed`, `suspension_ended`, `referral_recorded`, `safeguarding_linked`, `appeal_grounds`, `note` | Append-only; text only on `note` and `appeal_grounds` |
+| `employee_case_hearing.postponed_reason` | Thapsus Care | `companion_unavailable`, `employee_unwell`, `employer_request`, `other` | |
+| `employee_case_event.kind` | Thapsus Care | `opened`, `stage_changed`, `member_added`, `member_removed`, `hearing_arranged`, `hearing_updated`, `suspension_started`, `suspension_reviewed`, `suspension_ended`, `referral_recorded`, `safeguarding_linked`, `appeal_grounds`, `note` | Append-only; text only on `note` and `appeal_grounds` |
 
 ## Workforce: induction, the Care Certificate and leavers (Phase 2, slice 29)
 
-Code lists for [workforce.md](workforce.md) section 2e (migration 0091). Harbour's own fields; the
+Code lists for [workforce.md](workforce.md) section 2e (migration 0091). Thapsus Care's own fields; the
 Care Certificate standards are Skills for Care's, stored by id with a short title only (H-531,
 H-871).
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `care_certificate_progress.standard_id` | Care Certificate (Skills for Care), 16 standards | `cc01` Understand your role, `cc02` Your personal development, `cc03` Duty of care, `cc04` Equality, diversity, inclusion and human rights, `cc05` Work in a person-centred way, `cc06` Communication, `cc07` Privacy and dignity, `cc08` Fluids and nutrition, `cc09` Awareness of mental health and dementia, `cc10` Safeguarding adults, `cc11` Safeguarding children, `cc12` Basic life support, `cc13` Health and safety, `cc14` Handling information, `cc15` Infection prevention and control, `cc16` Awareness of learning disability and autism | Titles to confirm (H-871) |
-| `care_certificate_progress.knowledge_assessed_on`, `observed_on` | Harbour | `YYYY-MM-DD` (UK dates) | Observation on or after the assessment |
-| `staff_checklist_item.checklist`, `kind` | Harbour | `induction`: `contract_issued`, `system_access_set_up`, `uniform_and_badge`, `location_induction`, `fire_safety_briefing`, `shadowing_signed_off`; `leaving`: `property_returned`, `final_pay_notified` | H-870, H-873 |
-| `induction_plan.probation_outcome` | Harbour | `passed`, `extended`, `not_passed` | Not passed goes through a probation case |
-| `probation_review.outcome` | Harbour | `on_track`, `concerns` | Notes up to 4,000 characters |
-| `leaver_record.reason` | Harbour (ASC-WDS leaving reasons to map later) | `resignation`, `end_of_fixed_term`, `retirement`, `dismissal`, `redundancy`, `tupe_transfer_out`, `death_in_service`, `other` | H-873 |
-| `leaver_record.exit_interview` | Harbour | `not_offered`, `offered`, `declined`, `held` | Forward only |
+| `care_certificate_progress.knowledge_assessed_on`, `observed_on` | Thapsus Care | `YYYY-MM-DD` (UK dates) | Observation on or after the assessment |
+| `staff_checklist_item.checklist`, `kind` | Thapsus Care | `induction`: `contract_issued`, `system_access_set_up`, `uniform_and_badge`, `location_induction`, `fire_safety_briefing`, `shadowing_signed_off`; `leaving`: `property_returned`, `final_pay_notified` | H-870, H-873 |
+| `induction_plan.probation_outcome` | Thapsus Care | `passed`, `extended`, `not_passed` | Not passed goes through a probation case |
+| `probation_review.outcome` | Thapsus Care | `on_track`, `concerns` | Notes up to 4,000 characters |
+| `leaver_record.reason` | Thapsus Care (ASC-WDS leaving reasons to map later) | `resignation`, `end_of_fixed_term`, `retirement`, `dismissal`, `redundancy`, `tupe_transfer_out`, `death_in_service`, `other` | H-873 |
+| `leaver_record.exit_interview` | Thapsus Care | `not_offered`, `offered`, `declined`, `held` | Forward only |
 | `leaver_record.staff_file_retain_until` | Records Management Code of Practice | `YYYY-MM-DD` or empty | Rule 23 |
-| `reference_request.kind`, `state`, `declined_reason` | Harbour; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct` (default `conduct`); `requested`, `sent`, `declined`; `not_employed_here`, `duplicate_request`, `requester_not_verified` (`no_consent_to_share` kept only on requests declined with it before H-876) | H-876, applied 31/10/2026 |
+| `reference_request.kind`, `state`, `declined_reason` | Thapsus Care; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct` (default `conduct`); `requested`, `sent`, `declined`; `not_employed_here`, `duplicate_request`, `requester_not_verified` (`no_consent_to_share` kept only on requests declined with it before H-876) | H-876, applied 31/10/2026 |
 
 ## Workforce: sponsor licence, staff privacy and LDSS (Phase 2, slice 35)
 
-Code lists for [workforce.md](workforce.md) section 12 (migration 0097). Harbour's own fields,
+Code lists for [workforce.md](workforce.md) section 12 (migration 0097). Thapsus Care's own fields,
 exported in the full tenant export with these names. Route and SOC codes follow the Home Office
-sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, to confirm (H-901).
+sponsor guidance and SOC 2020 (ONS); the Appendix D list is Thapsus Care's reading, to confirm (H-901).
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `sponsored_worker.cos_reference`, `cos_assigned_on` | Home Office certificate of sponsorship | Capitals and digits, 6 to 20; `YYYY-MM-DD` | HR only |
 | `sponsored_worker.soc_code` | SOC 2020 (ONS) | Four digits | |
 | `sponsored_worker.route` | Immigration Rules routes | `skilled_worker`, `health_and_care_worker`, `other` | |
-| `sponsored_worker.visa_expires_on` | Harbour | `YYYY-MM-DD` | Never the visa's contents |
+| `sponsored_worker.visa_expires_on` | Thapsus Care | `YYYY-MM-DD` | Never the visa's contents |
 | `sponsored_worker.contracted_weekly_hours`, `guaranteed_yearly_pay` | Home Office salary rules | Hours to 2 decimals; pounds to the penny | The salary check reads the floors from the rate table |
 | `sponsored_worker.english_evidence` | Immigration Rules Appendix English Language | `not_recorded`, `majority_english_speaking_country`, `degree_taught_in_english`, `secure_english_language_test`, `previous_grant`, `uk_school_qualification` (a GCSE, A level or Scottish Higher in English gained in the UK while under 18), `professional_body_assessment` (assessed by a regulated professional body such as the NMC as part of registration) | Last two added by H-907 (recommended answer applied 31/10/2026, review at testing) |
-| `sponsored_worker.switching_evidence_on` | Harbour | `YYYY-MM-DD` or empty | H-524 |
+| `sponsored_worker.switching_evidence_on` | Thapsus Care | `YYYY-MM-DD` or empty | H-524 |
 | `sponsored_worker.appendix_d_held` | Guidance for sponsors, Appendix D | `passport_or_travel_document`, `right_to_work_check`, `contact_details`, `certificate_of_sponsorship`, `recruitment_evidence`, `english_language_evidence`, `registration_or_qualification`, `absence_records` | Which records are held, not the records |
-| `sponsored_worker.status`, `ended_on` | Harbour | `active` (no end date) or `ended` (with one) | One active record per member |
-| `sponsor_absence.from_on`, `to_on`, `authorised` | Harbour | `YYYY-MM-DD`, both inclusive; boolean | |
+| `sponsored_worker.status`, `ended_on` | Thapsus Care | `active` (no end date) or `ended` (with one) | One active record per member |
+| `sponsor_absence.from_on`, `to_on`, `authorised` | Thapsus Care | `YYYY-MM-DD`, both inclusive; boolean | |
 | `sponsor_report.kind` | Sponsor management system reportable changes | `did_not_start`, `unauthorised_absence`, `employment_ended`, `change_of_job`, `change_of_salary`, `change_of_work_location`, `change_of_hours`, `other` | |
-| `sponsor_report.happened_on`, `reported_on`, `sms_reference` | Harbour | `YYYY-MM-DD`; the reference the sponsor management system gave (up to 40 characters) | Reported date and reference set together |
-| `tenant.staff_privacy_notice_version` | Harbour | Up to 40 characters | The label members acknowledge: the notice document's id (H-940), or an earlier free-text label |
-| `tenant.staff_privacy_notice_document_id` | Harbour | Document id | An available `organisation_document` of the same organisation (composite foreign key and trigger; H-940) |
-| `staff_privacy_acknowledgement.notice_version`, `acknowledged_at` | Harbour | Up to 40 characters; UTC timestamp | Append-only; once per version |
-| `staff_image_consent.purpose`, `decision`, `decided_at` | Harbour | `newsletter`, `website`, `social_media`, `family_feed`; `given`, `refused`, `withdrawn`; UTC timestamp | Append-only; the latest decision stands |
-| `ldss_claim.course_title`, `completed_on`, `claimed_amount` | Skills for Care LDSS (England) | Plain text, 2 to 200; `YYYY-MM-DD`; pounds as claimed | Harbour holds no funding figure (H-903) |
-| `ldss_claim.status`, `reference`, `submitted_on`, `paid_on`, `reason` | Harbour | `planned`, `submitted`, `paid`, `rejected`, `withdrawn`; plain text | Submitted needs a reference and date; paid a date; rejected or withdrawn a reason |
+| `sponsor_report.happened_on`, `reported_on`, `sms_reference` | Thapsus Care | `YYYY-MM-DD`; the reference the sponsor management system gave (up to 40 characters) | Reported date and reference set together |
+| `tenant.staff_privacy_notice_version` | Thapsus Care | Up to 40 characters | The label members acknowledge: the notice document's id (H-940), or an earlier free-text label |
+| `tenant.staff_privacy_notice_document_id` | Thapsus Care | Document id | An available `organisation_document` of the same organisation (composite foreign key and trigger; H-940) |
+| `staff_privacy_acknowledgement.notice_version`, `acknowledged_at` | Thapsus Care | Up to 40 characters; UTC timestamp | Append-only; once per version |
+| `staff_image_consent.purpose`, `decision`, `decided_at` | Thapsus Care | `newsletter`, `website`, `social_media`, `family_feed`; `given`, `refused`, `withdrawn`; UTC timestamp | Append-only; the latest decision stands |
+| `ldss_claim.course_title`, `completed_on`, `claimed_amount` | Skills for Care LDSS (England) | Plain text, 2 to 200; `YYYY-MM-DD`; pounds as claimed | Thapsus Care holds no funding figure (H-903) |
+| `ldss_claim.status`, `reference`, `submitted_on`, `paid_on`, `reason` | Thapsus Care | `planned`, `submitted`, `paid`, `rejected`, `withdrawn`; plain text | Submitted needs a reference and date; paid a date; rejected or withdrawn a reason |
 ## dm+d reference data (Phase 2, slice 10)
 
 National reference data with no personal data and no organisation rows, so not part of any export
@@ -1263,132 +1264,133 @@ transcription (slice 16); these tables say what the identifiers mean in the rele
 Migration 0134 ([medicines.md](medicines.md) section 15). Retention class `mar_chart`; every column
 is exported.
 
-| `training_requirement.role_key` | Harbour | A role's key (`^[a-z][a-z0-9_]{1,63}$`) | Matches a role's key or the built-in key it is based on |
+| `training_requirement.role_key` | Thapsus Care | A role's key (`^[a-z][a-z0-9_]{1,63}$`) | Matches a role's key or the built-in key it is based on |
 | `training_requirement.topic`, `training_record.topic` | Skills for Care core and mandatory training | `care_certificate`, `safeguarding_adults`, `safeguarding_children`, `moving_and_handling`, `infection_prevention_and_control`, `fire_safety`, `health_and_safety`, `basic_life_support`, `food_hygiene`, `medicines`, `mental_capacity_and_dols`, `equality_diversity_and_human_rights`, `information_governance`, `dementia_awareness`, `fluids_and_nutrition`, `oliver_mcgowan` | |
 | `training_requirement.tier`, `training_record.tier` | Oliver McGowan Code of Practice | `1` or `2` (Oliver McGowan only) | Tier 2 meets a tier 1 requirement, never the reverse |
-| `training_requirement.refresh_years` | Harbour | Whole years, 1 to 10, or empty for `training.default_refresh_years` | |
-| `training_record.completed_on`, `expires_on` | Harbour | `YYYY-MM-DD` | |
-| `competence_sign_off.competence` | Harbour | `medicines_administration`, `controlled_drugs`, `insulin_administration`, `epilepsy_rescue_medication`, `moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` | Medicines ones refresh on `competence.medicines.refresh_months` |
-| `competence_sign_off.observed_on`, `valid_until` | Harbour | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
-| `competence_withdrawal.reason` | Harbour | Plain text, 10 to 500 characters | |
-| `supervision_record.kind` | Harbour | `supervision`, `appraisal`, `spot_check` | |
-| `supervision_note.discussion`, `.actions` | Harbour | Free text: 10 to 4,000 characters; actions optional, 2 to 2,000 | Likely special category (ADR-0114); read only by the writer, the member and a supervisor for the member; never in audit, outbox, search or sync |
-| `supervision_note.supersedes_id` | Harbour | `supervision_note.id` | A correction; the earlier note is kept and shown struck through |
+| `training_requirement.refresh_years` | Thapsus Care | Whole years, 1 to 10, or empty for `training.default_refresh_years` | |
+| `training_record.completed_on`, `expires_on` | Thapsus Care | `YYYY-MM-DD` | |
+| `competence_sign_off.competence` | Thapsus Care | `medicines_administration`, `controlled_drugs`, `insulin_administration`, `epilepsy_rescue_medication`, `moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` | Medicines ones refresh on `competence.medicines.refresh_months` |
+| `competence_sign_off.observed_on`, `valid_until` | Thapsus Care | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
+| `competence_withdrawal.reason` | Thapsus Care | Plain text, 10 to 500 characters | |
+| `supervision_record.kind` | Thapsus Care | `supervision`, `appraisal`, `spot_check` | |
+| `supervision_note.discussion`, `.actions` | Thapsus Care | Free text: 10 to 4,000 characters; actions optional, 2 to 2,000 | Likely special category (ADR-0114); read only by the writer, the member and a supervisor for the member; never in audit, outbox, search or sync |
+| `supervision_note.supersedes_id` | Thapsus Care | `supervision_note.id` | A correction; the earlier note is kept and shown struck through |
 | `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |
-| Outbox `workforce.competence.changed` | Harbour | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
+| Outbox `workforce.competence.changed` | Thapsus Care | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
 
 ## Staff wellbeing and voice (Phase 2, slice 44)
 Code lists for [scheduling.md](scheduling.md) section 20 (migration 0115). No national standard
 covers these fields; exported with these names. Survey responses are anonymous and are not
-exported (only a closed survey's results above the minimum group size leave Harbour).
-| `pulse_survey.questions` | Harbour | `[{ id, kind, text }]`; `kind` `scale` or `free_text`; 1 to 20 questions; text up to 300 characters | |
-| `pulse_survey.state` | Harbour | `draft`, `open`, `closed` | Never back |
-| `pulse_survey.opens_on`, `closes_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
-| `pulse_survey_response.answers` | Harbour | Object by question id: whole number 1 to 5, or text up to 2,000 characters | Not exported |
-| `pulse_survey_response.submitted_week` | Harbour | `YYYY-MM-DD`, always a Monday (the UK week) | The only time kept |
-| `recognition.message` | Harbour | Plain text, 1 to 500 characters | |
-| `wellbeing_check_in.mood` | Harbour | Whole number 1 (low) to 5 (good), the member's own word | Never a score |
-| `wellbeing_check_in.note` | Harbour | Plain text up to 1,000 characters; possibly health | |
-| `wellbeing_check_in.shared_at` | Harbour | ISO 8601 UTC, or empty while private | Set by the database |
-| `RecognitionItem.fromName`, `toName`; `CheckInItem.memberName`; `RecognitionColleagues.items[].name` (API, slice 61) | Harbour | The member's display name, or null when none is held | Read from `tenant_user`, never stored with the record; `memberName` only on a manager's view of shared check-ins |
+exported (only a closed survey's results above the minimum group size leave Thapsus Care).
+| `pulse_survey.questions` | Thapsus Care | `[{ id, kind, text }]`; `kind` `scale` or `free_text`; 1 to 20 questions; text up to 300 characters | |
+| `pulse_survey.state` | Thapsus Care | `draft`, `open`, `closed` | Never back |
+| `pulse_survey.opens_on`, `closes_on` | Thapsus Care | `YYYY-MM-DD` (UK dates) | |
+| `pulse_survey_response.answers` | Thapsus Care | Object by question id: whole number 1 to 5, or text up to 2,000 characters | Not exported |
+| `pulse_survey_response.submitted_week` | Thapsus Care | `YYYY-MM-DD`, always a Monday (the UK week) | The only time kept |
+| `recognition.message` | Thapsus Care | Plain text, 1 to 500 characters | |
+| `wellbeing_check_in.mood` | Thapsus Care | Whole number 1 (low) to 5 (good), the member's own word | Never a score |
+| `wellbeing_check_in.note` | Thapsus Care | Plain text up to 1,000 characters; possibly health | |
+| `wellbeing_check_in.shared_at` | Thapsus Care | ISO 8601 UTC, or empty while private | Set by the database |
+| `RecognitionItem.fromName`, `toName`; `CheckInItem.memberName`; `RecognitionColleagues.items[].name` (API, slice 61) | Thapsus Care | The member's display name, or null when none is held | Read from `tenant_user`, never stored with the record; `memberName` only on a manager's view of shared check-ins |
 ## Controlled drugs register (Phase 2, slice 34)
 
 Migration 0128 ([medicines.md](medicines.md) section 14). Retention class
 `controlled_drugs_register`; every column is exported. Quantities are in the page's dm+d unit.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `controlled_drug_page.vmp_id`, `product_name`, `unit_code`, `unit_name` | dm+d VMP and unit of measure | SNOMED CT concept id; dm+d description and unit | One page per person and VMP (drug, form and strength). |
-| `controlled_drug_entry.movement` | Harbour; Misuse of Drugs Regulations 2001 register entries | `receipt`, `administration`, `disposal`, `transfer_out`, `destruction`, `correction` | |
-| `controlled_drug_entry.quantity`, `balance_after` | Harbour | Numeric, 3 decimal places | A quantity correction is signed; a detail correction is 0. |
-| `controlled_drug_entry.seq` | Harbour | Integer from 1 | Its place on the page. |
-| `controlled_drug_entry.corrects` | Harbour | `quantity`, `detail` | Margin corrections. |
-| `controlled_drug_witness_assertion.movement` | Harbour | The movements above, or `stock_check` | Used once, before `expires_at`. |
-| `controlled_drug_stock_check.counted`, `expected`, `difference` | Harbour | Numeric, 3 decimal places | A difference raises a medication incident. |
+| `controlled_drug_entry.movement` | Thapsus Care; Misuse of Drugs Regulations 2001 register entries | `receipt`, `administration`, `disposal`, `transfer_out`, `destruction`, `correction` | |
+| `controlled_drug_entry.quantity`, `balance_after` | Thapsus Care | Numeric, 3 decimal places | A quantity correction is signed; a detail correction is 0. |
+| `controlled_drug_entry.seq` | Thapsus Care | Integer from 1 | Its place on the page. |
+| `controlled_drug_entry.corrects` | Thapsus Care | `quantity`, `detail` | Margin corrections. |
+| `controlled_drug_witness_assertion.movement` | Thapsus Care | The movements above, or `stock_check` | Used once, before `expires_at`. |
+| `controlled_drug_stock_check.counted`, `expected`, `difference` | Thapsus Care | Numeric, 3 decimal places | A difference raises a medication incident. |
 
 ## Workforce: imports of external training records (Phase 2, slice 78)
 
-Code lists for [workforce.md](workforce.md) section 13 (migration 0132; ADR-0102). Harbour's own
+Code lists for [workforce.md](workforce.md) section 13 (migration 0132; ADR-0102). Thapsus Care's own
 fields, exported in the full tenant export with these names. Learner ids, course codes and record
-ids are the learning platform's; Harbour checks only their shape.
+ids are the learning platform's; Thapsus Care checks only their shape.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `lms_source.kind` | Harbour | `file`, `api` | An API source is off until connected |
-| `lms_source.secret_ref` | Harbour | `lms/{tenant}/{source}`, made by the database | Never a credential, never chosen by a caller; internal in the export |
+| `lms_source.kind` | Thapsus Care | `file`, `api` | An API source is off until connected |
+| `lms_source.secret_ref` | Thapsus Care | `lms/{tenant}/{source}`, made by the database | Never a credential, never chosen by a caller; internal in the export |
 | `lms_learner_link.learner_id`, `lms_import_row.learner_id` | The platform's learner id | `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$` | Never an email (no `@`); blank in a row when it failed the check |
 | `lms_course_map.course_code`, `lms_import_row.course_code` | The platform's course code | `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$` | |
 | `lms_import_row.record_id`, `training_record.external_record_id` | The platform's completion id | Up to 240 characters, no `@`; `derived:{learner}/{course}/{date}` when the platform gives none | Unique per source on training records |
-| `lms_import_row.completed_on`, `expires_on` | Harbour | `YYYY-MM-DD`; read from `dd/mm/yyyy` or `yyyy-mm-dd` | Never in the future; expiry not before completion |
-| `lms_import_row.problems` | Harbour (`LMS_ROW_PROBLEMS`) | `learner_id`, `course_code`, `completed_on`, `completed_in_future`, `expires_on`, `expires_before_completion`, `record_id`, `provider` | |
-| `lms_import_row.class` | Harbour (`LMS_ROW_CLASSES`) | `ready`, `unmatched_learner`, `unmapped_course`, `already_recorded`, `own_record`, `invalid` | The latest dry run's |
-| `lms_import_row.outcome` | Harbour | `pending`, `imported`, `skipped` | |
-| `lms_import.format` | Harbour | `csv`, `json`, `api` | |
-| `lms_import.status` | Harbour | `open`, `closed`, `discarded` | |
-| `training_record.source` | Harbour | `harbour`, `lms` | An imported record's completion is fixed |
-| `document.category` `training_certificate` | Harbour (`DOCUMENT_CATEGORIES`) | JPEG, PNG, WebP or PDF, 10 MB | Attached to a training record; read as it is |
+| `lms_import_row.completed_on`, `expires_on` | Thapsus Care | `YYYY-MM-DD`; read from `dd/mm/yyyy` or `yyyy-mm-dd` | Never in the future; expiry not before completion |
+| `lms_import_row.problems` | Thapsus Care (`LMS_ROW_PROBLEMS`) | `learner_id`, `course_code`, `completed_on`, `completed_in_future`, `expires_on`, `expires_before_completion`, `record_id`, `provider` | |
+| `lms_import_row.class` | Thapsus Care (`LMS_ROW_CLASSES`) | `ready`, `unmatched_learner`, `unmapped_course`, `already_recorded`, `own_record`, `invalid` | The latest dry run's |
+| `lms_import_row.outcome` | Thapsus Care | `pending`, `imported`, `skipped` | |
+| `lms_import.format` | Thapsus Care | `csv`, `json`, `api` | |
+| `lms_import.status` | Thapsus Care | `open`, `closed`, `discarded` | |
+| `training_record.source` | Thapsus Care | `harbour`, `lms` | An imported record's completion is fixed |
+| `document.category` `training_certificate` | Thapsus Care (`DOCUMENT_CATEGORIES`) | JPEG, PNG, WebP or PDF, 10 MB | Attached to a training record; read as it is |
 
 ## Integrations: e-signature and OCR (Phase 2, slice 79)
 
-Code lists for [integrations.md](integrations.md) section 11 (migration 0133; ADR-0095). Harbour's
+Code lists for [integrations.md](integrations.md) section 11 (migration 0133; ADR-0095). Thapsus Care's
 own fields, exported in the full tenant export with these names.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `signature_request.provider` | Harbour | `in_app`, `docusign` | DocuSign only when the organisation chose it (H-540) |
-| `signature_request.state` | Harbour | `requested`, `sent`, `signed`, `declined`, `cancelled`, `failed` | A finished request never changes |
+| `signature_request.provider` | Thapsus Care | `in_app`, `docusign` | DocuSign only when the organisation chose it (H-540) |
+| `signature_request.state` | Thapsus Care | `requested`, `sent`, `signed`, `declined`, `cancelled`, `failed` | A finished request never changes |
 | `signature_request.document_sha256` | FIPS 180-4 SHA-256 | 64 lower-case hex characters | The version the member is asked to sign |
-| `signature_request.step_up_method` | Harbour | `second_factor` | In Harbour: a second factor was used within the step-up window (ADR-0072); which one is not kept |
-| `ocr_extraction.engine`, `location` | Harbour (ADR-0095 allowlist) | `google_document_ai` with `europe-west2`; `mock` with `local` | Any other pair is refused |
-| `ocr_extraction.state` | Harbour | `blocked`, `failed`, `ready`, `released`, `discarded` | `blocked`: the image did not scan clean and was never read |
-| `ocr_extraction.failure` | Harbour | `not_clean`, `engine_error`, `unreadable`, `nothing_read` | Never the engine's own message |
-| `ocr_field.label` | Harbour | `medicine`, `strength`, `dose`, `route`, `directions`, `prescriber`, `text` | Free text as read: never a dm+d code, a dose unit or a schedule (HZ-005) |
+| `signature_request.step_up_method` | Thapsus Care | `second_factor` | In Thapsus Care: a second factor was used within the step-up window (ADR-0072); which one is not kept |
+| `ocr_extraction.engine`, `location` | Thapsus Care (ADR-0095 allowlist) | `google_document_ai` with `europe-west2`; `mock` with `local` | Any other pair is refused |
+| `ocr_extraction.state` | Thapsus Care | `blocked`, `failed`, `ready`, `released`, `discarded` | `blocked`: the image did not scan clean and was never read |
+| `ocr_extraction.failure` | Thapsus Care | `not_clean`, `engine_error`, `unreadable`, `nothing_read` | Never the engine's own message |
+| `ocr_field.label` | Thapsus Care | `medicine`, `strength`, `dose`, `route`, `directions`, `prescriber`, `text` | Free text as read: never a dm+d code, a dose unit or a schedule (HZ-005) |
 | `ocr_field.confidence` | The engine's | Decimal from 0 to 1, three places | For information only; never decides anything |
-| `ocr_field.state` | Harbour | `unconfirmed`, `confirmed`, `corrected`, `rejected` | `value` holds the text as read (confirmed) or the correction |
-| `ocr_field.decided_line_group`, `decided_label` | Harbour | 0 to 199; the labels above | The line and part a person decided; the engine's `line_group` and `label` are a proposal |
-| `ocr_field.truncated`, `added_by_person` | Harbour | Boolean | A truncated text is never confirmed; an added value was typed by a person |
-| `ocr_extraction.line_statuses` | Harbour | JSON `[{ "line": 0, "status": "active" }]`, status `active` or `stopped` | Set at release; stopped lines are never released |
-| `ocr_extraction.lines_counted`, `chart_from`, `chart_to` | Harbour | Whole number; `YYYY-MM-DD` | The person's own count of medicine lines on the paper chart, and the chart's period |
+| `ocr_field.state` | Thapsus Care | `unconfirmed`, `confirmed`, `corrected`, `rejected` | `value` holds the text as read (confirmed) or the correction |
+| `ocr_field.decided_line_group`, `decided_label` | Thapsus Care | 0 to 199; the labels above | The line and part a person decided; the engine's `line_group` and `label` are a proposal |
+| `ocr_field.truncated`, `added_by_person` | Thapsus Care | Boolean | A truncated text is never confirmed; an added value was typed by a person |
+| `ocr_extraction.line_statuses` | Thapsus Care | JSON `[{ "line": 0, "status": "active" }]`, status `active` or `stopped` | Set at release; stopped lines are never released |
+| `ocr_extraction.lines_counted`, `chart_from`, `chart_to` | Thapsus Care | Whole number; `YYYY-MM-DD` | The person's own count of medicine lines on the paper chart, and the chart's period |
 | `ocr_extraction.client_ref` | RFC 9562 UUID | Lower-case | The upload's idempotency key |
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `medication_administration_conflict.uploaded` | Harbour | JSON: the record as the device sent it (id, outcome, amount, reason, time given) | Never changes. |
-| `medication_administration_conflict.joins_id` | Harbour | uuid | A further upload of the same dose by the same person: the first conflict it joins and is resolved with. |
-| `medication_administration_conflict.problems` | Harbour | Problem codes from `checkAdministration` | What the server found wrong when the upload arrived. Never changes. |
-| `medication_administration_conflict.resolution` | Harbour | `first_stands`, `corrected`, `both_given` | `corrected` names the correction; `both_given` raises a medication incident whose id is the conflict's. |
+| `medication_administration_conflict.uploaded` | Thapsus Care | JSON: the record as the device sent it (id, outcome, amount, reason, time given) | Never changes. |
+| `medication_administration_conflict.joins_id` | Thapsus Care | uuid | A further upload of the same dose by the same person: the first conflict it joins and is resolved with. |
+| `medication_administration_conflict.problems` | Thapsus Care | Problem codes from `checkAdministration` | What the server found wrong when the upload arrived. Never changes. |
+| `medication_administration_conflict.resolution` | Thapsus Care | `first_stands`, `corrected`, `both_given` | `corrected` names the correction; `both_given` raises a medication incident whose id is the conflict's. |
 | `medication_administration_conflict.due_at`, `device_at`, `received_at`, `resolved_at` | ISO 8601 instant | UTC | `received_at` and `resolved_at` are the server's clock. |
 ## Medication errors and reviews (Phase 2, slice 45)
 
 Migration 0135 ([medicines.md](medicines.md) section 14). Every column is exported; errors are
 kept as their incident (`serious_incident`), reviews as the medicines record (`mar_chart`).
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `medication_error.kinds` | NRLS medication incident error categories (NHS England), as adapted (`MEDICATION_ERROR_SOURCE`) | `omitted_dose`, `wrong_dose`, `wrong_medicine`, `wrong_person`, `wrong_time`, `wrong_route`, `given_after_stopped`, `wrong_frequency`, `wrong_formulation`, `wrong_quantity`, `allergy_or_contraindication`, `expired_medicine`, `wrong_storage`, `monitoring_not_done`, `record_unclear_or_missing`, `other` | One or more; the list is to verify against the current LFPSE categories (H-1290). |
 | `medication_error.stage` | NRLS stage of the medication process | `prescribing`, `transcribing`, `dispensing`, `administration`, `monitoring`, `storage`, `other` | |
-| `medication_error.reached_person`, `controlled_drug`, `deliberate_or_repeated` | Harbour | `yes`, `no`, `unsure`, or empty | `reached_person` `no` is a near miss. |
+| `medication_error.reached_person`, `controlled_drug`, `deliberate_or_repeated` | Thapsus Care | `yes`, `no`, `unsure`, or empty | `reached_person` `no` is a near miss. |
 | `medication_error.clinician_told_at` | ISO 8601 instant | UTC | With `clinician_told` (text), both or neither. |
-| `medication_error.cd_reported_on`, `cd_report_reference` | Harbour | ISO 8601 date; text up to 120 characters | Both or neither; only when a controlled drug was or may have been involved. |
+| `medication_error.cd_reported_on`, `cd_report_reference` | Thapsus Care | ISO 8601 date; text up to 120 characters | Both or neither; only when a controlled drug was or may have been involved. |
 | `medication_review.due_on`, `done_on` | ISO 8601 date | UK dates | |
-| `medication_review.clinician_role` | Harbour | `gp`, `pharmacist`, `prescriber`, `consultant`, `other` | |
-| `medication_review.outcome` | Harbour | Text up to 4,000 characters, the clinician's words | Never a Harbour suggestion. |
+| `medication_review.clinician_role` | Thapsus Care | `gp`, `pharmacist`, `prescriber`, `consultant`, `other` | |
+| `medication_review.outcome` | Thapsus Care | Text up to 4,000 characters, the clinician's words | Never a Thapsus Care suggestion. |
 ## Covert, self-administration and homely remedies (Phase 2, slice 38)
 
 Migration 0140 ([medicines.md](medicines.md) section 15). Retention class `mar_chart`; every column
 is exported. Dates are UK dates; times are instants in UTC, shown in UK time, 24-hour, dd/mm/yyyy.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `covert_medication_record.attendees` | Harbour | JSON array of `role` (`prescriber`, `pharmacist`, `registered_manager`, `nurse`, `care_staff`, `family_or_friend`, `representative`, `advocate`, `other`) and `name` | The prescriber and a pharmacist are required (NICE SC1 1.15.3). |
-| `covert_medication_record.method`, `pharmacist_advice` | Harbour | Text | As agreed with the pharmacist; never Harbour's suggestion. |
+| `covert_medication_record.attendees` | Thapsus Care | JSON array of `role` (`prescriber`, `pharmacist`, `registered_manager`, `nurse`, `care_staff`, `family_or_friend`, `representative`, `advocate`, `other`) and `name` | The prescriber and a pharmacist are required (NICE SC1 1.15.3). |
+| `covert_medication_record.method`, `pharmacist_advice` | Thapsus Care | Text | As agreed with the pharmacist; never Thapsus Care's suggestion. |
 | `covert_medication_record.starts_on`, `review_on`, `reviewed_on`, `ended_on` | ISO 8601 date | UK date | Review within `medicines.covert.review_max_days`. |
-| `medication_administration.covert` | Harbour | Boolean | Marked on the MAR; the flags `covert_without_record` and `covert_review_overdue` say when no current record covered it. |
-| `self_administration_assessment.choice`, `capacity`, `dexterity`, `storage`, `level` | Harbour | `wants_to`, `does_not_want_to`; `has_capacity`, `lacks_capacity`, `assumed`; `able`, `able_with_aids`, `unable`; `lockable_storage`, `no_lockable_storage`; `self_administers`, `self_administers_with_support`, `staff_administer` | A level other than staff giving needs the person's choice, capacity not lacking, dexterity and lockable storage. |
-| `self_administration_assessment.medicine_ids` | Harbour | Array of `medication.medicine_id` | The person's own medicines only. |
+| `medication_administration.covert` | Thapsus Care | Boolean | Marked on the MAR; the flags `covert_without_record` and `covert_review_overdue` say when no current record covered it. |
+| `self_administration_assessment.choice`, `capacity`, `dexterity`, `storage`, `level` | Thapsus Care | `wants_to`, `does_not_want_to`; `has_capacity`, `lacks_capacity`, `assumed`; `able`, `able_with_aids`, `unable`; `lockable_storage`, `no_lockable_storage`; `self_administers`, `self_administers_with_support`, `staff_administer` | A level other than staff giving needs the person's choice, capacity not lacking, dexterity and lockable storage. |
+| `self_administration_assessment.medicine_ids` | Thapsus Care | Array of `medication.medicine_id` | The person's own medicines only. |
 | `homely_remedy_protocol.vmp_id` | dm+d VMP | SNOMED CT concept id (6 to 18 digits) | Optional; an exact match with a current entry is refused at the dose. |
-| `homely_remedy_protocol.dose_quantity`, `max_daily_quantity`, `min_interval_hours`, `max_days` | Harbour | Numeric in `unit_name`; hours; days | The home's figures, agreed with a GP or pharmacist; `max_days` within `medicines.homely_remedy.max_days_ceiling`. |
-| `homely_remedy_administration.outcome` | Harbour | `given`, `entered_in_error` | A record entered in error stays, struck through, and no longer counts. |
-| `homely_remedy_administration.allergies_checked`, `already_given_reason`, `flags` | Harbour | Boolean; text; array of `HomelyDoseProblem` codes | Flags only on a dose already given outside the protocol, with its reason. |
+| `homely_remedy_protocol.dose_quantity`, `max_daily_quantity`, `min_interval_hours`, `max_days` | Thapsus Care | Numeric in `unit_name`; hours; days | The home's figures, agreed with a GP or pharmacist; `max_days` within `medicines.homely_remedy.max_days_ceiling`. |
+| `homely_remedy_administration.outcome` | Thapsus Care | `given`, `entered_in_error` | A record entered in error stays, struck through, and no longer counts. |
+| `homely_remedy_administration.allergies_checked`, `already_given_reason`, `flags` | Thapsus Care | Boolean; text; array of `HomelyDoseProblem` codes | Flags only on a dose already given outside the protocol, with its reason. |
+| `homely_remedy_administration.medicines_compared` | Thapsus Care | Boolean | The giver confirmed they compared the remedy with the person's current medicines (HZ-120); required on every dose given from migration 0150 (`NOT VALID` check, so earlier doses keep false); in the audit event's scope and the export. |
 
 ## Integrations: Thapsus-HR link (Phase 2, slice 87)
 
@@ -1396,30 +1398,33 @@ Fields for [integrations.md](integrations.md#11-thapsus-hr-link-intg-014) sectio
 0141). Identifiers only: Thapsus-HR's names, emails and dates of birth are read to match and never
 stored. Exported in the full tenant export with these names.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `hr_person_link.hr_employee_id`, `employee_number` | Thapsus-HR (the employee's identifier and number) | `^[A-Za-z0-9_-]{1,64}$`; `^[A-Za-z0-9_/-]{1,40}$` | One link per Thapsus-HR employee; one linked employee per staff file |
-| `hr_person_link.state`, `match_method`, `review_reason` | Harbour | `linked`, `review`, `rejected`; `employee_number`, `email_and_birth_date`, `manual`, `starter`; `conflict`, `ambiguous`, `already_linked`, `no_match` | Never matched by name (rule 3); `manual` needs who confirmed it and when |
+| `hr_person_link.state`, `match_method`, `review_reason` | Thapsus Care | `linked`, `review`, `rejected`; `employee_number`, `email_and_birth_date`, `manual`, `starter`; `conflict`, `ambiguous`, `already_linked`, `no_match` | Never matched by name (rule 3); `manual` needs who confirmed it and when |
 | `hr_person_link.leaving_on` | Thapsus-HR | `YYYY-MM-DD` | The earliest leaving date given; never moved later (rule 8) |
 | `hr_location_link.hr_location_id` | Thapsus-HR | `^[A-Za-z0-9_-]{1,64}$` | One each way |
-| `hr_sync_state.kind`, `last_error_code` | Harbour | `employees`, `locations`, `absences`, `rates`; `^[a-z_]{1,40}$` | An opaque code, never a message |
-| `hr_delivery.kind`, `state` | Harbour | `starter`, `shift`, `clock_event`, `pay_units`; `pending`, `sent`, `failed`, `refused` | The idempotency key is a UUID; sent only with Thapsus-HR's identifier |
-| `hr_delivery.payload_sha256` | Harbour | 64 lower-case hex characters | Digest of what was last sent (slice 88, migration 0142) |
-| `absence.source`, `absence.hr_id` | Harbour; Thapsus-HR | `harbour` or `thapsus_hr`; `^[A-Za-z0-9_-]{1,64}$` | A Thapsus-HR copy is annual leave, sickness or other, recorded or cancelled, with no decider (slice 88, migration 0142) |
+| `hr_sync_state.kind`, `last_error_code` | Thapsus Care | `employees`, `locations`, `absences`, `rates`; `^[a-z_]{1,40}$` | An opaque code, never a message |
+| `hr_delivery.kind`, `state` | Thapsus Care | `starter`, `shift`, `clock_event`, `pay_units`; `pending`, `sent`, `failed`, `refused` | The idempotency key is a UUID; sent only with Thapsus-HR's identifier |
+| `hr_delivery.payload_sha256` | Thapsus Care | 64 lower-case hex characters | Digest of what was last sent (slice 88, migration 0142) |
+| `absence.source`, `absence.hr_id` | Thapsus Care; Thapsus-HR | `harbour` or `thapsus_hr`; `^[A-Za-z0-9_-]{1,64}$` | A Thapsus-HR copy is annual leave, sickness or other, recorded or cancelled, with no decider (slice 88, migration 0142) |
+| `hr_pay_period.hr_id`, `frequency`, `starts_on`, `ends_on` | Thapsus-HR (pay periods, K5) | `^[A-Za-z0-9_-]{1,64}$`; `weekly` or `monthly`; `YYYY-MM-DD`, at most 31 days | The pay reference period for a period paid through Thapsus-HR; dates never move once stored (slice 89, migration 0148) |
+| `hr_pay_rate.hourly_pence`, `effective_from` | Thapsus-HR (pay rates, K5) | Whole pence, 1 to 100,000; `YYYY-MM-DD` | For the minimum wage check only; the latest rate in force on the period's first day (slice 89) |
+| `hr_pay_unit.unit_kind`, `quantity` | Thapsus Care (pay units, K4) | `hours` or `hours_` with any of `bank_holiday`, `night`, `overtime`, `weekend`; `sleep_in`, `on_call`, `mileage`; decimal, 2 places, above 0 | Units, never money; mapped to the tenant's pay codes (`^[A-Za-z0-9_.-]{1,32}$`) when sent (slice 89) |
 
 ## PRN protocols and outcomes (Phase 2, slice 28)
 
 Migration 0143 ([medicines.md](medicines.md) section 16). Retention class `mar_chart` (medicine
 lists: `organisation_document`); every column is exported.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
-| `medicine_list_item.list`, `vmp_id` | Harbour (ADR-0082); dm+d VMP | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic`; SNOMED CT concept id | Exact products only. |
-| `prn_protocol.triggers`, `non_drug_alternatives` | Harbour | Arrays of text | Staff's words; never Harbour's suggestion. |
-| `prn_protocol.purpose_group`, `order_of_use` | Harbour | Text; integer from 1 | One medicine per place in a group. |
-| `prn_protocol.agreed_with_role` | Harbour | `prescriber`, `pharmacist` | |
+| `medicine_list_item.list`, `vmp_id` | Thapsus Care (ADR-0082); dm+d VMP | `time_critical`, `paracetamol`, `bisphosphonate`, `psychotropic`; SNOMED CT concept id | Exact products only. |
+| `prn_protocol.triggers`, `non_drug_alternatives` | Thapsus Care | Arrays of text | Staff's words; never Thapsus Care's suggestion. |
+| `prn_protocol.purpose_group`, `order_of_use` | Thapsus Care | Text; integer from 1 | One medicine per place in a group. |
+| `prn_protocol.agreed_with_role` | Thapsus Care | `prescriber`, `pharmacist` | |
 | `prn_protocol.agreed_on`, `review_on`, `withdrawn_on` | ISO 8601 date | UK date | Review within `medicines.prn_protocol.review_max_days`. |
-| `prn_outcome.outcome` | Harbour; PRSB eMAR (not yet coded) | `effective`, `partly_effective`, `not_effective`, `person_asleep`, `could_not_assess` | Shown in words (`PRN_OUTCOME_WORDS`). |
+| `prn_outcome.outcome` | Thapsus Care; PRSB eMAR (not yet coded) | `effective`, `partly_effective`, `not_effective`, `person_asleep`, `could_not_assess` | Shown in words (`PRN_OUTCOME_WORDS`). |
 | `prn_outcome.observed_at`, `recorded_at` | ISO 8601 instant | UTC | `recorded_at` is the server's clock. |
 
 ## Platform operational tables (not part of the MODS export)
@@ -1665,18 +1670,18 @@ UUIDv7 made there, which the API keeps as the record's `id`.
 
 Code lists for [scheduling.md](scheduling.md) section 19 (migration 0127). The file layouts follow
 each provider's published import guide as read and are to verify (H-1191). The provider codes are
-Harbour's own.
+Thapsus Care's own.
 
-| Harbour field | Standard mapping | Code list or format | Notes |
+| Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `pay_profile.payroll_reference` | The provider's employee reference (works number) | `^[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$` with a digit, never an NI number's shape, unique in the organisation | The only way an export names a member |
-| `payroll_export.format` | Harbour (`PAYROLL_FORMATS`) | `xero_payroll_uk`, `staffology_csv`, `sage_csv`, `brightpay_csv` | With `format_version` |
+| `payroll_export.format` | Thapsus Care (`PAYROLL_FORMATS`) | `xero_payroll_uk`, `staffology_csv`, `sage_csv`, `brightpay_csv` | With `format_version` |
 | `payroll_export.content_sha256` | SHA-256 (FIPS 180-4) | 64 lowercase hex | Of the file, or of the canonical Xero batch |
-| `payroll_export.outcome` | Harbour | `generated` (a file), `pending` (an API export) | |
-| `payroll_export.payroll_references` | Harbour | JSON object, member id to payroll reference | As exported; re-exports reuse it |
-| `payroll_export_result.outcome` | Harbour | `sent`, `failed`, `unknown` | One per API export; `unknown` when no answer came |
+| `payroll_export.outcome` | Thapsus Care | `generated` (a file), `pending` (an API export) | |
+| `payroll_export.payroll_references` | Thapsus Care | JSON object, member id to payroll reference | As exported; re-exports reuse it |
+| `payroll_export_result.outcome` | Thapsus Care | `sent`, `failed`, `unknown` | One per API export; `unknown` when no answer came |
 | Exported amounts | Pounds | `-?[0-9]+\.[0-9]{2}`, no symbol or separator | From whole pence |
 | Exported hours | Hours | `[0-9]+\.[0-9]{2}` | From minutes |
 | Auto-enrolment category | Pensions Act 2008 categories | `eligible_jobholder`, `non_eligible_jobholder`, `entitled_worker`, `outside_age_range` | A flag for the employer's own pension process |
-| `payroll_connection.secret_ref` | Harbour | `payroll/{tenant}/{provider}/{connection}`, made by the database | Never a token, never chosen by a caller; internal in the export |
+| `payroll_connection.secret_ref` | Thapsus Care | `payroll/{tenant}/{provider}/{connection}`, made by the database | Never a token, never chosen by a caller; internal in the export |
 

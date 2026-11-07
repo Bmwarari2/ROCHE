@@ -81,7 +81,7 @@ describe("deletionMessage", () => {
     [
       { kind: "requested", respondBy: at, routedToManager: true },
       "Request sent",
-      "We have asked Harbour Demo Care to reply by 30/11/2026. You can keep using Harbour until then.",
+      "We have asked Harbour Demo Care to reply by 30/11/2026. You can keep using Thapsus Care until then.",
       true,
     ],
     [
@@ -93,7 +93,7 @@ describe("deletionMessage", () => {
     [
       { kind: "requested", respondBy: at, routedToManager: false },
       "Request kept, not yet seen",
-      "Your request is kept, but no one at Harbour Demo Care manages accounts in Harbour yet. Tell your manager you have asked.",
+      "Your request is kept, but no one at Harbour Demo Care manages accounts in Thapsus Care yet. Tell your manager you have asked.",
       true,
     ],
     [
@@ -111,7 +111,7 @@ describe("deletionMessage", () => {
     [
       { kind: "server" },
       "Request not sent",
-      "Harbour could not reach the server. Try again later.",
+      "Thapsus Care could not reach the server. Try again later.",
       false,
     ],
     [
@@ -129,7 +129,7 @@ describe("deletionMessage", () => {
     [
       { kind: "refused", reason: null },
       "Request not sent",
-      "Harbour could not send it. Try again later.",
+      "Thapsus Care could not send it. Try again later.",
       false,
     ],
   ])("says %j in words with a title that matches", (outcome, title, body, sent) => {
@@ -144,7 +144,7 @@ describe("deletionMessage", () => {
       t,
     );
     expect(message.body).toBe(
-      "We have asked your organisation to reply by 30/11/2026. You can keep using Harbour until then.",
+      "We have asked your organisation to reply by 30/11/2026. You can keep using Thapsus Care until then.",
     );
   });
 });
