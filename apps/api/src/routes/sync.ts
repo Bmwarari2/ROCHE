@@ -12,6 +12,7 @@ import {
   deviceDiscardRecord,
   discardReason,
   location,
+  person,
   personAssignment,
   tenantUser,
 } from "@harbour/db";
@@ -24,16 +25,19 @@ import {
   scopeFor,
 } from "@harbour/domain";
 import {
+  estimateBuckets,
   isValidWindowDays,
   OFFLINE_WINDOW_RATE_KEY,
+  offlineWindowBlocks,
   offlineWindowDays,
+  SYNC_BUCKET_LIMIT,
   shiftWindowDays,
 } from "@harbour/sync/streams";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import { mfaRefusal, requirePermission, withTenant } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
 import { agencyUploadCheck, agencyWindowEnd } from "../services/agency-window";
@@ -164,6 +168,22 @@ export const MAX_WRITE_PERSON_IDS = 100;
  * carries every one of its permissions; S-M1), each the narrowest of its permissions' scopes. A
  * break-glass record never syncs.
  */
+/** The statuses whose people the whole-home streams carry (sync-config.yaml, L1). */
+const LIVE_STATUSES: ReadonlySet<string> = new Set(["active", "on_leave", "in_hospital"]);
+
+/**
+ * Whether a family's whole-home streams already carry every person the member is assigned to:
+ * each one lives at a home in `locationIds` and is a person receiving care. Only then are the
+ * assigned streams left off (ADR-0134); a member with no assignments is covered trivially.
+ */
+export function assignedCovered(
+  locationIds: readonly string[],
+  assigned: readonly { readonly locationId: string; readonly status: string }[],
+): boolean {
+  const homes = new Set(locationIds);
+  return assigned.every((a) => homes.has(a.locationId) && LIVE_STATUSES.has(a.status));
+}
+
 export function familyReach(
   effective: EffectiveAccess,
   family: SyncFamily,
@@ -184,7 +204,7 @@ export function familyReach(
 /** Deletions that remove a device's whole hold (or its unsent work at sign-out). */
 const WHOLE_HOLD_KINDS: ReadonlySet<string> = new Set(["held_deleted", "signed_out_with_unsent"]);
 
-import { createRouter, errorResponses, jsonBody, security } from "./openapi";
+import { createRouter, errorResponses, jsonBody, problem, security } from "./openapi";
 
 /**
  * Offline sync (sections 6 and 17): the API mints PowerSync tokens and applies client uploads. It
@@ -225,7 +245,13 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         description:
           "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
         security,
-        responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
+        responses: {
+          200: jsonBody(SyncToken, "Token"),
+          ...errorResponses,
+          409: problem(
+            "sync_scope_too_large: the member's access reaches more homes and people than a phone can hold offline under PowerSync's buckets per connection (ADR-0134); no token",
+          ),
+        },
       }),
       async (c) => {
         const access = await requirePermission(c, "people.person.read");
@@ -249,10 +275,30 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           );
           // Each family of streams syncs where its own read permission reaches, never where
           // another role reaches further (ADR-0071 review round 1, C-M1 and S-M1).
-          const people = familyReach(access.effective, "people", allIds);
-          const care = familyReach(access.effective, "care", allIds);
-          const entries = familyReach(access.effective, "entries", allIds);
-          const handovers = familyReach(access.effective, "handover", allIds);
+          // A family's assigned streams are left off where its whole-home streams already carry
+          // every person the member is assigned to: the same rows twice would double the
+          // buckets of the connection, which PowerSync caps (ADR-0134).
+          const assignedHomes = await tx
+            .select({ locationId: person.locationId, status: person.status })
+            .from(personAssignment)
+            .innerJoin(person, eq(person.id, personAssignment.personId))
+            .where(
+              and(
+                eq(personAssignment.tenantUserId, access.tenantUserId),
+                isNull(personAssignment.deletedAt),
+              ),
+            );
+          const covered = (reach: { locationIds: string[]; assigned: boolean }) =>
+            reach.assigned &&
+            reach.locationIds.length > 0 &&
+            assignedCovered(reach.locationIds, assignedHomes)
+              ? { ...reach, assigned: false }
+              : reach;
+          const people = covered(familyReach(access.effective, "people", allIds));
+          const careReach = familyReach(access.effective, "care", allIds);
+          const care = covered(careReach);
+          const entries = covered(familyReach(access.effective, "entries", allIds));
+          const handovers = covered(familyReach(access.effective, "handover", allIds));
           const recording = familyReach(access.effective, "entries_write", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
@@ -268,6 +314,53 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             );
           }
           const offlineDays = offlineWindowDays(new Date(), windowDays);
+          // Buckets per connection (ADR-0134; HZ-002): a phone over PowerSync's limit gets no
+          // fresh data at all.
+          const estimateFor = async () => {
+            const wholeHomes = [...new Set([...people.locationIds, ...care.locationIds])];
+            const [{ n } = { n: 0 }] =
+              wholeHomes.length > 0
+                ? await tx
+                    .select({ n: sql<number>`count(*)::int` })
+                    .from(person)
+                    .where(
+                      and(
+                        inArray(person.locationId, wholeHomes),
+                        inArray(person.status, ["active", "on_leave", "in_hospital"]),
+                      ),
+                    )
+                : [{ n: 0 }];
+            const anyAssigned =
+              people.assigned || care.assigned || entries.assigned || handovers.assigned;
+            return estimateBuckets({
+              days: offlineDays.length,
+              blocks: offlineWindowBlocks(offlineDays).length,
+              shiftDays: shiftWindowDays(new Date()).length,
+              entriesHomes: entries.locationIds.length,
+              careHomes: care.locationIds.length,
+              handoverHomes: handovers.locationIds.length,
+              wholePeople: n,
+              assignedPeople: anyAssigned ? assignedHomes.length : 0,
+              assignedHomes: new Set(assignedHomes.map((a) => a.locationId)).size,
+            });
+          };
+          const estimate = await estimateFor();
+          if (estimate > SYNC_BUCKET_LIMIT) {
+            // PowerSync would refuse this phone's connection and leave it with nothing fresh, out
+            // of sight: refuse the token instead, by name, so the phone shows a failed sync with a
+            // retry (HZ-002, HZ-006). Narrowing to fewer homes, with a notice on the phone, is
+            // H-1430. Opaque ids and counts only.
+            c.get("services").logger.warn(
+              { tenantId: access.tenantId, estimate, limit: SYNC_BUCKET_LIMIT },
+              "sync token refused: the phone would pass the buckets per connection",
+            );
+            throw new HttpProblem(
+              409,
+              "sync_scope_too_large",
+              "This phone cannot hold everything you can see.",
+              "Your access reaches more homes and people than a phone can keep offline. Ask your manager to narrow your roles on this phone, or use the web app.",
+            );
+          }
           // Where handovers reach the phone, the shift pattern of each nation the organisation
           // has homes in (the rate table's two shifts, until rotas define them per location), so
           // the phone can work out, offline, which handover it should hold and say when it is not
@@ -310,6 +403,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               entriesAssigned: entries.assigned,
               handoverAssigned: handovers.assigned,
               offlineWindowDays: windowDays,
+              bucketEstimate: estimate,
             },
             requestId: c.get("requestId"),
           });
@@ -345,13 +439,28 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             entries_location_ids: entries.locationIds,
             people_assigned: people.assigned,
             care_assigned: care.assigned,
+            // Tasks about nobody given to the member, at any home: never left off by the cover
+            // above, which only knows about people (security review of ADR-0134, M2).
+            care_own_tasks: careReach.assigned,
             entries_assigned: entries.assigned,
             handover_location_ids: handovers.locationIds,
             handover_assigned: handovers.assigned,
+            // The homes where the member's assigned people live: the handovers they may open
+            // there sync per home and day (`app.handover_location_visible`; ADR-0134).
+            handover_assigned_location_ids: handovers.assigned
+              ? [
+                  ...new Set(
+                    assignedHomes
+                      .map((a) => a.locationId)
+                      .filter((l): l is string => typeof l === "string"),
+                  ),
+                ].sort()
+              : [],
             entries_write_location_ids: recording.locationIds,
             entries_write_assigned: recording.assigned,
             ...(writePersonIds ? { entries_write_person_ids: writePersonIds } : {}),
             offline_days: offlineDays,
+            offline_blocks: offlineWindowBlocks(offlineDays),
             handover_shifts: handoverShifts,
             // The member's own shifts and clock events (scheduling.md section 18): only for those
             // who clock their own time; empty otherwise, so no shift syncs (fails closed).

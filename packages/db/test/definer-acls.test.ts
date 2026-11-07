@@ -61,6 +61,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.provision_tenant(jsonb, jsonb, jsonb)": ["harbour_operator"],
   "app.record_invitation_sign_in(text, text)": ["harbour_app"],
   "app.seed_discard_reasons(uuid)": [],
+  // A person's home and status for the sync routing columns (migration 0146; ADR-0134): called
+  // only by the routing triggers, which run as their owner.
+  "app.sync_person(uuid, uuid)": [],
   // Supervision notes (slice 57, migration 0114): read rule of supervision_note.
   "app.supervises_member(uuid)": ["harbour_app"],
   "app.supervision_in_force(uuid)": ["harbour_app"],

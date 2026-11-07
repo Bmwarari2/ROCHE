@@ -5,9 +5,11 @@ import { fileURLToPath } from "node:url";
 export {
   isValidWindowDays,
   OFFLINE_WINDOW_RATE_KEY,
+  offlineWindowBlocks,
   offlineWindowDays,
   shiftWindowDays,
 } from "../client/window";
+export { type BucketEstimateInput, estimateBuckets, SYNC_BUCKET_LIMIT } from "./budget";
 
 /** Absolute path of the sync streams definition mounted into the PowerSync service. */
 export const SYNC_CONFIG_PATH = fileURLToPath(new URL("./sync-config.yaml", import.meta.url));
@@ -70,6 +72,15 @@ export interface SyncTokenClaims {
    * `mobile.offline_window_days` in the rate table. Without it no point-of-care entries sync.
    */
   readonly offline_days: readonly string[];
+  /**
+   * The homes where the member's assigned people live, when `handover_assigned`: the handovers
+   * they may open there, and those handovers' own notes, sync per home and day (ADR-0134).
+   */
+  readonly handover_assigned_location_ids?: readonly string[];
+  /** Whether tasks about nobody given to the member sync (care.plan.read reaching assigned people). */
+  readonly care_own_tasks?: boolean;
+  /** Ten-day blocks of the offline window (`offlineWindowBlocks`), for the assigned streams. */
+  readonly offline_blocks?: readonly string[];
   /**
    * The UTC days of the member's own shifts and clock events (`shift_days`, scheduling.md section
    * 18): empty unless the member holds `scheduling.timesheet.self`, so no shift syncs (fails closed).

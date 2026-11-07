@@ -1482,6 +1482,17 @@ detail is in `packages/db/src/schema/`; purposes and lawful bases are in
 
 ## Device copies (offline sync, not part of the export)
 
+Routing columns (migration 0146; ADR-0134), set and moved by the database, never by a client, and
+not synced: `sync_location_id` (UUID) on `care_note`, `observation`, `body_map_mark`, `assessment`,
+`activity_record`, `visit_log`, `medication_administration` and `task`: the person's home while
+they receive care, else null; on a task, its own home while its person receives care (a task
+about nobody: its own home); on `handover_item`, `handover_note` and `handover_acknowledgement`: the
+handover's home, with `shift_end` (timestamp with time zone, the handover's) and, on items and
+notes, `person_location_id` (UUID, the person's home now, null about nobody) and `at_home`
+(boolean: about nobody, or about someone who lives at the handover's home). Sync token claims
+`offline_blocks` (the offline window's ten-day blocks, `yyyy-mm-d`),
+`handover_assigned_location_ids` (opaque location ids) and `care_own_tasks` (boolean).
+
 The mobile app keeps a subset of the care tables on the device (Phase 1 slice 10, [care.md](care.md)
 section 6). Device columns use the database column names, so this mapping applies unchanged, with
 these differences, defined in `packages/sync/src/client/schema.ts`:

@@ -67,6 +67,9 @@ export class SyncTokenSigner {
         ? { entries_write_person_ids: [...claims.entries_write_person_ids] }
         : {}),
       offline_days: [...claims.offline_days],
+      offline_blocks: [...(claims.offline_blocks ?? [])],
+      handover_assigned_location_ids: [...(claims.handover_assigned_location_ids ?? [])],
+      care_own_tasks: claims.care_own_tasks === true,
       shift_days: [...(claims.shift_days ?? [])],
       ...(claims.handover_shifts ? { handover_shifts: { ...claims.handover_shifts } } : {}),
     })

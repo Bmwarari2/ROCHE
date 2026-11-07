@@ -244,6 +244,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | Reference data for assigned people (care plan summary, allergies, medicines, photo, communication needs) is never evicted while the assignment stands (`NEVER_EVICT_TABLES` in `packages/sync`) | Built in Phase 0 |
 | Design | Safety-critical panels (allergies, medicines, resuscitation decision) show when that data was last confirmed from the server | Phase 1 |
 | Design | Last-given time for every dose shows its source (this device, or synced from the server at a stated time) | Phase 2 |
+| Design | Against a phone refused sync for holding too many buckets: a home's rows sync per home and day, an assigned person's per person and ten-day block; the PowerSync limits are explicit; a whole 120-bed home and a care worker with 20 people are measured at or under half the limit at the 31-day window; the API estimates every token and refuses one above the limit by name (`sync_scope_too_large`, 409), so the phone shows a failed sync rather than nothing fresh out of sight; such a member (about three or more whole homes of 60 people at the 31-day window) has no offline Care mode until H-1430 narrows them, an owner-accepted recommendation, pending CSO review at the testing phase (H-1429) (ADR-0134; HZ-138) | Built (ADR-0134); narrowing with a notice on the phone planned (H-1430) |
 | Design | High-priority changes (new allergy, medicine stopped, resuscitation decision changed) travel on a priority sync stream and a push that prompts the app to sync; the push content carries no personal data | Phase 2 |
 | Design | Sync stream filters are tested separately from RLS, because logical replication bypasses RLS (shared with HZ-011) | Phase 0 gate |
 | Design | Offline, search covers only what the device has synced and labels its results "This device only, last synced at HH:MM" ([platform-completions.md](../specs/platform-completions.md) rule 7; ADR-0070) | Phase 1 (mobile step) |
@@ -259,6 +260,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Test | Status |
 | --- | --- |
+| `packages/sync/test/bucket-budget.test.ts`: `hazard HZ-002 a phone stays under PowerSync's buckets per connection (ADR-0134)` | Passing |
 | Slice 16 adds no control: the medicines record is served by the API and not yet published to devices (the offline eMAR is slices 68 to 70) | Noted (Phase 2 slice 16) |
 | `apps/api/test/medicines.test.ts`: `hazard HZ-002 gives each MAR dose its entry's status, so a cell never hides a notice` (each dose carries the entry's status now, in words, with whether it may be given and any not-yet-checked or stopped notice, and a not-yet-checked version's doses carry the notice; the status is the entry's now, not at each dose's time, which the CSO is asked to accept in H-1025; slice 16 clinical review M6) | Passing (Phase 2 slice 16) |
 | `packages/ui-native/src/logic/sync-banner.test.ts`: `warns that offline data may be out of date past the threshold (HZ-002)`; stale warning kept until caught up (threshold 15 minutes, ADR-0029; CSO to confirm) | Passing (Phase 0) |
@@ -1079,6 +1081,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Type | Control | When |
 | --- | --- | --- |
+| Design | Buckets per home (ADR-0134): the home streams filter on the row's own routing home, empty once the person has left care; assigned people's rows key by ten-day block, so a phone may hold up to nine days either side of the window of its own people (H-1428); the stream isolation tests are unchanged and pass | Built (ADR-0134) |
 | Design | `tenant_id` on every row; RLS enabled with `FORCE ROW LEVEL SECURITY` on every tenant table; the application connects as a non-owner role without `BYPASSRLS` and sets `app.tenant_id` per transaction | Built in Phase 0 |
 | Design | Cross-tenant isolation test suite proving every table denies cross-tenant access | Built in Phase 0 |
 | Design | Sync streams filtered by the token's tenant, location and assignment claims, tested on their own | Built in Phase 0 |
@@ -1649,6 +1652,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Type | Control | When |
 | --- | --- | --- |
+| Design | On the phone (ADR-0134): a whole reader's handover items and notes are those in their homes' handovers about nobody or someone living at the handover's home, and about someone who moved between two of their homes, never from a handover they cannot open, by routing columns the database sets with no care-status rule, so a death in the shift still reaches the handover; a limited reader's only where their person still lives at the handover's home, and in the handovers they see whole. Test: `packages/db/test/sync-location.test.ts` `hazard HZ-018 keeps a handover item about the person with their new home, and with them through a death`; `packages/sync/test/task-handover-streams.test.ts` | Built (ADR-0134) |
 | Design | Handover compiles automatically from the shift's records by rule (falls, NEWS2 above the low band, incidents, urgent alerts raised in the shift or still unacknowledged, new body-map marks, care notes tagged "Include in handover" (the fixed `handover` tag, item kind `flagged_note`), overdue, skipped and unfinished tasks, MUST follow-ups, refusals from every chart that records one and from fixed note tags); compiled items cannot be removed, only annotated. Which notes should reach the handover beyond these is for the CSO (H-155; master prompt 10.1 says "auto-compiled from the shift's notes") | Phase 1 (the `handover` tag added in slice 5 review round 2, C-M6) |
 | Design | Shift patterns are set per location to the minute with two or more shifts; the defaults are flagged for confirmation before go-live | Phase 1 |
 | Design | Items that sync after compilation are appended to both affected handovers and marked as late additions; the incoming staff are notified while on shift, otherwise the nurse in charge on duty | Phase 1 |
@@ -4271,6 +4275,46 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | `packages/db/test/medication-errors.test.ts`: `hazard HZ-134 medication errors and reviews are isolated and follow scope (slice 45)`, `hazard HZ-134 an error belongs to a medication incident and one of its people`, `hazard HZ-134 a done review is fixed unless corrected with a reason`, `hazard HZ-134 slice 45 review fixes in the database` (a dose record of another medicine refused; the incident's retention class copied; a booked review moved only with a reason) | Passing (Phase 2 slice 45) |
 | `apps/api/test/medication-errors.test.ts`: `hazard HZ-134 medication errors on the incident (slice 45)` (the presumption and prompts; refusals in words; the CD prompt clearing; a stale version; a member who may not change the incident; a restricted incident; a closed incident; the safeguarding prompt kept for an unsure answer; the trend on fixed months without deleted incidents), `hazard HZ-134 medication reviews (slice 45, MEDS-013)` (scheduled, done, not booked after done, moved and cancelled with a reason), `hazard HZ-134 the reports are counts, information only (slice 45)` (overrides, PRN, the period cap) | Passing (Phase 2 slice 45) |
 | `apps/web` Playwright: `hazard HZ-134 the error record shows its prompts until their evidence is recorded` | Planned (H-1299) |
+
+---
+
+## HZ-138 A person's recent record missing from their new home's phones, or a phone refused sync for holding too much
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-138 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `packages/sync` and `packages/db` (lead engineer) |
+| Source | Lead review of slice 68 (07/11/2026); [ADR-0134](../decisions/0134-sync-buckets-per-home.md); related to HZ-002 (stale offline data), HZ-011 (scope), HZ-018 (handover) |
+
+**Description**: staff at a person's new home do not have the person's recent notes, charts, tasks, administrations and handover items on their phones after a transfer, or a phone holds so many sync buckets that PowerSync refuses it and nothing on it is fresh.
+
+**Causes**: rows grouped by the home where they were recorded, not the person's home now; a move that updates the person but not their recent rows; a trigger that misses a table or a part of the window; a phone at a large home, or assigned to many people, passing the buckets limit; the limit changed without the streams.
+
+**Effects**: a new home's staff give care without the last weeks of the record (a fall, a new pressure area, a dose already given today); or a phone with nothing fresh, used as if current.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every row the home streams carry has a routing home set by the database from the person in the organisation's view (`sync_location_id`; migration 0146), under a per-person lock a move takes too; a person's entries and administrations of the last 35 days move with them in the same transaction as the move or a change of care status, as `harbour_owner` whoever records it; a person who has left care leaves every home's phones (L1) and returns with their recent record; handover items and notes about them carry their new home | Built (ADR-0134) |
+| Design | Tasks stay with their home on a move, as the server's round and escalations do; the server's handover still sources an event by where it was made, so an event at the old home earlier in the shift of the move is not in the new home's handover (H-1429) | Built; the handover's sourcing is a CSO decision (H-1429) |
+| Design | A home's rows sync per home and day, an assigned person's per person and ten-day block; the limits are set explicitly in `infra/powersync/powersync.yaml`; the worst cases are measured on the real stream engine | Built (ADR-0134) |
+| Process | The 35-day move window (and long-interval medicines), how handovers at the old home are seen after a move, tasks staying with their home and the token's 15 minutes after a move: owner-accepted recommendation, pending CSO review at the testing phase (H-1429) | Testing phase |
+| Test | See Verification | Built |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-1429).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/db/test/sync-location.test.ts`: `hazard HZ-138 a person's recent record moves to their new home's phones` (set on insert whatever the client sent; the last 35 days moved and the record left as made; moved whatever the recorder's scope; off every home's phones on leaving care and back on return; a task kept with its home, off on leaving care, without a new version or history, and never set by the application; the guard still refuses every other change) and `hazard HZ-138 every table, the window's edge, handovers and a move during an insert` (activities and visits; 34 days moved, 36 not; `hazard HZ-018` a handover item through a death and a move; an insert during a move waits and takes the new home) | Passing |
+| `packages/sync/test/task-handover-streams.test.ts`: `hazard HZ-018 gives a reader whole at both homes the item about someone who moved between them, with their assigned streams off`; `gives a covered nurse the task about nobody given to her at another home`; `never gives a reader who sees only the new home the old home's items about the person` | Passing |
+| `packages/sync/test/bucket-budget.test.ts`: `hazard HZ-002 a phone stays under PowerSync's buckets per connection` (limits set; the move window longer than any offline window; at most six blocks; on three dates across February, a 120-bed home and 20 assigned people at or under 500, groups of up to five homes and up to 100 assigned people estimated at or above the engine; a home's rows never keyed by person; no assigned row without the token's blocks) | Passing |
 
 ---
 
