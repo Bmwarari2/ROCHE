@@ -48,6 +48,14 @@ asks for it at every step (the safer reading, agreed with the lead).
 - Accessibility: mergeable; the note is now tied to each step's channels, its wording says what to
   do and that saved text messages are removed, and the refusal words match.
 
+## Follow-ups
+
+- Staff push for lone-worker alarms, once staff devices register for notifications: then
+  `STAFF_PUSH_AVAILABLE` becomes the real check, a phone notification counts again, and the email
+  requirement relaxes to "a channel that can reach staff".
+- Text messages again once a gateway is contracted (H-105's criteria): its provider and a
+  `connected` status turn them back on everywhere.
+
 ## For the CSO
 
 - H-1481: accept a lone-worker alarm path that reaches staff by email only at launch.
