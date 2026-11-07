@@ -2,9 +2,9 @@
 
 Check every paper form from an outage has been entered once, at the right time.
 
-**Who can do this**: people who manage outages (Registered Manager, deputy, nurse, senior carer,
-owner), but **not** anyone who entered or sent paper records from that outage. Ask another
-manager if you did.
+**Who can do this**: people who manage outages (Registered Manager, deputy manager, nurse, team
+leader or senior carer, owner), but **not** anyone who entered or sent paper records from that
+outage. Ask another manager if you did.
 
 **Register row**: OPS-028.
 

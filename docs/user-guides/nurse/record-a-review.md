@@ -1,7 +1,7 @@
 # How to record a review or a change in need
 
-**Who can do this**: nurses and clinical leads, managers and the owner. Care workers and senior
-carers can read the dates but cannot record.
+**Who can do this**: nurses and clinical leads, managers and the owner. Care and support workers,
+and team leaders or senior carers, can read the dates but cannot record.
 
 **Register row**: PEOP-008.
 

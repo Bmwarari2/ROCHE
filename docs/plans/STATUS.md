@@ -32,6 +32,21 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## User guides: safety, quality and platform, second pass (07/11/2026)
+
+`docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
+(outbreaks, deaths, missing persons, disclosures, importing medicines, care plans and staff checks)
+and about 30 brought up to `main`, linked from the indexes and the register. Gaps and findings:
+`docs/changelog-dev/2026-11-07-docs-guides-safety-quality-platform-2.md`.
+
+## User guides: workforce and scheduling (07/11/2026)
+
+`docs/guides-workforce-scheduling` (Phase 2 slice 82), from `main` at b65e7b61: 63 guides for the
+HR lead (new role folder), Registered Manager, senior carer, care worker (web and phone) and owner,
+linked from the role indexes, the guides README and the register's user docs column. Rows with no
+screen yet, and what the guides found in the screens, are in
+`docs/changelog-dev/2026-11-07-docs-guides-workforce-scheduling.md`.
+
 ## User guides: medicines (07/11/2026)
 
 `docs/guides-medicines` (Phase 2 slice 81), from `main` at b65e7b61: 24 web guides for slices 50

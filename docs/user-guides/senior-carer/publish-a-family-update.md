@@ -2,7 +2,7 @@
 
 Write a short everyday update for the person's family, from a recent note, activity or photo.
 
-**Who can do this**: senior carers and team leaders, nurses, managers and the owner.
+**Who can do this**: team leaders or senior carers, nurses, managers and the owner.
 
 **Register row**: COMMS-001.
 

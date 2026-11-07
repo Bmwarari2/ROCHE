@@ -1,7 +1,7 @@
 # How to run MUST, Waterlow or Braden, or ask the falls questions
 
-**Who can do this**: nurses, senior carers, care workers (for the people assigned to them) and
-managers.
+**Who can do this**: nurses, team leaders or senior carers, care and support workers (for the people
+assigned to them) and managers.
 
 **Register rows**: CARE-003, CARE-006.
 

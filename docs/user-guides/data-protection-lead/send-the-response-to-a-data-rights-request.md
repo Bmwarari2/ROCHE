@@ -3,9 +3,9 @@
 Once every record is decided, Thapsus Care builds the response from your decisions. You check it,
 download it, send it to the requester yourself, and record that you have.
 
-**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
-data protection for the whole organisation. Checking and recording the response need you to confirm
-it is you with your passkey or authenticator app (step-up).
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers data
+protection for the whole organisation. Checking and recording the response need you to confirm it is
+you with your passkey or authenticator app.
 
 **Register rows**: PLAT-022, WORK-011 (requests from members of staff).
 
@@ -41,6 +41,6 @@ The request now shows **Response**, with the outcome, when it was sent and its f
   on time.
 - Once closed, a request cannot be changed.
 - The rules are in the
-  [platform specification](../../specs/platform.md#phase-2-the-dsar-workbench-plat-022-work-011)
-  (rule 5). Your procedure is the
+  [platform specification](../../specs/platform.md#phase-2-the-dsar-workbench-plat-022-work-011).
+  Your procedure is the
   [subject access request procedure](../../compliance/dsar-procedure.md).

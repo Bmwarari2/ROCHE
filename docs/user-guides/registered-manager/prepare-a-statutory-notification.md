@@ -2,8 +2,8 @@
 
 Fill in what the regulator's form asks, so it is ready to enter on their portal.
 
-**Who can do this**: people who manage incidents (Registered Manager, deputy, nurse or clinical
-lead, owner). Only the Registered Manager and the owner can then record it as submitted.
+**Who can do this**: people who manage incidents (Registered Manager, deputy manager, nurse or
+clinical lead, owner). Only the Registered Manager and the owner can then record it as submitted.
 
 **Register rows**: SAFE-003, SAFE-004, SAFE-005.
 

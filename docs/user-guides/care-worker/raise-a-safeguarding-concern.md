@@ -3,9 +3,10 @@
 Tell the safeguarding lead that you think a person we support is being abused or neglected, or is
 at risk of it.
 
-**Who can do this**: anyone who records incidents (care workers, agency and bank workers, senior
-carers, nurses, managers, the owner and most other staff), about a person they can see in
-Thapsus Care. You need to have signed in with your passkey or authenticator app.
+**Who can do this**: anyone who records incidents (care and support workers, agency or bank
+workers, team leaders or senior carers, nurses, managers, the owner and most other staff), about a
+person they can see in Thapsus Care. You need to have signed in with your passkey or authenticator
+app.
 
 **Register row**: SAFE-006.
 

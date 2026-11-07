@@ -4,8 +4,9 @@ When your organisation stops using Thapsus Care, make every stored document, exp
 bundle unreadable for good, and keep a signed certificate that says so. One person asks and a
 different person approves.
 
-**Who can do this**: the owner and the quality lead (anyone who manages records retention across
-the whole organisation). Each step asks you to confirm it is you (step-up).
+**Who can do this**: the owner and the quality and compliance lead, or anyone whose role covers
+records retention for the whole organisation. At each step, Thapsus Care asks you to confirm it is
+you, with your passkey or authenticator app.
 
 **Register row**: PLAT-012.
 

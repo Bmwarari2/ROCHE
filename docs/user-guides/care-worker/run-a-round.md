@@ -2,8 +2,9 @@
 
 The round lists the care tasks due on this shift, room by room.
 
-**Who can do this**: care workers, senior carers, nurses and managers. A care worker sees only the
-people assigned to them. Some roles can see the round but not act on it.
+**Who can do this**: care and support workers, team leaders or senior carers, nurses and managers. A
+care or support worker sees only the people assigned to them. Some roles can see the round but not
+act on it.
 
 **Register row**: CARE-013. These steps are for the web. The phone app has the round too, on its
 **Round** tab, with its own buttons. Medicines are not on this round: use **Medicines round** on
