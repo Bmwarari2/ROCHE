@@ -52,7 +52,7 @@ Chosen option: **A**.
    off pays through Harbour's export; a run whose route is Thapsus-HR is never locked while the
    link cannot take pay (it never falls back to the export).
 2. **Periods and rates.** Read once a day (and on a manual sync), checked at the boundary and
-   written by the sync alone (migration 0151). A pay period whose dates change is raised, never
+   written by the sync alone (migration 0148). A pay period whose dates change is raised, never
    moved. Only the employee, the hourly rate in whole pence and its effective date are kept.
 3. **Pay runs.** A run for a period paid through Thapsus-HR must match one of its pay periods
    exactly. Its calculation uses the lowest of each member's Thapsus-HR rates in force during the

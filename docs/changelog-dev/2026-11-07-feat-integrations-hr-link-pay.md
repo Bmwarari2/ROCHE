@@ -1,7 +1,7 @@
 # 2026-11-07 feat/integrations-hr-link-pay: pay through the Thapsus-HR link (slice 89)
 
 INTG-014, SCHED-005, SCHED-008; [ADR-0131](../decisions/0131-pay-through-thapsus-hr.md); migration
-0151; HZ-133, new HZ-140; H-1441 to H-1444.
+0148; HZ-133, new HZ-140; H-1441 to H-1444.
 
 ## What changed
 

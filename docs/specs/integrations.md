@@ -206,7 +206,7 @@ the ratchet test checks. The rota managers holding `read` are care coordinators;
     is never a reason to change Thapsus-HR's behaviour for its other customers (section 11.9).
 
 How slice 89 applies rules 11 and 12 ([ADR-0131](../decisions/0131-pay-through-thapsus-hr.md);
-migration 0151; HZ-133, HZ-140). Built against the mock with Thapsus-HR's Phase 19 pay items (K4)
+migration 0148; HZ-133, HZ-140). Built against the mock with Thapsus-HR's Phase 19 pay items (K4)
 and pay read (K5) switched on; at the pinned commit both answer `planned`, so nothing goes live:
 - **One route per pay period.** Each pay run's route is fixed when it is drafted; a correction
   takes its original's. The link's settings hold the route for periods with no run yet (Harbour's

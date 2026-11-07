@@ -5,7 +5,7 @@ import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./suppo
 
 /**
  * Pay through Thapsus-HR in the database (integrations.md section 11.5 rules 11 and 12; slice 89;
- * migration 0151; HZ-133, HZ-140): pay periods and hourly rates written by the link's sync alone;
+ * migration 0148; HZ-133, HZ-140): pay periods and hourly rates written by the link's sync alone;
  * rates read by pay holders only; units written once, by the system, for a locked pay run, then
  * never changed; nothing crosses organisations. Invented people only.
  */
