@@ -25,12 +25,9 @@ not need to be in a session to ask for help.
 
 ## The silent alarm
 
-- During a session, press and hold **Check in** until the phone answers, about a second and a half.
-  This raises an urgent alarm with the people on call.
-- The phone shows and says exactly what a normal check-in does, for example "Checked in at 10:02.",
-  so someone looking at your phone cannot tell.
-- A silent alarm ends only when someone on call has checked on you and acknowledged it. Checking in
-  afterwards does not end it.
+- Your manager will show you how to raise a silent alarm when you start lone working. It raises an
+  urgent alarm with the people on call without anyone near you knowing.
+- A silent alarm ends only when someone on call has checked on you and acknowledged it.
 - Ask your manager how your organisation responds to a silent alarm.
 
 ## Important
