@@ -869,7 +869,10 @@ export async function releaseHrCopies(
   return { ...none, cancelled, error: null };
 }
 
-/** One Thapsus-HR absence copy a person may release: its identifiers, dates and type only. */
+/**
+ * One Thapsus-HR absence copy a person may release: its identifiers, whose it is, dates and type
+ * only (read with step-up, rate-limited and audited; records of processing, slice 90).
+ */
 export interface HrCopyToRelease {
   readonly hrId: string;
   /** Whose absence it is (tenant_user.id), so the person releasing sees who, not just an id. */

@@ -47,6 +47,11 @@ INTG-014; HZ-133, HZ-140. Built on slice 89 (feat/integrations-hr-link-pay).
   `StatusChip` story for contrast); focus kept on check and sync; wording, pending labels, `<time>`
   dates, the date hint; typed pay values kept across a step-up.
 
+- Second passes: security approve; accessibility approve; clinical asked for tests of the export
+  confirmation (drafter and stale step-up refused, intended route audited), the unacknowledged
+  not-found cancellation and the held list's step-up, limit and audit (added), and the hazard row
+  corrected.
+
 ## Left
 
 - The staff file has no web screen yet: its "Managed in the HR platform" label and the
@@ -54,6 +59,9 @@ INTG-014; HZ-133, HZ-140. Built on slice 89 (feat/integrations-hr-link-pay).
 - The end-to-end environment cannot connect a link (the demo seed does not turn the flag on), so
   the linked screens are covered by unit and API tests only.
 - Welsh translations of the new strings.
+- A browser journey with axe over the linked screens once a seed or mock can turn the link on (the
+  jsdom axe tests cannot check contrast or target size).
+- The "Pay this period through the payroll export" button drops focus while sending.
 - Zod at the web server-action boundary for the link's actions: zod is not a dependency of the web
   app; the actions use strict checks matching the API's limits (`lib/hr-link.ts`, tested), and the
   API validates every field.

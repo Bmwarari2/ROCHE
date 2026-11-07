@@ -495,11 +495,46 @@ describe("hazard HZ-140 the link down never sends a period to the export without
       const refused = await as("owner", "/v1/pay-runs", { method: "POST", body: P3 });
       expect(refused.status).toBe(409);
       expect(await codeOf(refused)).toBe("hr_link_down_for_pay");
+      // Someone who drafts pay but does not approve it may not send the period to the export.
+      await sql(
+        `WITH r AS (INSERT INTO role (key, name, scope_kind, permissions)
+           VALUES ('pay_drafter', 'Pay drafter', 'none', '{scheduling.pay.manage}') RETURNING id)
+         INSERT INTO role_assignment (tenant_user_id, role_id) SELECT $1, id FROM r`,
+        [DEMO.users.manager.id],
+      );
+      const drafter = await as("manager", "/v1/pay-runs", {
+        method: "POST",
+        body: { ...P3, confirmExport: true },
+      });
+      expect(drafter.status).toBe(403);
+      // Nor a pay approver whose step-up is not fresh.
+      const { ageSession } = await import("./support/harness");
+      const session = h.tokens.owner?.split(".")[0] ?? "";
+      await ageSession(h.db.pool("harbour_auth"), session, 3_600);
+      try {
+        const stale = await as("owner", "/v1/pay-runs", {
+          method: "POST",
+          body: { ...P3, confirmExport: true },
+        });
+        expect(stale.status).toBe(403);
+        expect(await codeOf(stale)).toMatch(/step_up/);
+      } finally {
+        await ageSession(h.db.pool("harbour_auth"), session, 0);
+      }
       const made = await as("owner", "/v1/pay-runs", {
         method: "POST",
         body: { ...P3, confirmExport: true },
       });
       expect(made.status).toBe(201);
+      const [audited] = await sql<{
+        scope: { intended?: string; exportConfirmedWhileHrLinkDown?: boolean };
+      }>(
+        "SELECT scope FROM audit_event WHERE action = 'scheduling.pay_run.created' ORDER BY occurred_at DESC LIMIT 1",
+      );
+      expect(audited?.scope).toMatchObject({
+        exportConfirmedWhileHrLinkDown: true,
+        intended: "thapsus_hr",
+      });
       const [row] = await sql<{ pay_route: string }>(
         "SELECT pay_route FROM pay_run WHERE period_start = $1",
         [P3.periodStart],
