@@ -1064,7 +1064,7 @@ a register.
 
 ### 13.8 Medicines on the phone (slice 68; ADR-0130)
 
-Built in slice 68 (migration 0149; the routing column of migration 0146, ADR-0134), for members holding `medicines.emar.administer`, in the two
+Built in slice 68 (migration 0149; the routing column of migration 0146, ADR-0134), for members holding `medicines.emar.administer` where `people.person.read` and `care.plan.read` reach too (so a MAR never syncs without the person's identity and allergies), in the two
 person scopes of the care streams (replication bypasses RLS, so the stream queries carry the scope;
 `medicines-streams.test.ts` proves it):
 - **`*_medicines`** (priority 1, with the allergy streams, HZ-002): MAR entry versions not

@@ -153,7 +153,9 @@ export const SYNCED_READS = {
   handover: ["care.handover.manage"],
   entries_write: ["care.note.write"],
   // Medicines on the phone (medicines.md section 13.8; slice 68): who gives medicines.
-  meds: ["medicines.emar.administer"],
+  // A MAR syncs only with the person's name, photo and allergies (clinical review of the slice 68
+  // rebuild, M1; HZ-007): the narrowest of giving medicines and the people family's reads.
+  meds: ["medicines.emar.administer", "people.person.read", "care.plan.read"],
 } as const satisfies Record<string, readonly Permission[]>;
 
 type SyncFamily = keyof typeof SYNCED_READS;
@@ -171,6 +173,14 @@ export const MAX_WRITE_PERSON_IDS = 100;
  * carries every one of its permissions; S-M1), each the narrowest of its permissions' scopes. A
  * break-glass record never syncs.
  */
+/** The token's bucket estimate passed PowerSync's limit (ADR-0134): refused by name, audited. */
+class SyncScopeTooLarge extends Error {
+  constructor(readonly estimate: number) {
+    super("sync scope too large");
+    this.name = "SyncScopeTooLarge";
+  }
+}
+
 /** The statuses whose people the whole-home streams carry (sync-config.yaml, L1). */
 const LIVE_STATUSES: ReadonlySet<string> = new Set(["active", "on_leave", "in_hospital"]);
 
@@ -246,7 +256,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), meds_location_ids and meds_assigned (where medicines.emar.administer reaches) with meds_recent_days (the UTC days of the administrations that sync, today and the 34 before; empty when it reaches no one) and meds_recent_blocks (the ten-day blocks of those days, at most six, which both administrations streams filter on; empty when the reach is empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), meds_location_ids and meds_assigned (where medicines.emar.administer reaches) with meds_recent_days (the UTC days of the administrations that sync, today and the 34 before; empty when it reaches no one) and meds_recent_blocks (the ten-day blocks of those days, at most seven, which both administrations streams filter on; empty when the reach is empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
         security,
         responses: {
           200: jsonBody(SyncToken, "Token"),
@@ -369,12 +379,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               { tenantId: access.tenantId, estimate, limit: SYNC_BUCKET_LIMIT },
               "sync token refused: the phone would pass the buckets per connection",
             );
-            throw new HttpProblem(
-              409,
-              "sync_scope_too_large",
-              "This phone cannot hold everything you can see.",
-              "Your access reaches more homes and people than a phone can keep offline. Ask your manager to narrow your roles on this phone, or use the web app.",
-            );
+            throw new SyncScopeTooLarge(estimate);
           }
           // Where handovers reach the phone, the shift pattern of each nation the organisation
           // has homes in (the rate table's two shifts, until rotas define them per location), so
@@ -498,6 +503,28 @@ export function createSyncRouter(signer: SyncTokenSigner) {
                 ? []
                 : shiftWindowDays(new Date()),
           };
+        }).catch(async (error: unknown) => {
+          if (!(error instanceof SyncScopeTooLarge)) throw error;
+          // Audited in its own transaction (the token's was rolled back), with counts only, so a
+          // manager can see whose phone was refused (clinical review of the slice 68 rebuild, M2).
+          await withTenant(c, (tx) =>
+            auditInTx(tx, access, {
+              action: "sync.token.refused",
+              ...(access.deviceId ? { resourceType: "device", resourceId: access.deviceId } : {}),
+              scope: {
+                reason: "sync_scope_too_large",
+                estimate: error.estimate,
+                limit: SYNC_BUCKET_LIMIT,
+              },
+              requestId: c.get("requestId"),
+            }),
+          );
+          throw new HttpProblem(
+            409,
+            "sync_scope_too_large",
+            "This phone cannot sync.",
+            "You can see more homes and people than a phone can keep. Before giving medicines, check the paper MAR or ask the nurse in charge. Use the web app, or ask your manager to reduce the homes and people you can see.",
+          );
         });
         // The member has used this device (care.md section 6, Device integrity part 1): written in
         // the system's view, so a hold report naming them as its owner counts.

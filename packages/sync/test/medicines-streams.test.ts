@@ -535,10 +535,10 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
       claims({ sub: "nurse", meds_assigned: false, meds_location_ids: [NORTH] }),
     );
     expect(count(nurse.buckets)).toBe(BLOCKS.length);
-    // Assigned to every resident: at most six blocks each, never 35 days each.
+    // Assigned to every resident: at most seven blocks each, never 35 days each.
     const carer = await syncFor(hydrated, big, claims());
     expect(count(carer.buckets)).toBeLessThanOrEqual(120 * BLOCKS.length);
-    expect(BLOCKS.length).toBeLessThanOrEqual(6);
+    expect(BLOCKS.length).toBeLessThanOrEqual(7);
   });
 
   it("syncs no medicine to a token without a tenant, or with only a member (fails closed)", async () => {
@@ -561,22 +561,24 @@ describe("hazard HZ-011 only the medicines of the people in the member's scope r
     }
   });
 
-  it("hazard HZ-002 sends medicines and allergies first", () => {
+  it("hazard HZ-002 hazard HZ-004 sends medicines, the doses already given and allergies first", () => {
     const config = readSyncConfig();
     for (const stream of [
       "assigned_medicines",
       "location_medicines",
+      "assigned_medicine_administrations",
+      "location_medicine_administrations",
       "assigned_allergies",
       "location_allergies",
     ]) {
       expect(config, stream).toMatch(
-        new RegExp(`  ${stream}:\\n    auto_subscribe: true\\n(    #.*\\n)?    priority: 1\\n`),
+        new RegExp(`  ${stream}:\\n    auto_subscribe: true\\n(    #.*\\n)*    priority: 1\\n`),
       );
     }
   });
 });
 
-describe("the medicines window", () => {
+describe("hazard HZ-004 the medicines window", () => {
   it.each([
     ["midday", "2026-11-06T12:00:00Z", "2026-10-03", "2026-11-06"],
     ["just after midnight UTC", "2026-11-06T00:05:00Z", "2026-10-03", "2026-11-06"],
@@ -610,7 +612,22 @@ describe("the medicines window", () => {
       "2027-01-10T09:00:00Z",
       ["2026-12-0", "2026-12-1", "2026-12-2", "2026-12-3", "2027-01-0", "2027-01-1"],
     ],
-  ])("names the ten-day blocks that cover the 35 days, at most six (%s)", (_case, now, blocks) => {
-    expect(offlineWindowBlocks(medsRecentDays(new Date(now)))).toEqual(blocks);
+  ])(
+    "names the ten-day blocks that cover the 35 days, at most seven (%s)",
+    (_case, now, blocks) => {
+      expect(offlineWindowBlocks(medsRecentDays(new Date(now)))).toEqual(blocks);
+    },
+  );
+
+  it("spans seven blocks on some dates (clinical review of the rebuild, m2)", () => {
+    expect(offlineWindowBlocks(medsRecentDays(new Date("2026-05-02T09:00:00Z")))).toEqual([
+      "2026-03-2",
+      "2026-03-3",
+      "2026-04-0",
+      "2026-04-1",
+      "2026-04-2",
+      "2026-04-3",
+      "2026-05-0",
+    ]);
   });
 });

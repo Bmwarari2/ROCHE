@@ -133,7 +133,7 @@ describe("hazard HZ-011 sync stream families per built-in Care mode role (ADR-00
       handover: ["care.handover.manage"],
       entries_write: ["care.note.write"],
       // Medicines sync to those who give them (slice 68; ADR-0130).
-      meds: ["medicines.emar.administer"],
+      meds: ["medicines.emar.administer", "people.person.read", "care.plan.read"],
     });
   });
 

@@ -59,10 +59,13 @@ Option 2.
   at the token's homes filter on the row's own `sync_location_id`, the person's home while they
   receive care (so a discharged person's leave the home's phones, and a transferred person's last
   35 days move with them, HZ-138), and key by home and ten-day block (`meds_recent_blocks`, at
-  most six); assigned people's by person and block. A phone may hold up to nine days either side
+  most seven); assigned people's by person and block. A phone may hold up to nine days either side
   of the 35 and counts only the 35 (H-1426). With medicines on the phone,
   packages/sync/test/bucket-budget.test.ts holds a whole 120-bed home and a care worker with 15
   people at or under half the limit; the API's estimate includes the medicines streams.
+- **Reach**: the medicines family syncs where `medicines.emar.administer`, `people.person.read` and
+  `care.plan.read` all reach (the narrowest), so a MAR never reaches a phone without the person's
+  name, photo and allergies (clinical review of the slice 68 rebuild, M1; HZ-007).
 - **Priority**: the medicines streams and the allergy streams have priority 1, so a stop or an
   allergy change reaches the phone first whenever it syncs (HZ-002).
 - **dm+d**: `GET /v1/medicines/device-subset` runs `selectDmdDeviceSubset` on the products named

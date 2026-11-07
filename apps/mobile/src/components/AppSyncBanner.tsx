@@ -5,7 +5,7 @@ import { useVault } from "../app-state/vault";
 import { useHeldEntryCount, useQueuedChanges, useUploadIssueState } from "../care/hooks";
 import { appEnv } from "../config/app-env";
 import { STALE_AFTER_MS } from "../config/constants";
-import { useScopeRefused } from "../sync/scope-refusal-store";
+import { announceRefusalOnce, useScopeRefused } from "../sync/scope-refusal-store";
 import { deriveConnectionState, lastSyncedAtOf } from "../sync/sync-state";
 
 /**
@@ -41,6 +41,7 @@ export function AppSyncBanner() {
       queuedChanges={queued}
       refusedEntries={refused}
       failureReason={showRefusal ? "scope_too_large" : null}
+      announce={announceRefusalOnce}
       onRetry={() => {
         void vault.retrySync();
       }}

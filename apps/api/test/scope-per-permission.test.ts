@@ -1040,7 +1040,7 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 4 
     );
   }, 120_000);
 
-  it("refuses a phone token by name to a care worker assigned to 101 people, whose phone PowerSync would refuse (ADR-0134)", async () => {
+  it("hazard HZ-138 refuses a phone token by name to a care worker assigned to 101 people, whose phone PowerSync would refuse (ADR-0134)", async () => {
     // With medicines on the phone (slice 68), each assigned person costs about 28 buckets at the
     // longest window, so 101 of them pass PowerSync's buckets per connection: the API says so
     // rather than signing a token the phone cannot use. The fallback that names no one above 100
@@ -1053,6 +1053,13 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 4 
     });
     expect(response.status).toBe(409);
     expect(((await response.json()) as { code: string }).code).toBe("sync_scope_too_large");
+    // Audited, with counts only, so a manager can see whose phone was refused.
+    const audited = await asOwner(
+      `SELECT scope->>'reason' AS reason FROM audit_event
+        WHERE action = 'sync.token.refused' AND actor_tenant_user_id = $1`,
+      [MAX],
+    );
+    expect(audited).toEqual([{ reason: "sync_scope_too_large" }]);
   });
 
   it("audits a break-glass alert no one active could be sent, and still opens the record (low)", async () => {

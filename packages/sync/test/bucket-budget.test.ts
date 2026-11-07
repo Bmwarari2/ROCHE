@@ -24,7 +24,13 @@ import { compile, ids, type SourceRows, syncFor } from "./support/simulator";
  */
 
 const TARGET = SYNC_BUCKET_LIMIT / 2;
-const DATES = ["2026-11-06T10:00:00Z", "2027-02-28T10:00:00Z", "2028-02-29T10:00:00Z"];
+const DATES = [
+  "2026-11-06T10:00:00Z",
+  "2027-02-28T10:00:00Z",
+  "2028-02-29T10:00:00Z",
+  // 35 medicines days across seven ten-day blocks.
+  "2026-05-02T10:00:00Z",
+];
 const HOMES = ["H0", "H1", "H2", "H3", "H4", "H5"];
 const BEDS = 60;
 
@@ -149,6 +155,34 @@ describe("hazard HZ-002 a phone stays under PowerSync's buckets per connection (
     // The window is tomorrow, today and the days before: MAX_OFFLINE_WINDOW_DAYS + 1 days.
     expect(Number(moved?.[1])).toBeGreaterThan(MAX_OFFLINE_WINDOW_DAYS + 1);
   });
+
+  it.each([["2026-11-06T10:00:00Z"], ["2027-02-28T10:00:00Z"], ["2026-05-02T10:00:00Z"]])(
+    "refuses a care worker with 45 assigned people and accepts one with 25, by estimate (%s)",
+    (date) => {
+      // The threshold the API applies (clinical review of the slice 68 rebuild, M2): with medicines
+      // on the phone, about 30 assigned people at the 31-day window, varying with the date.
+      const now = new Date(date);
+      const days = offlineWindowDays(now, MAX_OFFLINE_WINDOW_DAYS);
+      const blocks = offlineWindowBlocks(days).length;
+      const medsBlocks = offlineWindowBlocks(medsRecentDays(now)).length;
+      const carer = (n: number) =>
+        estimateBuckets({
+          days: days.length,
+          blocks,
+          shiftDays: shiftWindowDays(now).length,
+          entriesHomes: 0,
+          careHomes: 0,
+          handoverHomes: 0,
+          wholePeople: 0,
+          assignedPeople: n,
+          assignedHomes: 2,
+          medsBlocks,
+          medsAssignedPeople: n,
+        });
+      expect(carer(25)).toBeLessThanOrEqual(SYNC_BUCKET_LIMIT);
+      expect(carer(45)).toBeGreaterThan(SYNC_BUCKET_LIMIT);
+    },
+  );
 
   it("spans at most six ten-day blocks in a 32-day window, across February too", () => {
     for (const date of ["2027-02-28T10:00:00Z", "2028-02-29T10:00:00Z", "2027-03-01T10:00:00Z"]) {

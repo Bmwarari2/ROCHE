@@ -17,6 +17,11 @@ export interface SyncBannerProps {
   readonly refusedEntries?: number | null;
   /** Why sync is refused, when the API said (`scope_too_large`, ADR-0134). */
   readonly failureReason?: "scope_too_large" | null;
+  /**
+   * Speaks a lasting refusal (with any warning beside it) to screen readers. The app passes one
+   * that says each text once across every screen's banner; the default speaks it on each change.
+   */
+  readonly announce?: (text: string) => void;
   /** Shown as a "Retry" action when the state is failed (HZ-006). */
   readonly onRetry?: () => void;
   /** Fixes the clock, for previews and tests. Otherwise the banner refreshes every 30 seconds. */
@@ -25,6 +30,10 @@ export interface SyncBannerProps {
 }
 
 const REFRESH_MS = 30_000;
+
+function defaultAnnounce(text: string): void {
+  AccessibilityInfo.announceForAccessibility?.(text);
+}
 
 function useNow(fixed: Date | undefined): Date {
   const [now, setNow] = useState(() => fixed ?? new Date());
@@ -50,6 +59,7 @@ export function SyncBanner({
   queuedChanges = 0,
   refusedEntries = 0,
   failureReason = null,
+  announce = defaultAnnounce,
   onRetry,
   now: fixedNow,
   testID = "sync-banner",
@@ -68,12 +78,15 @@ export function SyncBanner({
   });
 
   // Warnings and failures are filled so they cannot be missed; calm states sit on the card colour.
-  // A refusal lasts until access changes: announce it once when it starts, then keep it out of the
-  // live region, so the minute-by-minute "Last synced" never re-reads it (accessibility review, 2).
-  const announcement = content.reason ? `${content.title}. ${content.reason}` : null;
+  // A refusal lasts until access changes: it is announced, with any stale-data warning beside it
+  // (HZ-002), when it or the warning changes, and kept out of the live region, so the
+  // minute-by-minute "Last synced" never re-reads it (accessibility review, 2).
+  const announcement = content.reason
+    ? [`${content.title}.`, content.reason, content.warning].filter(Boolean).join(" ")
+    : null;
   useEffect(() => {
-    if (announcement) AccessibilityInfo.announceForAccessibility?.(announcement);
-  }, [announcement]);
+    if (announcement) announce(announcement);
+  }, [announcement, announce]);
 
   const filled = content.tone === "warning" || content.tone === "danger";
   const fill = toneAppearance(content.tone);
@@ -99,6 +112,7 @@ export function SyncBanner({
     >
       <View
         accessible
+        testID={`${testID}-message`}
         accessibilityRole={content.urgent ? "alert" : "summary"}
         accessibilityLabel={content.accessibilityLabel}
         accessibilityLiveRegion={content.reason ? "none" : content.urgent ? "assertive" : "polite"}

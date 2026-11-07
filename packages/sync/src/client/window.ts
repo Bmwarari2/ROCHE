@@ -120,7 +120,7 @@ export function medsRecentDays(now: Date): string[] {
  * days (`offline_blocks`, `meds_recent_blocks`): the assigned streams key their buckets by person
  * and block, not by person and day, so a phone stays far under PowerSync's buckets per connection
  * (ADR-0134). Blocks hold 9, 10, 10 and 1 or 2 days, so a 32-day window spans at most six (across
- * February); the phone may hold up to nine days either side of the window, and shows only the
+ * February; 35 days at most seven); the phone may hold up to nine days either side of the window, and shows only the
  * window.
  */
 export function offlineWindowBlocks(days: readonly string[]): string[] {
