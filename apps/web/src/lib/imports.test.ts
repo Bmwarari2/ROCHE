@@ -300,6 +300,19 @@ describe("undo names what it removes (HZ-005, HZ-130)", () => {
     expect(t("import.undo.confirm", { type, records })).toBe(words);
   });
 
+  it("hazard HZ-130 never says an undo removes people for a type it does not name", () => {
+    expect(t("import.undo.confirm", { type: "lab_results", records: 2 })).toBe("Remove 2 records");
+    expect(t("import.undo.about", { type: "lab_results", records: 2 })).not.toMatch(
+      /people|person/,
+    );
+  });
+
+  it("hazard HZ-005 says one medicine in the singular", () => {
+    expect(t("import.undo.about", { type: "medicines", records: 1 })).toContain(
+      "withdraws the medicine this import added. It stays",
+    );
+  });
+
   it("hazard HZ-005 says a medicines undo withdraws, never that it removes people", () => {
     const about = t("import.undo.about", { type: "medicines", records: 3 });
     expect(about).toContain("withdraws the 3 medicines");
