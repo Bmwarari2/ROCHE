@@ -39,14 +39,20 @@ import {
   carersLeaveTaken,
   checkAbsenceMove,
   checkNewAbsence,
+  checkPostponement,
   fitNoteNeeded,
+  isPostponable,
   PAY_RATE_KEYS,
   type Permission,
+  POSTPONEMENT_RATE_KEYS,
+  type PostponableKind,
   periodsOfIncapacity,
+  postponementLimits,
   qualifyingDaysIn,
   type RateNation,
   resolveAbsenceRates,
   resolvePayRates,
+  resolvePostponementRates,
   scopeFor,
   sickPay,
   ukIsoDate,
@@ -144,6 +150,16 @@ const PROBLEM_WORDS: Record<string, string> = {
   not_declinable:
     "Statutory leave cannot be declined. Carer's leave and parental leave may be postponed as the law allows.",
   not_postponable: "Only carer's leave and parental leave can be postponed.",
+  postpone_dates_required: "Give the new first and last days.",
+  postpone_no_rate:
+    "The postponement limits for this nation are not in the rate table, so it cannot be postponed here.",
+  postpone_notice_passed:
+    "It is too late to postpone this leave: the notice had to be given by the day shown. Approve it instead.",
+  postpone_not_later: "The new first day must be after the first day asked for, and after today.",
+  postpone_too_late: "The new first day is later than the law allows. Choose an earlier day.",
+  postpone_duration: "Give the same number of days as were asked for.",
+  postpone_unconfirmed:
+    "Confirm the leave does not start on the child's birth or placement for adoption, and that the new dates end before the child's 18th birthday.",
 };
 const refusal = (code: string) =>
   new HttpProblem(422, `absence_${code}`, PROBLEM_WORDS[code] ?? "That is not allowed.");
@@ -210,6 +226,44 @@ function holdsAt(access: TenantAccess, permission: string, locationId: string): 
   );
 }
 
+const POSTPONEMENT_KEYS = Object.values(POSTPONEMENT_RATE_KEYS).flatMap((k) => Object.values(k));
+
+/** The UK date a member's request (their notice) was received. */
+const requestedOnOf = (row: AbsenceRow) => ukIsoDate(row.createdAt);
+
+/** The postponement limits for a request, from the rate table in force when it was made. */
+function postponementRatesFor(
+  rows: Parameters<typeof resolvePostponementRates>[0],
+  kind: PostponableKind,
+  nation: Exclude<RateNation, "uk" | "all">,
+  row: AbsenceRow,
+  tenantId: string,
+) {
+  return resolvePostponementRates(rows, kind, nation, requestedOnOf(row), tenantId);
+}
+
+/** For each postponed request, the leave given on its new dates. */
+async function postponedTo(
+  tx: Tx,
+  ids: readonly string[],
+): Promise<Map<string, { id: string; startsOn: string; endsOn: string }>> {
+  const out = new Map<string, { id: string; startsOn: string; endsOn: string }>();
+  if (ids.length === 0) return out;
+  const rows = await tx
+    .select({
+      id: absence.id,
+      from: absence.postponedFromId,
+      startsOn: absence.startsOn,
+      endsOn: absence.endsOn,
+    })
+    .from(absence)
+    .where(inArray(absence.postponedFromId, [...ids]));
+  for (const r of rows) {
+    if (r.from && r.endsOn) out.set(r.from, { id: r.id, startsOn: r.startsOn, endsOn: r.endsOn });
+  }
+  return out;
+}
+
 async function openCoverCount(tx: Tx, ids: readonly string[]): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   if (ids.length === 0) return out;
@@ -242,6 +296,27 @@ async function itemsOf(tx: Tx, access: TenantAccess, rows: readonly AbsenceRow[]
         access.tenantId,
       )
     : null;
+  const postponed = await postponedTo(
+    tx,
+    rows.filter((r) => r.state === "postponed").map((r) => r.id),
+  );
+  // The statutory limits on postponing a request still to decide, for its approvers (H-970).
+  const toPostpone = rows.filter(
+    (r) =>
+      r.state === "requested" &&
+      r.source === "harbour" &&
+      isPostponable(r.kind as AbsenceKind) &&
+      holdsAt(access, APPROVE, r.locationId),
+  );
+  const postponementRows = toPostpone.length > 0 ? await rateRows(tx, POSTPONEMENT_KEYS) : [];
+  const limitsOf = (r: AbsenceRow) => {
+    if (!toPostpone.includes(r)) return null;
+    const kind = r.kind as PostponableKind;
+    return postponementLimits(
+      { kind, startsOn: r.startsOn, requestedOn: requestedOnOf(r) },
+      postponementRatesFor(postponementRows, kind, nation, r, access.tenantId),
+    );
+  };
   const sick = rows.filter((r) => r.kind === "sickness").map((r) => r.id);
   const notes =
     hrAnywhere && sick.length > 0
@@ -284,6 +359,9 @@ async function itemsOf(tx: Tx, access: TenantAccess, rows: readonly AbsenceRow[]
       coverNeeded: cover.get(r.id) ?? 0,
       fitNoteUncoveredDays: uncovered,
       source: r.source === "thapsus_hr" ? ("thapsus_hr" as const) : ("harbour" as const),
+      postponedFromId: r.postponedFromId,
+      postponedTo: postponed.get(r.id) ?? null,
+      postponement: limitsOf(r),
     };
   });
 }
@@ -554,7 +632,7 @@ export const absencesRouter = createRouter()
       tags,
       summary: "Approve, decline or postpone a leave request",
       description:
-        "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
+        "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable). Carer's and unpaid parental leave may be postponed, never declined (H-970): with the new first and last days, the same number of days as asked for, starting after the first day asked for and no later than the rate table's months after it, given within the rate table's days of the request (and, for carer's leave, before it was due to start); parental leave also needs confirmsPostponable (422 absence_postpone_*). The request becomes postponed and the new dates become approved leave pointing back at it. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved, .declined or .postponed, and .approved for the new dates), never the reason.",
       security,
       request: versioned(DecideAbsence),
       responses: absenceResponses,
@@ -572,17 +650,89 @@ export const absencesRouter = createRouter()
             : body.decision === "postpone"
               ? "postponed"
               : "declined";
+        if (to === "postponed" && row.version === body.version) {
+          // The statutory limits (H-970), after the move's own checks so those refuse first.
+          const moveProblem = checkAbsenceMove({
+            from: row.state as AbsenceState,
+            to,
+            memberId: row.memberId,
+            actorId: access.tenantUserId,
+            reason: body.reason ?? null,
+            kind: row.kind as AbsenceKind,
+          });
+          if (moveProblem) throw refusal(moveProblem);
+          const kind = row.kind as PostponableKind;
+          const problem = checkPostponement(
+            {
+              kind,
+              startsOn: row.startsOn,
+              endsOn: row.endsOn,
+              requestedOn: requestedOnOf(row),
+              decidedOn: ukIsoDate(new Date()),
+              newStartsOn: body.startsOn ?? null,
+              newEndsOn: body.endsOn ?? null,
+              confirmsPostponable: body.confirmsPostponable === true,
+            },
+            postponementRatesFor(
+              await rateRows(tx, POSTPONEMENT_KEYS),
+              kind,
+              await nationOf(tx),
+              row,
+              access.tenantId,
+            ),
+          );
+          if (problem) throw refusal(problem);
+        }
+        const decidedAt = new Date();
         const saved = await move(tx, access, row, body.version, to, body.reason ?? null, {
           decidedBy: access.tenantUserId,
-          decidedAt: new Date(),
+          decidedAt,
         });
         const raised = to === "approved" ? await raiseCoverNeeds(tx, saved) : 0;
+        let given: AbsenceRow | undefined;
+        let givenRaised = 0;
+        if (to === "postponed") {
+          // The leave on the new dates, approved by the same approver (migration 0153).
+          [given] = await tx
+            .insert(absence)
+            .values({
+              memberId: row.memberId,
+              locationId: row.locationId,
+              kind: row.kind,
+              startsOn: body.startsOn as string,
+              endsOn: body.endsOn as string,
+              state: "approved",
+              decidedBy: access.tenantUserId,
+              decidedAt,
+              postponedFromId: row.id,
+            })
+            .returning();
+          if (!given) throw new Error("postponed leave not stored");
+          givenRaised = await raiseCoverNeeds(tx, given);
+        }
         await audit(c, tx, access, {
           action: to === "approved" ? A.approved : to === "postponed" ? A.postponed : A.declined,
           resourceType: "absence",
           resourceId: id,
-          scopeExtra: { coverNeeds: raised },
+          scopeExtra: given
+            ? { coverNeeds: raised, postponedToId: given.id }
+            : { coverNeeds: raised },
         });
+        if (given) {
+          await audit(c, tx, access, {
+            action: A.approved,
+            resourceType: "absence",
+            resourceId: given.id,
+            scopeExtra: {
+              memberId: given.memberId,
+              kind: given.kind,
+              startsOn: given.startsOn,
+              endsOn: given.endsOn,
+              postponedFromId: id,
+              coverNeeds: givenRaised,
+            },
+          });
+        }
         const [item] = await itemsOf(tx, access, [saved]);
         return item;
       });
