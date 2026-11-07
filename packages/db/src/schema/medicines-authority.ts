@@ -250,7 +250,7 @@ export const homelyRemedyAdministration = pgTable(
     /**
      * The giver confirmed they compared the remedy with the person's current medicines (HZ-120):
      * Harbour matches only the same dm+d product, never an ingredient. False on doses recorded
-     * before migration 0155, when it was not asked.
+     * before migration 0150, when it was not asked.
      */
     medicinesCompared: boolean("medicines_compared").notNull().default(false),
     /** Why a dose already given outside the protocol is recorded (flagged and escalated). */
@@ -289,7 +289,7 @@ export const homelyRemedyAdministration = pgTable(
        OR (outcome = 'entered_in_error' AND quantity IS NULL AND supersedes_id IS NOT NULL
            AND supersedes_id <> id AND length(btrim(coalesce(correction_reason, ''))) > 0)`,
     ),
-    // A dose given from migration 0155 on carries the comparison (HZ-120); earlier rows are kept
+    // A dose given from migration 0150 on carries the comparison (HZ-120); earlier rows are kept
     // as they are (the constraint is added NOT VALID).
     check(
       "homely_remedy_administration_medicines_compared",

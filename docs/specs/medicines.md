@@ -1955,7 +1955,7 @@ within the protocol, for the same protocol and amount, offers why it is given, t
 confirmation, the confirmation that the remedy was compared with the current medicines (HZ-120: the
 API matches only the same product, never an ingredient) and "Record the dose". The API requires the
 second confirmation too (`medicinesCompared: true` in `RecordHomelyDose`), stores it on the dose
-(`medicines_compared`, migration 0155, a database check on every dose given from then on) and puts
+(`medicines_compared`, migration 0150, a database check on every dose given from then on) and puts
 it in the audit event's scope with the allergy confirmation.
 
 #### Rules

@@ -362,7 +362,7 @@ export function readDose(
       quantity: check.body.quantity,
       reason,
       allergiesChecked: true,
-      // Stored with the dose and audited (migration 0155, HZ-120).
+      // Stored with the dose and audited (migration 0150, HZ-120).
       medicinesCompared: true,
       alreadyGiven: null,
     },
