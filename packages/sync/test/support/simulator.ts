@@ -7,6 +7,7 @@ import {
   type SqliteRow,
   SqlSyncRules,
 } from "@powersync/service-sync-rules";
+import { offlineWindowBlocks } from "../../src/client/window";
 import type { SyncTokenClaims } from "../../src/streams/index";
 
 /**
@@ -16,6 +17,95 @@ import type { SyncTokenClaims } from "../../src/streams/index";
  */
 
 export type SourceRows = Record<string, SqliteRow[]>;
+
+/**
+ * The tables whose `sync_location_id` the database sets from the person (migration 0145;
+ * ADR-0134). A fixture row that leaves it out gets it here as the trigger would: the person's
+ * home while they receive care, else none; a task about nobody keeps its own home. A row whose
+ * person is not in the fixture keeps its own `location_id`.
+ */
+const SYNC_LOCATION_TABLES = new Set([
+  "care_note",
+  "observation",
+  "body_map_mark",
+  "activity_record",
+  "visit_log",
+  "medication_administration",
+  "task",
+]);
+
+const RECEIVES_CARE = new Set(["active", "on_leave", "in_hospital"]);
+
+/**
+ * A handover's items, notes and acknowledgements carry its home and shift end, and an item or
+ * note whether it is about nobody or someone who lives at that home (`at_home`; migration 0145).
+ */
+const HANDOVER_CHILD_TABLES = new Set([
+  "handover_item",
+  "handover_note",
+  "handover_acknowledgement",
+]);
+
+function withHandoverSync(source: SourceRows): SourceRows {
+  const handovers = new Map((source.handover ?? []).map((h) => [h.id, h]));
+  const homes = new Map((source.person ?? []).map((p) => [p.id, p.location_id]));
+  return Object.fromEntries(
+    Object.entries(source).map(([name, rows]) => [
+      name,
+      HANDOVER_CHILD_TABLES.has(name)
+        ? rows.map((r) => {
+            const h = handovers.get(String(r.handover_id));
+            const home = h?.location_id ?? null;
+            const person = r.person_id ?? null;
+            return {
+              ...r,
+              shift_end: r.shift_end !== undefined ? r.shift_end : (h?.shift_end ?? null),
+              sync_location_id: r.sync_location_id !== undefined ? r.sync_location_id : home,
+              ...(name === "handover_acknowledgement"
+                ? {}
+                : {
+                    at_home:
+                      r.at_home !== undefined
+                        ? r.at_home
+                        : person === null || homes.get(String(person)) === home
+                          ? 1
+                          : 0,
+                  }),
+            };
+          })
+        : rows,
+    ]),
+  );
+}
+
+function withSyncLocation(source: SourceRows): SourceRows {
+  const homes = new Map(
+    (source.person ?? []).map((p) => [
+      p.id,
+      RECEIVES_CARE.has(String(p.status ?? "active")) ? p.location_id : null,
+    ]),
+  );
+  return Object.fromEntries(
+    Object.entries(source).map(([name, rows]) => [
+      name,
+      SYNC_LOCATION_TABLES.has(name)
+        ? rows.map((r) =>
+            r.sync_location_id !== undefined
+              ? r
+              : {
+                  ...r,
+                  sync_location_id:
+                    r.person_id === null || r.person_id === undefined
+                      ? (r.location_id ?? null)
+                      : homes.has(r.person_id)
+                        ? (homes.get(r.person_id) ?? null)
+                        : (r.location_id ?? null),
+                },
+          )
+        : rows,
+    ]),
+  );
+}
 
 const table = (name: string) => ({ connectionTag: "default", schema: "public", name });
 
@@ -32,6 +122,8 @@ export function compile(yaml: string): { hydrated: HydratedSyncConfig; errors: s
 
 export interface DeviceDataset {
   readonly buckets: string[];
+  /** Rows the parameter queries returned for this connection (PowerSync caps these too). */
+  readonly parameterResults: number;
   /** Output table name to the rows it holds, keyed by id. */
   readonly tables: Record<string, Map<string, SqliteJsonRow>>;
 }
@@ -46,6 +138,25 @@ export async function syncFor(
   claims: Partial<SyncTokenClaims>,
   connection: Record<string, unknown> = {},
 ): Promise<DeviceDataset> {
+  // The API mints the window's ten-day blocks with its days (ADR-0134).
+  if (claims.offline_days && !("offline_blocks" in claims)) {
+    claims = { ...claims, offline_blocks: offlineWindowBlocks(claims.offline_days) };
+  }
+  // The API names the homes where the member's assigned people live (ADR-0134).
+  if (claims.handover_assigned === true && !("handover_assigned_location_ids" in claims)) {
+    const homes = new Map((source.person ?? []).map((p) => [p.id, p.location_id]));
+    const assignedHomes = (source.person_assignment ?? [])
+      .filter(
+        (a) =>
+          a.tenant_user_id === claims.sub &&
+          a.tenant_id === claims.tenant_id &&
+          (a.deleted_at ?? null) === null,
+      )
+      .map((a) => homes.get(a.person_id))
+      .filter((l): l is string => typeof l === "string");
+    claims = { ...claims, handover_assigned_location_ids: [...new Set(assignedHomes)].sort() };
+  }
+  source = withHandoverSync(withSyncLocation(source));
   // Replication: assign every row to buckets and build the parameter lookup index.
   const bucketRows = new Map<string, { table: string; id: string; data: SqliteJsonRow }[]>();
   const lookups: EvaluatedParameters[] = [];
@@ -71,14 +182,16 @@ export async function syncFor(
     streams: {},
   });
   if (errors.length > 0) throw new Error(errors.map((e) => e.message).join("; "));
+  let parameterResults = 0;
   const dynamic = await querier.queryDynamicBucketDescriptions({
     getParameterSets: async (requested) =>
-      requested.map((lookup) => ({
-        lookup,
-        rows: lookups
+      requested.map((lookup) => {
+        const rows = lookups
           .filter((l) => l.lookup.serializedRepresentation === lookup.serializedRepresentation)
-          .flatMap((l) => l.bucketParameters),
-      })),
+          .flatMap((l) => l.bucketParameters);
+        parameterResults += rows.length;
+        return { lookup, rows };
+      }),
   });
   const buckets = [...querier.staticBuckets, ...dynamic].map((b) => b.bucket).sort();
 
@@ -89,7 +202,7 @@ export async function syncFor(
       tables[row.table]?.set(row.id, row.data);
     }
   }
-  return { buckets, tables };
+  return { buckets, tables, parameterResults };
 }
 
 export function ids(dataset: DeviceDataset, tableName: string): string[] {

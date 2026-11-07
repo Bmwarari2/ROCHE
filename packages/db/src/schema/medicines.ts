@@ -645,6 +645,12 @@ export const medicationAdministration = pgTable(
     personId: uuid("person_id").notNull(),
     /** The entry version the dose was recorded against. */
     medicationId: uuid("medication_id").notNull(),
+    /**
+     * The home whose phones hold the record (migration 0145; ADR-0134): the person's home while
+     * they receive care, else none, set and moved by the database for records in the sync window
+     * (HZ-138).
+     */
+    syncLocationId: uuid("sync_location_id"),
     /** The scheduled dose; null for a when-required dose. */
     dueAt: timestamp("due_at", { withTimezone: true }),
     outcome: text("outcome").notNull(),

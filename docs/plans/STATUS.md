@@ -505,6 +505,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
 - slice 71 shifts, clock and lone working on the phone, `feat/mobile-shifts-checkins` (0139; HZ-125; H-1310 to H-1319): streams, phone screens, offline queue; MOB-007 partial;
+- sync buckets per home, `feat/sync-bucket-per-home` (0145; ADR-0134; HZ-138; H-1428, H-1429): home streams per home and day, assigned per ten-day block, records follow a transfer; budget tested at 120 beds;
 - slice 23 applicant tracking offered (0085; H-730 to H-739), not started.
 
 **Numbering in use:** migrations: 0071 is #123; each Phase 2 schema branch writes one

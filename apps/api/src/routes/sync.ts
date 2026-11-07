@@ -12,6 +12,7 @@ import {
   deviceDiscardRecord,
   discardReason,
   location,
+  person,
   personAssignment,
   tenantUser,
 } from "@harbour/db";
@@ -26,6 +27,7 @@ import {
 import {
   isValidWindowDays,
   OFFLINE_WINDOW_RATE_KEY,
+  offlineWindowBlocks,
   offlineWindowDays,
   shiftWindowDays,
 } from "@harbour/sync/streams";
@@ -164,6 +166,22 @@ export const MAX_WRITE_PERSON_IDS = 100;
  * carries every one of its permissions; S-M1), each the narrowest of its permissions' scopes. A
  * break-glass record never syncs.
  */
+/** The statuses whose people the whole-home streams carry (sync-config.yaml, L1). */
+const LIVE_STATUSES: ReadonlySet<string> = new Set(["active", "on_leave", "in_hospital"]);
+
+/**
+ * Whether a family's whole-home streams already carry every person the member is assigned to:
+ * each one lives at a home in `locationIds` and is a person receiving care. Only then are the
+ * assigned streams left off (ADR-0134); a member with no assignments is covered trivially.
+ */
+export function assignedCovered(
+  locationIds: readonly string[],
+  assigned: readonly { readonly locationId: string; readonly status: string }[],
+): boolean {
+  const homes = new Set(locationIds);
+  return assigned.every((a) => homes.has(a.locationId) && LIVE_STATUSES.has(a.status));
+}
+
 export function familyReach(
   effective: EffectiveAccess,
   family: SyncFamily,
@@ -249,10 +267,29 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           );
           // Each family of streams syncs where its own read permission reaches, never where
           // another role reaches further (ADR-0071 review round 1, C-M1 and S-M1).
-          const people = familyReach(access.effective, "people", allIds);
-          const care = familyReach(access.effective, "care", allIds);
-          const entries = familyReach(access.effective, "entries", allIds);
-          const handovers = familyReach(access.effective, "handover", allIds);
+          // A family's assigned streams are left off where its whole-home streams already carry
+          // every person the member is assigned to: the same rows twice would double the
+          // buckets of the connection, which PowerSync caps (ADR-0134).
+          const assignedHomes = await tx
+            .select({ locationId: person.locationId, status: person.status })
+            .from(personAssignment)
+            .innerJoin(person, eq(person.id, personAssignment.personId))
+            .where(
+              and(
+                eq(personAssignment.tenantUserId, access.tenantUserId),
+                isNull(personAssignment.deletedAt),
+              ),
+            );
+          const covered = (reach: { locationIds: string[]; assigned: boolean }) =>
+            reach.assigned &&
+            reach.locationIds.length > 0 &&
+            assignedCovered(reach.locationIds, assignedHomes)
+              ? { ...reach, assigned: false }
+              : reach;
+          const people = covered(familyReach(access.effective, "people", allIds));
+          const care = covered(familyReach(access.effective, "care", allIds));
+          const entries = covered(familyReach(access.effective, "entries", allIds));
+          const handovers = covered(familyReach(access.effective, "handover", allIds));
           const recording = familyReach(access.effective, "entries_write", allIds);
           // The offline window comes from the rate table here, never from the device (care.md
           // section 6): the streams read it from this claim and ignore connection parameters.
@@ -348,10 +385,16 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             entries_assigned: entries.assigned,
             handover_location_ids: handovers.locationIds,
             handover_assigned: handovers.assigned,
+            // The homes where the member's assigned people live: the handovers they may open
+            // there sync per home and day (`app.handover_location_visible`; ADR-0134).
+            handover_assigned_location_ids: handovers.assigned
+              ? [...new Set(assignedHomes.map((a) => a.locationId))].sort()
+              : [],
             entries_write_location_ids: recording.locationIds,
             entries_write_assigned: recording.assigned,
             ...(writePersonIds ? { entries_write_person_ids: writePersonIds } : {}),
             offline_days: offlineDays,
+            offline_blocks: offlineWindowBlocks(offlineDays),
             handover_shifts: handoverShifts,
             // The member's own shifts and clock events (scheduling.md section 18): only for those
             // who clock their own time; empty otherwise, so no shift syncs (fails closed).

@@ -98,3 +98,14 @@ export function shiftWindowDays(now: Date): string[] {
     days.push(utcDay(today + d * DAY_MS));
   return days;
 }
+
+/**
+ * The ten-day blocks (`yyyy-mm-d`, the first nine characters of a UTC date) that hold the offline
+ * window's days (`offline_blocks`): the assigned streams key their buckets by person and block,
+ * not by person and day, so a phone stays far under PowerSync's buckets per connection (ADR-0134).
+ * A 31-day window spans at most five blocks; the phone may hold up to nine days before the
+ * window's first day, and shows only the window.
+ */
+export function offlineWindowBlocks(days: readonly string[]): string[] {
+  return [...new Set(days.map((d) => d.slice(0, 9)))];
+}

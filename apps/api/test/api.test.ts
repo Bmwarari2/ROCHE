@@ -13,6 +13,7 @@ import type {
 import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import {
+  offlineWindowBlocks,
   offlineWindowDays,
   SYNC_TOKEN_AUDIENCE,
   SYNC_TOKEN_ISSUER,
@@ -596,6 +597,12 @@ describe("offline sync", () => {
     );
     const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
     expect(payload.offline_days).toEqual(offlineWindowDays(new Date(), Number(rate.value)));
+    // The assigned streams' ten-day blocks, from the same days (ADR-0134).
+    expect(payload.offline_blocks).toEqual(
+      offlineWindowBlocks(offlineWindowDays(new Date(), Number(rate.value))),
+    );
+    // A care worker opens the handovers of the homes their assigned people live at.
+    expect((payload.handover_assigned_location_ids as string[]).length).toBeGreaterThan(0);
   });
 
   // Scheduling.md section 18: the member's own shifts and clock events sync for these days only.
