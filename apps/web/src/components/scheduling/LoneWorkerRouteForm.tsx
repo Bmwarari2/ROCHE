@@ -8,7 +8,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState, useTransition } f
 import { setLoneWorkerRoute } from "@/app/actions/lone-worker";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { t } from "@/lib/i18n";
-import { MAX_ROUTE_STEPS, ROUTE_CHANNELS, readRoute, targetValue } from "@/lib/lone-worker";
+import { MAX_ROUTE_STEPS, readRoute, routeChannels, targetValue } from "@/lib/lone-worker";
 import { type ActionResult, collectedRefusal, errorFor } from "@/lib/outcome";
 
 /**
@@ -17,6 +17,9 @@ import { type ActionResult, collectedRefusal, errorFor } from "@/lib/outcome";
  * Manager; every step reaches people away from the app. The API checks every role and person
  * again and refuses in words. Saving a valid route switches lone-worker check-ins on.
  */
+
+/** The page's note saying which channels reach staff yet; each step's channels refer to it. */
+export const SMS_NOTE_ID = "route-sms-note";
 
 interface Option {
   readonly value: string;
@@ -41,12 +44,18 @@ export function LoneWorkerRouteForm({
   version,
   roles,
   people,
+  smsAvailable,
+  pushAvailable,
 }: {
   readonly steps: readonly LoneWorkerRouteStep[];
   readonly version: number | null;
   readonly roles: readonly Option[];
   /** Members who may be named, when the viewer may list the team; otherwise roles only. */
   readonly people: readonly Option[];
+  /** Text message is offered only once an SMS gateway is connected (ADR-0132). */
+  readonly smsAvailable: boolean;
+  /** A phone notification counts only once staff phones can receive them (HZ-125). */
+  readonly pushAvailable: boolean;
 }) {
   const router = useRouter();
   const [steps, setSteps] = useState<readonly Row[]>(() =>
@@ -78,7 +87,10 @@ export function LoneWorkerRouteForm({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const read = readRoute(new FormData(event.currentTarget), steps.length, t);
+    const read = readRoute(new FormData(event.currentTarget), steps.length, t, {
+      smsAvailable,
+      pushAvailable,
+    });
     if (!read.ok) {
       setResult(collectedRefusal(read.problems));
       return;
@@ -140,7 +152,15 @@ export function LoneWorkerRouteForm({
                 />
                 <fieldset
                   className="m-0 flex flex-col gap-2 border-0 p-0"
-                  aria-describedby={channelError ? `route-step-${n}-channel-error` : undefined}
+                  aria-describedby={
+                    [
+                      channelError ? `route-step-${n}-channel-error` : null,
+                      // Why there is no text message option (ADR-0132), read with each step.
+                      smsAvailable && pushAvailable ? null : SMS_NOTE_ID,
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
                 >
                   <legend className="mb-1">{t("scheduling.loneWorker.route.channels")}</legend>
                   {channelError ? (
@@ -152,7 +172,7 @@ export function LoneWorkerRouteForm({
                       {channelError}
                     </p>
                   ) : null}
-                  {ROUTE_CHANNELS.map((channel) => (
+                  {routeChannels(smsAvailable).map((channel) => (
                     <Checkbox
                       key={channel}
                       id={`route-step-${n}-channel-${channel}`}

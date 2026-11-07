@@ -354,6 +354,14 @@ export function readAcknowledge(
 
 export const ROUTE_CHANNELS = ["push", "email", "sms", "in_app"] as const;
 export type RouteChannel = (typeof ROUTE_CHANNELS)[number];
+
+/**
+ * The channels the route form offers: text message only once an SMS gateway is connected (the
+ * API's `smsAvailable`). None is at launch (ADR-0132), so no step can rely on one.
+ */
+export function routeChannels(smsAvailable: boolean): readonly RouteChannel[] {
+  return smsAvailable ? ROUTE_CHANNELS : ROUTE_CHANNELS.filter((c) => c !== "sms");
+}
 export const MAX_ROUTE_STEPS = 6;
 
 /**
@@ -384,6 +392,7 @@ export function readRoute(
   form: FormLike,
   count: number,
   t: Translator,
+  options: { readonly smsAvailable: boolean; readonly pushAvailable: boolean },
 ): { ok: true; steps: LoneWorkerRouteStep[] } | { ok: false; problems: FieldProblem[] } {
   const problems: FieldProblem[] = [];
   const steps: LoneWorkerRouteStep[] = [];
@@ -417,7 +426,21 @@ export function readRoute(
     const channels = form
       .getAll(`step-${n}-channel`)
       .filter((c): c is RouteChannel => ROUTE_CHANNELS.includes(c as RouteChannel));
-    if (!channels.some((c) => c !== "in_app")) {
+    if (!options.smsAvailable && channels.includes("sms")) {
+      problems.push({
+        field: `step-${n}-channel`,
+        message: t("scheduling.loneWorker.route.smsUnavailable", { step: n }),
+      });
+    } else if (
+      // Only a channel that can reach staff counts: email always; a phone notification or a text
+      // message only once it can (HZ-125; ADR-0132).
+      !channels.some(
+        (c) =>
+          c === "email" ||
+          (c === "push" && options.pushAvailable) ||
+          (c === "sms" && options.smsAvailable),
+      )
+    ) {
       problems.push({
         field: `step-${n}-channel`,
         message: t("scheduling.loneWorker.route.channelRequired", { step: n }),
