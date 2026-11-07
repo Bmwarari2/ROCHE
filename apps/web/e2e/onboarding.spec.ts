@@ -44,9 +44,9 @@ test("the Registered Manager reads the checklist and is offered no decision", as
   await page.goto(PAGE);
   await expect(main(page).getByText(/of 15 done\./)).toBeVisible();
   await expect(item(page, "The DPIA is signed")).toBeVisible();
-  await expect(main(page).getByRole("button", { name: /^Accept Harbour's setting: / })).toHaveCount(
-    0,
-  );
+  await expect(
+    main(page).getByRole("button", { name: /^Accept Thapsus Care's setting: / }),
+  ).toHaveCount(0);
   // A go-live item Harbour cannot check yet says so, and blocks.
   await expect(
     item(page, "Shared and kiosk devices are enrolled in device management"),
@@ -69,42 +69,42 @@ test("the owner records the decisions, and each closes what it answers", async (
   ).toBeVisible();
   await expectAccessible(page, "onboarding checklist");
 
-  const settings = item(page, "Other settings Harbour chose for you are reviewed");
-  await expect(settings.getByText(/^Harbour's setting: /).first()).toBeVisible();
-  const accept = settings.getByRole("button", { name: /^Accept Harbour's setting: / }).first();
+  const settings = item(page, "Other settings Thapsus Care chose for you are reviewed");
+  await expect(settings.getByText(/^Thapsus Care's setting: /).first()).toBeVisible();
+  const accept = settings.getByRole("button", { name: /^Accept Thapsus Care's setting: / }).first();
   const key = ((await accept.getAttribute("aria-label")) ?? "").replace(
-    "Accept Harbour's setting: ",
+    "Accept Thapsus Care's setting: ",
     "",
   );
   await accept.click();
   await recorded(page);
   await expect(
-    item(page, "Other settings Harbour chose for you are reviewed").getByRole("button", {
-      name: `Accept Harbour's setting: ${key}`,
+    item(page, "Other settings Thapsus Care chose for you are reviewed").getByRole("button", {
+      name: `Accept Thapsus Care's setting: ${key}`,
     }),
   ).toHaveCount(0);
 
   // A kind of record with Harbour's period cannot be marked not used; keeping the period closes it.
   const retention = () => item(page, "How long records are kept is reviewed");
   const classes = await retention()
-    .getByRole("button", { name: /^Keep Harbour's period for / })
+    .getByRole("button", { name: /^Keep Thapsus Care's period for / })
     .evaluateAll((buttons) =>
       buttons.map((b) =>
-        (b.getAttribute("aria-label") ?? "").replace("Keep Harbour's period for ", ""),
+        (b.getAttribute("aria-label") ?? "").replace("Keep Thapsus Care's period for ", ""),
       ),
     );
   const recordClass = classes.find((c) => !["cctv", "organisation_document"].includes(c)) ?? "";
   await retention()
     .getByRole("button", { name: `We do not keep these: ${recordClass}` })
     .click();
-  await expect(retention().getByRole("alert")).toContainText("Accept Harbour's period");
+  await expect(retention().getByRole("alert")).toContainText("Accept Thapsus Care's period");
   await expectAccessible(page, "retention decision refused");
   await retention()
-    .getByRole("button", { name: `Keep Harbour's period for ${recordClass}` })
+    .getByRole("button", { name: `Keep Thapsus Care's period for ${recordClass}` })
     .click();
   await recorded(page);
   await expect(
-    retention().getByRole("button", { name: `Keep Harbour's period for ${recordClass}` }),
+    retention().getByRole("button", { name: `Keep Thapsus Care's period for ${recordClass}` }),
   ).toHaveCount(0);
 
   const staffFile = retention().getByRole("group", { name: "How long do you keep staff files?" });
@@ -120,7 +120,7 @@ test("the owner records the decisions, and each closes what it answers", async (
   // HZ-027: a clinical setting is accepted only naming the clinical lead or CSO who reviewed it.
   const clinical = () => item(page, "Your clinical lead has reviewed the clinical settings");
   const first = clinical().getByRole("listitem").first();
-  await first.getByRole("button", { name: /^Accept Harbour's setting: / }).click();
+  await first.getByRole("button", { name: /^Accept Thapsus Care's setting: / }).click();
   await expect(
     first
       .getByText("Choose the clinical lead or Clinical Safety Officer who reviewed this setting")
@@ -129,16 +129,16 @@ test("the owner records the decisions, and each closes what it answers", async (
   await expectAccessible(page, "clinical setting without its reviewer");
   const clinicalKey = (
     (await first
-      .getByRole("button", { name: /^Accept Harbour's setting: / })
+      .getByRole("button", { name: /^Accept Thapsus Care's setting: / })
       .getAttribute("aria-label")) ?? ""
-  ).replace("Accept Harbour's setting: ", "");
+  ).replace("Accept Thapsus Care's setting: ", "");
   await first
     .getByLabel("Reviewed by the clinical lead or Clinical Safety Officer")
     .selectOption({ label: "Nell Nurse" });
-  await first.getByRole("button", { name: /^Accept Harbour's setting: / }).click();
+  await first.getByRole("button", { name: /^Accept Thapsus Care's setting: / }).click();
   await recorded(page);
   await expect(
-    clinical().getByRole("button", { name: `Accept Harbour's setting: ${clinicalKey}` }),
+    clinical().getByRole("button", { name: `Accept Thapsus Care's setting: ${clinicalKey}` }),
   ).toHaveCount(0);
 
   const dcb = item(page, "Your DCB0160 clinical safety assessment is recorded");

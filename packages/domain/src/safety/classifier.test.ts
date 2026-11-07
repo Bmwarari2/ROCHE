@@ -714,7 +714,11 @@ describe("hazard HZ-013 deadline clocks read their periods from the rate table",
     expect(abuse?.deadlines[0]?.statutory).toBe(true);
     expect(notificationClockState(OCCURRED, "draft", OCCURRED)).toBe("overdue");
     expect(notificationClockState(OCCURRED, "submitted", OCCURRED)).toBe("done");
-    expect(output(r, "safeguarding_s42")?.deadlines[0]?.wording).toMatch(/Harbour sets this/);
+    // The product, not the law, sets this deadline, and the words say so.
+    expect(output(r, "safeguarding_s42")?.deadlines[0]).toMatchObject({
+      statutory: false,
+      wording: expect.stringContaining("(Thapsus Care sets this; the law sets no time)"),
+    });
   });
 
   it("hazard HZ-013 an incident recorded offline starts its clock at the recorded event time", () => {

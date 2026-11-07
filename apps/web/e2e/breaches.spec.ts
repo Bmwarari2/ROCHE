@@ -107,8 +107,8 @@ test("the owner records, assesses, decides, reports and closes a breach", async 
   await assess.getByLabel("It was disclosed outside the organisation").check();
   await assess.getByRole("button", { name: "Save assessment" }).click();
   await arrived(page, "Assessment saved.");
-  const suggestion = region(page, "Harbour's suggestion");
-  await expect(suggestion).toContainText("Harbour suggests a high severity breach");
+  const suggestion = region(page, "Thapsus Care's suggestion");
+  await expect(suggestion).toContainText("Thapsus Care suggests a high severity breach");
   await expect(suggestion).toContainText("the decision is yours");
   await expect(suggestion).toContainText("Identifiable data went outside the organisation");
   await expect(region(page, "Where it stands")).toContainText("To decide");
@@ -124,10 +124,12 @@ test("the owner records, assesses, decides, reports and closes a breach", async 
   await decide.getByRole("button", { name: "Record decision" }).click();
   await expect(decide.getByRole("alert")).toContainText("tick the box");
   await bothThemes(page, "decision refused");
-  await decide.getByLabel("I have read Harbour's suggestion and I am deciding differently").check();
+  await decide
+    .getByLabel("I have read Thapsus Care's suggestion and I am deciding differently")
+    .check();
   await decide.getByRole("button", { name: "Record decision" }).click();
   await arrived(page, "Decision recorded.");
-  await expect(region(page, "Decision")).toContainText("going against Harbour's suggestion");
+  await expect(region(page, "Decision")).toContainText("going against Thapsus Care's suggestion");
   await expect(region(page, "Where it stands")).toContainText("To report to the ICO");
   await bothThemes(page, "breach decided");
 

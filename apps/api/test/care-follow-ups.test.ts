@@ -565,7 +565,7 @@ describe("hazard HZ-040 coded discard reasons, the replay index and the server's
     );
   });
 
-  it("flags an entry a deletion lists after it reached Harbour, once", async () => {
+  it("flags an entry a deletion lists after it reached Thapsus Care, once", async () => {
     const entryId = newId();
     const uploaded = await as("carer", `/v1/people/${resident(2)}/notes`, {
       method: "POST",

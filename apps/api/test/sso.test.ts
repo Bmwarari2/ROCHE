@@ -284,7 +284,7 @@ describe("the SSO callback's policy (rules 15, 16, 20)", () => {
     });
   });
 
-  it("refuses a provider Harbour did not make", async () => {
+  it("refuses a provider Thapsus Care did not make", async () => {
     expect(
       await hooks().resolveUser({ ...user(DEMO.users.manager.email), providerId: "google" }),
     ).toMatchObject({ action: "reject" });
@@ -342,12 +342,12 @@ describe("the SSO callback's policy (rules 15, 16, 20)", () => {
   });
 });
 
-describe("hazard HZ-112 SSO is never Harbour's second factor (rule 21)", () => {
-  it("records a factor only on Harbour's own passkey and code routes, never on an SSO route", () => {
+describe("hazard HZ-112 SSO is never Thapsus Care's second factor (rule 21)", () => {
+  it("records a factor only on Thapsus Care's own passkey and code routes, never on an SSO route", () => {
     expect([...FACTOR_ROUTES.keys()].some((path) => path.includes("sso"))).toBe(false);
   });
 
-  it("refuses care records to a session that has used no Harbour factor", async () => {
+  it("refuses care records to a session that has used no Thapsus Care factor", async () => {
     // The manager's session with its factor record taken away: the state an SSO callback leaves.
     const auth = h.db.pool("harbour_auth");
     const token = h.tokens.manager ?? "";
@@ -538,7 +538,7 @@ describe("#33 security review", () => {
     expect(JSON.stringify(await r.json())).not.toMatch(/"token"/);
   });
 
-  it("H3: an invited member whose address already has a Harbour sign-in is told to sign in first", async () => {
+  it("H3: an invited member whose address already has a Thapsus Care sign-in is told to sign in first", async () => {
     await h.db
       .pool("harbour_owner")
       .query(

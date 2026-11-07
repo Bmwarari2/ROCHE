@@ -1685,7 +1685,7 @@ describe("hazard HZ-121 completion is refused without a competent completer, the
       ["completer_not_competent"],
     ],
     [
-      "allergies not compared with the sources (Harbour matches no allergen)",
+      "allergies not compared with the sources (Thapsus Care matches no allergen)",
       { allergiesCompared: false },
       ["allergies_not_compared"],
     ],

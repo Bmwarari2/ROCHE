@@ -56,7 +56,11 @@ const UKHSA = cite(
   "Report an outbreak of acute respiratory infection in an adult social care setting",
   SOURCES.ukhsaAri,
 );
-const MASTER = cite("Harbour master prompt", "11.1 (UKHSA outbreak)", "docs/00-MASTER-PROMPT.md");
+const MASTER = cite(
+  "Thapsus Care master prompt",
+  "11.1 (UKHSA outbreak)",
+  "docs/00-MASTER-PROMPT.md",
+);
 
 function dayNumber(instant: Date): number {
   return Date.parse(`${ukIsoDate(instant)}T00:00:00Z`) / 86_400_000;

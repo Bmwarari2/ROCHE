@@ -353,7 +353,7 @@ export const operationsRouter = createRouter()
       tags: ["operations"],
       summary: "Set, and confirm, where the location keeps the paper MAR and the PEEPs",
       description:
-        "Until the eMAR and PEEPs are in Harbour, the downtime pack says where these are kept. A place changed without `confirm` is unconfirmed again and prints as not set; confirming completes the task asking for it (H-201).",
+        "Until the eMAR and PEEPs are in Thapsus Care, the downtime pack says where these are kept. A place changed without `confirm` is unconfirmed again and prints as not set; confirming completes the task asking for it (H-201).",
       security,
       request: {
         params: Params,

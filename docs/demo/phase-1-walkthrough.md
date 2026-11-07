@@ -71,7 +71,7 @@ see: use her for break-glass. Sam Twin and Sam Twin, also at the Mews, show the 
 
 Sign in as **Cat Carer**.
 
-1. Show **Sign in to Harbour**, with **Sign in with a passkey** beside the password.
+1. Show **Sign in to Thapsus Care**, with **Sign in with a passkey** beside the password.
    ([guide](../user-guides/all-staff/sign-in.md))
 2. Go to **Residents**. Point out that Cat sees only the three people assigned to her.
 3. Point out the allergy chips: Ada "1 allergy", Ben "No known allergies", Cara
@@ -121,7 +121,7 @@ Still as Cat, on Ada's record.
    happened, answer **Not sure yet** to the head injury question and **No** to the medicines
    question, and answer the emergency services and GP questions. Save.
    ([guide](../user-guides/care-worker/record-an-incident.md))
-2. Point out: "Not sure yet" is treated as yes, so Harbour sets urgent medical advice and timed
+2. Point out: "Not sure yet" is treated as yes, so Thapsus Care sets urgent medical advice and timed
    observation tasks. Open the incident and point out **Checks after the fall**: what the
    checks are, when to get urgent medical advice, and the links to the open and finished checks on
    the task list.
@@ -134,7 +134,7 @@ Still as Cat, on Ada's record.
 6. Open a notification (record a second incident of "Safeguarding concern" if none is drafted).
    Fill in **Prepare the notification** and choose **Save and mark ready to submit**.
 7. Under **Record that it was submitted**, enter an invented reference such as `DEMO-0001` and
-   choose **Record as submitted**. Point out: Harbour does not send it to CQC; the manager submits
+   choose **Record as submitted**. Point out: Thapsus Care does not send it to CQC; the manager submits
    on the regulator's portal and records it here. If more than 10 minutes have passed since the
    code, **Confirm it is you** appears: this is step-up.
    ([guide](../user-guides/registered-manager/record-a-notification-as-submitted.md))
@@ -149,7 +149,7 @@ Sign in as **Nell Nurse**.
    raised and the next due date. **Ask the falls questions**: no score, because NICE advises
    against falls prediction scores. ([guide](../user-guides/nurse/run-a-validated-tool.md))
 2. **Risk assessments**: add a "Bed rails" assessment. Point out likelihood and severity are the
-   assessor's judgement; Harbour only applies the matrix.
+   assessor's judgement; Thapsus Care only applies the matrix.
 3. **Care plan**: start a plan, fill one need with an action, choose **Publish the care plan** and
    record that Addie agreed it. ([guide](../user-guides/nurse/write-and-publish-a-care-plan.md))
 4. **Advance care**: record a DNACPR decision by an invented GP. Point out the header changes from

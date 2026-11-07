@@ -541,7 +541,7 @@ const CAPPED_NOTICE_TEXT = {
   },
   entry_flag: {
     title: "A member of staff reached the limit on entries to check",
-    body: `More of their deleted entries reached Harbour while ${FLAGGED_ENTRY_TASKS_PER_OWNER} tasks for them were open here. The entries were added to the oldest of those tasks: check it first.`,
+    body: `More of their deleted entries reached Thapsus Care while ${FLAGGED_ENTRY_TASKS_PER_OWNER} tasks for them were open here. The entries were added to the oldest of those tasks: check it first.`,
   },
 } as const;
 
@@ -1425,7 +1425,8 @@ export async function reportedDeletedBy(
 
 const FLAGGED_ENTRY_TITLES: Record<string, string> = {
   [REPORTED_DELETED_TASK_KIND]: "Check entries uploaded after their device reported deleting them",
-  [UPLOADED_BEFORE_DELETION_TASK_KIND]: "Check entries a device deleted after they reached Harbour",
+  [UPLOADED_BEFORE_DELETION_TASK_KIND]:
+    "Check entries a device deleted after they reached Thapsus Care",
 };
 
 /** The task's title with its count, which grows as further entries are added. */

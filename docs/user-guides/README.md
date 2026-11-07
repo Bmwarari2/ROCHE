@@ -1,6 +1,6 @@
 # User guides
 
-Short, task-based guides for the people who use Harbour, one task per guide. They describe what
+Short, task-based guides for the people who use Thapsus Care, one task per guide. They describe what
 the screens on `main` do now. Where a feature has no screen yet, the guide says so rather than
 inventing steps. The definition of done (master prompt section 19) needs a user guide for every
 feature-register row, and a user guide per role (section 19, definition of complete, item 5).

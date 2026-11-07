@@ -114,7 +114,7 @@ describe("a task on the round, rendered", () => {
     [false, "You cannot mark this task on this phone. Tell the person in charge of this shift."],
     [
       true,
-      "You cannot mark this task on this phone. You can check and change the task in Harbour on the web.",
+      "You cannot mark this task on this phone. You can check and change the task in Thapsus Care on the web.",
     ],
   ])("says why it was not saved, and who to tell (manager: %s)", async (manager, words) => {
     const view = await render(card({}, { key: "mobile.round.notYours" }, manager).element);

@@ -4,7 +4,7 @@
 | --- | --- |
 | Law | UK GDPR Art 12 and 15, as amended by the [Data (Use and Access) Act 2025](https://www.legislation.gov.uk/ukpga/2025/18/contents) (searches need only be reasonable and proportionate; the time limit starts on receipt of the request, any identity information or fee, and pauses while awaiting clarification); DPA 2018 Schedules 2 and 3 (exemptions, including third-party data and the health and social work data serious-harm tests) |
 | Who responds | The **tenant** (controller). Thapsus (processor) assists and never responds substantively to a request about tenant data |
-| Tooling | DSAR workbench in Harbour (phase per [feature register](../specs/feature-register.md)) |
+| Tooling | DSAR workbench in Thapsus Care (phase per [feature register](../specs/feature-register.md)) |
 
 ## 1. Thapsus as processor
 
@@ -21,7 +21,7 @@ Requests about Thapsus's own data (as controller: customer contacts, Thapsus sta
 
 | Step | Action | Notes |
 | --- | --- | --- |
-| 1. Recognise | A request can be made verbally or in writing, to any member of staff, and need not mention data protection | Staff log it in Harbour (DSAR workbench, "New request") on the day received |
+| 1. Recognise | A request can be made verbally or in writing, to any member of staff, and need not mention data protection | Staff log it in Thapsus Care (DSAR workbench, "New request") on the day received |
 | 2. Log and start the clock | Record requester, data subject, channel, date received. The workbench sets the due date at one month | The clock starts on receipt, or on receipt of identity information if that is needed |
 | 3. Verify identity and authority | Ask only for what is proportionate. For representatives, check authority: LPA (health and welfare, or property and finance as relevant), deputyship order, or the person's written authority. Where the person lacks capacity, consider their best interests | The workbench pauses the clock while awaiting identity information |
 | 4. Clarify if needed | If the request is unclear or covers a large amount of information, ask the requester to clarify | The clock pauses while awaiting clarification (DUAA 2025) |
@@ -43,4 +43,4 @@ Requests about Thapsus's own data (as controller: customer contacts, Thapsus sta
 
 ## 4. Records kept
 
-Every request, its clock history, searches, redactions, exemptions and the response are kept in the DSAR register in Harbour, available to the tenant's DPO and reported in the monthly data protection summary.
+Every request, its clock history, searches, redactions, exemptions and the response are kept in the DSAR register in Thapsus Care, available to the tenant's DPO and reported in the monthly data protection summary.

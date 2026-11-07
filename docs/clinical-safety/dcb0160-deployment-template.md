@@ -1,8 +1,8 @@
-# DCB0160 deployment safety assessment: template for Harbour tenants
+# DCB0160 deployment safety assessment: template for Thapsus Care tenants
 
-**Who this is for**: the care provider deploying Harbour (the tenant). Under DCB0160 the deploying organisation is responsible for the clinical safety of how a health IT system is deployed and used in its services. Thapsus, as manufacturer, meets DCB0129 and gives you the evidence below; this template helps you record your own assessment. Guidance on how the two standards fit together: [NHS England digital clinical safety assurance](https://www.england.nhs.uk/long-read/digital-clinical-safety-assurance/).
+**Who this is for**: the care provider deploying Thapsus Care (the tenant). Under DCB0160 the deploying organisation is responsible for the clinical safety of how a health IT system is deployed and used in its services. Thapsus, as manufacturer, meets DCB0129 and gives you the evidence below; this template helps you record your own assessment. Guidance on how the two standards fit together: [NHS England digital clinical safety assurance](https://www.england.nhs.uk/long-read/digital-clinical-safety-assurance/).
 
-**How to use it**: Harbour pre-fills the fields marked *(pre-filled)* from your tenant configuration. Your Clinical Safety Officer (or named clinical lead) completes the rest, signs section 11 and uploads the signed copy in Harbour (Settings, Governance). Your tenant does not go live until this is recorded ([tenant onboarding](../runbooks/tenant-onboarding.md)).
+**How to use it**: Thapsus Care pre-fills the fields marked *(pre-filled)* from your tenant configuration. Your Clinical Safety Officer (or named clinical lead) completes the rest, signs section 11 and uploads the signed copy in Thapsus Care (Settings, Governance). Your tenant does not go live until this is recorded ([tenant onboarding](../runbooks/tenant-onboarding.md)).
 
 Use the same 5 x 5 risk matrix as Thapsus (severity x likelihood, levels 1 to 5), set out in the [clinical risk management plan](clinical-risk-management-plan.md), section 3.2, so that your ratings and ours compare directly.
 
@@ -16,8 +16,8 @@ Use the same 5 x 5 risk matrix as Thapsus (severity x likelihood, levels 1 to 5)
 | CQC provider ID | *(pre-filled)* |
 | Locations in scope (name, CQC location ID, ODS code) | *(pre-filled)* |
 | Service types | *(pre-filled: residential, nursing, domiciliary, supported living, ...)* |
-| Harbour modules enabled | *(pre-filled)* |
-| Harbour release and its safety case report version | *(pre-filled)* |
+| Thapsus Care modules enabled | *(pre-filled)* |
+| Thapsus Care release and its safety case report version | *(pre-filled)* |
 | Device modes in use | *(pre-filled: personal devices, shared devices, kiosk tablets)* |
 | Planned go-live date | |
 | Replacing | Paper records / another system (name) / new service |
@@ -35,13 +35,13 @@ Use the same 5 x 5 risk matrix as Thapsus (severity x likelihood, levels 1 to 5)
 
 ## 3. Scope
 
-Describe which services, staff groups and workflows will use Harbour, and which stay on paper or another system for now. Note any interfaces (pharmacy, GP, council portal).
+Describe which services, staff groups and workflows will use Thapsus Care, and which stay on paper or another system for now. Note any interfaces (pharmacy, GP, council portal).
 
 ## 4. Manufacturer evidence received
 
 | Item | Received (date) | Reviewed by |
 | --- | --- | --- |
-| Harbour clinical safety case report for the release, signed by Thapsus's CSO | | |
+| Thapsus Care clinical safety case report for the release, signed by Thapsus's CSO | | |
 | Hazard log extract for the enabled modules | | |
 | Release notes with the "clinical safety changes" section | | |
 | Medical-device boundary statement | | |
@@ -67,8 +67,8 @@ Thapsus has assessed these hazards. Their residual risk assumes the deployer con
 | HZ-011 Cross-tenant or out-of-scope exposure | Least-privilege role design; periodic access review; leavers removed the same day; MDM on shared devices ([kiosk.md](../compliance/kiosk.md)); review role bundles before go-live: data scope is per permission (ADR-0071), so each person who must act on safety work needs the permission to open the record at the same home, and cover at another home is a role assignment at that home until grants can be managed (run the pre-deployment access report, [runbook](../runbooks/data-scope-per-permission-access-report.md); see HZ-073 below) | | |
 | HZ-012 Validated tool calculated incorrectly | Escalation policy for NEWS2, MUST and Waterlow results linked in configuration; clinicians record SpO2 Scale 2 decisions | | |
 | HZ-013 Statutory notification missed or late | Notifications policy; acting-up grants for Registered Manager absences; weekly review of open notification decisions | | |
-| HZ-073 Safety work or essential information hidden from the person who must act because of their access scope | Review role bundles before go-live and after any change: at every home, each clinical lead and team leader (Harbour tells them all, at every home their role reaches, and checks no rota) can open the records they are told about, a clinical lead (or another holder of `care.plan.write`) can act on reviews, and a Registered Manager is in post; staff who leave or change role are ended the same day, and staff are told only once they have signed in, so no one who has gone, or never started, is the only one told; check the audit for `task.escalation_unrouted`, `platform.escalation.unrouted` and `care.refused_entry.unrouted`, which mean no one could be told; cover at another home is a role assignment there; check the access report's narrows and widens sections with the Registered Manager; tell staff that a record opened by break-glass is for reading only, so care is handed to the person in charge of the shift or their manager, or written on paper | | |
-| HZ-130 Imported records mis-mapped, duplicated or attached to the wrong person | Before importing, check the source system's export: dates day first (dd/mm/yyyy), an NHS number or local identifier for everyone, no test numbers, no columns of data Harbour does not need. Read every warning in the dry run and open each record or row it names before acknowledging it. Check a sample of the file's rows against the source before committing: an import can be undone only until a phone may have received the people, which where phones are in use can be within minutes (the wizard then asks you to accept that before committing), and a person imported by mistake cannot yet be removed, only corrected. Import before phones are in use where you can, and check a sample of imported people against the source straight away. Every imported allergy status reads "not recorded": work through the allergy status check task raised for each person the file said had no known allergies or had allergies, then check and record every other person's status and their allergies (H-682) | | |
+| HZ-073 Safety work or essential information hidden from the person who must act because of their access scope | Review role bundles before go-live and after any change: at every home, each clinical lead and team leader (Thapsus Care tells them all, at every home their role reaches, and checks no rota) can open the records they are told about, a clinical lead (or another holder of `care.plan.write`) can act on reviews, and a Registered Manager is in post; staff who leave or change role are ended the same day, and staff are told only once they have signed in, so no one who has gone, or never started, is the only one told; check the audit for `task.escalation_unrouted`, `platform.escalation.unrouted` and `care.refused_entry.unrouted`, which mean no one could be told; cover at another home is a role assignment there; check the access report's narrows and widens sections with the Registered Manager; tell staff that a record opened by break-glass is for reading only, so care is handed to the person in charge of the shift or their manager, or written on paper | | |
+| HZ-130 Imported records mis-mapped, duplicated or attached to the wrong person | Before importing, check the source system's export: dates day first (dd/mm/yyyy), an NHS number or local identifier for everyone, no test numbers, no columns of data Thapsus Care does not need. Read every warning in the dry run and open each record or row it names before acknowledging it. Check a sample of the file's rows against the source before committing: an import can be undone only until a phone may have received the people, which where phones are in use can be within minutes (the wizard then asks you to accept that before committing), and a person imported by mistake cannot yet be removed, only corrected. Import before phones are in use where you can, and check a sample of imported people against the source straight away. Every imported allergy status reads "not recorded": work through the allergy status check task raised for each person the file said had no known allergies or had allergies, then check and record every other person's status and their allergies (H-682) | | |
 
 ## 6. Local hazards
 
@@ -76,16 +76,16 @@ Hazards arising from your own deployment. Examples to consider:
 
 | ID | Hazard | Causes | Effects | Initial (S / L / R) | Controls | Residual (S / L / R) | Owner |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| L-001 | Records split between paper and Harbour during cutover | Parallel running; staff unsure which is current | Missed or duplicated care | | | | |
+| L-001 | Records split between paper and Thapsus Care during cutover | Parallel running; staff unsure which is current | Missed or duplicated care | | | | |
 | L-002 | MAR migration error at go-live | Manual re-entry of current MARs | Wrong dose (see HZ-005) | | | | |
 | L-003 | Not enough working devices on a shift | Breakage, charging, loss | Delayed recording; paper fallback | | | | |
 | L-004 | Poor connectivity areas not known | No connectivity survey | Stale data (see HZ-002) | | | | |
-| L-005 | Agency staff unfamiliar with Harbour | No induction | Use errors | | | | |
+| L-005 | Agency staff unfamiliar with Thapsus Care | No induction | Use errors | | | | |
 | L-... | | | | | | | |
 
 ## 7. Configuration decisions with safety relevance
 
-| Setting | Harbour default | Your setting | Reason if changed |
+| Setting | Thapsus Care default | Your setting | Reason if changed |
 | --- | --- | --- | --- |
 | Auto-lock on shared and kiosk devices | 30 seconds (range 30 seconds to 2 minutes) | | |
 | Auto-lock on personal devices | 2 minutes | | |
@@ -115,12 +115,12 @@ Hazards arising from your own deployment. Examples to consider:
 
 ## 10. Post-deployment monitoring
 
-- Report safety issues with Harbour to Thapsus through in-app support using the "Safety" category; Thapsus's CSO responds.
-- Review this assessment when a Harbour release note lists clinical safety changes, when you enable a new module or service type, after any incident involving Harbour, and at least every 12 months.
+- Report safety issues with Thapsus Care to Thapsus through in-app support using the "Safety" category; Thapsus's CSO responds.
+- Review this assessment when a Thapsus Care release note lists clinical safety changes, when you enable a new module or service type, after any incident involving Thapsus Care, and at least every 12 months.
 
 ## 11. Deployment clinical safety case summary and sign-off
 
-**Claim**: the deployment of Harbour at the locations in section 1 is acceptably safe, given the manufacturer's evidence (section 4), the deployer controls (section 5) and the local controls (section 6).
+**Claim**: the deployment of Thapsus Care at the locations in section 1 is acceptably safe, given the manufacturer's evidence (section 4), the deployer controls (section 5) and the local controls (section 6).
 
 | Outstanding risks at level 3 or above and why they are accepted |
 | --- |

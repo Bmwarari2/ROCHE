@@ -270,7 +270,7 @@ export const esignOcrRouter = createRouter()
       tags: sigTags,
       summary: "Ask a member to sign an organisation document",
       description:
-        "platform.document.manage. The current version only (its SHA-256 must match). In Harbour unless the organisation chose DocuSign and it is on, when an envelope is sent with the document and the signer's work email.",
+        "platform.document.manage. The current version only (its SHA-256 must match). In Thapsus Care unless the organisation chose DocuSign and it is on, when an envelope is sent with the document and the signer's work email.",
       security,
       request: {
         params: IdParam,
@@ -392,9 +392,9 @@ export const esignOcrRouter = createRouter()
       method: "post",
       path: "/v1/signature-requests/{id}/sign",
       tags: sigTags,
-      summary: "Sign in Harbour, as the member asked",
+      summary: "Sign in Thapsus Care, as the member asked",
       description:
-        "Only the member named, only an open in-Harbour request, only the exact version asked for (its SHA-256 as read), and only with a second factor used within the step-up window. Writes the typed-name signature and the evidence together.",
+        "Only the member named, only an open in-Thapsus Care request, only the exact version asked for (its SHA-256 as read), and only with a second factor used within the step-up window. Writes the typed-name signature and the evidence together.",
       security,
       request: {
         params: IdParam,

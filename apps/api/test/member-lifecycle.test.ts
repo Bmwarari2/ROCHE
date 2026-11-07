@@ -377,7 +377,7 @@ describe("H-566 suspend, end, then erase the sign-in", () => {
     ).toEqual(["sign_in_in_use"]);
   });
 
-  it("keeps the sign-in of a Harbour operator", async () => {
+  it("keeps the sign-in of a Thapsus Care operator", async () => {
     // The nurse's sign-in is also a Thapsus operator's (the harness).
     const nurse = DEMO.users.nurse.id;
     const suspended = await suspend("owner", nurse);

@@ -68,7 +68,7 @@ test("the create-sign-in form: rules up front, show or hide, and an error summar
   await page.goto(`/invitation#${UNKNOWN}`);
   const main = page.getByRole("main");
 
-  await expect(heading(page, "Join Example Care Homes on Harbour")).toBeFocused();
+  await expect(heading(page, "Join Example Care Homes on Thapsus Care")).toBeFocused();
   await expect(main).toContainText("Use at least 12 characters.");
   await expectAccessible(page, "create sign-in form");
 
@@ -126,7 +126,7 @@ test("a new sign-in is told to sign in next", async ({ page }) => {
 test("a sign-in that already exists is asked to sign in first", async ({ page }) => {
   await answer(page, { ...FOUND, path: "sign_in_first" });
   await page.goto(`/invitation#${UNKNOWN}`);
-  await expect(heading(page, "Join Example Care Homes on Harbour")).toBeFocused();
+  await expect(heading(page, "Join Example Care Homes on Thapsus Care")).toBeFocused();
   await expect(heading(page, "Sign in first")).toBeVisible();
   await expect(page.getByRole("main").getByRole("link", { name: "Sign in" })).toHaveAttribute(
     "href",

@@ -107,7 +107,7 @@ describe("the statutory notifications on an incident, every state (HZ-013)", () 
         pending: [{ kind: "cqc_reg18_police", waitingFor: ["police.involved"] }],
       }),
       [
-        "1 question to answer before Harbour can say which notifications are needed",
+        "1 question to answer before Thapsus Care can say which notifications are needed",
         "The questions are not shown to you here.",
         "May be needed once they are answered: Incident reported to or investigated by the police",
       ],
@@ -115,7 +115,7 @@ describe("the statutory notifications on an incident, every state (HZ-013)", () 
     [
       "none found",
       classifier({}),
-      ["Harbour found no statutory notification to make on what is recorded so far"],
+      ["Thapsus Care found no statutory notification to make on what is recorded so far"],
     ],
   ])("hazard HZ-013 says %s in words, with no axe violations", async (_, view, words) => {
     const body = draw(view);
@@ -162,7 +162,7 @@ describe("the statutory notifications on an incident, every state (HZ-013)", () 
     expect(text(body)).toContain(
       "Needed, and drafted on another record: Outbreak report to the health protection team",
     );
-    expect(text(body)).not.toContain("Harbour found no statutory notification");
+    expect(text(body)).not.toContain("Thapsus Care found no statutory notification");
     await expectAccessible(body);
   });
 

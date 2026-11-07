@@ -227,7 +227,7 @@ const FLAG_WORDS: Readonly<Record<string, string>> = {
   other_unit_not_counted: "a dose in another unit is not in the 24-hour total",
   over_maximum: "more than the most allowed in 24 hours was taken",
   given_before_recorded: "recorded after it was given",
-  clock_drift: "the device clock was far from Harbour's",
+  clock_drift: "the device clock was far from Thapsus Care's",
   corrected: "this record corrects an earlier one",
   dose_removed: "a dose recorded as taken was corrected away or reduced",
   dose_moved: "the time of a dose recorded as taken was corrected",

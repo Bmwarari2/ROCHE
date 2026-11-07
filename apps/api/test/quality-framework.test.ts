@@ -172,7 +172,7 @@ describe("hazard HZ-011 evidence links (rules 6 and 7)", () => {
 
   it.each<[string, Record<string, unknown>, number]>([
     ["an unknown statement", { statementIds: ["caring.made_up"] }, 422],
-    ["a record type whose records are not in Harbour yet", { recordType: "compliment" }, 422],
+    ["a record type whose records are not in Thapsus Care yet", { recordType: "compliment" }, 422],
     ["a record type that is never evidence", { recordType: "payslip" }, 422],
     ["a record that does not exist", { recordId: "0192f1a0-0000-7000-8000-0000000000aa" }, 404],
   ])("refuses %s", async (_, over, status) => {

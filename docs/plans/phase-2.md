@@ -91,23 +91,23 @@ the ones in use are listed under "Numbers in use" below.
 | ADR | Decision | Default to take | Written by slice | Reviewed by |
 | --- | --- | --- | --- | --- |
 | 0080 | dm+d reference data: source, licence, refresh and the device subset | The NHSBSA dm+d release from TRUD, loaded into global reference tables with no `tenant_id` (like `bank_holiday`), refreshed monthly as section 15.3 says, with a manual run; tests and development use a small fixture; each device holds only the products on its assigned people's MARs and their GTINs. Records that INTG-006 is Phase 2 in the register although section 19 lists "dm+d sync" under Phase 5, because barcode checks need it | 10 | Security |
-| 0081 | Barcodes and positive identification | Packs: GS1 DataMatrix (GTIN, expiry, batch, serial) and linear GTIN barcodes, matched to the MAR entry's dm+d pack or product; a mismatch blocks the record unless an override reason is given. People: a wristband carrying an opaque Harbour token (never the NHS number) or photo confirmation, chosen per person (H-512) | 22 | CSO, security |
+| 0081 | Barcodes and positive identification | Packs: GS1 DataMatrix (GTIN, expiry, batch, serial) and linear GTIN barcodes, matched to the MAR entry's dm+d pack or product; a mismatch blocks the record unless an override reason is given. People: a wristband carrying an opaque Thapsus Care token (never the NHS number) or photo confirmation, chosen per person (H-512) | 22 | CSO, security |
 | 0082 | Medicines rules at the medical-device boundary | Time-critical and minimum-interval rules (`medicines.paracetamol.min_interval_hours`, `medicines.bisphosphonate.before_food_minutes`, Parkinson's medicines) apply to MAR entries a person tags at transcription, second-checked, never by automatic ingredient matching. Allergies are shown beside the medicine with no automated allergen matching (boundary section 6). The time-critical list and the psychotropic list for the PRN report are tenant-maintained | 3 | CSO, pharmacist (H-514) |
 | 0083 | Controlled drugs register | One page per person, drug, form and strength; append-only entries with no UPDATE or DELETE grant; running balance stored on every entry and checked against the previous one; a margin correction is a new entry that references the one it corrects, shown beside it; two distinct signatures with step-up; a stock-check discrepancy raises an incident | 34 | CSO, pharmacist (H-516), security |
 | 0084 | Witnesses and second signatures | The witness is a second signed-in member: on the web a second step-up, on a device the witness unlocks with their own enrolled factor on the same device, re-verified by the server on sync; one person can never be both; "no witness available" only where tenant policy allows, flagged for manager review (10.3) | 34 | Security, CSO |
 | 0085 | Competence gating across modules | Workforce owns competence and publishes changes on the outbox; medicines and scheduling read it through a published port in the API and the member's own competence rows on the device, never through a cross-module join; an expired competence blocks the action unless a holder of `medicines.override.approve` records an override, which is logged and reported | 17 | CSO, security |
 | 0086 | Pay rules engine | Pure functions in `packages/domain/src/scheduling` over stored inputs (timesheet entries, the pay rule set version, the rate rows in force); versioned pay rule sets per tenant; money in whole pence; every result carries its working and an input hash so it reproduces exactly; figures only from `rate_table` | 6 | Security |
-| 0087 | Employment law not yet in force | Guaranteed hours, short-notice cancellation payments and shift notice (Employment Rights Act 2025) are "ready": Harbour records hours, offers, notice given and cancellations, but calculates no entitlement and holds no figure until the regulations commence and rates.md has the rows | 6 | Employment adviser (H-529) |
+| 0087 | Employment law not yet in force | Guaranteed hours, short-notice cancellation payments and shift notice (Employment Rights Act 2025) are "ready": Thapsus Care records hours, offers, notice given and cancellations, but calculates no entitlement and holds no figure until the regulations commence and rates.md has the rows | 6 | Employment adviser (H-529) |
 | 0088 | Rota-derived scope and agency access | An agency or bank worker's access comes from their booked shifts and ends at shift end plus `access.agency.post_shift_hours`; no shift, no access. Team scope from the rota (HZ-011) is a tenant setting, off by default, until reviewed | 27 | Security |
 | 0089 | Restricted silos: whistleblowing and casework | Separate permissions and RLS policies that no wider role reaches; an anonymous concern stores no reporter identity and its audit event records the action against an anonymous actor, with a reply token for two-way contact; casework is visible only to named case members | 24 | Security, DPO (H-528) |
 | 0090 | DSAR workbench and disclosure packs | One collector over the export catalogue with a subject map per table, used by DSARs (slice 15) and disclosure requests (slice 41); third-party redaction by a person, with names from contacts and staff highlighted, never automated; the existing `quality.dsar.manage` permission is kept rather than renamed | 15 | DPO, security |
-| 0091 | Single sign-on | The Better Auth SSO plugin (SAML 2.0 and OIDC), so no new sub-processor; linking only to invited members by verified domain; Harbour's own second factor is still needed for care-record permissions | 33 | Security |
+| 0091 | Single sign-on | The Better Auth SSO plugin (SAML 2.0 and OIDC), so no new sub-processor; linking only to invited members by verified domain; Thapsus Care's own second factor is still needed for care-record permissions | 33 | Security |
 | 0092 | Import wizard | Staged rows in quarantine tables, mapping against data-standards.md, a dry run with a validation report, commit by batch with idempotency, undo of a batch within a set window; imported medicines are "not yet checked" (HZ-005) | 26 | CSO, DPO |
-| 0093 | E-learning runtime | An allowlisted SCORM 1.2 and 2004 runtime in a sandboxed iframe on a separate origin; xAPI statements kept in Harbour (no external learning record store); no course content shipped | 43 | Security |
+| 0093 | E-learning runtime | An allowlisted SCORM 1.2 and 2004 runtime in a sandboxed iframe on a separate origin; xAPI statements kept in Thapsus Care (no external learning record store); no course content shipped | 43 | Security |
 | 0094 | Vetting and identity integrations | Manual entry with uploaded evidence is the default; ports for an IDSP, DBS e-bulk and Update Service checks and the NMC register, with mocks and contract tests, switched on per tenant when a provider is contracted | 77 | DPO |
 | 0095 | OCR and e-signature adapters | Server-side OCR with an allowlisted engine in europe-west2 ([ADR-0098](../decisions/0098-production-on-google-cloud.md)); OCR output is always a draft that a person checks (HZ-005); DocuSign optional and off by default | 79 | CSO, DPO |
 | 0096 | Compliance framework content | CQC's 5 key questions, 34 quality statements and 6 evidence categories seeded as framework version 1 with the source link; tenant mappings versioned; a KLOE-based version added when CQC publishes it | 14 | Quality lead at the design partner (H-533) |
-| 0097 | Payroll and pension exports | Only approved timesheets and calculated pay elements leave Harbour, with the fields each provider needs; the tenant's payroll provider is treated as the tenant's own processor unless the DPO decides otherwise (H-520) | 76 | DPO |
+| 0097 | Payroll and pension exports | Only approved timesheets and calculated pay elements leave Thapsus Care, with the fields each provider needs; the tenant's payroll provider is treated as the tenant's own processor unless the DPO decides otherwise (H-520) | 76 | DPO |
 
 **Where the master prompt is ambiguous** (each is carried by the ADR or human action named):
 
@@ -120,9 +120,9 @@ the ones in use are listed under "Numbers in use" below.
 - Section 15.3 dates payroll and accounts integrations to Phase 3, while section 19 and the register
   put the payroll export (SCHED-008) in Phase 2. Default: the payroll export in Phase 2, accounting
   sync in Phase 3.
-- Section 10.2 asks for paracetamol and bisphosphonate rules with figures Harbour holds, while
+- Section 10.2 asks for paracetamol and bisphosphonate rules with figures Thapsus Care holds, while
   [medical-device-boundary.md](../compliance/medical-device-boundary.md) (its section 3) says the
-  interval comes "from the prescription or PRN protocol, not from Harbour", and applying a
+  interval comes "from the prescription or PRN protocol, not from Thapsus Care", and applying a
   paracetamol rule across products needs ingredient matching, which its section 6 lists as a grey
   area (ADR-0082, H-514).
 - "Barcode scan of pack" assumes manufacturer barcodes, but care homes often receive pharmacy-
@@ -271,7 +271,7 @@ not yet pushed):
 | 0099 | Never-overridable DBS and registration checks | `feat/sched-absence-leave` |
 | 0108 | Quality indicator counts | `feat/quality-dashboard-pir` |
 | 0109 | Per-organisation crypto-shredding | `feat/platform-crypto-shred` |
-| 0114 | Supervision notes kept in Harbour | `feat/web-training-competence` |
+| 0114 | Supervision notes kept in Thapsus Care | `feat/web-training-competence` |
 | 0125 | Speak-up: anonymised view not yet granted | `fix/safety-gaps-from-guides` |
 | 0100 to 0107, 0110 to 0113, 0115 to 0124 | Assigned; not on any branch yet | - |
 
@@ -325,7 +325,7 @@ the slices it depends on.
 | 30 | Time and attendance and working-time records | C | SCHED-004, SCHED-003 | Append-only clock events (device and server time; geofence or NFC evidence at clock-in only), exceptions, timesheet approval by someone other than the worker, mileage, sleep-in awake periods; working-time results stored; opt-outs on file | 0109 | 5, 21 |
 | 31 | Outbreaks and IPC audits | D | SAFE-013 | Case line list, declaration, UKHSA report fields (completing the Phase 1 draft), closure; IPC audits against the Code of Practice criteria on slice 19's template | 0093 | 7, 19 |
 | 32 | Data security evidence | E | QUAL-012 | DSPT assertion tracker with evidence uploads and the 30 June deadline, Cyber Essentials and ICO registration records, links to the breach and DSAR registers | 0094 | 8, 20 |
-| 33 | Single sign-on | F | PLAT-005 | SAML and OIDC per tenant, domain verification, linking to invited members only, Harbour's second factor for care records (ADR-0091) | 0095 | 9 |
+| 33 | Single sign-on | F | PLAT-005 | SAML and OIDC per tenant, domain verification, linking to invited members only, Thapsus Care's second factor for care records (ADR-0091) | 0095 | 9 |
 | 34 | Controlled drugs register | A | MEDS-005 | Pages per person, drug, form and strength; append-only entries (receipt, administration, disposal, transfer, destruction with witness); running balance; margin corrections as linked entries; two signatures with step-up; patch site rotation; stock checks; a discrepancy raises an incident (ADR-0083, ADR-0084) | 0128 | 22 |
 | 35 | Sponsor licence, staff data protection and LDSS | B | WORK-003, WORK-011, WORK-007 | Sponsored-worker record (CoS, visa expiry, Appendix D documents, absence monitoring, change reports, English language and switching evidence), HR-only; staff privacy notice; staff photo and image consent; staff DSARs through slice 15; LDSS claim tracking | 0097, 0125 | 11, 15 |
 | 36 | Pay calculation runs | C | SCHED-005, SCHED-006, SCHED-007 | Versioned pay rule sets per tenant; calculation runs that store inputs and working and reproduce exactly; NMW results per pay reference period; holiday accrual ledger; SSP periods; guaranteed-hours and cancellation records for readiness | 0116 | 30, 6 |
@@ -380,7 +380,7 @@ the slices it depends on.
 | 84 | DPIA Phase 2 | F | - | DPIA template section 7B and risks R20 to R29 in the template and the in-app prefill (`packages/domain/src/platform/dpia.ts` and its test), as Phase 1 did for R13 to R19 | - | 11, 15, 20, 24, 26, 30, 33, 39, 44, 76 |
 | 85 | Safety case v0.2 and the Phase 2 gate record | all | - | `docs/plans/phase-2-gate.md`, clinical safety case v0.2 in `docs/clinical-safety/safety-case/`, `docs/demo/` Phase 2 walkthrough, STATUS | - | every slice |
 | 86 | Thapsus-HR link: port, contract mock and rules | H | INTG-014 | [integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014) section 11 (written with this plan, [ADR-0126](../decisions/0126-thapsus-hr-link.md)). `ThapsusHrPort` in `ports.ts`; a contract-tested mock built from Thapsus-HR's published OpenAPI document, pinned by its commit; table-driven domain rules in `packages/domain/src/integrations/thapsus-hr.ts`: the owner of each kind of data, refusing a tenant outside the UK, matching, the outbound field allow-lists, staleness, the double-payment guard (HZ-133) | - | 21, 30, 36 |
-| 87 | Thapsus-HR link: connection, people and locations | H | INTG-014 | Schema: connection settings on `integration_connection`, `hr_person_link`, `hr_location_link`, `hr_sync_state` and `hr_delivery`, with forced RLS. API: connect with step-up, owners, location mapping, the match review queue. The signed webhook receiver through the inbound quarantine queue; employee pull and nightly reconciliation; leavers end sign-in; starters hired in Harbour created in Thapsus-HR. Permissions `integrations.hr_link.*` with the built-in role backfill | 0141 | 86, 23, 29 |
+| 87 | Thapsus-HR link: connection, people and locations | H | INTG-014 | Schema: connection settings on `integration_connection`, `hr_person_link`, `hr_location_link`, `hr_sync_state` and `hr_delivery`, with forced RLS. API: connect with step-up, owners, location mapping, the match review queue. The signed webhook receiver through the inbound quarantine queue; employee pull and nightly reconciliation; leavers end sign-in; starters hired in Thapsus Care created in Thapsus-HR. Permissions `integrations.hr_link.*` with the built-in role backfill | 0141 | 86, 23, 29 |
 | 88 | Thapsus-HR link: rota, clocking and absence | H, C | INTG-014, SCHED-002, SCHED-004, SCHED-010 | Published, changed and cancelled shifts and clock events out through the outbox. Leave and sickness in through the scheduling absence port as read-only absences (source `thapsus_hr`, dates and type only), raising cover-needed tasks. The staleness note on rota and safe-staffing screens; drift detection (HZ-123, HZ-124, HZ-133) | 0142 if the absence source needs a column | 87, 21, 30, 40 |
 | 89 | Thapsus-HR link: pay without exports | H, C | INTG-014, SCHED-005, SCHED-008 | Thapsus-HR's pay periods become the pay reference periods. Hourly rates are read for the minimum wage check. Approved units by pay code go out for each pay period, with pay codes mapped at connection. The payroll export (slice 76) is switched off for a linked tenant whose pay goes through Thapsus-HR | - | 88, 36, 76 |
 | 90 | Thapsus-HR link: screens and guide | H | INTG-014 | Web: connect and owners (step-up), location mapping, match review, sync health and staleness; "Managed in Thapsus-HR" read-only labels on the staff file, absence and pay screens; Playwright with axe; a user guide section for the HR lead and the Registered Manager | - | 87 to 89, 56, 59, 60 |
@@ -410,7 +410,7 @@ H-543). Every test name carries the hazard id.
 | HZ-128 | Staff follow a superseded policy or procedure | 25 | 65 |
 | HZ-129 | A quality indicator or audit score falsely reassures (missing data shown as good, a wrong denominator) | 47 | 65 |
 | HZ-130 | Imported records mis-mapped, duplicated or attached to the wrong person | 26 | 51, 67, 79 |
-| HZ-133 | Staff data from the HR platform out of date, matched to the wrong person or changed outside its owner, so a worker on leave, sick or gone is rostered, or a care shift changes without Harbour's checks | 86 | 87, 88, 89, 90 |
+| HZ-133 | Staff data from the HR platform out of date, matched to the wrong person or changed outside its owner, so a worker on leave, sick or gone is rostered, or a care shift changes without Thapsus Care's checks | 86 | 87, 88, 89, 90 |
 
 Existing hazards that gain their Phase 2 controls and tests (the planned rows already in the log):
 
@@ -432,11 +432,11 @@ Existing hazards that gain their Phase 2 controls and tests (the planned rows al
 | HZ-026 | Covert administration only under a current best-interests record per medicine | 38 |
 | HZ-071 | An export round-trips through the import wizard with matching counts | 26 |
 | HZ-073 | Safeguarding concerns and silo cases still reach the people who must act | 13, 24 |
-| HZ-112 | Single sign-on never stands in for Harbour's second factor on care records | 33 |
+| HZ-112 | Single sign-on never stands in for Thapsus Care's second factor on care records | 33 |
 
 **Medical-device boundary.** Every lane A slice, slices 12, 21 and 47, and any slice touching an
 alert answers the boundary question in the pull request. Phase 2 stays inside the boundary: no dose
-calculation or dose-range advice, no automated allergen matching, no Harbour-made staffing or
+calculation or dose-range advice, no automated allergen matching, no Thapsus Care-made staffing or
 quality score (the dependency scale and targets are the tenant's own, labelled so); the barcode
 match checks identity, not clinical suitability. Section 6 of
 [medical-device-boundary.md](../compliance/medical-device-boundary.md) gains the decisions of
@@ -491,7 +491,7 @@ listed for the DPO (H-520).
 | 77 | B3: vetting results | - | R25 | IDSP and DBS e-bulk providers (H-520, H-521, H-522) |
 | 78 | B3: external training records | - | R25 | LMS providers (H-520) |
 | 79 | B1: scanned MARs | - | R25 | DocuSign only if a tenant switches it on (H-540) |
-| 87 to 89 | B3: staff records, rota, clocking, absence dates and pay units shared with the provider's Thapsus-HR tenant (new purpose; contract with the employee and legal obligation, Article 9(2)(b) for sickness dates) | The fields each flow carries ([integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014) section 11.8) | R30 | Thapsus-HR only if Thapsus sells it with Harbour; otherwise the provider's own processor (H-1341) |
+| 87 to 89 | B3: staff records, rota, clocking, absence dates and pay units shared with the provider's Thapsus-HR tenant (new purpose; contract with the employee and legal obligation, Article 9(2)(b) for sickness dates) | The fields each flow carries ([integrations.md](../specs/integrations.md#11-thapsus-hr-link-intg-014) section 11.8) | R30 | Thapsus-HR only if Thapsus sells it with Thapsus Care; otherwise the provider's own processor (H-1341) |
 
 Other slices add no new personal data beyond the rows above. The mobile slices (68 to 73) hold B1
 and B3 data on devices under the existing measures for R2 and R8 (encryption, auto-lock, remote
@@ -508,7 +508,7 @@ DPIA risks R20 to R29 (slice 84 writes them; each slice above records its measur
 | R24 | A breach not assessed or reported within 72 hours, or a tenant not told by Thapsus as processor |
 | R25 | Payroll, vetting, learning and e-signature providers receiving staff or care data, possibly outside the UK |
 | R26 | Imported data inaccurate, excessive, or about people outside the service |
-| R27 | An identity provider account linked to the wrong member, or sign-in without Harbour's second factor |
+| R27 | An identity provider account linked to the wrong member, or sign-in without Thapsus Care's second factor |
 | R28 | A respondent identified from small-group staff survey results |
 | R29 | Applicants' data kept after an unsuccessful application or used beyond recruitment |
 

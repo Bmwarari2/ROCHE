@@ -208,7 +208,7 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
     },
   );
 
-  it("hazard HZ-013 hazard HZ-091 says a duty of candour Harbour found needs a record first (review H2)", () => {
+  it("hazard HZ-013 hazard HZ-091 says a duty of candour Thapsus Care found needs a record first (review H2)", () => {
     const view = incidentManageView(
       incident({ outputs: ["candour"], affected: ["ada"] }),
       manager,
@@ -381,7 +381,7 @@ describe("readReason", () => {
   });
 });
 
-describe("not required on a notification Harbour found needed", () => {
+describe("not required on a notification Thapsus Care found needed", () => {
   it("hazard HZ-013 is judged needed only when neither provisional nor no longer indicated", () => {
     expect(judgedNeeded({ provisional: false, noLongerIndicated: false })).toBe(true);
     expect(judgedNeeded({ provisional: true, noLongerIndicated: false })).toBe(false);
@@ -394,7 +394,7 @@ describe("not required on a notification Harbour found needed", () => {
       ok: false,
       errors: {
         reason:
-          "Harbour found this notification is needed: say which facts mean the law does not need it, in at least 20 characters and at most 1,000",
+          "Thapsus Care found this notification is needed: say which facts mean the law does not need it, in at least 20 characters and at most 1,000",
         confirm: t("safety.manage.confirmError"),
       },
     });

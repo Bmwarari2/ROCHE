@@ -3,7 +3,7 @@
 Raise a concern without signing in and without giving your name. Anyone can use this page: staff,
 agency workers and visitors.
 
-**Who can do this**: anyone with the page's address. You do not need a Harbour account.
+**Who can do this**: anyone with the page's address. You do not need a Thapsus Care account.
 
 **Register row**: SAFE-012.
 
@@ -37,7 +37,7 @@ agency workers and visitors.
 ## Good to know
 
 - You do not sign in, and you are not asked for your name.
-- Harbour does not keep your IP address, your device or a cookie, and the page stores nothing in
+- Thapsus Care does not keep your IP address, your device or a cookie, and the page stores nothing in
   your browser. To stop misuse it counts requests from your network for a minute, as a scrambled
   code that cannot be turned back into your address, deleted within the hour.
 - What you write may still show who you are. Leave out what you do not want known.
@@ -45,7 +45,7 @@ agency workers and visitors.
   show it to you again.
 - Only the Freedom to Speak Up lead, and people they name to look into it, read your concern.
 - If something is putting a person in danger now, tell the person in charge or call the
-  emergency services. The lead is told in Harbour that a concern has arrived,
+  emergency services. The lead is told in Thapsus Care that a concern has arrived,
   naming nobody, but may not read it straight away.
 - You can also speak up outside the organisation, to the National Guardian's Office or a prescribed
   person such as the Care Quality Commission.

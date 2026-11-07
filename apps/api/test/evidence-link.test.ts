@@ -447,7 +447,7 @@ describe("hazard HZ-050 the printed pack", () => {
       /Correction of an earlier entry recorded \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (GMT|BST)/,
     );
     expect(text).toMatch(
-      /Written on paper at .+ during a network outage from .+ (GMT|BST), and entered in Harbour later/,
+      /Written on paper at .+ during a network outage from .+ (GMT|BST), and entered in Thapsus Care later/,
     );
     expect(text).not.toContain("Misread the scale");
   });

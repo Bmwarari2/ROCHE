@@ -262,7 +262,7 @@ describe("hazard HZ-124 WORK-006 importing a file of completions", () => {
         "manager",
         `/v1/workforce/lms-imports/${IMPORT}/rows/${row.id}/skip`,
         {
-          reason: "Recorded in Harbour already",
+          reason: "Recorded in Thapsus Care already",
         },
       );
       expect(skipped.status).toBe(200);

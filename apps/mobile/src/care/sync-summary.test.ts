@@ -63,7 +63,7 @@ describe("hazard HZ-002 the sync status on Today", () => {
   it("hazard HZ-006 never reads up to date while entries are still held (clinical review M2)", () => {
     const summary = syncSummary(input({ held: 2 }));
     expect(summary.held).toBe(
-      "2 entries from before the session ended are still held on this device and not yet back in the upload queue. Harbour tries again each time it unlocks.",
+      "2 entries from before the session ended are still held on this device and not yet back in the upload queue. Thapsus Care tries again each time it unlocks.",
     );
     expect(summary).toMatchObject({ tone: "danger", icon: "cloud-alert", needsAttention: true });
     expect(syncSummary(input()).held).toBeNull();
@@ -72,7 +72,7 @@ describe("hazard HZ-002 the sync status on Today", () => {
   it("hazard HZ-006 reads held entries that could not be counted as needing attention (round 4, M4)", () => {
     const summary = syncSummary(input({ held: null }));
     expect(summary.held).toBe(
-      "Some entries on this device could not be counted and need attention. Harbour tries again each time it unlocks.",
+      "Some entries on this device could not be counted and need attention. Thapsus Care tries again each time it unlocks.",
     );
     expect(summary).toMatchObject({ tone: "danger", icon: "cloud-alert", needsAttention: true });
   });
@@ -80,7 +80,7 @@ describe("hazard HZ-002 the sync status on Today", () => {
   it("hazard HZ-006 reads refused entries that could not be counted as needing attention (round 5, C-L7)", () => {
     const summary = syncSummary(input({ issues: null }));
     expect(summary.issues).toBe(
-      "Entries the server refused could not be counted and need attention. Harbour tries again each time it unlocks.",
+      "Entries the server refused could not be counted and need attention. Thapsus Care tries again each time it unlocks.",
     );
     expect(summary).toMatchObject({ tone: "danger", icon: "cloud-alert", needsAttention: true });
   });

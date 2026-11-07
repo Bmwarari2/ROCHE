@@ -148,7 +148,7 @@ export const outbreaksRouter = createRouter()
       tags: ["safety"],
       summary: "The IPC Code of Practice criteria",
       description:
-        "safety.outbreak.manage or quality.audit.manage. Global reference data: the 10 criteria of the Code of Practice on the prevention and control of infections, in Harbour's summary, that IPC audit questions are mapped to.",
+        "safety.outbreak.manage or quality.audit.manage. Global reference data: the 10 criteria of the Code of Practice on the prevention and control of infections, in Thapsus Care's summary, that IPC audit questions are mapped to.",
       security,
       responses: { 200: jsonBody(IpcCriterionList, "Criteria"), ...errorResponses },
     }),
@@ -407,7 +407,7 @@ export const outbreaksRouter = createRouter()
       tags: ["safety"],
       summary: "Add a case to the line list, or update one",
       description:
-        "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see), an active member of staff working there (a current role at the location or across the organisation), once per outbreak, or an unnamed staff case for an agency or bank worker not in Harbour (no person or member, nothing identifying; H-782): a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.",
+        "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see), an active member of staff working there (a current role at the location or across the organisation), once per outbreak, or an unnamed staff case for an agency or bank worker not in Thapsus Care (no person or member, nothing identifying; H-782): a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.",
       security,
       request: {
         params: IdParam,

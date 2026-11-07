@@ -960,6 +960,13 @@
       "when": 1793467254141,
       "tag": "0151_definer_owners",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1794033640694,
+      "tag": "0152_product_name_stored_rows",
+      "breakpoints": true
     }
   ]
 }

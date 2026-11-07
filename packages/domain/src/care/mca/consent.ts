@@ -49,7 +49,7 @@ export interface ConsentDecisionRule {
 }
 
 const MP = (section: string): Citation =>
-  cite("Harbour master prompt", section, "docs/00-MASTER-PROMPT.md");
+  cite("Thapsus Care master prompt", section, "docs/00-MASTER-PROMPT.md");
 
 /** Master prompt 10.4 lists the first six kinds; 5.1 adds marketing and 9.2 social media. */
 export const CONSENT_DECISIONS: Readonly<Record<ConsentDecisionKind, ConsentDecisionRule>> = {

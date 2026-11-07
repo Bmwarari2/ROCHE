@@ -177,7 +177,7 @@ describe("hazard HZ-005 OCR values are never facts until a person decides each o
     ["a line below 0", { group: -1 }],
     ["a line that is not whole", { group: 1.5 }],
     ["a line past the last", { group: 200 }],
-    ["a label Harbour does not know", { label: "frequency" as OcrField["label"] }],
+    ["a label Thapsus Care does not know", { label: "frequency" as OcrField["label"] }],
   ])("hazard HZ-005 refuses a read with %s, never coercing it", (_name, change) => {
     expect(readFieldsProblem(read([{ ...change }]))).toBe("unreadable");
   });

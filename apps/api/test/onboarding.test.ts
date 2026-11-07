@@ -76,7 +76,7 @@ describe("rule 26 the onboarding checklist, worked out from state", () => {
     expect((await h.request("/v1/onboarding", as("owner", OTHER.tenantId))).status).toBe(403);
   });
 
-  it("keeps open the go-live item Harbour cannot check yet (fail closed)", async () => {
+  it("keeps open the go-live item Thapsus Care cannot check yet (fail closed)", async () => {
     const open = await item("shared_devices_enrolled");
     expect(open.done).toBe(false);
     expect(open.reason).toContain("does not record this yet");

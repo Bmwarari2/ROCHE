@@ -523,7 +523,7 @@ describe("hazard HZ-050 a pack says how each entry came to be, and shows the rec
     const fields = fieldsOf(added, paper?.id as string);
     expect(fields.get("back_entry")?.outcome).toBe("included");
     expect(fields.get("back_entry")?.value).toMatch(
-      /^Written on paper at \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} during a power outage from .+ (GMT|BST), and entered in Harbour later$/,
+      /^Written on paper at \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} during a power outage from .+ (GMT|BST), and entered in Thapsus Care later$/,
     );
     expect(fields.get("paper_reference")).toMatchObject({ outcome: "withheld", value: null });
     expect(fields.get("clock_drift")).toMatchObject({

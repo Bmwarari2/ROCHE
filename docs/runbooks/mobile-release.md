@@ -1,6 +1,6 @@
 # Mobile release: distribution and phased rollout (MOB-012)
 
-How the Harbour app (`apps/mobile`) reaches devices: the public listing or a private build for a
+How the Thapsus Care app (`apps/mobile`) reaches devices: the public listing or a private build for a
 large tenant with MDM, and the phased rollout every store release follows. Master prompt 17.3 and
 section 7 (two-week train). The store privacy answers are in
 [app-store-privacy.md](../compliance/app-store-privacy.md); check them before every submission.
@@ -86,6 +86,6 @@ tenants as a separate app ID"). So:
 | H-566 | Decide and build how a manager suspends or removes a member and erases their sign-in |
 | H-567 | Record each private distribution decision (tenant, app id, MDM) as an ADR before first submission |
 | H-568 | Set the phased rollout and crash-free threshold alerts in App Store Connect and Play Console |
-| H-569 | Choose the store categories and write the listing text, including "Harbour is not a medical device" |
+| H-569 | Choose the store categories and write the listing text, including "Thapsus Care is not a medical device" |
 
 See [human-actions.md](../plans/human-actions.md) for owners and status.

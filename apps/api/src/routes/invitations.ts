@@ -69,7 +69,7 @@ const REFUSAL_DETAIL: Record<string, string> = {
   invitation_expired: "The link has expired. Ask your manager to send a new invitation.",
   invitation_used: "The link has already been used. Sign in instead.",
   invitation_revoked: "The link was withdrawn. Ask your manager to send a new invitation.",
-  organisation_not_active: "The organisation is not using Harbour at the moment.",
+  organisation_not_active: "The organisation is not using Thapsus Care at the moment.",
   member_not_invited: "Your place in the organisation has changed. Ask your manager.",
   email_mismatch:
     "You are signed in with a different email address. Sign out and open the link again.",

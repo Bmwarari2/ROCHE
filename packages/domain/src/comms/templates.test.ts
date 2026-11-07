@@ -239,7 +239,7 @@ describe("checking a template", () => {
   it("names the field in each message", () => {
     const check = checkTemplateDefinition(def({ body: "{{person.nickname}}" }));
     expect(check.issues[0]?.message).toBe(
-      "{{person.nickname}} is not a merge field Harbour knows. Choose one from the list.",
+      "{{person.nickname}} is not a merge field Thapsus Care knows. Choose one from the list.",
     );
   });
 
@@ -602,7 +602,9 @@ describe("hazard HZ-051 email subjects cannot carry hidden characters or several
     });
     const result = renderTemplate(template, {
       subjectPersonId: null,
-      values: { "location.name": { value: "Harbour\r\nBcc: x@example.invalid", personId: null } },
+      values: {
+        "location.name": { value: "Thapsus Care\r\nBcc: x@example.invalid", personId: null },
+      },
     });
     expect(result.ok ? null : result.problems.map((p) => p.problem)).toEqual([
       "subject_unsafe_characters",

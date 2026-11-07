@@ -6,7 +6,7 @@ import {
   outboundTitleProblem,
 } from "./ports";
 
-describe("outboundTitleProblem (no personal data leaves Harbour)", () => {
+describe("outboundTitleProblem (no personal data leaves Thapsus Care)", () => {
   it.each([
     ["A visit was missed", null],
     ["A record was opened with break-glass access", null],

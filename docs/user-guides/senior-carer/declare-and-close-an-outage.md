@@ -1,6 +1,6 @@
 # How to declare and close an outage
 
-Declare an outage when Harbour cannot be used, so paper records can be entered against it later.
+Declare an outage when Thapsus Care cannot be used, so paper records can be entered against it later.
 
 **Who can do this**: senior carers and team leaders, nurses, managers and the owner.
 
@@ -19,7 +19,7 @@ Declare an outage when Harbour cannot be used, so paper records can be entered a
 7. Get out the downtime pack and the paper forms (see
    [How to print the downtime pack](print-the-downtime-pack.md)).
 
-If you cannot reach Harbour at all, use the paper forms first and declare the outage when you can.
+If you cannot reach Thapsus Care at all, use the paper forms first and declare the outage when you can.
 An outage declared more than 2 hours after it started shows **Declared late**.
 
 ## Close the outage

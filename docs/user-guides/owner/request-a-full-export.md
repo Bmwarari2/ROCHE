@@ -1,6 +1,6 @@
 # How to get a full export of your data
 
-A full copy of everything your organisation holds in Harbour, free at any time.
+A full copy of everything your organisation holds in Thapsus Care, free at any time.
 
 **Who can do this**: the owner only. Every step needs you to have confirmed it is you with your
 passkey or authenticator app in the last 10 minutes, including opening the page.
@@ -17,7 +17,7 @@ passkey or authenticator app in the last 10 minutes, including opening the page.
 
 ## Good to know
 
-- **You can download it once.** Harbour then deletes the file. To download again, ask for a new
+- **You can download it once.** Thapsus Care then deletes the file. To download again, ask for a new
   export.
 - The link expires 72 hours after it is ready, then the file is deleted.
 - Only the person who asked can download it.

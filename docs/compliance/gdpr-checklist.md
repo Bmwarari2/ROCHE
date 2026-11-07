@@ -11,7 +11,7 @@ Legal text: UK GDPR articles are on legislation.gov.uk (for example [Article 9](
 
 ## 1. Principles and lawful basis
 
-| Requirement | Source | How Harbour meets it | Phase |
+| Requirement | Source | How Thapsus Care meets it | Phase |
 | --- | --- | --- | --- |
 | Lawfulness, fairness, transparency | Art 5(1)(a), 6, 9 | Lawful basis recorded per purpose in [records-of-processing.md](records-of-processing.md): care delivery Art 6(1)(b)/(f) (independent) or 6(1)(c)/(e) (public) with Art 9(2)(h) and DPA 2018 Sch 1 para 2; employment Sch 1 para 1; safeguarding Sch 1 para 18 and the recognised legitimate interest for safeguarding a vulnerable individual. Consent is never the basis for care records | Phase 0 (register); in-app display Phase 1 |
 | Recognised legitimate interests | Art 6(1)(ea) and Annex 1, inserted by DUAA 2025 | Used for safeguarding by independent providers; recorded per tenant in the register | Phase 1 |
@@ -28,7 +28,7 @@ Legal text: UK GDPR articles are on legislation.gov.uk (for example [Article 9](
 
 ## 2. Transparency and data subject rights
 
-| Requirement | Source | How Harbour meets it | Phase |
+| Requirement | Source | How Thapsus Care meets it | Phase |
 | --- | --- | --- | --- |
 | Privacy information | Art 12 to 14 | Privacy notice templates for people receiving care (including easy read), families and staff, editable by the tenant and shown in-app and in portals | Phase 1 |
 | Right of access | Art 15; DUAA 2025 (reasonable and proportionate searches; when the clock starts and stops) | DSAR workbench: collects every record about a person across modules, redacts third parties, tracks the one-month clock (extendable by two months), pauses while awaiting ID or clarification, exports a bundle. Procedure: [dsar-procedure.md](dsar-procedure.md) | Per feature register |
@@ -37,14 +37,14 @@ Legal text: UK GDPR articles are on legislation.gov.uk (for example [Article 9](
 | Restriction | Art 18 | Record-level restriction flag that blocks non-essential processing and sharing | Phase 2 |
 | Portability | Art 20 | Person-level export in CSV and JSON; full tenant export free at any time in a documented schema | Phase 1 |
 | Objection | Art 21 | Applies where the basis is 6(1)(e) or (f); objection logged and routed to the tenant's DPO | Phase 2 |
-| Automated decision-making | Arts 22A to 22D, inserted by DUAA 2025 | Harbour makes no solely automated significant decisions. AI is advisory and changes no state without a human ([medical-device-boundary.md](medical-device-boundary.md)) | Phase 0 (design rule); tested Phase 6 |
+| Automated decision-making | Arts 22A to 22D, inserted by DUAA 2025 | Thapsus Care makes no solely automated significant decisions. AI is advisory and changes no state without a human ([medical-device-boundary.md](medical-device-boundary.md)) | Phase 0 (design rule); tested Phase 6 |
 | Complaints to the controller | DPA 2018 as amended by DUAA 2025 (in force 19 June 2026) | In-product complaint form, 30-day acknowledgement, outcome tracking ([data-protection-complaints.md](data-protection-complaints.md)) | Per feature register |
 | National data opt-out | NHS national data opt-out policy | Flag per person; honoured where publicly funded care data is used beyond direct care | Phase 5 or 6 (when NHS reporting is built) |
 | Caldicott principle 7 (duty to share for direct care) | [Caldicott Principles](https://www.gov.uk/government/publications/the-caldicott-principles) | External professional access model: named, scoped, time-limited | Phase 4 |
 
 ## 3. Accountability and governance
 
-| Requirement | Source | How Harbour meets it | Phase |
+| Requirement | Source | How Thapsus Care meets it | Phase |
 | --- | --- | --- | --- |
 | Data protection by design and by default | Art 25 | Optional modules and AI off by default; least-privilege roles; scoped sync; no personal data in logs | Phase 0 |
 | Processor contract | Art 28 | [dpa-article-28-template.md](dpa-article-28-template.md) `[legal review and signature - human action]` | Template built |

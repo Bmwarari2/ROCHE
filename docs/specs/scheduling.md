@@ -321,7 +321,7 @@ checked on gov.uk, legislation.gov.uk and The Pensions Regulator on 31 October 2
    adjustment discounts (Equality Act 2010; slice 40 records why). The score is shown with its
    working and never triggers an action by itself (no solely automated decision, section 5.1).
 9. **Not in force** (ADR-0087). Guaranteed hours, short-notice cancellation payments and shift notice
-   (Employment Rights Act 2025): Harbour records hours, offers, notice and cancellations, but
+   (Employment Rights Act 2025): Thapsus Care records hours, offers, notice and cancellations, but
    calculates no entitlement until the regulations commence and the rate table has their rows.
 
 Also from section 12: rotas and timesheets are kept 6 years and working-time records 2 years; a
@@ -495,17 +495,17 @@ category)") and 12.3 (the safe staffing planner: "converts each person's categor
 into required care hours per shift; compares with rota hours and skill mix ... shows the gap and
 the method"). Regulation 18 of the Health and Social Care Act 2008 (Regulated Activities)
 Regulations 2014 needs sufficient numbers of suitably qualified staff, deployed by a systematic
-method the provider can explain; it sets no ratio, and Harbour supplies none.
+method the provider can explain; it sets no ratio, and Thapsus Care supplies none.
 
-**The scale is the organisation's own tool.** Harbour stores the scale the organisation writes,
+**The scale is the organisation's own tool.** Thapsus Care stores the scale the organisation writes,
 records which category each person is in and why, and adds up the organisation's own figures for
 the people living at a location. It never assesses a person, never proposes a category, never
 scores need or risk and never judges whether staffing is safe
 ([medical-device-boundary.md](../compliance/medical-device-boundary.md) section 6). Every
 required-hours figure carries the scale's name, version and approval and the notice
-`DEPENDENCY_TOOL_NOTICE`: "These hours come from your organisation's own dependency scale. Harbour
+`DEPENDENCY_TOOL_NOTICE`: "These hours come from your organisation's own dependency scale. Thapsus Care
 adds up the figures your organisation set; it does not assess anyone's needs or judge safe
-staffing." Harbour ships no default scale and no figure: the rate table gains no row (H-712).
+staffing." Thapsus Care ships no default scale and no figure: the rate table gains no row (H-712).
 
 Slice 12 builds the rules, schema and API. The rota comparison (rota hours and skill mix against
 the requirement, with the gap shown on the rota) is slice 21; the screens are slice 59.
@@ -627,7 +627,7 @@ hold no personal data. They sync to no device in Phase 2 (a management tool on t
     (`STAFFING_STATUS_WORDS`); the comparison advises and never blocks a rota.
 12. **Labelled as the organisation's tool.** Every requirement and comparison carries the source
     (scale, version, approved by and when) and `DEPENDENCY_TOOL_NOTICE`; none carries a score, a
-    risk level or wording that Harbour judges the staffing. The required figure is the
+    risk level or wording that Thapsus Care judges the staffing. The required figure is the
     organisation's figures added up, with the method shown.
 
 ### API, audit and outbox
@@ -917,7 +917,7 @@ on `role_assignment` and `access_grant`.
    shift's start, with no lead time (H-921 recommended answer, applied 31/10/2026). Entries the
    worker recorded offline are uploaded only if their recorded time falls inside a booked window;
    after the window closes they are still accepted, flagged late for the nurse in charge, for
-   `access.agency.upload_grace_hours` (a Harbour default), and refused after it
+   `access.agency.upload_grace_hours` (a Thapsus Care default), and refused after it
    (`agencyUploadDecision`; HZ-006). Nothing can be read during the grace period.
 8. **People to care for** (H-927 recommended answer, applied 31/10/2026; HZ-073): the agency worker
    role stays assigned-scope (rota-derived team scope stays off, H-929). While a booked bank or
@@ -928,7 +928,7 @@ on `role_assignment` and `access_grant`.
    with the reason). A concern or do not rebook says whether it is a safeguarding matter; if so the
    Registered Manager at the location gets an urgent task to raise it as an incident. Never by the
    worker about themselves; shown to rota managers at the location, never to the agency through
-   Harbour. Agency workers and their confirmations are read by rota managers only.
+   Thapsus Care. Agency workers and their confirmations are read by rota managers only.
 
 ### API, audit and outbox
 
@@ -980,7 +980,7 @@ screens are slice 60, the phone's offline queue slice 71.
 | `working_time_result` | append-only per run | `worker_id`, `evaluate_from`, `evaluate_to`, `findings` (as `WorkingTimeFindingItem`), `breaches`, `conditionals`, `input_hash`, `trigger` (`timesheet_approved`, `requested`) | `working_time_record` |
 
 Location evidence is never a position: the phone says only whether it was at the location (or
-read the location's NFC tag); Harbour stores that word and never coordinates or a track. The API
+read the location's NFC tag); Thapsus Care stores that word and never coordinates or a track. The API
 keeps evidence only as the location's setting asks for it, and an NFC tag only if it is one of the
 location's tags (a short code, never free text); anything else is stored as `none` and flagged
 `evidence_not_matched`. Entries longer than 25 hours (a design limit, not a statutory figure) cannot
@@ -1124,7 +1124,7 @@ reads it.
    a fit note for the days after (`fitNoteNeeded`): the absence says which days are not covered.
    A fit note is an uploaded document (HR-only, retention `sickness_absence`) with its dates,
    whether the member is not fit or may be fit, and which adjustments are ticked; the condition is
-   never typed into Harbour and never in an audit event or a log.
+   never typed into Thapsus Care and never in an audit event or a log.
 4. **Return to work.** One record per sickness after it ends, by a holder of
    `workforce.hr_document.read`: when, who held it, whether the member is fit for their usual
    duties and which adjustments were agreed, and notes. Audited with ids only.
@@ -1138,8 +1138,8 @@ reads it.
    `ssp.piw_min_days` consecutive calendar days of sickness; periods no more than
    `ssp.piw_link_weeks` weeks apart link, so their paid days count towards the limit
    (`periodsOfIncapacity`). The HR user gives the average weekly earnings from payroll and the
-   member's qualifying days; Harbour returns the working from the slice 6 rule. Nothing is paid or
-   stored by Harbour; the result is advice for payroll with its input hash. No figure is a literal.
+   member's qualifying days; Thapsus Care returns the working from the slice 6 rule. Nothing is paid or
+   stored by Thapsus Care; the result is advice for payroll with its input hash. No figure is a literal.
 7. **Cover** (HZ-123). When an absence is approved or recorded, every live assignment of the
    member on a shift that overlaps the absence's days at any location gets a cover need in the same
    transaction. The rota keeps the assignment (it never silently empties), shows it as needing
@@ -1515,11 +1515,11 @@ on (H-1033).
 - **On-call route** (`/lone-working/route`, manage): whether lone working is on, the API's
   problems in its words, whether location sharing is on, the escalation order in words, and the
   steps: minutes after the alarm (step 1 is told at once, so it has none), who is told (a shipped staff role that can monitor, or an
-  active member for those who may list the team) and how (phone notification, email or in Harbour;
+  active member for those who may list the team) and how (phone notification, email or in Thapsus Care;
   text message only once an SMS gateway is connected; until then, and until staff phones can
   receive notifications, the page says so and each step must include email: ADR-0132). The form refuses, before sending, fewer than two steps, the Registered Manager
   first, no Registered Manager later, minutes out of order and a step reaching people only inside
-  Harbour (`readRoute`); the API checks every role and person again.
+  Thapsus Care (`readRoute`); the API checks every role and person again.
 
 ### 19.8 Test list
 ### 17.8 Test list
@@ -1613,9 +1613,9 @@ share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decis
    organisation (H-1084).
 ## 19. Payroll and pension exports (slice 76; SCHED-008; ADR-0013, ADR-0097)
 
-A locked pay run (section 18) leaves Harbour only when someone exports it, explicitly, in one of
+A locked pay run (section 18) leaves Thapsus Care only when someone exports it, explicitly, in one of
 four ways: to Xero Payroll UK through its adapter, or as a file for Staffology, Sage or BrightPay.
-Harbour calculates nothing here. It sends the run's own figures, with the pension auto-enrolment
+Thapsus Care calculates nothing here. It sends the run's own figures, with the pension auto-enrolment
 flags, to the organisation's payroll provider. The provider is the organisation's own processor
 (ADR-0097; H-520), and the organisation runs payroll and pensions.
 
@@ -1670,7 +1670,7 @@ flags, to the organisation's payroll provider. The provider is the organisation'
      the total, and the holiday accrued.
    - Pension: the auto-enrolment category (`eligible_jobholder`, `non_eligible_jobholder`,
      `entitled_worker`) and qualifying earnings. These are flags for the organisation's own
-     pension process; Harbour makes no pension provider call.
+     pension process; Thapsus Care makes no pension provider call.
    - Never a name, date of birth, address, NI number, bank detail, health information or the
      working.
 5. **Reproducible** (`buildPayrollFile`). The same locked run and format always give the same
@@ -1685,7 +1685,7 @@ flags, to the organisation's payroll provider. The provider is the organisation'
    again in the database's guard, so two at once cannot both pass as the first. Every earlier
    export counts, pending and unknown ones too, except one known to have failed.
 7. **Formats** (`PAYROLL_FORMATS`). Each format has its own columns and version. The Staffology,
-   Sage and BrightPay layouts follow their published import guides as Harbour read them and are to
+   Sage and BrightPay layouts follow their published import guides as Thapsus Care read them and are to
    verify with each provider (H-1191). Each is UTF-8 CSV with a header row, and every cell is quoted
    and escaped against spreadsheet formula injection.
 8. **Xero Payroll UK** (`XeroPayrollAdapter` behind `PayrollExportPort`).
@@ -1868,7 +1868,7 @@ closed). Migration 0139 adds the three tables to the publication with a `harbour
 No lone-worker table syncs: the phone asks `GET /v1/lone-worker/sessions/mine`, which already shows
 duress as a check-in, and keeps its last answer, with when it came, in the encrypted device
 database (`sync_meta`, `lone-worker-mine:<tenant>`), so a restart without a connection still shows
-the session and says "Harbour last answered at 10:02." Without any answer the screen says it cannot
+the session and says "Thapsus Care last answered at 10:02." Without any answer the screen says it cannot
 tell whether the member is in a session, never that they are not.
 
 ### 18.2 What the phone writes
@@ -1908,8 +1908,8 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    waits to send (so a monitor's "safe confirmed" moves it), otherwise worked out on the phone as the
    server does (section 17.3 rule 3). "Overdue" is said in words with an icon, and aloud when it
    becomes overdue. A session known only on the phone (started offline) says that nobody is told
-   if a check-in is missed until it reaches Harbour, and that Ask for help still raises
-   the alarm with Harbour, with "call 999"; a start the API refused says lone working did not start, in the
+   if a check-in is missed until it reaches Thapsus Care, and that Ask for help still raises
+   the alarm with Thapsus Care, with "call 999"; a start the API refused says lone working did not start, in the
    same terms.
 3. **Duress**: a long press on Check in, held `DURESS_HOLD_MS` (1.5 seconds) so it does not happen
    by accident, acting when the hold registers (so a screen reader's long press and a slow press
@@ -1931,7 +1931,7 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
 4. **Help**: one press, never held up by another press, offered with no session too (sent to the
    emergency route, H-1317). The line says only what is true: waiting
    (no connection: it has not reached anyone yet), being sent, refused (it did not reach anyone:
-   call 999 or the on-call person now), or with Harbour (it left the phone unrefused, or the
+   call 999 or the on-call person now), or with Thapsus Care (it left the phone unrefused, or the
    session shows it); each with
    "If you are in danger, call 999". It never says help is on its way.
 5. **Finish**: asks first ("Finish lone working? Nobody will expect your check-ins after this.");

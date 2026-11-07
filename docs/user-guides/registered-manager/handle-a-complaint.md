@@ -34,7 +34,7 @@ someone complains to you, write down what they said and pass it to a manager the
 6. Under **Send the response**, choose the **Outcome** (**Upheld**, **Partly upheld** or **Not
    upheld**) and write **What was done**.
 7. Tick **The response tells them they can go to the Local Government and Social Care
-   Ombudsman**. Harbour will not record a response without it.
+   Ombudsman**. Thapsus Care will not record a response without it.
 8. Under **Copy of the response**, choose the document you uploaded. Choose **Record the
    response**.
 9. If they appeal, under **Record an appeal**, enter **When the appeal was received** and **Why
@@ -48,7 +48,7 @@ someone complains to you, write down what they said and pass it to a manager the
 
 - The acknowledgement and response targets are your organisation's, counted in working days. The
   regulation sets none for independent providers.
-- Harbour never decides the outcome and never sends anything to the complainant or the Ombudsman.
+- Thapsus Care never decides the outcome and never sends anything to the complainant or the Ombudsman.
   You send the response yourself and record it here.
 - Closing is final: the complaint cannot be reopened.
 - A complaint about how personal data was handled is a data protection complaint (see

@@ -188,7 +188,7 @@ test("hazard HZ-051 a letter changed since the preview is shown again to check, 
   await expect(page.getByLabel("Template").locator("option", { hasText: email })).toHaveCount(0);
   await expect(
     page.getByText(
-      "Email templates are not offered here yet, because Harbour cannot send email yet.",
+      "Email templates are not offered here yet, because Thapsus Care cannot send email yet.",
     ),
   ).toBeVisible();
   await expectAccessible(page, "email templates left out");

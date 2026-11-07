@@ -43,7 +43,7 @@ test("the nurse writes About me with the person, naming who supported them", asy
   await signIn(page, "nurse@example.invalid");
   await page.goto(PATH);
   await expect(page.getByRole("heading", { level: 2, name: "About me" })).toBeVisible();
-  await expect(page).toHaveTitle("About me | Residents | Harbour");
+  await expect(page).toHaveTitle("About me | Residents | Thapsus Care");
   expect(await page.title()).not.toContain("Frank");
   // Share links are for those who manage sharing only.
   await expect(links(page)).toHaveCount(0);

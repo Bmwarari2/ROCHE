@@ -376,7 +376,7 @@ describe("hazard HZ-017 a back-entry carries the paper time, the downtime reason
       paperReference: "DP-12",
     });
     expect(check.ok && check.label).toBe(
-      "Written on paper 11/10/2026 15:05 during the outage (power cut) from 11/10/2026 14:40. Entered in Harbour 11/10/2026 19:20 on the device, received 11/10/2026 19:21.",
+      "Written on paper 11/10/2026 15:05 during the outage (power cut) from 11/10/2026 14:40. Entered in Thapsus Care 11/10/2026 19:20 on the device, received 11/10/2026 19:21.",
     );
   });
 
@@ -502,7 +502,7 @@ describe("hazard HZ-017 a back-entry carries the paper time, the downtime reason
       outsideReason: "Tablet froze before the outage was declared",
     });
     expect(check.ok && check.label).toBe(
-      "Written on paper 11/10/2026 14:10 outside the declared outage (Tablet froze before the outage was declared). Entered in Harbour 11/10/2026 19:20 on the device, received 11/10/2026 19:21.",
+      "Written on paper 11/10/2026 14:10 outside the declared outage (Tablet froze before the outage was declared). Entered in Thapsus Care 11/10/2026 19:20 on the device, received 11/10/2026 19:21.",
     );
   });
 
@@ -532,7 +532,7 @@ describe("hazard HZ-017 a back-entry carries the paper time, the downtime reason
         outsideReason: null,
       }),
     ).toBe(
-      "Written on paper 11/10/2026 14:40 outside the declared outage. Entered in Harbour 11/10/2026 18:10 on the device, received 11/10/2026 18:10.",
+      "Written on paper 11/10/2026 14:40 outside the declared outage. Entered in Thapsus Care 11/10/2026 18:10 on the device, received 11/10/2026 18:10.",
     );
   });
 });

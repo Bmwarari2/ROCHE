@@ -76,7 +76,11 @@ const HCPA = cite(
   "Management of a person who has fallen: care home pathway (May 2026)",
   "https://www.hcpa.info/wp-content/uploads/2026/05/Management-of-a-person-who-has-fallen-in-a-care-home.pdf",
 );
-const MASTER = cite("Harbour master prompt", "11.1 (falls protocol)", "docs/00-MASTER-PROMPT.md");
+const MASTER = cite(
+  "Thapsus Care master prompt",
+  "11.1 (falls protocol)",
+  "docs/00-MASTER-PROMPT.md",
+);
 
 const MINUTE = 60_000;
 

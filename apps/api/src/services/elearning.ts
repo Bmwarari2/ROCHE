@@ -46,7 +46,7 @@ export function asLauncher<T>(
   );
 }
 
-const PROVIDER_PREFIX = "Harbour e-learning: ";
+const PROVIDER_PREFIX = "Thapsus Care e-learning: ";
 
 /** The training record provider for a course: its title, within the column's 160 characters. */
 export function providerOf(title: string): string {

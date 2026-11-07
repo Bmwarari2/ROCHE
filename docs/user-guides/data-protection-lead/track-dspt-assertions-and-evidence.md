@@ -50,12 +50,12 @@ The page says "Evidence no longer used. The history keeps it."
 
 ## Important
 
-- **Met needs evidence.** Harbour refuses **Met** with no evidence linked. If the last document is
+- **Met needs evidence.** Thapsus Care refuses **Met** with no evidence linked. If the last document is
   removed from a met assertion, you must first tick a box saying it will then show as met with no
   evidence. The overview and the assertion then say **Met, but with no evidence**.
 - Evidence must be one of your organisation's own documents, never a document about a person. If
   there are none left to link, the page says to add one to your documents first.
-- This is your own record of the toolkit. Harbour does not submit anything to the toolkit for you.
+- This is your own record of the toolkit. Thapsus Care does not submit anything to the toolkit for you.
 - The rules: [quality spec section 17, rules 29 to 31](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012),
   [section 18, data security evidence](../../specs/quality.md#18-data-security-evidence-slice-32-qual-012)
   and section 21 of the quality spec on the `feat/quality-dashboard-pir` branch.

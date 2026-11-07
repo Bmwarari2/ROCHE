@@ -51,7 +51,7 @@ const auditHistory: TimelineEntry[] = [
   },
   {
     id: "a-1",
-    author: "Harbour",
+    author: "Thapsus Care",
     time: "2026-10-01T08:00:00Z",
     timeLabel: "01/10/2026 09:00",
     title: "Record exported",

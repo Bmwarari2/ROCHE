@@ -577,7 +577,7 @@ export const elearningRouter = createRouter()
             throw new HttpProblem(
               422,
               "cmi_refused",
-              "The course sent something Harbour does not keep.",
+              "The course sent something Thapsus Care does not keep.",
             );
           }
           const outcome = attemptOutcome(standard, body.cmi);
@@ -983,7 +983,7 @@ export const elearningLaunchRouter = createRouter()
       },
       responses: {
         200: jsonBody(z.array(z.uuid()), "Kept"),
-        400: { description: "Not statements Harbour can keep" },
+        400: { description: "Not statements Thapsus Care can keep" },
         404: { description: "The link has ended" },
       },
     }),
@@ -1090,7 +1090,11 @@ function parseStatements(raw: unknown) {
   return list.map((s) => {
     const ok = XapiStatement.safeParse(s);
     if (!ok.success || Buffer.byteLength(JSON.stringify(s)) > XAPI_STATEMENT_MAX_BYTES) {
-      throw new HttpProblem(400, "statements_refused", "A statement is not one Harbour can keep.");
+      throw new HttpProblem(
+        400,
+        "statements_refused",
+        "A statement is not one Thapsus Care can keep.",
+      );
     }
     return { ...ok.data, id: ok.data.id ?? crypto.randomUUID() };
   });
@@ -1148,7 +1152,11 @@ async function keepStatements(
     if (error instanceof HttpProblem) throw error;
     const code = dbCode(error);
     if (code === "23514" || code === "22P02" || code === "42501") {
-      throw new HttpProblem(400, "statements_refused", "A statement is not one Harbour can keep.");
+      throw new HttpProblem(
+        400,
+        "statements_refused",
+        "A statement is not one Thapsus Care can keep.",
+      );
     }
     throw error;
   }

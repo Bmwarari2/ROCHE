@@ -12,7 +12,7 @@ and every session read (master prompt sections 7, 9 and 18). Write a module's sp
 | [rates.md](rates.md) | Statutory figures, thresholds, time limits and tenant defaults with validity dates, nation and source | Seed script for `rate_table` (parses the `## Rate table` section) |
 | [retention.md](retention.md) | Retention periods and triggers per record class | Seed script for the retention engine (parses the `## Retention schedule` section) |
 | [calendar.md](calendar.md) | UK bank holidays by nation (GOV.UK) for working-day clocks | Seed script for `bank_holiday` (parses the `## Bank holidays` section) |
-| [data-standards.md](data-standards.md) | Mapping of Harbour fields to MODS, NHS Data Dictionary, SNOMED CT, ODS and PRSB About Me; the import and export contract | Import wizard, export, NHS integrations |
+| [data-standards.md](data-standards.md) | Mapping of Thapsus Care fields to MODS, NHS Data Dictionary, SNOMED CT, ODS and PRSB About Me; the import and export contract | Import wizard, export, NHS integrations |
 
 The three parsed tables (`## Rate table`, `## Retention schedule`, `## Bank holidays`) must keep their exact column order, one
 header row and one separator row. Change the parser and the file in the same PR if the format ever has to

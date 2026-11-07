@@ -176,7 +176,7 @@ describe("hazard HZ-014 escalation policy links", () => {
     ["the falls pathway", "ng249_falls", null, true],
     ["MUST with a Waterlow band", "must", "very_high_risk", false],
     ["a band for the falls pathway", "ng249_falls", "high", false],
-    ["a tool Harbour does not calculate", "abbey", null, false],
+    ["a tool Thapsus Care does not calculate", "abbey", null, false],
   ] as const)("checks %s", async (_name, tool, band, ok) => {
     const insert = asTenantWide((c) =>
       c.query(

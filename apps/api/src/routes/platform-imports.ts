@@ -404,7 +404,7 @@ async function commitClinicalBatch(
         COMMITTED,
         batch.id,
         "records_changed",
-        "Something in this file was added to Harbour since the dry run. Nothing was imported: run the dry run again.",
+        "Something in this file was added to Thapsus Care since the dry run. Nothing was imported: run the dry run again.",
       );
     }
     if (code === "42501") throw problems.forbidden();
@@ -472,7 +472,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "Upload a file to import",
       description:
-        "platform.import.run, people.person.create and people.person.read, all across the whole organisation (403 organisation_wide_required otherwise, whatever the file holds). Takes a record type (people), a location of the organisation and either CSV text or JSON rows, matches each column to a Harbour field by the mapping or by its field key or label, and stages the matched cells in quarantine, never in anyone's record, until a dry run and a commit. A column that matches nothing, a mapping to no field or two columns for one field refuse the upload (422 columns_not_mapped); every problem names a row or column by number, never a heading or value. The batch expires import.staging_expiry_days after upload. Audited (platform.import.uploaded: batch id, rows and columns).",
+        "platform.import.run, people.person.create and people.person.read, all across the whole organisation (403 organisation_wide_required otherwise, whatever the file holds). Takes a record type (people), a location of the organisation and either CSV text or JSON rows, matches each column to a Thapsus Care field by the mapping or by its field key or label, and stages the matched cells in quarantine, never in anyone's record, until a dry run and a commit. A column that matches nothing, a mapping to no field or two columns for one field refuse the upload (422 columns_not_mapped); every problem names a row or column by number, never a heading or value. The batch expires import.staging_expiry_days after upload. Audited (platform.import.uploaded: batch id, rows and columns).",
       security,
       request: { body: { content: { "application/json": { schema: UploadImport } } } },
       responses: { 201: jsonBody(ImportBatch, "Staged"), ...errorResponses },
@@ -487,7 +487,7 @@ export const platformImportsRouter = createRouter()
         throw new HttpProblem(
           422,
           "columns_not_mapped",
-          "Some columns need matching to Harbour fields.",
+          "Some columns need matching to Thapsus Care fields.",
           mapped.errors.map((e) => e.message).join(" "),
         );
       }
@@ -800,7 +800,7 @@ export const platformImportsRouter = createRouter()
                 COMMITTED,
                 batch.id,
                 "records_changed",
-                "Someone in this file was added to Harbour since the dry run. Nothing was imported: run the dry run again.",
+                "Someone in this file was added to Thapsus Care since the dry run. Nothing was imported: run the dry run again.",
               );
             }
             // Anything else carries the people's values in its message: only its code goes on.

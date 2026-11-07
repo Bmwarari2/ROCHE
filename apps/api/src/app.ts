@@ -585,10 +585,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.doc31("/openapi.json", {
     openapi: "3.1.0",
     info: {
-      title: "Harbour API",
+      title: "Thapsus Care API",
       version: config.APP_VERSION,
       description:
-        "Internal API for the Harbour web and mobile apps. Every request is scoped to one organisation (x-harbour-tenant) and enforced again by Postgres row-level security.",
+        "Internal API for the Thapsus Care web and mobile apps. Every request is scoped to one organisation (x-harbour-tenant) and enforced again by Postgres row-level security.",
     },
     servers: [{ url: config.BETTER_AUTH_URL }],
   });

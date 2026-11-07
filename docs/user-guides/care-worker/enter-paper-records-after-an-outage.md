@@ -1,6 +1,6 @@
 # How to enter paper records after an outage
 
-When Harbour could not be used, care was written on paper downtime forms. When Harbour is back,
+When Thapsus Care could not be used, care was written on paper downtime forms. When Thapsus Care is back,
 copy each form in with the time written on it.
 
 **Who can do this**: anyone who can write notes or charts for the person, including care workers.
@@ -23,9 +23,9 @@ copy each form in with the time written on it.
 ## Good to know
 
 - For a vital signs reading from paper, check it was escalated on paper, and check the person now.
-- If you are writing from memory, not from a paper form, Harbour asks why it was not written on
+- If you are writing from memory, not from a paper form, Thapsus Care asks why it was not written on
   paper. The entry then shows "Written later, not from paper".
-- Around the clocks going back, Harbour asks which 01:00 to 02:00 hour you mean (BST or GMT).
-- If Harbour says the outage has been reconciled or cancelled, give the paper form to the nurse in
+- Around the clocks going back, Thapsus Care asks which 01:00 to 02:00 hour you mean (BST or GMT).
+- If Thapsus Care says the outage has been reconciled or cancelled, give the paper form to the nurse in
   charge.
 - Paper records must be entered within 24 hours of the outage closing.

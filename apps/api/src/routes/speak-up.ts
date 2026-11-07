@@ -384,7 +384,7 @@ function cursorOf(cursor: string): { receivedOn: string; id: string } {
   } catch {
     // Falls through to the refusal below.
   }
-  throw problems.invalid("That page cursor is not one Harbour gave.");
+  throw problems.invalid("That page cursor is not one Thapsus Care gave.");
 }
 
 const closedProblem = () =>

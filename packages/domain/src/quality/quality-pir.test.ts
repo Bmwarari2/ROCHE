@@ -44,7 +44,7 @@ describe("PIR prefill (quality.md 17.3 rules 23 and 24; QUAL-006)", () => {
   ])("rule 24 says not available, never 0, for %s", (_, values) => {
     const item = assemblePirDraft(values as never).find((d) => d.dataPoint.key === "complaints");
     expect(item?.value).toBeNull();
-    expect(item?.notAvailable).toBe("Not available in Harbour: check your own records.");
+    expect(item?.notAvailable).toBe("Not available in Thapsus Care: check your own records.");
   });
 });
 
@@ -57,7 +57,7 @@ describe("PIR prefill marks each data point (quality.md 22.2 rule 43; slice 47)"
     expect(PIR_QUESTION_SET.version.length).toBeGreaterThan(0);
   });
 
-  it("knows which data points Harbour records today", () => {
+  it("knows which data points Thapsus Care records today", () => {
     expect([...PIR_BUILT].sort()).toEqual([
       "digital_care_records",
       "incidents",
@@ -66,7 +66,7 @@ describe("PIR prefill marks each data point (quality.md 22.2 rule 43; slice 47)"
   });
 
   it.each<[string, string, unknown, string, string | null]>([
-    ["a count Harbour has", "incidents", { value: 12, asOf, records: 12 }, "prefilled", null],
+    ["a count Thapsus Care has", "incidents", { value: 12, asOf, records: 12 }, "prefilled", null],
     ["zero, shown", "medication_errors", { value: 0, asOf, records: 0 }, "prefilled", null],
     [
       "a small number",

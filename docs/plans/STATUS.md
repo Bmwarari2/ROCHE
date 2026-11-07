@@ -32,6 +32,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Product rename: Thapsus Care (07/11/2026)
+
+`docs/rename-plan-thapsus-care`, from `main` at 17a5dbbe (after batch 4, #180): ADR-0127 (accepted)
+and [rename-thapsus-care.md](rename-thapsus-care.md). Every user-visible use of the old name in the
+apps, emails, API messages, guides, specs, the safety case and the compliance documents now reads
+Thapsus Care (2,885 changes in 363 files, by `scripts/rename-product.mjs`); identifiers
+(`@harbour/*`, `HARBOUR_*`, roles, the tenant header, bundle ids, the deep link scheme, the passkey
+rpID, cloud and Terraform) and the demo names stay. Migration 0152 renames stored rows; CI runs the
+script's `--check`. Human actions H-1511 to H-1513.
+
 ## Merge batch 4 (07/11/2026)
 
 `integration/phase-2-batch-4`, from `main` e1524309 (with #177, #178 and #179): mobile medicines
@@ -175,7 +185,7 @@ on `docs/plan-thapsus-hr-link`, and takes migration 0141 (0139 went to slice 71,
 HZ-133 and DPIA risk R30. Slice 86 (port, mock, rules) is on `feat/integrations-hr-link-port`;
 slice 87 (connection, people, locations, the signed webhook, reconciliation; migration 0141) is on
 `feat/integrations-hr-link-connection`, branched from it. Next: slice 88 (absences and the rota's
-staleness notice). Harbour keeps the rota (confirmed 06/11/2026).
+staleness notice). Thapsus Care keeps the rota (confirmed 06/11/2026).
 
 **Next free numbers**: migration 0142, human actions block H-1350, hazard HZ-134, ADR-0127.
 
@@ -998,7 +1008,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
      db:bootstrap` first, H-220, numbered H-216 until #60 review round 1; storage split for the DPO, H-217). Next, part 2, the API: the
      routes, public link routes and audit and outbox events of section 5, the PDF through the
      downtime pack writer (ADR-0040), the bundle deletion sweep at link end and the
-     notification-overdue job. Follow-ups: an inspector with a Harbour account
+     notification-overdue job. Follow-ups: an inspector with a Thapsus Care account
      (`quality.evidence.read`, scope `none`) opening a pack released to their address needs its
      own policy; the migration number 0057 follows 0056 (#50), so its journal `when` must stay
      after #50's at merge.
@@ -1044,7 +1054,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
      in the same transaction, a cap on open codes) and the PDF; built, PR open. Follow-ups: the web
      page that reads the token from the link's fragment and posts it (web step); throttles are per
      API instance (a shared table, as for invitations); the code email has a generic subject and the code in its body
-     (built in part 2a of the letter templates, H-225); an inspector with a Harbour account
+     (built in part 2a of the letter templates, H-225); an inspector with a Thapsus Care account
      (`quality.evidence.read`) still needs its own route.
    - #66 review round 1 (security and clinical), fixed in #66: the printed pack says when it was
      composed and released (GMT or BST) and that it shows the records as they stood at release
@@ -1054,7 +1064,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
      one shared bucket when no address is known; audit rows take the address from the trusted hop;
      the session cookie is `__Host-`, path `/`, encrypted (AES-256-GCM) and signed.
      Logged, not blocking this merge: the code email's subject and body need an email port with a
-     body (H-225; blocks a live tenant); the SES body's "Open Harbour..." line would confuse an
+     body (H-225; blocks a live tenant); the SES body's "Open Thapsus Care..." line would confuse an
      external recipient.
    - Slice 11, letter and email templates part 1, schema (`feat/comms-letter-templates`,
      migration 0059, stacked on #66 for the migration order; comms.md section 11): the three
@@ -1325,7 +1335,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
     `member_of_other_organisation` tells the calling organisation that the person is active
     elsewhere (consider a generic refusal), and its advice to ask them to sign out is wrong for a
     suspended member or suspected misuse (point to suspending the membership or withdrawing the
-    device); a member of several organisations can be signed out remotely only through Harbour
+    device); a member of several organisations can be signed out remotely only through Thapsus Care
     support, which needs a documented procedure; holds are chased only after the sessions end and
     the audit is written, so a failure there leaves the tasks unhurried; `suspected_misuse` is not
     in `CHASE_HELD`; `platform.user.manage` holders can now bring device holds due at once (before,
@@ -1442,7 +1452,7 @@ round 2; the CSO decides whether it must come before a real tenant imports, H-68
       reworded line leaves an earlier answer under the old words (shown only in the API's
       content; a `requiredContent` key in the contract would fix it); "Who submitted" names
       the member only as "you" or "another member" (H-73).
-    - #58 review round 1 (built): "not required" on a notification Harbour found needed says
+    - #58 review round 1 (built): "not required" on a notification Thapsus Care found needed says
       so and takes a 20-character reason and a confirmation (H-265); the forms leave success to
       the page, which announces only a matching status and drops `?done=`; no future tolerance
       on the submission time. Left: "just now" still sends the server's time, since

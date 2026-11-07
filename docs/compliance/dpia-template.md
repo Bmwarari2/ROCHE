@@ -1,8 +1,8 @@
-# Data protection impact assessment: Harbour deployment template
+# Data protection impact assessment: Thapsus Care deployment template
 
 **For**: each tenant (care provider), as controller. **Required because** the processing involves special category data about people who may be vulnerable, on a large scale, using new technology including offline mobile devices; these match the ICO's criteria for when a DPIA is needed ([ICO: when do we need to do a DPIA?](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/when-do-we-need-to-do-a-dpia/); UK GDPR Art 35).
 
-**How it works**: Harbour pre-fills this template from the tenant's configuration. Merge fields are shown as `{{field}}` and are filled from the tenant record; Harbour re-generates the pre-filled sections when configuration changes and flags the DPIA for review. The tenant's DPO or named lead completes the remaining sections and **signs it in-app before go-live** (master prompt 5.1); the signer cannot be one of the people who prepared that version, and a risk still high after its measures needs the ICO's prior consultation reference first. A signed DPIA falls due for review when a purpose, sub-processor, data category or module appears that it did not cover, and yearly. Enabling the AI module requires the AI addendum (section 9) to be signed first (master prompt 16); the family portal and marketing add sections 10 and 11. Rules: [platform-completions.md](../specs/platform-completions.md) rules 17 to 22, `packages/domain/src/platform/dpia.ts`. Section 7A covers the Phase 1 residential care processing (risks R13 to R19), added 31 October 2026 for the Phase 1 gate. Section 7B is a first draft of the Phase 2 processing built so far (risks R20 to R29), not yet signed or in the in-app prefill.
+**How it works**: Thapsus Care pre-fills this template from the tenant's configuration. Merge fields are shown as `{{field}}` and are filled from the tenant record; Thapsus Care re-generates the pre-filled sections when configuration changes and flags the DPIA for review. The tenant's DPO or named lead completes the remaining sections and **signs it in-app before go-live** (master prompt 5.1); the signer cannot be one of the people who prepared that version, and a risk still high after its measures needs the ICO's prior consultation reference first. A signed DPIA falls due for review when a purpose, sub-processor, data category or module appears that it did not cover, and yearly. Enabling the AI module requires the AI addendum (section 9) to be signed first (master prompt 16); the family portal and marketing add sections 10 and 11. Rules: [platform-completions.md](../specs/platform-completions.md) rules 17 to 22, `packages/domain/src/platform/dpia.ts`. Section 7A covers the Phase 1 residential care processing (risks R13 to R19), added 31 October 2026 for the Phase 1 gate. Section 7B is a first draft of the Phase 2 processing built so far (risks R20 to R29), not yet signed or in the in-app prefill.
 
 ---
 
@@ -15,7 +15,7 @@
 | DPO or named lead | `{{tenant.dpo.name}}`, `{{tenant.dpo.email}}` |
 | Caldicott Guardian | `{{tenant.caldicottGuardian.name}}` |
 | SIRO | `{{tenant.siro.name}}` |
-| Processor | Thapsus Cargo Ltd (Harbour), under the data processing agreement signed `{{tenant.dpa.signedOn}}` |
+| Processor | Thapsus Cargo Ltd (Thapsus Care), under the data processing agreement signed `{{tenant.dpa.signedOn}}` |
 | DPIA version and date | `{{dpia.version}}`, `{{dpia.generatedOn}}` |
 
 ## 2. Need for a DPIA (screening)
@@ -43,7 +43,7 @@
 | Sub-processors in use | From [sub-processors.md](sub-processors.md) for the enabled features: `{{subProcessors.inUse[]}}` |
 | Retention schedule | `{{retention.scheduleVersion}}`, tenant overrides `{{retention.overrides[]}}` ([../specs/retention.md](../specs/retention.md)) |
 
-How data is collected, stored, used, shared and deleted: staff record care at the point of care (often offline); records sync to Harbour's UK-hosted database; access is limited by role, location, team, assignment and time; external professionals and families get scoped access where the tenant allows; records are kept under the retention schedule and then cryptographically shredded ([retention-and-deletion.md](retention-and-deletion.md)).
+How data is collected, stored, used, shared and deleted: staff record care at the point of care (often offline); records sync to Thapsus Care's UK-hosted database; access is limited by role, location, team, assignment and time; external professionals and families get scoped access where the tenant allows; records are kept under the retention schedule and then cryptographically shredded ([retention-and-deletion.md](retention-and-deletion.md)).
 
 ### 3.2 Scope
 
@@ -89,7 +89,7 @@ From the records of processing (Part B, purposes B1 to B10 that apply): `{{ropa.
 
 Likelihood of harm: remote, possible, probable. Severity of harm: minimal, significant, severe. Overall: low, medium, high.
 
-R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the row; R13 to R19 are the Phase 1 residential processing every tenant has (section 7A lists which risks apply to each kind of processing); R20 to R29 are the Phase 2 processing (section 7B, a first draft; R22, R25 and R28 cover processing still being built, and a tenant records in section 7B.6 what it does not use). A DPIA signed before a standard risk was added is flagged for review. Harbour fills this table from `packages/domain/src/platform/dpia.ts`, and a test (`dpia.test.ts`) fails if an id or its wording differs from this table.
+R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the row; R13 to R19 are the Phase 1 residential processing every tenant has (section 7A lists which risks apply to each kind of processing); R20 to R29 are the Phase 2 processing (section 7B, a first draft; R22, R25 and R28 cover processing still being built, and a tenant records in section 7B.6 what it does not use). A DPIA signed before a standard risk was added is flagged for review. Thapsus Care fills this table from `packages/domain/src/platform/dpia.ts`, and a test (`dpia.test.ts`) fails if an id or its wording differs from this table.
 
 | ID | Risk | Likelihood | Severity | Overall |
 | --- | --- | --- | --- | --- |
@@ -119,14 +119,14 @@ R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the 
 | R24 | A breach not assessed or reported within 72 hours, or a tenant not told by Thapsus as processor | Possible | Severe | High |
 | R25 | Payroll, vetting, learning and e-signature providers receiving staff or care data, possibly outside the UK | Possible | Significant | Medium |
 | R26 | Imported data inaccurate, excessive, or about people outside the service | Possible | Significant | Medium |
-| R27 | An identity provider account linked to the wrong member, or sign-in without Harbour's second factor | Possible | Severe | High |
+| R27 | An identity provider account linked to the wrong member, or sign-in without Thapsus Care's second factor | Possible | Severe | High |
 | R28 | A respondent identified from small-group staff survey results | Possible | Significant | Medium |
 | R29 | Applicants' data kept after an unsuccessful application or used beyond recruitment | Possible | Significant | Medium |
 | R... | *Tenant adds local risks* | | | |
 
 ## 7. Measures to reduce risk
 
-| Risk | Measures (Harbour) | Measures (tenant) | Effect | Residual risk | Approved |
+| Risk | Measures (Thapsus Care) | Measures (tenant) | Effect | Residual risk | Approved |
 | --- | --- | --- | --- | --- | --- |
 | R1 | Role-based access with location, team, assignment and time scoping; Postgres row-level security; break-glass with justification and alert; audit of every view | Role design, joiners and leavers process, periodic access review | Reduced | | |
 | R2 | SQLCipher encryption; auto-lock; remote wipe; device revocation ([kiosk.md](kiosk.md)) | MDM enrolment, lost-device reporting | Reduced | | |
@@ -154,13 +154,13 @@ R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the 
 | R24 | ICO clock worked out on every read, decision with reasoning, late reports need reasons, Thapsus notices open the register entry and tell the data protection lead (section 7B) | Name who decides on reporting and who deputises | Reduced | | |
 | R25 | No adapter on by default; payroll (slice 76) built: only a locked run, on request with step-up, minimum fields (no name, date of birth, NI number or bank detail), the provider the organisation's own processor (ADR-0097), Xero only through a mock until assessed (H-1192); vetting, learning and e-signature providers each assessed before they receive data (section 7B) | Choose providers knowingly | Planned | | |
 | R26 | Only mapped columns kept, staged rows in quarantine and deleted at commit, discard or expiry, matching never merges, undo of a whole commit, organisation-wide importers only (section 7B) | Check the source export; sign off a sample after committing | Reduced | | |
-| R27 | Links only invited members, DNS-proved domains, Harbour's own second factor still asked for care records and step-up, keys in the managed store only (section 7B) | The identity provider and its contract | Reduced | | |
+| R27 | Links only invited members, DNS-proved domains, Thapsus Care's own second factor still asked for care records and step-up, keys in the managed store only (section 7B) | The identity provider and its contract | Reduced | | |
 | R28 | Results only once a survey has closed and at least `wellbeing.survey_min_group_size` answered, each question likewise, no count below the size, no breakdown or export of responses, free text in alphabetical order; responses hold no member and no time but the week, are closed to the application role and audited with an anonymous actor; check-ins seen by a manager only while the member shares them (section 7B; scheduling.md section 20) | Set the smallest group shown (it can only be raised); warn staff that free text can identify them | Reduced | | |
 | R29 | Unsuccessful applicants kept 6 months (talent pool by consent), interview notes never passed to the staff file, equality monitoring kept apart and counted with small counts suppressed (section 7B) | Applicant privacy notice; the equality questions | Reduced | | |
 
 ## 7A. Phase 1 processing: residential care records
 
-What Harbour's Phase 1 (residential care records) does with personal data, the risks in section 6 that apply to each kind of processing, the measures built, the residual risk Harbour expects once both Harbour's and the tenant's measures are in place, and what the tenant, as controller, must decide or sign off. The tenant rates the residual risk for each risk id in section 7; the expected level here is guidance, not the rating. Fields marked *Tenant completes* are the provider's own.
+What Thapsus Care's Phase 1 (residential care records) does with personal data, the risks in section 6 that apply to each kind of processing, the measures built, the residual risk Thapsus Care expects once both Thapsus Care's and the tenant's measures are in place, and what the tenant, as controller, must decide or sign off. The tenant rates the residual risk for each risk id in section 7; the expected level here is guidance, not the rating. Fields marked *Tenant completes* are the provider's own.
 
 ### 7A.1 Lawful bases
 
@@ -193,7 +193,7 @@ Taken from the records of processing ([records-of-processing.md](records-of-proc
 | Search | R15 | `platform.search.use`; each kind of record searched only where the searcher's permissions and scope reach, with MFA for care records; the audit keeps what was shown, never the words typed (`packages/domain/src/platform/search.ts`, `apps/api/src/routes/search.ts`, `apps/api/test/search.test.ts`, HZ-011) | Low | The search copies in backups (H-380). Search audit events that showed no person are kept 6 months as `security_log` (H-121) |
 | Full export | R14 | The owner only, after a fresh sign-in with MFA; one download, then the archive is deleted; an expiry; secret and internal columns never leave; sample people left out (`packages/domain/src/platform/export.ts`, `export-catalogue.ts`, `apps/api/src/routes/exports.ts`, [platform-completions.md](../specs/platform-completions.md) rules 10 to 16, HZ-070, HZ-071) | Medium: once downloaded, the copy is the tenant's to protect | Who may ask for an export; where a downloaded export is kept and when it is destroyed; the expiry (H-118). *Tenant completes* |
 | Inspector evidence packs and their links | R13 | Minimised by rule: people in scope only, third parties and staff by role, identifiers withheld, free text withheld until redacted by hand; a recipient-bound link with a one-time code sent to the recipient's work email, an expiry and revocation; the bundle deleted when the link ends; watermarked; every open audited (`packages/domain/src/quality/evidence-pack.ts`, `apps/api/src/routes/evidence-packs.ts`, `apps/api/src/routes/evidence-link.ts`, [ADR-0050](../decisions/0050-evidence-pack-links.md), HZ-050); retention `evidence_pack` | Low | The basis, redaction rules and defaults (H-96, H-217, H-218); who may release a pack. *Tenant completes* |
-| Downtime packs and outages | R2, R14 | A fresh sign-in and an hourly limit to build or print; the PDF drawn on request and never stored; no photos printed; the kiosk copy encrypted and opened only in a PIN session of a holder of `operations.downtime.read` (`packages/domain/src/operations/downtime-pack.ts`, `kiosk-cache.ts`, `apps/api/src/routes/operations.ts`, [kiosk.md](kiosk.md), HZ-021); retention `downtime_pack` (one month) | Medium: printed copies are outside Harbour | Secure storage and shredding of printed packs in the business continuity plan; the downtime defaults (H-98). *Tenant completes* |
+| Downtime packs and outages | R2, R14 | A fresh sign-in and an hourly limit to build or print; the PDF drawn on request and never stored; no photos printed; the kiosk copy encrypted and opened only in a PIN session of a holder of `operations.downtime.read` (`packages/domain/src/operations/downtime-pack.ts`, `kiosk-cache.ts`, `apps/api/src/routes/operations.ts`, [kiosk.md](kiosk.md), HZ-021); retention `downtime_pack` (one month) | Medium: printed copies are outside Thapsus Care | Secure storage and shredding of printed packs in the business continuity plan; the downtime defaults (H-98). *Tenant completes* |
 | Sample data | R19 | Invented people only (999-range NHS numbers, `example.invalid` emails), flagged and badged, watermarked or marked "Sample" on print, left out of the full export (not yet of statutory notifications, H-452), removed as a batch (`packages/domain/src/platform/sample-data.ts`, `apps/api/src/routes/sample-data.ts`, HZ-072) | Low | Remove sample data before go-live; the sample telephone numbers (H-123) |
 | Offline devices and held entries | R2, R8 | Device copies encrypted with SQLCipher and wiped at sign-out, remote sign-out or revocation; the offline window set in the signed sync token; entries unsent at sign-out held for their owner only, and deleted only with a coded reason that is audited (`packages/sync/src`, `apps/api/src/routes/sync.ts`, `devices.ts`, `refused-entries.ts`, `packages/domain/src/care/discard-reasons.ts`, [ADR-0011](../decisions/0011-offline-window-and-kiosk-lock.md), [ADR-0029](../decisions/0029-mobile-offline-stack.md), HZ-040, HZ-110, [care.md](../specs/care.md) section 6) | Medium | MDM enrolment and lost-device reporting; the interim device positions (H-68). *Tenant completes* |
 | Letters and emails from templates | R16 | Approved templates only, never approved by their author; the recipient is the person or one of their own contacts; NHS number, date of birth and special category fields never in an email; incident and candour letters by letter only (`packages/domain/src/comms/templates.ts`, `apps/api/src/routes/letters.ts`, `letter-templates.ts`, [ADR-0051](../decisions/0051-personal-data-in-template-emails.md), HZ-051) | Low | Approving the templates; keeping contacts' addresses current; the email connection (H-356). *Tenant completes* |
@@ -223,7 +223,7 @@ R20 to R29 are in sections 6 and 7 and in the in-app prefill (`packages/domain/s
 and its test), as Phase 1 did for R13 to R19. A DPIA signed before they were added is flagged for
 review (`dpiaReviewTriggers`, `new_standard_risk`); a basis saved before standard risks were
 recorded counts as covering R1 to R8 only, so it is flagged for R13 to R29. The expected
-residual levels below are Harbour's guidance, not the tenant's rating; fields marked *Tenant
+residual levels below are Thapsus Care's guidance, not the tenant's rating; fields marked *Tenant
 completes* are the provider's own.
 
 ### 7B.1 Lawful bases
@@ -243,7 +243,7 @@ Every basis here is a proposal until the DPO confirms it (H-526, H-790).
 | Policy read-and-sign (B3 and B6; slice 25) | Art 6(1)(b) or (c) (staff compliance records) | None |
 | Import of records from a previous system (slice 26) | The basis of the records imported (B1 for people; B2 and B3 as those imports land); no new purpose | As the records imported |
 | Single sign-on links (B3 and B5; slice 33) | Art 6(1)(b) and (f) (authenticating staff for employment and security) | None |
-| Outbreak line list (B1 for residents, B3 for staff; slice 22) | Residents: as care records (B1). Staff cases: Art 6(1)(c), Regulation 12(2)(h) of the 2014 Regulations (infection control) | Art 9(2)(i) with Sch 1 para 3 (public health), and Art 9(2)(b) with Sch 1 para 1 for the employer's health and safety duties. Staff cases are kept 3 years from the outbreak's closure (`outbreak_staff_case`); agency workers not in Harbour are counted unnamed, with nothing identifying; staff see their own row through a subject access request, not in the app (H-767, H-782, recommended answers applied 31/10/2026) |
+| Outbreak line list (B1 for residents, B3 for staff; slice 22) | Residents: as care records (B1). Staff cases: Art 6(1)(c), Regulation 12(2)(h) of the 2014 Regulations (infection control) | Art 9(2)(i) with Sch 1 para 3 (public health), and Art 9(2)(b) with Sch 1 para 1 for the employer's health and safety duties. Staff cases are kept 3 years from the outbreak's closure (`outbreak_staff_case`); agency workers not in Thapsus Care are counted unnamed, with nothing identifying; staff see their own row through a subject access request, not in the app (H-767, H-782, recommended answers applied 31/10/2026) |
 
 ### 7B.2 Which risks apply to which processing
 
@@ -265,8 +265,8 @@ Every basis here is a proposal until the DPO confirms it (H-526, H-790).
 
 ### 7B.3 Risks R20 to R29
 
-Likelihood, severity and overall use the scale in section 6. "Initial" is before Harbour's
-measures; "expected residual" is with Harbour's measures built and the tenant's in place.
+Likelihood, severity and overall use the scale in section 6. "Initial" is before Thapsus Care's
+measures; "expected residual" is with Thapsus Care's measures built and the tenant's in place.
 
 #### R20 Staff vetting and employment records (DBS and criminal offence data, right to work and immigration, health declarations, fit notes) seen beyond HR or kept too long
 
@@ -306,7 +306,7 @@ measures; "expected residual" is with Harbour's measures built and the tenant's 
 | --- | --- |
 | Slices | 15 (built), 18 (complainants as third parties; built), 41 disclosure requests (not built) |
 | Initial | Possible, significant, **medium** |
-| Measures built (evidence) | The subject map over the export catalogue finds every table that refers to the subject (`packages/domain/src/platform/dsar.ts`, ADR-0090 (`docs/decisions/0090-dsar-workbench-and-disclosure-collector.md`) on `feat/platform-dsar-workbench`); third-party names highlighted for the reviewer but never redacted or withheld on Harbour's own: a person decides each record with a reason under DPA 2018 Schedules 2 to 4; the bundle issued only when every item has a decision, withheld items counted, and built from the records when issued, never stored, with its SHA-256 recorded; erasure assessed against the retention schedule and left to the retention engine; `quality.dsar.manage` across the organisation with MFA; every read and write audited with ids and counts; a closed case never changes (migration 0077); retention `data_rights_case` (3 years from closure) |
+| Measures built (evidence) | The subject map over the export catalogue finds every table that refers to the subject (`packages/domain/src/platform/dsar.ts`, ADR-0090 (`docs/decisions/0090-dsar-workbench-and-disclosure-collector.md`) on `feat/platform-dsar-workbench`); third-party names highlighted for the reviewer but never redacted or withheld on Thapsus Care's own: a person decides each record with a reason under DPA 2018 Schedules 2 to 4; the bundle issued only when every item has a decision, withheld items counted, and built from the records when issued, never stored, with its SHA-256 recorded; erasure assessed against the retention schedule and left to the retention engine; `quality.dsar.manage` across the organisation with MFA; every read and write audited with ids and counts; a closed case never changes (migration 0077); retention `data_rights_case` (3 years from closure) |
 | Open measures | Tables the subject map does not search are listed in [dsar-procedure.md](dsar-procedure.md) step 6 for a manual search; the speaking-up silo is outside the workbench by design (H-721) |
 | Expected residual | Possible, significant, **medium** (depends on the reviewer's decisions) |
 | DPO decides | The retention of DSAR cases (H-613) and the other workbench defaults (H-612 to H-615); who reviews bundles; the exemptions the organisation relies on. *Tenant completes*: the DSAR procedure owner |
@@ -317,7 +317,7 @@ measures; "expected residual" is with Harbour's measures built and the tenant's 
 | --- | --- |
 | Slices | 20 (built) |
 | Initial | Possible, severe, **high** |
-| Measures built (evidence) | The register (`dp_breach`) with the ICO clock worked out on every read from `ico.breach.report_hours` (`docs/specs/platform.md` rules 18 to 26 on `feat/platform-breach-register`); `assessBreach` stores a suggestion as decision support only, and the decision goes through `checkBreachDecision` with reasoning; a late report needs the reasons for the delay; a notice to the people affected drafted from Harbour's template and refused while a prompt remains (`breach-notice.ts`); Thapsus notifies the organisation only through `app.send_processor_breach_notice` (an active operator admin with a fresh sign-in), which opens the organisation's register entry and tells its data protection lead and owners urgently (migration 0082); every read and change audited with ids and codes only; the register reached only with `quality.dsar.manage` across the organisation |
+| Measures built (evidence) | The register (`dp_breach`) with the ICO clock worked out on every read from `ico.breach.report_hours` (`docs/specs/platform.md` rules 18 to 26 on `feat/platform-breach-register`); `assessBreach` stores a suggestion as decision support only, and the decision goes through `checkBreachDecision` with reasoning; a late report needs the reasons for the delay; a notice to the people affected drafted from Thapsus Care's template and refused while a prompt remains (`breach-notice.ts`); Thapsus notifies the organisation only through `app.send_processor_breach_notice` (an active operator admin with a fresh sign-in), which opens the organisation's register entry and tells its data protection lead and owners urgently (migration 0082); every read and change audited with ids and codes only; the register reached only with `quality.dsar.manage` across the organisation |
 | Open measures | Retention of the register is interim `audit_event` (H-670); who at Thapsus sends notices and the contractual target (H-673) |
 | Expected residual | Remote, severe, **medium** |
 | DPO decides | Retention periods (H-670); the Article 9 condition and the B13 rows (H-671); the notice template (H-672); the Thapsus contact and target in the data processing agreement (H-673). *Tenant completes*: who decides on reporting and who deputises |
@@ -329,7 +329,7 @@ measures; "expected residual" is with Harbour's measures built and the tenant's 
 | Slices | 76, 77 and 78 (not built); 79 built (e-signature and OCR, ADR-0095) |
 | Initial | Possible, significant, **medium** |
 | Measures planned | No adapter on by default; each provider joins the sub-processor register and this DPIA before it receives data (H-520 to H-522, H-540); only the fields each provider needs; transfers only to the UK or with an adequacy decision or the IDTA. Assessed again when the adapters are built |
-| Measures built (slice 79) | Signing is in Harbour by default, so nothing leaves; DocuSign is off by default and refused in production until H-540, and its envelope carries only an organisation document, its hash, a generic subject and the signer's name and sign-in email. OCR runs only for an organisation that switched it on, with an engine on the allowlist in europe-west2 (Document AI under the Google Cloud entry, H-1262), only on a photograph that scanned clean, and every value stays unconfirmed until a person decides it (HZ-005); no value read or typed reaches the audit trail, logs or events |
+| Measures built (slice 79) | Signing is in Thapsus Care by default, so nothing leaves; DocuSign is off by default and refused in production until H-540, and its envelope carries only an organisation document, its hash, a generic subject and the signer's name and sign-in email. OCR runs only for an organisation that switched it on, with an engine on the allowlist in europe-west2 (Document AI under the Google Cloud entry, H-1262), only on a photograph that scanned clean, and every value stays unconfirmed until a person decides it (HZ-005); no value read or typed reaches the audit trail, logs or events |
 | Expected residual | To be assessed |
 | DPO decides | Each provider before it is switched on (H-793) |
 
@@ -339,18 +339,18 @@ measures; "expected residual" is with Harbour's measures built and the tenant's 
 | --- | --- |
 | Slices | 26 (built: people first), 51 (medicines, care plans, staff files, TUPE; not built) |
 | Initial | Possible, significant, **medium** |
-| Measures built (evidence) | Only columns matched to a Harbour field are kept; an upload with unmapped columns is refused until each is mapped or left out; staged rows in quarantine, never shown back, deleted at commit, discard or expiry (`import.staging_expiry_days`, 7 days) and left out of the full export; no error, log or audit event carries an imported value; matching against people already in the organisation never merges (HZ-130); people with allergies to record and allergy status unknown are reported in the dry run (HZ-007); commit and undo need a fresh sign-in, and undo removes a commit's people whole within `import.undo_window_days`; only a member with the import permissions across the whole organisation may import, so matching never discloses a person at another home (`packages/domain/src/platform/imports.ts`, `apps/api/src/routes/platform-imports.ts`, migration 0088, ADR-0092 (`docs/decisions/0092-import-wizard.md`) on `feat/platform-import-wizard`) |
+| Measures built (evidence) | Only columns matched to a Thapsus Care field are kept; an upload with unmapped columns is refused until each is mapped or left out; staged rows in quarantine, never shown back, deleted at commit, discard or expiry (`import.staging_expiry_days`, 7 days) and left out of the full export; no error, log or audit event carries an imported value; matching against people already in the organisation never merges (HZ-130); people with allergies to record and allergy status unknown are reported in the dry run (HZ-007); commit and undo need a fresh sign-in, and undo removes a commit's people whole within `import.undo_window_days`; only a member with the import permissions across the whole organisation may import, so matching never discloses a person at another home (`packages/domain/src/platform/imports.ts`, `apps/api/src/routes/platform-imports.ts`, migration 0088, ADR-0092 (`docs/decisions/0092-import-wizard.md`) on `feat/platform-import-wizard`) |
 | Open measures | The tenant checks the source export and signs off a sample after committing (H-682) |
 | Expected residual | Remote, significant, **low** |
 | DPO decides | The staging period, retention and these measures (H-681); whether home-scoped importing is wanted (H-683). *Tenant completes*: who imports, and the sample check |
 
-#### R27 An identity provider account linked to the wrong member, or sign-in without Harbour's second factor
+#### R27 An identity provider account linked to the wrong member, or sign-in without Thapsus Care's second factor
 
 | Field | Value |
 | --- | --- |
 | Slices | 33 (built: OpenID Connect; SAML later) |
 | Initial | Possible, severe, **high** |
-| Measures built (evidence) | Links only members the organisation already invited, never creates one; a domain counts only once proved by a DNS TXT record and can be verified by one organisation at a time; a provider's MFA claim is never read: an SSO session has no Harbour factor, so care records and step-up ask for the passkey or authenticator code on that session (HZ-112); `private_key_jwt` only, with keys read from the managed secret store, never stored in the database; configuration needs `platform.tenant.manage` with step-up, audited without key names, tokens or domains (`packages/domain/src/platform/sso.ts`, `apps/api/src/routes/sso.ts`, migration 0095, ADR-0091 (`docs/decisions/0091-single-sign-on.md`) on `feat/platform-sso`) |
+| Measures built (evidence) | Links only members the organisation already invited, never creates one; a domain counts only once proved by a DNS TXT record and can be verified by one organisation at a time; a provider's MFA claim is never read: an SSO session has no Thapsus Care factor, so care records and step-up ask for the passkey or authenticator code on that session (HZ-112); `private_key_jwt` only, with keys read from the managed secret store, never stored in the database; configuration needs `platform.tenant.manage` with step-up, audited without key names, tokens or domains (`packages/domain/src/platform/sso.ts`, `apps/api/src/routes/sso.ts`, migration 0095, ADR-0091 (`docs/decisions/0091-single-sign-on.md`) on `feat/platform-sso`) |
 | Open measures | SAML (H-753); the identity provider is the organisation's own processor, not Thapsus's sub-processor (ADR-0091) |
 | Expected residual | Remote, significant, **low** |
 | DPO decides | The decisions logged with the slice (H-750 to H-755); whether the identity provider needs an entry in the organisation's own processor list. *Tenant completes*: the identity provider and its contract |
@@ -361,7 +361,7 @@ measures; "expected residual" is with Harbour's measures built and the tenant's 
 | --- | --- |
 | Slices | 44 (`feat/sched-wellbeing`) |
 | Initial | Possible, significant, **medium** |
-| Measures | Results show only once the survey has closed and at least `wellbeing.survey_min_group_size` people answered (Harbour default 5, to verify; an organisation can raise it and never lower it); each question shows only when that many answered it; below the size no count, spread or text is shown. There is no breakdown, filter or export of responses (the export leaves them out). A scale's counts show all or none: none when any point was chosen by fewer than the size. A response holds no member, no creator and no time but the UK week; its id is random; it waits apart and is moved, shuffled, when the survey closes, so it never shares a transaction with the member's participation row; the audit records each response anonymously at the close, never as it arrives; the application role cannot read responses. Only members on a staff file from before the survey opened answer, never its writer or the home's survey managers, so respondents cannot be made up or a manager's own answers subtracted. Wellbeing check-ins (possibly health) are the member's own and a manager sees one only while it is shared (scheduling.md section 20) |
+| Measures | Results show only once the survey has closed and at least `wellbeing.survey_min_group_size` people answered (Thapsus Care default 5, to verify; an organisation can raise it and never lower it); each question shows only when that many answered it; below the size no count, spread or text is shown. There is no breakdown, filter or export of responses (the export leaves them out). A scale's counts show all or none: none when any point was chosen by fewer than the size. A response holds no member, no creator and no time but the UK week; its id is random; it waits apart and is moved, shuffled, when the survey closes, so it never shares a transaction with the member's participation row; the audit records each response anonymously at the close, never as it arrives; the application role cannot read responses. Only members on a staff file from before the survey opened answer, never its writer or the home's survey managers, so respondents cannot be made up or a manager's own answers subtracted. Wellbeing check-ins (possibly health) are the member's own and a manager sees one only while it is shared (scheduling.md section 20) |
 | Residual risks | Free text can identify its writer by what it says (staff are warned on the form, H-1081). Comparing two overlapping surveys of the same people can narrow down answers (H-1081). Until a survey closes, and in the database's write-ahead log, point-in-time backups and dead rows until vacuum, a waiting response sits in the same transaction as its participation row, which someone with direct database access (Thapsus operators, not the application) could link; operator access is logged and approved (H-1081). A manager who sets up made-up members, with staff files, before a survey opens could still pad its respondents (H-1081). Statement logging (pgAudit) must not record the answers given to the submission function (H-1081) |
 | Expected residual | Unlikely, significant, **low** |
 | DPO decides | The smallest group shown (H-794, H-1080) |
@@ -409,7 +409,7 @@ temperature logs, audits, staff surveys, lone-worker check-ins, sponsor records 
 
 | Item | Value |
 | --- | --- |
-| Slices built since this draft, to add | *Harbour updates the draft* |
+| Slices built since this draft, to add | *Thapsus Care updates the draft* |
 | R20 to R29 in sections 6 and 7 and in the in-app prefill | Done (H-795) |
 | DPO review of this section | *DPO completes* (H-790) |
 | Who reviewed section 7B, and when | *Tenant completes* |
@@ -423,7 +423,7 @@ temperature logs, audits, staff surveys, lone-worker check-ins, sponsor records 
 | DPO advice provided | | DPO advises on compliance, section 7 measures and whether processing can proceed |
 | DPO advice accepted or overruled (with reasons) | | |
 | Consultation responses reviewed | | |
-| This DPIA will be kept under review by | | Review on any configuration change Harbour flags, and at least annually |
+| This DPIA will be kept under review by | | Review on any configuration change Thapsus Care flags, and at least annually |
 
 ---
 
@@ -434,7 +434,7 @@ The AI module is off by default. It is enabled per tenant only after this addend
 | Item | Value |
 | --- | --- |
 | Accountable owner | *Tenant names* |
-| Capabilities enabled | `{{ai.capabilities[]}}` (Ask Harbour, summaries, drafting, compliance monitor explanations, inspection preparation, rota assistant, finance commentary, voice to text) |
+| Capabilities enabled | `{{ai.capabilities[]}}` (Ask Thapsus Care, summaries, drafting, compliance monitor explanations, inspection preparation, rota assistant, finance commentary, voice to text) |
 | Locations where enabled | `{{ai.locations[]}}` |
 | Model provider and geography | `{{ai.provider}}`, `{{ai.geography}}` (default: Amazon Bedrock with in-Region models in London; Claude via Bedrock EU geography or the Anthropic API with zero data retention are optional and process data outside the UK; see [sub-processors.md](sub-processors.md)) |
 | Tenant's own key (BYO) | `{{ai.byoKey ? "Yes: tenant's own contract with the provider applies" : "No"}}` |

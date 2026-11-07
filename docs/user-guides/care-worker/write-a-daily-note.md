@@ -11,7 +11,7 @@ managers.
 2. Under **Write a note**, choose **What is it about?**, for example "Eating and drinking".
 3. Under **Note**, write what happened in plain words.
 4. Under **When did it happen?**, leave **Now**, or choose **Earlier** and enter the date and time.
-5. Choose **Save note**. Harbour says "Note saved".
+5. Choose **Save note**. Thapsus Care says "Note saved".
 
 ## Correct a note
 

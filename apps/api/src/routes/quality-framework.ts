@@ -455,7 +455,7 @@ export const qualityFrameworkRouter = createRouter()
             new HttpProblem(
               422,
               "record_type_not_available",
-              "This kind of record cannot be tagged yet. It can be once its records are in Harbour.",
+              "This kind of record cannot be tagged yet. It can be once its records are in Thapsus Care.",
             ),
             A.tagged,
             null,

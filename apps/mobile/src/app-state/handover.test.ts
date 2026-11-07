@@ -211,7 +211,7 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     expect(headers.get("x-harbour-device")).toBe(DEVICE);
     expect(headers.get("idempotency-key")).toBe(E1);
     expect(handOverMessage(result)).toBe(
-      "2 entries were sent to Harbour. Nothing is left on this device.",
+      "2 entries were sent to Thapsus Care. Nothing is left on this device.",
     );
   });
 
@@ -264,7 +264,7 @@ describe("hazard HZ-040 hazard HZ-006 handing over held entries (Device integrit
     ]);
     expect(rows("upload_issue")).toEqual([]);
     expect(handOverMessage(result)).toBe(
-      `2 entries were sent. Harbour did not take 1 entry: ${reason} They are still on this device, protected, with anything else not sent. Tell the Registered Manager.`,
+      `2 entries were sent. Thapsus Care did not take 1 entry: ${reason} They are still on this device, protected, with anything else not sent. Tell the Registered Manager.`,
     );
   });
 

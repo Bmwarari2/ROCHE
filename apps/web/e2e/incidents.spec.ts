@@ -213,7 +213,7 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   // "Not sure" whether the police are involved drafts a provisional notification, overdue at once.
   const notifications = section(page, "Statutory notifications");
   await expect(
-    notifications.getByText(/questions? to answer before Harbour can say which notifications/),
+    notifications.getByText(/questions? to answer before Thapsus Care can say which notifications/),
   ).toBeVisible();
   // The nurse answers the questions (safety.incident.manage), on this page.
   await expect(notifications.getByText(/^Answer them below\./)).toBeVisible();
@@ -263,13 +263,13 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   await expect(page.getByText("Closed", { exact: true }).first()).toBeVisible();
   await expect(
     section(page, "Statutory notifications").getByText(
-      "Harbour found no statutory notification to make on what is recorded so far",
+      "Thapsus Care found no statutory notification to make on what is recorded so far",
     ),
   ).toBeVisible();
   await expectAccessible(page, "closed incident");
 });
 
-test("hazard HZ-013 a safeguarding concern: a Harbour target, made as soon as possible, ready to submit", async ({
+test("hazard HZ-013 a safeguarding concern: a Thapsus Care target, made as soon as possible, ready to submit", async ({
   page,
   context,
 }) => {
@@ -297,7 +297,7 @@ test("hazard HZ-013 a safeguarding concern: a Harbour target, made as soon as po
   await expect(concern.getByText(/^Overdue for \d+ (hour|hours)$/)).toBeVisible();
   await expect(
     concern.getByText(
-      "This time is Harbour's target, not a legal deadline: make it as soon as possible all the same.",
+      "This time is Thapsus Care's target, not a legal deadline: make it as soon as possible all the same.",
     ),
   ).toBeVisible();
   await expect(

@@ -46,7 +46,7 @@ export const UploadImport = z
     mapping: z
       .record(z.string(), z.unknown())
       .optional()
-      .meta({ description: "Column heading to Harbour field key, or null to leave it out" }),
+      .meta({ description: "Column heading to Thapsus Care field key, or null to leave it out" }),
   })
   .meta({ id: "UploadImport" });
 export type UploadImport = z.infer<typeof UploadImport>;

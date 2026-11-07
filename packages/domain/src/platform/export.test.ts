@@ -574,7 +574,7 @@ describe("hazard HZ-071 observation values carry their units and a schema per ch
   });
 });
 
-describe("hazard HZ-071 the current summary is worked out as Harbour shows it", () => {
+describe("hazard HZ-071 the current summary is worked out as Thapsus Care shows it", () => {
   const unknown: AllergyStatement = { status: "unknown" };
   const none: CommunicationStatement = { status: "not_recorded" };
   const record = (extra: Partial<AdvanceCareRecordState>): AdvanceCareRecordState => ({
@@ -1148,7 +1148,7 @@ describe("hazard HZ-070 the export link expires and works only for the requester
     expect((expiresAt.getTime() - readyAt.getTime()) / 3_600_000).toBe(RATES.exportLinkExpiryHours);
   });
 
-  it("never keeps an export beyond the Harbour ceiling, whatever the organisation sets", () => {
+  it("never keeps an export beyond the Thapsus Care ceiling, whatever the organisation sets", () => {
     const override = {
       key: "export.link_expiry_hours",
       value: "1000",

@@ -59,7 +59,9 @@ export const PERMISSIONS = {
     description: "Run the migration import wizard across the organisation",
     careRecord: true,
   },
-  "platform.billing.read": { description: "See the tenant's Harbour subscription and invoices" },
+  "platform.billing.read": {
+    description: "See the tenant's Thapsus Care subscription and invoices",
+  },
   "platform.search.use": {
     description: "Search the people, staff, documents and notes you can already see",
   },
@@ -150,7 +152,7 @@ export const PERMISSIONS = {
     // care.md section 6, Device integrity part 6: entries are written as their owner's, and the
     // manager is recorded (HZ-040).
     description:
-      "Send another member of staff's unsent entries held on a device to Harbour, on their behalf",
+      "Send another member of staff's unsent entries held on a device to Thapsus Care, on their behalf",
     stepUp: true,
     careRecord: true,
   },

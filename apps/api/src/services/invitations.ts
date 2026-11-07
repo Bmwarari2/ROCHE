@@ -147,7 +147,7 @@ export async function acceptInvitation(
 }
 
 /** The plain-English subject of every invitation email: nothing about the person or anyone cared for. */
-export const INVITATION_EMAIL_TITLE = "You have been invited to Harbour";
+export const INVITATION_EMAIL_TITLE = "You have been invited to Thapsus Care";
 
 /**
  * Hands the link to the organisation's email adapter (the mock unless one is configured; in

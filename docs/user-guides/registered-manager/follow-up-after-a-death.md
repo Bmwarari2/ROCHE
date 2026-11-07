@@ -22,7 +22,7 @@ the owner record them as submitted or not required.
      Review instead.
 3. Choose **Open the notification: medical examiner information pack**. Under **Medical examiner
    information pack**, each part says where to find it, for example "Where to find it: their
-   record, Notes". Gather each part from there. A part marked "Not shown on Harbour's web pages
+   record, Notes". Gather each part from there. A part marked "Not shown on Thapsus Care's web pages
    yet" comes from your other records.
 4. Prepare the regulator's death notification, **Death of a person using the service**, and record
    each notification as submitted or as not required (see
@@ -31,12 +31,12 @@ the owner record them as submitted or not required.
 
 ## Good to know
 
-- Harbour does not put the medical examiner pack together yet. You gather it.
-- Harbour never sends anything to the Care Quality Commission, the medical examiner or LeDeR, and
+- Thapsus Care does not put the medical examiner pack together yet. You gather it.
+- Thapsus Care never sends anything to the Care Quality Commission, the medical examiner or LeDeR, and
   never judges whether a death was expected. That is the clinician's recorded judgement.
 - The death record itself has no web screen yet: recording verification of death, the family told,
   the police told, the room left as it is, and the mortality review. Keep these on your usual
-  records for now, and ask the person who manages Harbour for your organisation.
+  records for now, and ask the person who manages Thapsus Care for your organisation.
 - The death is recorded on the person's record (see [How to record a death](../senior-carer/record-a-death.md)).
 - The rules: [safety specification, deaths and missing persons](../../specs/safety.md#deaths-and-missing-persons-plan-slice-37-safe-014-safe-015)
   and hazard [HZ-013](../../clinical-safety/hazard-log.md#hz-013-statutory-notification-missed-or-late).

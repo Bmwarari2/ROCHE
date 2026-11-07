@@ -1700,7 +1700,7 @@ export const peopleLifecycleRouter = createRouter()
       method: "get",
       path: "/v1/settings/welcome-checklist",
       tags: ["people"],
-      summary: "The organisation's welcome checklist (Harbour's default until it is changed)",
+      summary: "The organisation's welcome checklist (Thapsus Care's default until it is changed)",
       security,
       responses: { 200: jsonBody(WelcomeChecklistTemplate, "Checklist"), ...errorResponses },
     }),
@@ -1724,7 +1724,7 @@ export const peopleLifecycleRouter = createRouter()
       tags: ["people"],
       summary: "Change the organisation's welcome checklist",
       description:
-        "checkWelcomeChecklistDefinition: a tenant may add items but never remove or weaken Harbour's safety-critical ones (photo, allergies, medicines, diet and IDDSI levels, evacuation plan). New admissions use it; earlier checklists keep their items.",
+        "checkWelcomeChecklistDefinition: a tenant may add items but never remove or weaken Thapsus Care's safety-critical ones (photo, allergies, medicines, diet and IDDSI levels, evacuation plan). New admissions use it; earlier checklists keep their items.",
       security,
       request: {
         body: { content: { "application/json": { schema: UpdateWelcomeChecklistTemplate } } },

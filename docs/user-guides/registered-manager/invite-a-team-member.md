@@ -22,5 +22,5 @@ with your passkey or authenticator app (step-up).
 ## Good to know
 
 - Changing a member's role, suspending or removing a member is not available yet. Ask whoever runs
-  Harbour for your organisation.
+  Thapsus Care for your organisation.
 - Acting-up (time-limited extra permissions) has no screen yet.

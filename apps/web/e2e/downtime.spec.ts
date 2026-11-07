@@ -380,7 +380,12 @@ test("the nurse cancels an outage declared in error, and closes another when sys
   await expect(main(page).getByText("Cancelled", { exact: true })).toBeVisible();
   await expectAccessible(page, "cancelled outage");
 
-  await declare(page, "Harbour not available", `Harbour could not be reached (${RUN}).`, -1);
+  await declare(
+    page,
+    "Thapsus Care not available",
+    `Thapsus Care could not be reached (${RUN}).`,
+    -1,
+  );
   // While it is open, no second outage can be declared.
   await openLocation(page);
   await expect(page.getByRole("button", { name: "Declare outage" })).toHaveCount(0);
@@ -390,7 +395,7 @@ test("the nurse cancels an outage declared in error, and closes another when sys
   await expectAccessible(page, "an outage is already open");
   await page
     .getByRole("region", { name: "Declare an outage" })
-    .getByRole("link", { name: /^Harbour not available, from / })
+    .getByRole("link", { name: /^Thapsus Care not available, from / })
     .click();
   await page.getByRole("button", { name: "Close the outage" }).click();
   await expect(

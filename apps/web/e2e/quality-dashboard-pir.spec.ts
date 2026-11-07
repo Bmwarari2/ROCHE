@@ -73,12 +73,12 @@ test("hazard HZ-129 the dashboard never rates what it cannot count, and takes th
     "Staff turnover",
   ]) {
     await expect(
-      card(page, name).getByText("No data: Harbour does not record this yet."),
+      card(page, name).getByText("No data: Thapsus Care does not record this yet."),
     ).toBeVisible();
     await expect(card(page, name).getByText("No rating")).toBeVisible();
   }
   await expect(
-    card(page, "Falls").getByText(/this period is not complete in Harbour/),
+    card(page, "Falls").getByText(/this period is not complete in Thapsus Care/),
   ).toBeVisible();
   await bothThemes(page, "quality dashboard");
   await noSidewaysScroll(page);
@@ -157,7 +157,7 @@ test("the Registered Manager is refused a less strict target, and copies the PIR
   await expect(
     page.getByRole("heading", { level: 1, name: "Provider Information Return figures" }),
   ).toBeVisible();
-  await expect(main(page).getByText("Harbour does not submit your return")).toBeVisible();
+  await expect(main(page).getByText("Thapsus Care does not submit your return")).toBeVisible();
   for (const area of ["Safe", "Effective", "Caring", "Responsive", "Well-led"]) {
     const region = main(page).getByRole("region", { name: `${area} figures, scrolls sideways` });
     await expect(region).toHaveCount(1);
@@ -166,7 +166,7 @@ test("the Registered Manager is refused a less strict target, and copies the PIR
   await expect(
     main(page)
       .getByRole("table", { name: "Responsive" })
-      .getByText("Not recorded in Harbour yet: complete it from your own records."),
+      .getByText("Not recorded in Thapsus Care yet: complete it from your own records."),
   ).toBeVisible();
   const copy = main(page).getByLabel(/The prefilled figures, one per line/);
   await expect(copy).toHaveValue(/^Harbour House, /);

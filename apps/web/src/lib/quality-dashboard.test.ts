@@ -98,7 +98,7 @@ describe("hazard HZ-129 figures and statuses in words", () => {
 
   it("says why a figure has no rating", () => {
     expect(t("quality.dashboard.reason", { code: "source_not_built" })).toBe(
-      "No data: Harbour does not record this yet.",
+      "No data: Thapsus Care does not record this yet.",
     );
   });
 });
@@ -217,7 +217,7 @@ describe("the PIR prefill (quality.md rule 43)", () => {
       "",
       "Safe:",
       "Incidents in the last 12 months: 8",
-      "To complete: Agency hours in the last 4 weeks. Not recorded in Harbour yet: complete it from your own records.",
+      "To complete: Agency hours in the last 4 weeks. Not recorded in Thapsus Care yet: complete it from your own records.",
       "",
       "Well-led:",
       "Care records kept digitally: Yes",

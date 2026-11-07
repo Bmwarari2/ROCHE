@@ -28,6 +28,6 @@ compliance lead. Other staff see only whether they have signed themselves.
   counted.
 - After a minor change, signatures on the version before still count. After a major change,
   everyone asked must sign again.
-- Harbour reminds outstanding people with a task until they sign. You do not need to chase them in
-  Harbour.
+- Thapsus Care reminds outstanding people with a task until they sign. You do not need to chase them in
+  Thapsus Care.
 - The rule: [quality spec section 17, rule 26](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).

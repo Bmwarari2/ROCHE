@@ -31,10 +31,10 @@ cannot: tell the person in charge.
 
 ## Good to know
 
-- Whether the death was expected is a clinician's judgement. Harbour records it and never decides
+- Whether the death was expected is a clinician's judgement. Thapsus Care records it and never decides
   it.
-- Harbour drafts the death notification to the regulator, the medical examiner information pack and,
-  where it applies, the LeDeR notification for a manager to deal with. Harbour submits nothing
+- Thapsus Care drafts the death notification to the regulator, the medical examiner information pack and,
+  where it applies, the LeDeR notification for a manager to deal with. Thapsus Care submits nothing
   itself (see [How to follow up after a death](../registered-manager/follow-up-after-a-death.md)).
 - If the death is part of an incident, for example after a fall, record the incident too and answer
   **Did the person die?** (see [How to record an incident](../care-worker/record-an-incident.md)).

@@ -219,7 +219,7 @@ test("hazard HZ-020 hazard HZ-026 the tab shows consent by decision and the DoLS
   // The link in the DoLS expiry alerts opens the register.
   await page.goto(`/people/${PERSON}/dols`);
   await page.waitForURL(/\/capacity$/);
-  await expect(page).toHaveTitle("Consent, capacity and DoLS | Residents | Harbour");
+  await expect(page).toHaveTitle("Consent, capacity and DoLS | Residents | Thapsus Care");
   await expect(
     page.getByRole("heading", { level: 2, name: "Consent, capacity and DoLS" }),
   ).toBeVisible();

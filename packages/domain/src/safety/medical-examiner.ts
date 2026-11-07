@@ -64,7 +64,7 @@ export const MEDICAL_EXAMINER_SOURCES: readonly Citation[] = [
     "SI 2024/493",
     SOURCES.medicalExaminersEngland,
   ),
-  cite("Harbour master prompt", "11.1 (deaths)", "docs/00-MASTER-PROMPT.md"),
+  cite("Thapsus Care master prompt", "11.1 (deaths)", "docs/00-MASTER-PROMPT.md"),
 ];
 
 /** The sections still to assemble, in pack order. */

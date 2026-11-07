@@ -94,7 +94,7 @@ mock, and no route may pass a client-supplied value.
 Every rule has a table-driven test in `packages/domain/src/medicines/` named with its hazard ID.
 Figures come from `rate_table` by key, resolved with `resolveMedicinesRates`; slice 2 reads only
 `medicines.ordering_cycle_days`, and a test fails if that figure appears as a literal in the rules.
-Harbour transcribes and applies what the prescriber wrote; it calculates no dose, suggests no time
+Thapsus Care transcribes and applies what the prescriber wrote; it calculates no dose, suggests no time
 and compares no ingredients ([medical-device boundary](../compliance/medical-device-boundary.md)).
 
 ### 4.1 Medicines record and reconciliation (slice 2, built)
@@ -117,13 +117,13 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    and uses the plural unless the quantity is exactly 1 ("0.5 tablets", "1 to 2 tablets",
    "0.5 to 1 tablet"). A compound unit keeps every part in full ("12 micrograms/hour" for
    "mcg/hr"); a measured unit is written "2 × 5 ml spoonfuls", so its size is never read as part of
-   the number. No thousands separator ("5000 units"). Harbour never converts a dose: a number with
+   the number. No thousands separator ("5000 units"). Thapsus Care never converts a dose: a number with
    more than 3 decimal places is refused with "ask the prescriber or pharmacist", never "use a
    smaller unit" (H-551). A quantity below 1 in g, mg or micrograms is refused
    (`smaller_unit_permitted`) where dm+d permits the next smaller unit for the product (mg,
    micrograms, nanograms), so "0.5 g" is never transcribed where the BNF's prescription-writing
    guidance asks for "500 mg"; the message names the smaller unit and says to ask the prescriber or
-   pharmacist for the dose in it, and Harbour never works out the converted figure (recommended
+   pharmacist for the dose in it, and Thapsus Care never works out the converted figure (recommended
    answer to H-551, 31/10/2026; the pharmacist confirms it at the testing phase). Mass units are
    recognised by their dm+d description. **Variable doses** (HZ-005): the day doses come from a dosing record (for
    example a warfarin schedule after an INR test, with its source), second-checked like an entry,
@@ -146,7 +146,7 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    when they go back is due once, at the first (BST) occurrence, and flagged `time_repeated`; an
    08:00 dose stays at 08:00 either side (23 or 25 hours apart). If a moved time lands on another
    prescribed time of the same entry, both doses stay and both name the other (`sameInstantAs`) for
-   the nurse in charge: Harbour never merges or drops a dose. `clockChangesIn` names the days in a
+   the nurse in charge: Thapsus Care never merges or drops a dose. `clockChangesIn` names the days in a
    cycle when the clocks change, so the MAR and the round can say so.
 5. **Non-daily schedules name the day** (HZ-005). Every dose of a non-daily pattern carries its day
    name for the MAR row (`MarDose.dayName`), and the schedule in words names the days
@@ -252,7 +252,7 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    person made: continue, change, stop or query. A
    decision is supported only by a line that says that thing about the same dm+d product (a VMP,
    by identity): a line that says something else, or names another product, never supports it,
-   whatever the note (`line_does_not_support`). Harbour never infers a stop because a source leaves
+   whatever the note (`line_does_not_support`). Thapsus Care never infers a stop because a source leaves
    a medicine out: a stop links the line that says it stops, from a current document; with no such
    line the decision is a query. A change keeps the entry's dm+d VMP (`change_different_product`
    otherwise: a switch, such as warfarin to apixaban, is a stop on the old product's line and a
@@ -287,7 +287,7 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    confirmed. What the person or family says is always asked but is not enough on its own to
    start, change or stop a medicine (`source_not_a_document`); the other kinds become the new
    entry's source document.
-10. **Differences and duplicates by identity only** (HZ-121; `linkDifference`). Harbour never pairs
+10. **Differences and duplicates by identity only** (HZ-121; `linkDifference`). Thapsus Care never pairs
     lines with entries itself and never compares ingredients. Continuing an entry on a line that
     names another brand of the same VMP needs a note. One entry per dm+d VMP (rule 6): a start of a
     VMP the MAR already holds is refused when the reconciliation completes (`start_refused`,
@@ -307,7 +307,7 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
     reconciliation completes, so a refusal shows then, not when the plan is applied
     (`change_refused`, `stop_refused`, `start_refused`), a product would be on the MAR twice, the completer's medicines
     competence (read from the workforce port, section 3) is not current, the allergies in the
-    sources have not been compared with the recorded allergies by the completer (Harbour matches no
+    sources have not been compared with the recorded allergies by the completer (Thapsus Care matches no
     allergen, ADR-0082 default), the person (or someone who speaks for them) was not involved and
     no reason is given, an entry belongs to someone else, or the entries to decide on are not the
     ones it began with (`record_changed`, medicine by medicine): a medicine added or gone, or
@@ -342,7 +342,7 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
 
 13. **Tags at transcription** (ADR-0082; `MEDICINE_TAGS`, `suggestedTags`). A MAR entry carries
     tags a person sets at transcription and the second check confirms: `time_critical`,
-    `paracetamol`, `bisphosphonate`, `psychotropic`. Harbour offers a tag only when the tenant's
+    `paracetamol`, `bisphosphonate`, `psychotropic`. Thapsus Care offers a tag only when the tenant's
     own list for it holds the product's exact VMP; never by ingredient or name. An entry also
     carries the minimum interval the prescription or PRN protocol states, and a when-required entry
     its maximum in 24 hours (the PRN status says when none is recorded, for entries from before
@@ -371,7 +371,7 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
 15. **Outstanding and escalation** (HZ-003). With no outcome after its window a dose is "Late: no
     outcome recorded" and stays outstanding until someone records what happened; nothing closes it.
     Its escalation falls due at the end of its window, so a time-critical dose escalates sooner
-    (slice 48 sends it). Harbour never makes a missed dose due again.
+    (slice 48 sends it). Thapsus Care never makes a missed dose due again.
 16. **Minimum intervals** (HZ-004, HZ-009, HZ-010; `intervals.ts`). A dose inside the entry's own
     prescribed interval (counting every version of the entry), or inside the paracetamol interval of
     a dose from any entry tagged paracetamol, before or after it, needs an override reason and is
@@ -461,8 +461,8 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     shows when it was last given, by whom and whether it has synced, the 24-hour total, what
     remains (the prescriber's maximum less the total, H-1065), and when the interval allows the
     next, with every notice that applies: no maximum recorded (the prescribed interval applies, with
-    no limit of Harbour's own), the maximum given, the last dose not synced, a dose in another unit
-    not counted. Harbour does not add up paracetamol across products
+    no limit of Thapsus Care's own), the maximum given, the last dose not synced, a dose in another unit
+    not counted. Thapsus Care does not add up paracetamol across products
     against a daily total; each entry's own maximum applies (H-1063).
 20. **When-required outcomes** (`prnOutcomeDueAt`). The outcome of a when-required dose falls due
     `medicines.prn.outcome_check_minutes` after it and is listed until recorded.
@@ -884,7 +884,7 @@ The person record's **Medicines** tab, for holders of `medicines.record.manage`,
 (name, photo, date of birth, NHS number and allergies) is above every medicine, and each form that
 records a medicine repeats, at its top, the person's name, date of birth and NHS number, the allergy
 status and every allergy with its severity and reaction, most severe first (`PersonCheck`; the full
-identity bar there is H-1287). Harbour never matches a medicine to an
+identity bar there is H-1287). Thapsus Care never matches a medicine to an
 allergy or to a person: the screens show both, and people compare them.
 
 **Rules**
@@ -927,7 +927,7 @@ allergy or to a person: the screens show both, and people compare them.
    unclear); a decision by a person for every current entry (continue, change, stop with a reason,
    or a query) and every line not matched to one (start, not started with a reason, or a query);
    and completion (allergies compared, the person's involvement or why not, and why there is no
-   discharge letter where the API asks). Harbour never decides: a line that says "stop" does not
+   discharge letter where the API asks). Thapsus Care never decides: a line that says "stop" does not
    stop anything until a person decides it. A refused completion shows every problem in the API's
    words (listing them by entry and line needs an API change: H-1283). Continuing or changing a
    medicine with a version that starts later asks why that version still stands. Each entry shows
@@ -1352,7 +1352,7 @@ A medication incident (incident `type` `medication`) may carry one **medication 
 (`medication_error`, one per incident, mutable with `expected_version`), about one person on the
 incident:
 
-- **What went wrong**: one or more kinds from Harbour's list, which follows the NRLS medication
+- **What went wrong**: one or more kinds from Thapsus Care's list, which follows the NRLS medication
   incident error categories (National Reporting and Learning System, NHS England; kept by Learn
   from Patient Safety Events) as the source, with the source named in the code
   (`MEDICATION_ERROR_SOURCE`): omitted dose, wrong dose or strength, wrong frequency, wrong
@@ -1378,7 +1378,7 @@ incident:
 
 Severity, harm and the statutory notifications stay on the incident and its classifier, which
 this slice does not change. The **prompts** (`medicationErrorTriage`) are returned with the record
-and shown, never sent anywhere by Harbour:
+and shown, never sent anywhere by Thapsus Care:
 
 - **Clinical advice** whenever it reached or may have reached the person, or a dose was omitted,
   with "if the person is unwell, call 999", until who was told, when, and their advice are all
@@ -1408,7 +1408,7 @@ a reason). The record takes its incident's retention class.
 A **medication review** (`medication_review`, mutable with `expected_version`) is scheduled for a
 person (`due_on`) and recorded as done (`done_on`) by a named clinician (`clinician_name`,
 `clinician_role`: GP, pharmacist, nurse or other prescriber, consultant, other), with the outcome in
-the clinician's words (`outcome`, text). Harbour never suggests a change. Once done, it cannot be
+the clinician's words (`outcome`, text). Thapsus Care never suggests a change. Once done, it cannot be
 changed except by a correction with a reason. A review not yet done can be moved to another date
 or cancelled, each with a reason (kept in history). The tracker (`reviewStatus`) shows for each
 person on medicines: the last review done, the earliest booked review, the date due by the interval
@@ -1474,7 +1474,7 @@ each person, so stock is kept per person and per product. Controlled drugs keep 
 (section 14): this section never moves their stock, and shows their balance from the register. The
 pharmacy is reached only through a contract-tested mock port (H-517). Nothing here says whether a
 medicine is still fit to use: after a temperature out of range, that is the pharmacist's call, and
-Harbour says so in those words (medical-device boundary).
+Thapsus Care says so in those words (medical-device boundary).
 
 ### 15.1 Tables
 
@@ -1557,7 +1557,7 @@ Harbour says so in those words (medical-device boundary).
      stays locked while the pharmacy is called, so it is never sent twice; the pharmacy has 15
      seconds to answer. The port receives the order's id to treat as idempotent, and each person
      as a keyed pseudonym (an HMAC with `PHARMACY_REF_SECRET`) stable within the organisation, never
-     Harbour's id or a name.
+     Thapsus Care's id or a name.
    - A receipt never fills more than a line asked for without saying so (an over-receipt is
      allowed, flagged).
 8. **Temperatures.** A reading is out of range below the minimum or above the maximum for its kind
@@ -1704,7 +1704,7 @@ and dark).
 ## 15. Covert administration, self-administration and homely remedies (slice 38; MEDS-004, MEDS-006, MEDS-007)
 
 Hazards HZ-026 and HZ-120; human actions H-1350 to H-1359. Section 14 is slice 45's (on its own
-branch). Harbour records and applies the organisation's decisions: it never recommends covert
+branch). Thapsus Care records and applies the organisation's decisions: it never recommends covert
 administration, a method, a level of self-administration or a remedy (medical-device boundary).
 Every limit is the rate table's or the home's own protocol's, never a literal.
 
@@ -1767,7 +1767,7 @@ agreed it and when, and a review date within `medicines.homely_remedy.review_max
 Changing it needs a new reason; a withdrawn protocol is closed.
 
 A **homely remedy dose** (`homely_remedy_administration`, append-only, client UUID) needs the giver
-to confirm they checked the person's allergies (Harbour never matches them: HZ-007, ADR-0082), and
+to confirm they checked the person's allergies (Thapsus Care never matches them: HZ-007, ADR-0082), and
 is recorded by the member who gives it (database). It can be checked first without recording
 (`POST .../homely-remedy-doses/check`). It is refused in words when (H-1356):
 
@@ -1948,7 +1948,7 @@ entered in error stays, struck through, with an "Entered in error" chip and the 
 may give homely remedies at the person's home sees "Give a homely remedy": the person and every
 allergy (`PersonCheck`), the person's current medicines on the MAR (stopped, replaced and withdrawn
 left out; if they cannot be read, a warning to check the MAR), the home's protocols in use, the
-chosen protocol's figures beside it (with a warning when the protocol has no dm+d product, so Harbour
+chosen protocol's figures beside it (with a warning when the protocol has no dm+d product, so Thapsus Care
 cannot check it against the MAR), and the amount (the protocol's dose filled in). "Check against the protocol" asks the API
 (`POST .../homely-remedy-doses/check`) and shows its answer in its words; only a dose the check found
 within the protocol, for the same protocol and amount, offers why it is given, the allergy
@@ -1982,7 +1982,7 @@ it in the audit event's scope with the allergy confirmation.
    problem in the API's words and offers no way to record it; a changed protocol or amount needs a
    new check.
 7. A dose is recorded now, by the person signed in, with why it is given and the giver's
-   confirmation that they compared the person's allergies with the remedy; Harbour never compares
+   confirmation that they compared the person's allergies with the remedy; Thapsus Care never compares
    them (HZ-007, ADR-0082). The web never sends a dose as already given (`alreadyGiven` is null,
    whatever a crafted call holds). The client's id is made by the page, so a resend is one record.
 8. A refusal shows the API's words at the field it belongs to (the dose at the amount; on the
@@ -2073,14 +2073,14 @@ domain change. Hazard HZ-134 (with HZ-003 for an omitted dose and HZ-119 for the
    in its refusal and shown at their fields; any other refusal shows above the form in its words.
 6. The escalations are the API's `prompts`, in its order, each as an icon and a name with the API's
    reason: clinical advice, the controlled drug report, the safeguarding consideration (each shown
-   as still to do) and how CQC is decided (information). The page says Harbour sends none of them
+   as still to do) and how CQC is decided (information). The page says Thapsus Care sends none of them
    and that each goes once what answers it is recorded. The web adds or removes none.
 7. Whether it reached the person is the API's `nearMiss` in words and an icon: reached, a near miss,
    or not yet known. A controlled drug presumed from the medicine's schedule is said so.
 8. Reviews need `medicines.record.manage`. Booking takes the date due; recording done takes the
    date (not in the future), the clinician's name and role and the outcome in the clinician's
    words; moving takes the new date and a reason; cancelling takes a reason; correcting one done
-   takes a reason. The version read is sent back. Harbour suggests no change to a medicine.
+   takes a reason. The version read is sent back. Thapsus Care suggests no change to a medicine.
 9. Each review's state and the tracker's status are an icon and words (the API's `statusWords` for
    the tracker: overdue, due soon, booked, due by the interval and not booked, none booked or
    done), never colour alone; a booking later than the interval allows is said in words.
@@ -2168,7 +2168,7 @@ each person's home.
      change, indication, special instructions, the when-required figures, the entry's status and
      notices, the covert record and the self-administration level);
    - above the form, the person's name, date of birth, NHS number, allergy status and every allergy,
-     most severe first (`PersonCheck`; HZ-007). Harbour never matches them (ADR-0082).
+     most severe first (`PersonCheck`; HZ-007). Thapsus Care never matches them (ADR-0082).
 
    The form asks:
    - what happened ("Given" is not offered while the entry may not be given);
@@ -2274,7 +2274,7 @@ so.
 ## 16. PRN protocols, outcomes and the psychotropic report (slice 28; MEDS-003)
 
 Hazard HZ-117; human actions H-1380 to H-1389. Sections 14 and 15 are slices 45 and 38 (on their
-own branches). Harbour counts, compares with the protocol and displays; it never recommends a
+own branches). Thapsus Care counts, compares with the protocol and displays; it never recommends a
 dose, a medicine or an alternative (medical-device boundary).
 
 ### 16.1 PRN protocols

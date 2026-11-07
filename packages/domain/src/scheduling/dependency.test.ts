@@ -619,7 +619,7 @@ describe("rules 9, 10 and 12: required care hours for a location and shift", () 
     expect(night.skillMix).toEqual([{ skill: "medicines_competent", minimumStaff: 2 }]);
   });
 
-  it("hazard HZ-123 names the organisation's own scale as the source, never Harbour", () => {
+  it("hazard HZ-123 names the organisation's own scale as the source, never Thapsus Care", () => {
     for (const result of run()) {
       expect(result.notice).toBe(DEPENDENCY_TOOL_NOTICE);
       expect(result.status).toBe("computed");

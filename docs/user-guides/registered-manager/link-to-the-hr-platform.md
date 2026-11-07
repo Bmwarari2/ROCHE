@@ -1,6 +1,6 @@
-# How to link Harbour to your HR platform
+# How to link Thapsus Care to your HR platform
 
-Connect Harbour to your organisation's HR platform (Thapsus-HR), so staff records, leave, sickness
+Connect Thapsus Care to your organisation's HR platform (Thapsus-HR, a separate product), so staff records, leave, sickness
 and pay are shared without exporting files. Each kind of data has one owner; the other system shows
 it read-only.
 
@@ -13,16 +13,16 @@ organisation.
 ## Steps
 
 1. Open **HR platform link** in the menu. If it says "The link to the HR platform is not turned
-   on", keep staff files, leave and pay up to date in Harbour as you do now.
+   on", keep staff files, leave and pay up to date in Thapsus Care as you do now.
 2. Under **Connect to the HR platform**, enter the **Workspace short name** as it appears in the
-   HR platform's address, then choose **Connect**. You confirm it is you first. Harbour connects
+   HR platform's address, then choose **Connect**. You confirm it is you first. Thapsus Care connects
    only to a workspace whose home is in the UK, on the HR platform's UK address.
 3. Under **Owners and the out-of-date limit**, check who owns each kind of data and how many
    minutes old the data may be before rota screens say it may be out of date. Choose
    **Save owners and limit**.
 4. Under **Locations**, choose each of your locations' match in the HR platform and choose
    **Save mapping**. Shifts at a location that is not mapped are not sent.
-5. Under **Matches to review**, check each employee Harbour could not match safely. Choose the
+5. Under **Matches to review**, check each employee Thapsus Care could not match safely. Choose the
    staff file, then **Confirm match**, or choose **Reject**. Until a match is confirmed, that
    person's leave and shifts do not cross.
 6. Under **Status and sync health**, choose **Check the link** to test it, or **Sync now** to sync
@@ -31,10 +31,10 @@ organisation.
 ## Good to know
 
 - **Managed in the HR platform**: an absence copied from the HR platform carries this label.
-  Change it in the HR platform; Harbour follows at the next sync. A pay run paid through the HR
-  platform carries it too: the run is still made and checked in Harbour, and only its units go to
+  Change it in the HR platform; Thapsus Care follows at the next sync. A pay run paid through the HR
+  platform carries it too: the run is still made and checked in Thapsus Care, and only its units go to
   the HR platform.
-- The staff file has no screen in Harbour yet, so its label, and withdrawing a wrong leaving date,
+- The staff file has no screen in Thapsus Care yet, so its label, and withdrawing a wrong leaving date,
   come with that screen.
 - When the HR platform's data is older than your limit, the rota and staffing screens say so in
   words with the time. Absences already known still keep people off the rota.

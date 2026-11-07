@@ -230,14 +230,14 @@ describe("hazard HZ-006 refused entries stay readable", () => {
   });
 
   it.each([
-    ["copied", "Harbour has a copy for the nurse in charge to review."],
+    ["copied", "Thapsus Care has a copy for the nurse in charge to review."],
     [
       "refused",
-      "Harbour could not keep a copy: only this device has this entry. Tell the nurse in charge.",
+      "Thapsus Care could not keep a copy: only this device has this entry. Tell the nurse in charge.",
     ],
     [null, null],
   ] as const)(
-    "hazard HZ-006 says in words whether Harbour has a copy (%s; #25 review round 2, low)",
+    "hazard HZ-006 says in words whether Thapsus Care has a copy (%s; #25 review round 2, low)",
     (state, words) => {
       const row: UploadIssueRow = {
         id: "n8",

@@ -43,7 +43,7 @@ are written but have not run.
 **What an iOS job still needs**
 
 1. A `macos-15` runner job: `pnpm install`, `npx expo prebuild --platform ios`, `pod install`, and a
-   Release build for the simulator (`xcodebuild -workspace ios/Harbour.xcworkspace -scheme Harbour
+   Release build for the simulator (`xcodebuild -workspace ios/ThapsusCare.xcworkspace -scheme ThapsusCare
    -configuration Release -sdk iphonesimulator -derivedDataPath build`), so no development client
    or Metro is involved. op-sqlite reads its SQLCipher switch from the repository root
    `package.json` on iOS, which must carry `"op-sqlite": { "sqlcipher": true }`; check that the
@@ -159,7 +159,7 @@ verification rows read for their status and for test files that do not exist.
 
 **Drafted on 31 October 2026, awaiting CSO sign-off**:
 [safety-case-v0.1-phase1.md](../clinical-safety/safety-case/safety-case-v0.1-phase1.md), drafted
-against `main` at `aae5ab5`. Harbour cannot sign it; the CSO's review and signature with Brian's
+against `main` at `aae5ab5`. Thapsus Care cannot sign it; the CSO's review and signature with Brian's
 acknowledgement are H-381. When this report was first written (16 October) only v0.0 existed, and
 the gate asked for:
 - the Phase 1 scope;

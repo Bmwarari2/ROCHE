@@ -77,7 +77,7 @@ describe("senderAllowed (L2)", () => {
   const DOMAINS = ["harbour.example.invalid", "carehome.example.invalid"];
   it.each([
     ["an allowed domain", "alerts@harbour.example.invalid", true],
-    ["a name and an allowed address", "Harbour <alerts@carehome.example.invalid>", true],
+    ["a name and an allowed address", "Thapsus Care <alerts@carehome.example.invalid>", true],
     ["upper case", "Alerts@HARBOUR.Example.Invalid", true],
     ["a domain not listed", "alerts@elsewhere.example.invalid", false],
     ["a subdomain of a listed domain", "alerts@mail.harbour.example.invalid", false],

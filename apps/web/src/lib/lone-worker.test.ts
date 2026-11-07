@@ -383,7 +383,7 @@ describe("hazard HZ-125 the on-call route (H-539, slice 61)", () => {
       ["step-1-target", "step-2-target"],
     ],
     ["no manager later", { ...good, "step-2-target": "role:deputy_manager" }, 2, ["step-2-target"]],
-    ["in Harbour only", { ...good, "step-2-channel": ["in_app"] }, 2, ["step-2-channel"]],
+    ["in Thapsus Care only", { ...good, "step-2-channel": ["in_app"] }, 2, ["step-2-channel"]],
     ["no channel", { ...good, "step-2-channel": [] }, 2, ["step-2-channel"]],
     ["no target", { ...good, "step-1-target": "" }, 2, ["step-1-target"]],
     ["minutes out of order", { ...good, "step-2-minutes": "1" }, 2, ["step-2-minutes"]],
@@ -398,7 +398,7 @@ describe("hazard HZ-125 the on-call route (H-539, slice 61)", () => {
   // ADR-0132: no SMS at launch, so no step may rely on a text message that would go nowhere.
   it.each([
     ["a text message beside a phone notification", ["push", "sms"]],
-    ["a text message as the only way away from Harbour", ["sms"]],
+    ["a text message as the only way away from Thapsus Care", ["sms"]],
   ] as const)("refuses %s while no SMS gateway is set up, in words", (_, channels) => {
     const read = readRoute(form({ ...good, "step-1-channel": [...channels] }), 2, t, NO_SMS);
     expect(read.ok).toBe(false);

@@ -11,7 +11,7 @@ lead, owner). Only the Registered Manager and the owner can then record it as su
 
 1. Go to **Incidents**, then **Statutory notifications**, and open the notification. Or open it
    from the incident page, or from the overdue alert.
-2. Read **Deadlines**, **Why Harbour drafted it** and **What it must include**.
+2. Read **Deadlines**, **Why Thapsus Care drafted it** and **What it must include**.
 3. Under **Prepare the notification**, fill in each box as you will enter it on the regulator's
    portal.
 4. Choose **Save as a draft** as you go.
@@ -21,7 +21,7 @@ lead, owner). Only the Registered Manager and the owner can then record it as su
 
 ## Good to know
 
-- Harbour does not send anything to the regulator. It helps you prepare and keeps the record.
+- Thapsus Care does not send anything to the regulator. It helps you prepare and keeps the record.
 - The legal wording ("What it must include", "Where the duty comes from") is in English only for
   now.
 - To change a notification that is ready, choose **Move back to draft**.

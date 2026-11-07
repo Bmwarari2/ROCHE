@@ -137,7 +137,7 @@ describe("branding: the display name and accent", () => {
     expect(problem.detail).toContain(words);
   });
 
-  it("clears both with blanks, so the registered name and Harbour's accent return", async () => {
+  it("clears both with blanks, so the registered name and Thapsus Care's accent return", async () => {
     const response = await save("   ", "");
     expect(response.status).toBe(200);
     expect(await json<Branding>(response)).toMatchObject({ displayName: null, accent: null });

@@ -381,7 +381,7 @@ describe("what the phone writes and sends (scheduling.md section 18)", () => {
   });
 });
 
-describe("what lone working says when something did not reach Harbour (clinical review of slice 71)", () => {
+describe("what lone working says when something did not reach Thapsus Care (clinical review of slice 71)", () => {
   const mine: Mine = {
     on: true,
     session: {
@@ -406,7 +406,7 @@ describe("what lone working says when something did not reach Harbour (clinical 
     ["help waiting offline", { helpWaiting: true }, false, true, "waiting"],
     ["help waiting online", { helpWaiting: true }, true, true, "sending"],
     ["help refused", { helpRefused: true, helpWaiting: true }, true, true, "refused"],
-    ["help with Harbour", { helpReceived: true }, true, true, "received"],
+    ["help with Thapsus Care", { helpReceived: true }, true, true, "received"],
   ] as const)("help line: %s", (_case, extra, connected, pressed, state) => {
     const view = { ...loneWorkerView(mine, [], now), ...extra };
     expect(helpState(view, connected, pressed)).toBe(state);
@@ -578,7 +578,7 @@ describe("help with no session on the phone (H-1317)", () => {
     if (next) expect(next.body).toMatchObject({ sessionId: SESSION, kind });
   });
 
-  it("says Harbour has a help press once it has left the phone unrefused", () => {
+  it("says Thapsus Care has a help press once it has left the phone unrefused", () => {
     const view = loneWorkerView({ on: true, session: null }, [], at, [], [EVENT]);
     expect(view.helpReceived).toBe(true);
     const queued = [

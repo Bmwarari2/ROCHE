@@ -229,7 +229,7 @@ export const qualityAuditsRouter = createRouter()
       method: "get",
       path: "/v1/quality/audit-starters",
       tags: ["quality"],
-      summary: "Harbour's starter audit templates",
+      summary: "Thapsus Care's starter audit templates",
       description:
         "quality.audit.manage. Global reference data: the starter templates (medication, care plans, IPC, environment, dignity, night visit, mock inspection) mapped to the framework, for the organisation to copy and make its own.",
       security,
@@ -276,7 +276,7 @@ export const qualityAuditsRouter = createRouter()
       tags: ["quality"],
       summary: "Add an audit template, from a starter or your own",
       description:
-        "quality.audit.manage. From a Harbour starter (`starterKey`; the other fields default to the starter's) or your own (kind, title, framework version and questions). The questions are checked against the framework version, which must be published (rule 8); the key is unique in the organisation. Audited.",
+        "quality.audit.manage. From a Thapsus Care starter (`starterKey`; the other fields default to the starter's) or your own (kind, title, framework version and questions). The questions are checked against the framework version, which must be published (rule 8); the key is unique in the organisation. Audited.",
       security,
       request: { body: { content: { "application/json": { schema: CreateAuditTemplate } } } },
       responses: {

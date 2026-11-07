@@ -27,8 +27,8 @@ const messages: Record<AuthErrorKind, string> = {
     "That code did not work. Codes change every 30 seconds, so enter the latest one from your authenticator app.",
   rate_limited: "There have been several attempts in a short time. Wait a minute, then try again.",
   session_expired: "Your session has ended. Sign in again to continue.",
-  network: "Harbour cannot be reached. Check your internet connection and try again.",
-  server: "Harbour is not responding as expected. Try again in a few minutes.",
+  network: "Thapsus Care cannot be reached. Check your internet connection and try again.",
+  server: "Thapsus Care is not responding as expected. Try again in a few minutes.",
   unexpected: "Something went wrong while signing in. Try again.",
 };
 

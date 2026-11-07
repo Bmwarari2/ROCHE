@@ -15,7 +15,7 @@ already see.
 
 ## Same name
 
-If two people have the same name, Harbour says "Same name as another result: check the photo and
+If two people have the same name, Thapsus Care says "Same name as another result: check the photo and
 date of birth before opening". **Always check before you open or record anything.**
 
 ## Good to know

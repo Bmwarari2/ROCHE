@@ -2,14 +2,14 @@
 
 | Item | Value |
 | --- | --- |
-| Product | Harbour (web, iOS and Android apps, API, sync service, optional AI module) |
+| Product | Thapsus Care (web, iOS and Android apps, API, sync service, optional AI module) |
 | Manufacturer | Thapsus Cargo Ltd (trading as Thapsus) |
 | Standard | [DCB0129: Clinical risk management: its application in the manufacture of health IT systems](https://adultsocialcare.standards.nhs.uk/published-standards/clinical-risk-management-its-application-in-the-manufacture-of-health-it-systems) |
 | Document status | Draft v0.1, written in Phase 0. Not yet approved |
 | Approval | Clinical Safety Officer `[CSO name - human action]` and top management `[Brian, Thapsus director - human action]` |
 | Next scheduled review | Before the Phase 1 safety case (v0.1) is issued, then at least every 12 months |
 
-This plan describes how Thapsus identifies, assesses, controls and monitors clinical risk in Harbour across its whole life, from design through decommissioning. It is the entry point to the clinical risk management file. The other documents in the file are:
+This plan describes how Thapsus identifies, assesses, controls and monitors clinical risk in Thapsus Care across its whole life, from design through decommissioning. It is the entry point to the clinical risk management file. The other documents in the file are:
 
 | Artefact | Location |
 | --- | --- |
@@ -26,21 +26,21 @@ National guidance on how the two standards fit together: [NHS England digital cl
 
 ### 1.1 In scope
 
-- Every Harbour component that stores, displays, transmits or acts on information about a person receiving care: the Next.js web app (management UI and portals), the Expo mobile app (Care, Manage, Family and Kiosk configurations), the Hono API and its background jobs, the PowerSync sync service and sync stream definitions, the notification centre, the forms and assessment engine, data import and export, the operator console, and the optional AI module.
-- All Harbour releases, including EAS Update (over-the-air JavaScript) releases of the mobile app.
+- Every Thapsus Care component that stores, displays, transmits or acts on information about a person receiving care: the Next.js web app (management UI and portals), the Expo mobile app (Care, Manage, Family and Kiosk configurations), the Hono API and its background jobs, the PowerSync sync service and sync stream definitions, the notification centre, the forms and assessment engine, data import and export, the operator console, and the optional AI module.
+- All Thapsus Care releases, including EAS Update (over-the-air JavaScript) releases of the mobile app.
 - Configuration options that Thapsus ships and tenants set (for example, auto-lock timers, witness rules for controlled drugs, alert thresholds), because a configurable default is a design decision.
 - Data migration tooling, because an import that mis-maps an allergy or a dose is a clinical hazard.
 - Decommissioning: tenant export and deletion at contract end.
 
 ### 1.2 Out of scope (covered by the tenant's DCB0160 work)
 
-- How a provider deploys, configures, trains and uses Harbour in its own services. The tenant's own Clinical Safety Officer assesses this using [dcb0160-deployment-template.md](dcb0160-deployment-template.md).
+- How a provider deploys, configures, trains and uses Thapsus Care in its own services. The tenant's own Clinical Safety Officer assesses this using [dcb0160-deployment-template.md](dcb0160-deployment-template.md).
 - The provider's devices, networks, MDM configuration and local working practices.
-- Third-party clinical systems Harbour connects to (GP Connect, pharmacy systems). Harbour's adapters to them are in scope; the remote systems are not.
+- Third-party clinical systems Thapsus Care connects to (GP Connect, pharmacy systems). Thapsus Care's adapters to them are in scope; the remote systems are not.
 
 ### 1.3 Intended use
 
-Harbour is a digital social care record and operational platform for regulated UK adult social care providers. It stores, displays and transmits care information, applies rules that the tenant configures, and calculates published validated tools (NEWS2, MUST, Waterlow and others) exactly as published. It does not diagnose, predict, score risk with its own algorithms or recommend treatment. The boundary is set out in [../compliance/medical-device-boundary.md](../compliance/medical-device-boundary.md); any change that would cross it is a hazard-log event and needs an ADR.
+Thapsus Care is a digital social care record and operational platform for regulated UK adult social care providers. It stores, displays and transmits care information, applies rules that the tenant configures, and calculates published validated tools (NEWS2, MUST, Waterlow and others) exactly as published. It does not diagnose, predict, score risk with its own algorithms or recommend treatment. The boundary is set out in [../compliance/medical-device-boundary.md](../compliance/medical-device-boundary.md); any change that would cross it is a hazard-log event and needs an ADR.
 
 ## 2. Roles and responsibilities
 
@@ -180,7 +180,7 @@ The hazard log and, where relevant, the safety case are reviewed when any of the
 Each tenant is the deploying organisation and needs its own clinical risk management under DCB0160. Thapsus supplies, for every release a tenant runs:
 
 - the signed clinical safety case report and the hazard log extract for the modules the tenant has enabled;
-- the [DCB0160 deployment template](dcb0160-deployment-template.md), pre-filled where Harbour knows the answer (enabled modules, service types, device mode, configured thresholds);
+- the [DCB0160 deployment template](dcb0160-deployment-template.md), pre-filled where Thapsus Care knows the answer (enabled modules, service types, device mode, configured thresholds);
 - the list of hazards whose residual risk depends on deployer controls (for example MDM enrolment for kiosk devices, staff training, local escalation policy), marked "deployer control" in the hazard log;
 - release notes in plain English with a "clinical safety changes" section;
 - a route to report safety issues back to Thapsus (in-app support with the `safety` category, answered by the CSO).

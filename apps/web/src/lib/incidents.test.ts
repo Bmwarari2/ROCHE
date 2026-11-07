@@ -279,7 +279,7 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
       notificationDueLines(draft({ kind: "candour" }), [candour], t).map((line) => line.text),
     ).toEqual([
       "Tell the person, with an apology, as soon as reasonably practicable: the clock started 12/10/2026 14:05",
-      "Written notification: Harbour's target by 23/10/2026 18:00",
+      "Written notification: Thapsus Care's target by 23/10/2026 18:00",
     ]);
   });
 
@@ -335,16 +335,16 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     expect(
       notificationWarnings(draft({ kind: "safeguarding_s42", statutory: false }), null, t),
     ).toEqual([
-      "This time is Harbour's target, not a legal deadline: make it as soon as possible all the same.",
+      "This time is Thapsus Care's target, not a legal deadline: make it as soon as possible all the same.",
     ]);
     expect(notificationWarnings(draft({ kind: "leder", statutory: false }), null, t)).toEqual([
-      "This time is Harbour's target, not a legal deadline.",
+      "This time is Thapsus Care's target, not a legal deadline.",
     ]);
   });
 
   it("hazard HZ-013 says a draft waiting for answers is waiting, without inviting a not-required decision", () => {
     expect(notificationWarnings(draft({ noLongerIndicated: true }), 2, t)).toEqual([
-      "Waiting for the answers to 2 questions before Harbour can say whether this is still needed",
+      "Waiting for the answers to 2 questions before Thapsus Care can say whether this is still needed",
     ]);
   });
 
@@ -368,7 +368,7 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
       "RIDDOR: worker unable to work for longer than the reporting threshold",
     );
     expect(notificationKindLabel("cqc_reg99", t)).toBe(
-      "Notification of a kind Harbour does not recognise",
+      "Notification of a kind Thapsus Care does not recognise",
     );
   });
 
@@ -434,7 +434,7 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
         openQuestions: [question, question],
         pending: [{ kind: "cqc_reg18_police", waitingFor: ["police.involved"] }],
       }),
-      ["2 questions to answer before Harbour can say which notifications are needed"],
+      ["2 questions to answer before Thapsus Care can say which notifications are needed"],
       ["May be needed once they are answered: Incident reported to or investigated by the police"],
       null,
     ],
@@ -469,14 +469,14 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
       view({ tasks: [task("post_fall_observations")] }),
       [],
       [],
-      "Harbour found no statutory notification to make on what is recorded so far",
+      "Thapsus Care found no statutory notification to make on what is recorded so far",
     ],
     [
       "nothing open or drafted",
       view(),
       [],
       [],
-      "Harbour found no statutory notification to make on what is recorded so far",
+      "Thapsus Care found no statutory notification to make on what is recorded so far",
     ],
   ])(
     "hazard HZ-013 never says none are needed while anything is open or waiting: %s",
@@ -495,13 +495,13 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
         (n) => n.body,
       );
     expect(hint(null, { canSubmit: false, canManage: true })).toEqual([
-      "Harbour has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself, and tell the Registered Manager, who submits notifications.",
+      "Thapsus Care has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself, and tell the Registered Manager, who submits notifications.",
     ]);
     expect(hint(null, { canSubmit: false, canManage: false })).toEqual([
-      "Harbour has not yet checked which notifications this incident needs. Tell the nurse in charge or the Registered Manager.",
+      "Thapsus Care has not yet checked which notifications this incident needs. Tell the nurse in charge or the Registered Manager.",
     ]);
     expect(hint(null, { canSubmit: true, canManage: true })).toEqual([
-      "Harbour has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself.",
+      "Thapsus Care has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself.",
     ]);
     const open = view({ openQuestions: [question] });
     expect(hint(open, { canSubmit: true, canManage: false })).toEqual([
@@ -533,7 +533,7 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     const closed = notificationsView(checks, { ...manager, closed: true }, t);
     expect(closed.waiting).toEqual([]);
     expect(closed.none).toBe(
-      "Harbour found no statutory notification to make on what is recorded so far",
+      "Thapsus Care found no statutory notification to make on what is recorded so far",
     );
   });
 

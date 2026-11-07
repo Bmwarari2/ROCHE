@@ -1,6 +1,6 @@
 # How to import people from another system
 
-When you move to Harbour, you can bring the people you support across from your old system, a home
+When you move to Thapsus Care, you can bring the people you support across from your old system, a home
 at a time, from a CSV file. Nobody is added until you have checked the file and confirmed it.
 
 **Who can do this**: the owner. Another role can do it only if your organisation gives it the
@@ -18,7 +18,7 @@ passkey or authenticator app (step-up).
 2. Go to **Import people** in the menu.
 3. Under **Upload a file**, choose the **Home**. Everyone in the file is added at this home.
 4. Choose the **CSV file**: a .csv file with one header row, up to 5,000 people.
-5. Under **Match the columns**, check each column. Harbour matches a column to the field with the
+5. Under **Match the columns**, check each column. Thapsus Care matches a column to the field with the
    same name where there is one. Choose the right field, or **Leave this column out**. Fields
    marked "(needed)" must each have a column. Columns you leave out are not uploaded.
 6. Choose **Upload for checking**. The import opens and says "File uploaded. Check it before
@@ -30,14 +30,14 @@ passkey or authenticator app (step-up).
 2. Read **What the check found**, then **What adding the people does**.
 3. If there are errors, they are listed by row and field. Correct every one in your old file,
    choose **Discard this file**, then **Discard file**, and upload it again.
-4. If there are possible duplicates, choose **Open the record already in Harbour to compare** where
+4. If there are possible duplicates, choose **Open the record already in Thapsus Care to compare** where
    it is shown, or compare the two rows. When you have checked each one, tick it ("... I have
    checked it").
 5. Read **Allergy status**.
 
 ### Add the people
 
-1. If Harbour says phones are in use in this organisation, read the warning and tick **I accept
+1. If Thapsus Care says phones are in use in this organisation, read the warning and tick **I accept
    that this import cannot be undone**.
 2. Choose **Add**, for example **Add 24 people**. Confirm it is you if asked, then come back to the
    page and check the file again.
@@ -45,7 +45,7 @@ passkey or authenticator app (step-up).
 
 ## Good to know
 
-- **An import never changes, merges with or overwrites anyone already in Harbour.** A row with an
+- **An import never changes, merges with or overwrites anyone already in Thapsus Care.** A row with an
   NHS number or local identifier already on a record is an error, and changes to an existing person
   are made on their record. Possible duplicates must each be checked and ticked before anyone is
   added.

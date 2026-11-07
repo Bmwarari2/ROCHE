@@ -204,9 +204,9 @@ describe("hazard HZ-029 hazard HZ-006 a move the API says the task changed for (
   const words = {
     changed: "This task changed after you marked it. Check it and mark it again.",
     notFound:
-      "Harbour could not find this task. Check with the person in charge of this shift, or in Harbour on the web, before recording it again.",
+      "Thapsus Care could not find this task. Check with the person in charge of this shift, or in Thapsus Care on the web, before recording it again.",
     unchecked:
-      "Harbour could not check whether this was saved. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again.",
+      "Thapsus Care could not check whether this was saved. Check the task with the person in charge of this shift, or in Thapsus Care on the web, before recording it again.",
   };
   it.each([
     ["this move, already made", {}, { kind: "made" }],
@@ -232,7 +232,7 @@ describe("hazard HZ-029 hazard HZ-006 a move the API says the task changed for (
       {
         code: "version_conflict",
         message: expect.stringMatching(
-          /^This task was already marked done before your change reached Harbour, so your change was not recorded\./,
+          /^This task was already marked done before your change reached Thapsus Care, so your change was not recorded\./,
         ),
       },
     ],

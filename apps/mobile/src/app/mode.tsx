@@ -42,7 +42,7 @@ export default function ModeScreen() {
       <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
         <View style={{ gap: theme.space[1] }}>
           <Text variant="title" accessibilityRole="header">
-            Choose how you will use Harbour
+            Choose how you will use Thapsus Care
           </Text>
           <Text tone="secondary">You can change this later in Settings.</Text>
         </View>

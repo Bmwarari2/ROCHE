@@ -1,6 +1,6 @@
-# How to destroy the organisation's stored files when it leaves Harbour
+# How to destroy the organisation's stored files when it leaves Thapsus Care
 
-When your organisation stops using Harbour, make every stored document, export and data request
+When your organisation stops using Thapsus Care, make every stored document, export and data request
 bundle unreadable for good, and keep a signed certificate that says so. One person asks and a
 different person approves.
 
@@ -13,8 +13,8 @@ the whole organisation). Each step asks you to confirm it is you (step-up).
 
 - **A shred cannot be undone.** Every stored document, export and data request bundle stops
   opening at once. The organisation's encryption keys are destroyed for good 30 days later, and
-  after that nobody can get the files back: not Harbour, and not Harbour's cloud provider.
-- Care records in Harbour are not removed by this. They are deleted later, on the retention schedule.
+  after that nobody can get the files back: not Thapsus Care and not its cloud provider.
+- Care records in Thapsus Care are not removed by this. They are deleted later, on the retention schedule.
   Database backups keep deleted records until the date the certificate gives.
 - The owner downloads the organisation's full export first (**Data export** in the menu). The
   shred destroys exports too, so it needs a full export downloaded in the last 30 days.
@@ -54,12 +54,12 @@ You cannot approve or refuse your own request. A request lapses after 7 days: it
 1. Open the request and choose **Open the destruction certificate**, or open it from
    **Destruction certificates** on **Records retention**.
 2. **Signature check** says **Signature checked** when the certificate has not been changed since
-   Harbour signed it. If it says **Signature does not match**, do not rely on it and tell Thapsus
+   Thapsus Care signed it. If it says **Signature does not match**, do not rely on it and tell Thapsus
    Cargo Ltd.
 3. Choose **Download the certificate as a PDF** to keep a copy. The PDF is made when you download it, with the
    signature check at that moment, the signing key, the signature and the exact signed text.
-4. Under **Details for checking the signature**, **View the signature check** shows what Harbour signed, for someone who wants to check
-   it with Harbour's published certificate key.
+4. Under **Details for checking the signature**, **View the signature check** shows what Thapsus Care signed, for someone who wants to check
+   it with Thapsus Care's published certificate key.
 
 ## Good to know
 

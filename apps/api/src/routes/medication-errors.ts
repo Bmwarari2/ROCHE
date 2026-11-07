@@ -439,7 +439,7 @@ export const medicationErrorsRouter = createRouter()
       tags,
       summary: "An incident's medication error details",
       description:
-        "safety.incident.read, with MFA and the incident's own scope; refused for a restricted incident. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Harbour sends nothing. Audited.",
+        "safety.incident.read, with MFA and the incident's own scope; refused for a restricted incident. The record (or null), with the error kinds in words, their NRLS source and the prompts to act on; Thapsus Care sends nothing. Audited.",
       security,
       request: { params: IdParam },
       responses: {
@@ -683,7 +683,7 @@ export const medicationErrorsRouter = createRouter()
       tags,
       summary: "Record a medication review as done, or correct it",
       description:
-        "medicines.record.manage. The date (not in the future), the clinician's name and role, and the outcome in the clinician's words; Harbour suggests nothing. Changing a review already done needs a correction reason. The version read must be sent back. Audited with ids only.",
+        "medicines.record.manage. The date (not in the future), the clinician's name and role, and the outcome in the clinician's words; Thapsus Care suggests nothing. Changing a review already done needs a correction reason. The version read must be sent back. Audited with ids only.",
       security,
       request: {
         params: IdParam,

@@ -812,7 +812,7 @@ export const developmentRouter = createRouter()
       tags: ["workforce"],
       summary: "Record that you confirmed a nurse's revalidation",
       description:
-        "The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Harbour only tracks it: the nurse revalidates with the NMC. Audited.",
+        "The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.",
       security,
       request: {
         params: MemberParam,

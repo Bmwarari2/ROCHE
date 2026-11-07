@@ -980,7 +980,7 @@ export const lmsImportRouter = createRouter()
       tags: ["workforce"],
       summary: "Import the ready rows",
       description:
-        "workforce.training.manage, naming the latest dry run (409 dry_run_stale if it is not, or if what it would import has changed). Each ready row becomes a new training record marked with its source; nothing made in Harbour is changed; other rows stay pending. For an API source, certificates are then fetched and stored with the malware scan. Audited.",
+        "workforce.training.manage, naming the latest dry run (409 dry_run_stale if it is not, or if what it would import has changed). Each ready row becomes a new training record marked with its source; nothing made in Thapsus Care is changed; other rows stay pending. For an API source, certificates are then fetched and stored with the malware scan. Audited.",
       security,
       request: {
         params: ImportParam,

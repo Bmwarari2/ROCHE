@@ -64,7 +64,7 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 
 ## HR platform link
 
-- [How to link Harbour to your HR platform](../registered-manager/link-to-the-hr-platform.md)
+- [How to link Thapsus Care to your HR platform](../registered-manager/link-to-the-hr-platform.md)
 - [How to pay staff through the HR platform](../registered-manager/set-the-route-to-payroll.md)
 - [How to release absence copies from the HR platform](../registered-manager/release-absence-copies.md)
 

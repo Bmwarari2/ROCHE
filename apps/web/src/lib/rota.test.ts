@@ -172,7 +172,7 @@ describe("rota and shift states as an icon and a word", () => {
     [{ state: "draft", changedSincePublished: false }, "Draft"],
     [{ state: "published", changedSincePublished: false }, "Published"],
     [{ state: "published", changedSincePublished: true }, "Changed since published"],
-    [{ state: "odd", changedSincePublished: false }, "Unknown: check with Harbour support"],
+    [{ state: "odd", changedSincePublished: false }, "Unknown: check with Thapsus Care support"],
   ])("%j", (rota, label) => {
     expect(rotaChip(rota, t).label).toBe(label);
     expect(rotaChip(rota, t).icon).toBeTruthy();
