@@ -1,14 +1,18 @@
 import {
+  DmdDeviceSubset,
   DmdGtinMatch,
   DmdProductDetail,
   DmdReleaseHistory,
   DmdSearchResult,
 } from "@harbour/contracts";
+import { location, medication, person, personAssignment } from "@harbour/db";
 import { dmdSearchQuery, toGtin14, ukDateOf } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { requireAnyPermission, withTenant } from "../http/context";
+import { and, eq, exists, inArray, isNull, ne, or } from "drizzle-orm";
+import { requireAnyPermission, requirePermission, withTenant } from "../http/context";
 import { HttpProblem } from "../http/problem";
 import {
+  dmdDeviceRows,
   dmdGtinMatches,
   dmdProductDetail,
   dmdReleaseHistory,
@@ -16,6 +20,7 @@ import {
   searchDmdProducts,
 } from "../services/dmd";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
+import { familyReach } from "./sync";
 
 /**
  * dm+d reference data (integrations.md section 12; INTG-006, MEDS-001; ADR-0080; HZ-113): search,
@@ -34,6 +39,65 @@ const READERS = [
 const DmdIdParam = z.object({ id: z.string().regex(/^[1-9]\d{5,17}$/) });
 
 export const medicinesDmdRouter = createRouter()
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/medicines/device-subset",
+      tags: ["medicines"],
+      summary: "The dm+d rows the member's phone needs",
+      description:
+        "medicines.emar.administer. For the MAR entries the member's phone holds (the people the medicines sync streams give the member: the live people at the homes that permission reaches and their assigned people; every version not withdrawn or removed): the products they name and the products that replaced them, every valid AMP of a VMP-level entry (the named AMP for an AMP-level one), their valid packs and the barcodes on them not withdrawn and not ended, and the identifiers the reference data lacks (integrations.md section 12 rule 9; ADR-0130; slice 68). National reference data with no personal data; not audited one by one.",
+      security,
+      responses: { 200: jsonBody(DmdDeviceSubset, "The phone's dm+d rows"), ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "medicines.emar.administer");
+      const result = await withTenant(c, async (tx) => {
+        // The same people as the token's medicines claims (security review of slice 68, finding
+        // 2): the live people at the locations the permission reaches, and the member's assigned
+        // people where it reaches them, never everyone the member may read.
+        const locations = await tx
+          .select({ id: location.id })
+          .from(location)
+          .where(isNull(location.deletedAt));
+        const reach = familyReach(
+          access.effective,
+          "meds",
+          locations.map((l) => l.id),
+        );
+        const atLocations =
+          reach.locationIds.length > 0
+            ? and(
+                inArray(person.locationId, reach.locationIds),
+                inArray(person.status, ["active", "on_leave", "in_hospital"]),
+              )
+            : undefined;
+        const assigned = reach.assigned
+          ? exists(
+              tx
+                .select({ id: personAssignment.id })
+                .from(personAssignment)
+                .where(
+                  and(
+                    eq(personAssignment.personId, medication.personId),
+                    eq(personAssignment.tenantUserId, access.tenantUserId),
+                    isNull(personAssignment.deletedAt),
+                  ),
+                ),
+            )
+          : undefined;
+        const inReach = or(atLocations, assigned);
+        if (inReach === undefined) return dmdDeviceRows(tx, [], ukDateOf(new Date()));
+        const named = await tx
+          .selectDistinct({ vmpId: medication.vmpId, ampId: medication.ampId })
+          .from(medication)
+          .innerJoin(person, eq(person.id, medication.personId))
+          .where(and(isNull(medication.deletedAt), ne(medication.state, "withdrawn"), inReach));
+        return dmdDeviceRows(tx, named, ukDateOf(new Date()));
+      });
+      return c.json(result, 200);
+    },
+  )
   .openapi(
     createRoute({
       method: "get",

@@ -223,6 +223,13 @@ export default async function IncidentPage({
               </p>
             ))
         : null}
+      {incident.type === "medication" && !incident.restricted ? (
+        <p className="m-0">
+          <ButtonLink href={`/incidents/${incident.id}/medication-error`} variant="secondary">
+            {t("medicines.errors.openFromIncident")}
+          </ButtonLink>
+        </p>
+      ) : null}
       {shownDone && recorded !== "1" ? (
         <RecordedArrival message={t("safety.manage.done", { done: shownDone })} param="done" />
       ) : null}

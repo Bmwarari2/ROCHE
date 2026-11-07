@@ -46,7 +46,7 @@ test("hazard HZ-003 the nurse works through Ben's tasks on the round, every stat
   await setTask(page, walk);
 
   await page.goto("/");
-  await (await openModules(page)).getByRole("link", { name: "Round" }).click();
+  await (await openModules(page)).getByRole("link", { name: "Round", exact: true }).click();
   await page.waitForURL((url) => url.pathname.startsWith("/round"));
   await page.goto(`/round/${DEMO_LOCATION}`);
   await expect(page.getByRole("heading", { level: 1, name: "Round" })).toBeVisible();

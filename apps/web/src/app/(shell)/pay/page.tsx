@@ -2,13 +2,14 @@ import { ButtonLink, Card, EmptyState, PageHeader } from "@harbour/ui";
 import { Banknote } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ManagedInHrPlatform } from "@/components/hr-link/ManagedInHrPlatform";
 import { PayNotOrganisationWide } from "@/components/pay-time/PayNotOrganisationWide";
 import { NewPayRunForm } from "@/components/pay-time/PayTimeForms";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { PAY_MANAGE, payRunChip, payShown } from "@/lib/pay-time";
+import { PAY_MANAGE, paidThroughHrPlatform, payRunChip, payShown } from "@/lib/pay-time";
 
 export const metadata: Metadata = { title: t("payTime.pay.title") };
 
@@ -78,6 +79,7 @@ export default async function PayPage() {
                   <p className="m-0 flex flex-wrap items-center gap-2">
                     <SafetyChip chip={payRunChip(r, t)} />
                   </p>
+                  {paidThroughHrPlatform(r) ? <ManagedInHrPlatform detail="payRun" /> : null}
                 </div>
               </Card>
             </li>

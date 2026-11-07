@@ -50,6 +50,7 @@ import {
   auditEvent,
   bodyMapMark,
   careNote,
+  deviceBinding,
   deviceDiscardEntry,
   entryDeviceDeletionFlag,
   location,
@@ -1983,4 +1984,85 @@ export async function flagEntriesAlreadyUploaded(
     }
     return fresh.length;
   });
+}
+
+/** The open tasks of a device's hold, its own and any capped-holds task it was merged into. */
+async function openHoldTasks(tx: Transaction, deviceId: string): Promise<number> {
+  const capped = await tx
+    .select({ scope: auditEvent.scope })
+    .from(auditEvent)
+    .where(and(deviceEvents(deviceId), eq(auditEvent.action, DEVICE_HOLD_ACTIONS.capped)));
+  const mergedInto = capped.flatMap((r) => {
+    const ids = (r.scope as Record<string, unknown> | null)?.mergedInto;
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+  });
+  const open = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      mergedInto.length > 0
+        ? or(
+            openDeviceTasks(deviceId),
+            and(
+              inArray(task.id, mergedInto),
+              inArray(task.status, OPEN_STATUSES),
+              isNull(task.deletedAt),
+            ),
+          )
+        : openDeviceTasks(deviceId),
+    )
+    .limit(1);
+  return open.length;
+}
+
+/**
+ * The entries each device last reported waiting that belong to this member (H-566, clinical review
+ * M1): the report names them as the owner. Another member's entries on a shared device are left
+ * out, so neither the count a manager confirms nor the holds hurried are someone else's.
+ */
+export async function waitingOwnedBy(
+  tx: Transaction,
+  memberId: string,
+  deviceIds: readonly string[],
+): Promise<Map<string, number>> {
+  const owned = new Map<string, number>();
+  for (const deviceId of deviceIds) {
+    const report = await previousReport(tx, deviceId);
+    if (report && report.owner === memberId && report.waiting > 0) {
+      owned.set(deviceId, report.waiting);
+    }
+  }
+  return owned;
+}
+
+/**
+ * The entries a member of staff still owns on devices whose hold is open (H-566): for each device,
+ * when an open hold task is on it (its own, or a capped-holds task it was merged into; clinical
+ * review M4) and its last report names the member as the owner of what waits, that report's count.
+ * Ending a membership waits until they are handed over or their deletion is recorded, which closes
+ * the hold. A device revoked as lost or stolen is left out (clinical review M2): it cannot be
+ * handed over, and its hold goes on escalating under its own rules. Read in the system's view.
+ */
+export async function entriesToHandOver(
+  tx: Transaction,
+  memberId: string,
+  deviceIds: readonly string[],
+): Promise<number> {
+  let total = 0;
+  for (const deviceId of deviceIds) {
+    const [lost] = await tx
+      .select({ id: deviceBinding.id })
+      .from(deviceBinding)
+      .where(
+        and(
+          eq(deviceBinding.deviceId, deviceId),
+          eq(deviceBinding.revocationReason, "lost_or_stolen"),
+        ),
+      )
+      .limit(1);
+    if (lost || (await openHoldTasks(tx, deviceId)) === 0) continue;
+    const report = await previousReport(tx, deviceId);
+    if (report && report.owner === memberId && report.waiting > 0) total += report.waiting;
+  }
+  return total;
 }

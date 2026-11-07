@@ -32,6 +32,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Merge batch 4 (07/11/2026)
+
+`integration/phase-2-batch-4`, from `main` e1524309 (with #177, #178 and #179): mobile medicines
+sync (slice 68, 0149 renumbered 0147), the Thapsus-HR link's pay and screens (slices 89 and 90,
+0151 to 0148), the member lifecycle v2 (H-566, 0153 to 0149), web stock, homely remedies and
+errors (slice 55, 0155 to 0150), the web medicines round (slice 53), the printable MAR (slice 50),
+and definer owners last (ADR-0133, 0154 to 0151, extended to the definers 0146 and 0149 added).
+Slices 69 and 70 wait for a later batch. See
+`docs/changelog-dev/2026-11-07-integration-phase-2-batch-4.md`.
+
 ## No SMS at launch (07/11/2026)
 
 `fix/comms-no-sms-at-launch` (ADR-0132): nothing relies on a channel that cannot reach people. No
@@ -176,6 +186,29 @@ until after launch (H-09, H-105), and the other eight take their recommendation.
 officer items are provisional owner-accepted recommendations, pending CSO review at the testing phase.
 
 ## Where to pick up (resumed 31/10/2026)
+
+**Phase 2 slice 55, web stock, homely remedies, errors and reviews** (`feat/meds-web-stock-errors`,
+MEDS-007, MEDS-008, MEDS-012, MEDS-013, from batch 3b; no migration): stock, ordering and temperatures
+for a home and a person; homely remedy protocols and doses checked against them; the medication
+error record on the incident; medication reviews and the tracker; the override, PRN and trend reports.
+Reviewed (security, clinical and accessibility, two rounds); HZ-120 and HZ-132 fixed, H-1410 and
+H-1411 provisional. Follow-ups:
+- Security: an API to list the staff who may witness a disposal (the web reads the location's
+  members today); show the witness link only to the named witness; per-resident reads on the order
+  pages, so a reader who may not see a resident does not see their lines.
+- Accessibility (minor): unit plurals ("56 tablet"), page titles unique per record, corrections
+  shown struck through, keyboard-only steps in the three journeys, the period error summary linked
+  to its fields, the flag words for homely remedy doses taken from the API, a warning on the PRN
+  report when communication needs cannot be read.
+
+**Phase 2 slice 53, web medicines round** (`feat/meds-web-rounds-prn`, MEDS-002 to MEDS-004, from
+batch 3b; no migration): the home's and a person's medicines round, recording a dose on its own page
+with the person and allergies beside the medicine, when-required medicines with when last given, and
+the covert record beside the medicine. Next: slice 55 (stock, homely remedies, errors), then 50.
+
+**Phase 2 slice 50, printable MAR and register page** (`feat/meds-printable-mar`, MEDS-014, from
+batch 3b; no migration): the MAR chart for a month and a controlled drugs register page as PDFs, each
+with the printed time and "not the live record" on every page (HZ-122, new; HZ-007).
 
 **Recommended answers, care, safety, mobile and medicines** (`fix/recommended-answers-care`;
 recommended answers of 31/10/2026, all reviewed at the testing phase): applied H-27, H-148, H-166,
@@ -539,6 +572,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
+- slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0147; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
 - slice 71 shifts, clock and lone working on the phone, `feat/mobile-shifts-checkins` (0139; HZ-125; H-1310 to H-1319): streams, phone screens, offline queue; MOB-007 partial;

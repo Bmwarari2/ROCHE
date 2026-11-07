@@ -281,6 +281,15 @@ score. The police call time is the tenant's own target from the rate table, appl
 Herbert Protocol profile copies what the record already holds and says where each part came from.
 Nothing interprets clinical data.
 
+Medicines stock, homely remedies and medication errors on the web (Phase 2 slice 55) stay on the
+same side. A storage reading shows only the API's "In range" or "Out of range", decided against the
+tenant's rate table range, with the figures beside it; the screen names no direction or cause and
+never says whether the medicines can still be used (the pharmacist decides; HZ-132). A homely remedy
+dose is checked against the tenant's own protocol as written, and the person's current medicines are
+listed for the giver to compare; Harbour does not judge an interaction (HZ-120, H-1410). Medication
+error reports count records and judge nothing; the escalations shown are the API's prompts, never sent
+and never a severity score (HZ-134).
+
 ## 7. The question every clinical PR answers
 
 The PR template's clinical-safety section contains this question. A PR labelled `clinical` cannot merge until it is answered.
@@ -296,3 +305,5 @@ The `clinical-safety-reviewer` agent checks the answer against the diff. A "Yes"
 | Obtain a regulatory opinion confirming the validated-tool calculation position (section 5) | Brian |
 | Confirm terms for using NEWS2, MUST and Waterlow in software, and the authoritative Waterlow source | Brian with CSO |
 | Review and approve this boundary statement | CSO |
+
+**Printable MAR chart and controlled drugs register page (Phase 2 slice 50)**: these stay inside the boundary. They print the record as it stands: each dose's outcome as recorded, the reason recorded, when and by whom, the allergies and communication needs as recorded, and the register's entries, signatures and stock checks. They add no score, judgement or recommendation; "no outcome recorded" and "not yet due" describe the record, and every page says it is not the live record and to check the eMAR before giving or holding any medicine.

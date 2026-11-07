@@ -170,7 +170,7 @@ export interface paths {
     put?: never;
     /**
      * Ask for your own account to be deleted (MOB-011; App Store and Google Play)
-     * @description Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them and audits the request. Nothing is deleted, and care records never are by this route. A second request while the first is open returns the first (`already_requested`).
+     * @description Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them, audits the request and records it on the member row (H-566): once that membership has ended and none is held elsewhere, the nightly sweep erases the sign-in identity. Care records are never deleted by this route. A second request while the first is open returns the first (`already_requested`).
      */
     post: {
       parameters: {
@@ -1511,6 +1511,173 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{tenantUserId}/reinstate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reinstate a suspended member
+     * @description platform.user.manage with step-up and a coded reason (H-566, H-1463, H-1469). Undoes a suspension, or, for a holder of the permission across the organisation, an ending whose sign-in has not been erased (a wrong leaving date withdrawn; roles and grants ended by the leaver process stay ended, any still in force come back only where the manager holds them): the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. Otherwise an ended membership is not reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReinstateMember"];
+        };
+      };
+      responses: {
+        /** @description Reinstated (or already active) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MembershipChangeResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{tenantUserId}/lifecycle": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's membership and sign-in status
+     * @description platform.user.manage, for a member it reaches (anyone else reads as not found, audited by opaque id). The membership's state, when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, the entries their devices last reported waiting as theirs and those still to hand over, how many devices they used and when one last reported. No address or sign-in detail.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The member's status */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberLifecycle"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -36506,7 +36673,7 @@ export interface paths {
     put?: never;
     /**
      * A short-lived token for the PowerSync service, scoped to tenant and assignments
-     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), meds_location_ids and meds_assigned (where medicines.emar.administer reaches) with meds_recent_days (the UTC days of the administrations that sync, today and the 34 before; empty when it reaches no one) and meds_recent_blocks (the ten-day blocks of those days, at most eight, which both administrations streams filter on; empty when the reach is empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.
      */
     post: {
       parameters: {
@@ -37414,7 +37581,7 @@ export interface paths {
     };
     options?: never;
     head?: never;
-    /** Change the owners, staleness limit or webhook secret (step-up) */
+    /** Change the owners, staleness limit, webhook secret, pay codes or route to payroll (step-up) */
     patch: {
       parameters: {
         query?: never;
@@ -38336,6 +38503,72 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/integrations/hr-link/absences/held": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The absence copies a release would cancel now (read only)
+     * @description While linked, the current copies the HR platform no longer lists, read again from it now; once disconnected, every copy still in force. The release sends these ids back as expectedHrIds. Changes nothing.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Copies to release */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HrCopiesHeld"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -48447,6 +48680,181 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/mar/print": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The MAR chart for a month, to print (PDF)
+     * @description One person, one calendar month: the allergies, a key to the codes, each medicine's doses by day with outcome, giver's initials, covert and corrected marks, and when-required doses. Every page names the person and says when it was printed and that it is not the live record (HZ-122). Audited by the person's id.
+     */
+    get: {
+      parameters: {
+        query: {
+          /** @description The calendar month, yyyy-mm (UK time), from 2000 to next year. */
+          month: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The MAR chart */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/controlled-drugs/pages/{pageId}/print": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A controlled drugs register page, to print (PDF)
+     * @description The page heading, every entry in order with its signatures and running balance, every entry in register order, each correction saying which entry it corrects, and every stock check. Every page says when it was printed and that it is not the live record (HZ-122). Replaces the plain print view (H-1331). Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          pageId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The register page */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -61495,6 +61903,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/medicines/device-subset": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The dm+d rows the member's phone needs
+     * @description medicines.emar.administer. For the MAR entries the member's phone holds (the people the medicines sync streams give the member: the live people at the homes that permission reaches and their assigned people; every version not withdrawn or removed): the products they name and the products that replaced them, every valid AMP of a VMP-level entry (the named AMP for an AMP-level one), their valid packs and the barcodes on them not withdrawn and not ended, and the identifiers the reference data lacks (integrations.md section 12 rule 9; ADR-0130; slice 68). National reference data with no personal data; not audited one by one.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The phone's dm+d rows */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DmdDeviceSubset"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/medicines/dmd/products": {
     parameters: {
       query?: never;
@@ -64355,7 +64829,7 @@ export interface components {
       /** Format: uuid */
       tenantUserId: string;
       /** @enum {string} */
-      state: "suspended" | "left";
+      state: "invited" | "active" | "suspended" | "left";
       replay: boolean;
       sessionsEnded: number;
       entriesWaiting: number;
@@ -64370,7 +64844,41 @@ export interface components {
         | "long_absence"
         | "other";
       confirmEntriesWaiting?: boolean;
+      /** @enum {string} */
+      deviceCheck?: "device_returned_checked" | "device_lost_incident_raised";
     };
+    ReinstateMember: {
+      /** @enum {string} */
+      reasonCode:
+        | "suspended_in_error"
+        | "investigation_cleared"
+        | "returned_from_absence"
+        | "other";
+    };
+    MemberLifecycle: {
+      /** Format: uuid */
+      id: string;
+      displayName: string;
+      jobTitle: string | null;
+      /** @enum {string} */
+      state: "invited" | "active" | "suspended" | "left";
+      /** Format: date-time */
+      statusChangedAt: string | null;
+      /** Format: date-time */
+      deletionRequestedAt: string | null;
+      deletionRequestOpen: boolean;
+      signIn: components["schemas"]["MemberSignInState"];
+      /** Format: date-time */
+      signInErasedAt: string | null;
+      entriesWaiting: number;
+      entriesToHandOver: number;
+      devicesUsed: number;
+      /** Format: date-time */
+      lastReportedAt: string | null;
+      mayReinstate: boolean;
+    };
+    /** @enum {string} */
+    MemberSignInState: "kept" | "kept_other_organisation" | "erased" | "none";
     EraseSignInResult: {
       /** Format: uuid */
       tenantUserId: string;
@@ -74265,6 +74773,17 @@ export interface components {
       } | null;
       matchesToReview: number;
       leaversNotEnded: number;
+      pay: {
+        /** @enum {string} */
+        route: "harbour_export" | "thapsus_hr";
+        /** @enum {string|null} */
+        pendingRoute: "harbour_export" | "thapsus_hr" | null;
+        /** Format: date */
+        pendingFrom: string | null;
+        codes: {
+          [key: string]: string;
+        };
+      };
     };
     HrLinkOwners: {
       /** @enum {string} */
@@ -74302,6 +74821,20 @@ export interface components {
         held: number;
         error: string | null;
       } | null;
+      pay?: {
+        read: {
+          periods: number;
+          rates: number;
+          failed: number;
+          error: string | null;
+        } | null;
+        sent: {
+          sent: number;
+          refused: number;
+          failed: number;
+          error: string | null;
+        } | null;
+      };
       deliveries: {
         sent: number;
         cancelled: number;
@@ -74322,6 +74855,15 @@ export interface components {
       owners?: components["schemas"]["HrLinkOwners"];
       stalenessMinutes?: number;
       secretRef?: string | null;
+      payCodes?: {
+        [key: string]: string;
+      };
+      payRoute?: {
+        /** @enum {string} */
+        route: "harbour_export" | "thapsus_hr";
+        /** Format: date */
+        from: string;
+      };
     };
     HrLinkLocations: {
       harbour: {
@@ -74363,6 +74905,21 @@ export interface components {
     HrLeavingWithdrawn: {
       /** @enum {boolean} */
       withdrawn: true;
+    };
+    HrCopiesHeld: {
+      /** @enum {string} */
+      mode: "drift" | "disconnected" | "none";
+      items: {
+        hrId: string;
+        /** Format: uuid */
+        memberId: string;
+        kind: string;
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string | null;
+      }[];
+      error: string | null;
     };
     HrCopiesReleased: {
       released: number;
@@ -77577,6 +78134,7 @@ export interface components {
       /** Format: uuid */
       givenBy: string;
       allergiesChecked: boolean;
+      medicinesCompared: boolean;
       alreadyGivenReason: string | null;
       flags: string[];
       /** Format: date-time */
@@ -77607,6 +78165,8 @@ export interface components {
       reason: string;
       /** @enum {boolean} */
       allergiesChecked: true;
+      /** @enum {boolean} */
+      medicinesCompared: true;
       /** @default null */
       alreadyGiven: {
         /** Format: date-time */
@@ -79386,6 +79946,8 @@ export interface components {
       bradfordExcluded: boolean;
       coverNeeded: number;
       fitNoteUncoveredDays: string[] | null;
+      /** @enum {string} */
+      source: "harbour" | "thapsus_hr";
     };
     /** @enum {string} */
     AbsenceKind:
@@ -79442,6 +80004,8 @@ export interface components {
       bradfordExcluded: boolean;
       coverNeeded: number;
       fitNoteUncoveredDays: string[] | null;
+      /** @enum {string} */
+      source: "harbour" | "thapsus_hr";
       carersLeave: {
         takenDays: number;
         allowanceDays: number | null;
@@ -79831,6 +80395,29 @@ export interface components {
         /** Format: date-time */
         createdAt: string;
       }[];
+    };
+    DmdDeviceSubset: {
+      products: components["schemas"]["DmdDeviceProduct"][];
+      gtins: {
+        gtin: string;
+        amppId: string;
+        /** Format: date */
+        startDate: string;
+        /** Format: date */
+        endDate: string | null;
+      }[];
+      unresolved: string[];
+    };
+    DmdDeviceProduct: {
+      /** @enum {string} */
+      kind: "vmp" | "amp" | "vmpp" | "ampp";
+      id: string;
+      name: string;
+      vmpId: string | null;
+      ampId: string | null;
+      vmppId: string | null;
+      invalid: boolean;
+      supersededBy: string | null;
     };
     DmdSearchResult: {
       release: components["schemas"]["DmdReleaseStatus"];
@@ -80371,6 +80958,8 @@ export interface components {
       /** Format: uuid */
       createdBy: string | null;
       openExceptions: number;
+      /** @enum {string|null} */
+      payRoute: "harbour_export" | "thapsus_hr" | null;
     };
     CreatePayRun: {
       frequency: components["schemas"]["PayFrequency"];
@@ -80378,6 +80967,7 @@ export interface components {
       periodStart: string;
       /** Format: date */
       periodEnd: string;
+      confirmExport?: boolean;
     };
     PayRunDetail: {
       run: components["schemas"]["PayRunItem"];

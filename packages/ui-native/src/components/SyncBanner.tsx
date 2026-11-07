@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
 import { describeSyncBanner, type SyncConnectionState } from "../logic/sync-banner";
 import { toneAppearance } from "../logic/theme";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
@@ -15,6 +15,13 @@ export interface SyncBannerProps {
   readonly queuedChanges?: number;
   /** Entries the server refused: shown on every screen, never "Up to date" (HZ-006, C1). */
   readonly refusedEntries?: number | null;
+  /** Why sync is refused, when the API said (`scope_too_large`, ADR-0134). */
+  readonly failureReason?: "scope_too_large" | null;
+  /**
+   * Speaks a lasting refusal (with any warning beside it) to screen readers. The app passes one
+   * that says each text once across every screen's banner; the default speaks it on each change.
+   */
+  readonly announce?: (text: string) => void;
   /** Shown as a "Retry" action when the state is failed (HZ-006). */
   readonly onRetry?: () => void;
   /** Fixes the clock, for previews and tests. Otherwise the banner refreshes every 30 seconds. */
@@ -23,6 +30,10 @@ export interface SyncBannerProps {
 }
 
 const REFRESH_MS = 30_000;
+
+function defaultAnnounce(text: string): void {
+  AccessibilityInfo.announceForAccessibility?.(text);
+}
 
 function useNow(fixed: Date | undefined): Date {
   const [now, setNow] = useState(() => fixed ?? new Date());
@@ -47,6 +58,8 @@ export function SyncBanner({
   staleAfterMs,
   queuedChanges = 0,
   refusedEntries = 0,
+  failureReason = null,
+  announce = defaultAnnounce,
   onRetry,
   now: fixedNow,
   testID = "sync-banner",
@@ -61,9 +74,20 @@ export function SyncBanner({
     staleAfterMs,
     queuedChanges,
     refusedEntries,
+    failureReason,
   });
 
   // Warnings and failures are filled so they cannot be missed; calm states sit on the card colour.
+  // A refusal lasts until access changes: it is announced, with any stale-data warning beside it
+  // (HZ-002), when it or the warning changes, and kept out of the live region, so the
+  // minute-by-minute "Last synced" never re-reads it (accessibility review, 2).
+  const announcement = content.reason
+    ? [`${content.title}.`, content.reason, content.warning].filter(Boolean).join(" ")
+    : null;
+  useEffect(() => {
+    if (announcement) announce(announcement);
+  }, [announcement, announce]);
+
   const filled = content.tone === "warning" || content.tone === "danger";
   const fill = toneAppearance(content.tone);
   const background = filled ? fill.background : theme.colors.card;
@@ -88,9 +112,10 @@ export function SyncBanner({
     >
       <View
         accessible
+        testID={`${testID}-message`}
         accessibilityRole={content.urgent ? "alert" : "summary"}
         accessibilityLabel={content.accessibilityLabel}
-        accessibilityLiveRegion={content.urgent ? "assertive" : "polite"}
+        accessibilityLiveRegion={content.reason ? "none" : content.urgent ? "assertive" : "polite"}
         style={styles.message}
       >
         <Icon
@@ -104,6 +129,11 @@ export function SyncBanner({
           <Text variant="bodyDense" tone={textTone} emphasis testID={`${testID}-title`}>
             {content.title}
           </Text>
+          {content.reason ? (
+            <Text variant="bodyDense" tone={textTone} testID={`${testID}-reason`}>
+              {content.reason}
+            </Text>
+          ) : null}
           <Text variant="bodyDense" tone={detailTone} testID={`${testID}-detail`}>
             {content.detail}
           </Text>
@@ -118,7 +148,7 @@ export function SyncBanner({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Retry sync"
-          accessibilityHint="Tries to connect and sync again"
+          accessibilityHint={content.retryHint}
           testID={`${testID}-retry`}
           onPress={() => {
             haptics?.selection();

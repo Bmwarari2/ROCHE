@@ -57,6 +57,11 @@ export const AbsenceItem = z
      * self-certification days that no fit note covers.
      */
     fitNoteUncoveredDays: z.array(isoDate).nullable(),
+    /**
+     * Where the absence is kept: `thapsus_hr` for a read-only copy from the HR platform, changed
+     * only there ("Managed in the HR platform"; integrations.md section 11.5 rule 2).
+     */
+    source: z.enum(["harbour", "thapsus_hr"]),
   })
   .meta({ id: "AbsenceItem" });
 export type AbsenceItem = z.infer<typeof AbsenceItem>;

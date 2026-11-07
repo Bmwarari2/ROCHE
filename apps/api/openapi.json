@@ -1393,6 +1393,8 @@
           "state": {
             "type": "string",
             "enum": [
+              "invited",
+              "active",
               "suspended",
               "left"
             ]
@@ -1433,10 +1435,135 @@
           },
           "confirmEntriesWaiting": {
             "type": "boolean"
+          },
+          "deviceCheck": {
+            "type": "string",
+            "enum": [
+              "device_returned_checked",
+              "device_lost_incident_raised"
+            ]
           }
         },
         "required": [
           "reasonCode"
+        ]
+      },
+      "ReinstateMember": {
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "suspended_in_error",
+              "investigation_cleared",
+              "returned_from_absence",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "reasonCode"
+        ]
+      },
+      "MemberLifecycle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "invited",
+              "active",
+              "suspended",
+              "left"
+            ]
+          },
+          "statusChangedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deletionRequestedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deletionRequestOpen": {
+            "type": "boolean"
+          },
+          "signIn": {
+            "$ref": "#/components/schemas/MemberSignInState"
+          },
+          "signInErasedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "entriesWaiting": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entriesToHandOver": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "devicesUsed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastReportedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "mayReinstate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "jobTitle",
+          "state",
+          "statusChangedAt",
+          "deletionRequestedAt",
+          "deletionRequestOpen",
+          "signIn",
+          "signInErasedAt",
+          "entriesWaiting",
+          "entriesToHandOver",
+          "devicesUsed",
+          "lastReportedAt",
+          "mayReinstate"
+        ]
+      },
+      "MemberSignInState": {
+        "type": "string",
+        "enum": [
+          "kept",
+          "kept_other_organisation",
+          "erased",
+          "none"
         ]
       },
       "EraseSignInResult": {
@@ -37848,6 +37975,48 @@
           },
           "leaversNotEnded": {
             "type": "integer"
+          },
+          "pay": {
+            "type": "object",
+            "properties": {
+              "route": {
+                "type": "string",
+                "enum": [
+                  "harbour_export",
+                  "thapsus_hr"
+                ]
+              },
+              "pendingRoute": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "harbour_export",
+                  "thapsus_hr",
+                  null
+                ]
+              },
+              "pendingFrom": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "codes": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "route",
+              "pendingRoute",
+              "pendingFrom",
+              "codes"
+            ]
           }
         },
         "required": [
@@ -37861,7 +38030,8 @@
           "hasWebhookSecret",
           "staleness",
           "matchesToReview",
-          "leaversNotEnded"
+          "leaversNotEnded",
+          "pay"
         ]
       },
       "HrLinkOwners": {
@@ -38009,6 +38179,73 @@
               "error"
             ]
           },
+          "pay": {
+            "type": "object",
+            "properties": {
+              "read": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "periods": {
+                    "type": "integer"
+                  },
+                  "rates": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "error": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "periods",
+                  "rates",
+                  "failed",
+                  "error"
+                ]
+              },
+              "sent": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "sent": {
+                    "type": "integer"
+                  },
+                  "refused": {
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "type": "integer"
+                  },
+                  "error": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "sent",
+                  "refused",
+                  "failed",
+                  "error"
+                ]
+              }
+            },
+            "required": [
+              "read",
+              "sent"
+            ]
+          },
           "deliveries": {
             "type": [
               "object",
@@ -38103,6 +38340,34 @@
               "null"
             ],
             "pattern": "^projects\\/([a-z][a-z0-9-]{4,28}[a-z0-9])\\/locations\\/([a-z0-9-]+)\\/secrets\\/harbour_int_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9][a-z0-9-]{0,62}(\\/versions\\/(latest|[1-9][0-9]*))?$"
+          },
+          "payCodes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{1,32}$"
+            }
+          },
+          "payRoute": {
+            "type": "object",
+            "properties": {
+              "route": {
+                "type": "string",
+                "enum": [
+                  "harbour_export",
+                  "thapsus_hr"
+                ]
+              },
+              "from": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "route",
+              "from"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -38285,6 +38550,66 @@
         },
         "required": [
           "withdrawn"
+        ]
+      },
+      "HrCopiesHeld": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "drift",
+              "disconnected",
+              "none"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "hrId": {
+                  "type": "string"
+                },
+                "memberId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "hrId",
+                "memberId",
+                "kind",
+                "startsOn",
+                "endsOn"
+              ]
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "items",
+          "error"
         ]
       },
       "HrCopiesReleased": {
@@ -50541,6 +50866,9 @@
           "allergiesChecked": {
             "type": "boolean"
           },
+          "medicinesCompared": {
+            "type": "boolean"
+          },
           "alreadyGivenReason": {
             "type": [
               "string",
@@ -50591,6 +50919,7 @@
           "givenAt",
           "givenBy",
           "allergiesChecked",
+          "medicinesCompared",
           "alreadyGivenReason",
           "flags",
           "recordedAt",
@@ -50671,6 +51000,12 @@
               true
             ]
           },
+          "medicinesCompared": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
           "alreadyGiven": {
             "type": [
               "object",
@@ -50700,7 +51035,8 @@
           "protocolId",
           "quantity",
           "reason",
-          "allergiesChecked"
+          "allergiesChecked",
+          "medicinesCompared"
         ],
         "additionalProperties": false
       },
@@ -57695,6 +58031,13 @@
               "type": "string",
               "format": "date"
             }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
           }
         },
         "required": [
@@ -57712,7 +58055,8 @@
           "selfCertifiedAt",
           "bradfordExcluded",
           "coverNeeded",
-          "fitNoteUncoveredDays"
+          "fitNoteUncoveredDays",
+          "source"
         ]
       },
       "AbsenceKind": {
@@ -57871,6 +58215,13 @@
               "format": "date"
             }
           },
+          "source": {
+            "type": "string",
+            "enum": [
+              "harbour",
+              "thapsus_hr"
+            ]
+          },
           "carersLeave": {
             "type": [
               "object",
@@ -57931,6 +58282,7 @@
           "bradfordExcluded",
           "coverNeeded",
           "fitNoteUncoveredDays",
+          "source",
           "carersLeave",
           "fitNotes",
           "returnToWork",
@@ -59249,6 +59601,124 @@
         "required": [
           "memberName",
           "items"
+        ]
+      },
+      "DmdDeviceSubset": {
+        "type": "object",
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmdDeviceProduct"
+            }
+          },
+          "gtins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "gtin": {
+                  "type": "string",
+                  "pattern": "^\\d{8,14}$"
+                },
+                "amppId": {
+                  "type": "string",
+                  "pattern": "^[1-9]\\d{5,17}$"
+                },
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "gtin",
+                "amppId",
+                "startDate",
+                "endDate"
+              ]
+            }
+          },
+          "unresolved": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{5,17}$"
+            }
+          }
+        },
+        "required": [
+          "products",
+          "gtins",
+          "unresolved"
+        ]
+      },
+      "DmdDeviceProduct": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "vmp",
+              "amp",
+              "vmpp",
+              "ampp"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "vmpId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "ampId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "vmppId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[1-9]\\d{5,17}$"
+          },
+          "invalid": {
+            "type": "boolean"
+          },
+          "supersededBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[1-9]\\d{5,17}$"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "vmpId",
+          "ampId",
+          "vmppId",
+          "invalid",
+          "supersededBy"
         ]
       },
       "DmdSearchResult": {
@@ -61336,6 +61806,17 @@
           },
           "openExceptions": {
             "type": "integer"
+          },
+          "payRoute": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "harbour_export",
+              "thapsus_hr",
+              null
+            ]
           }
         },
         "required": [
@@ -61355,7 +61836,8 @@
           "lockedBy",
           "lockedAt",
           "createdBy",
-          "openExceptions"
+          "openExceptions",
+          "payRoute"
         ]
       },
       "CreatePayRun": {
@@ -61371,6 +61853,9 @@
           "periodEnd": {
             "type": "string",
             "format": "date"
+          },
+          "confirmExport": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -62145,7 +62630,7 @@
           "platform"
         ],
         "summary": "Ask for your own account to be deleted (MOB-011; App Store and Google Play)",
-        "description": "Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them and audits the request. Nothing is deleted, and care records never are by this route. A second request while the first is open returns the first (`already_requested`).",
+        "description": "Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them, audits the request and records it on the member row (H-566): once that membership has ended and none is held elsewhere, the nightly sweep erases the sign-in identity. Care records are never deleted by this route. A second request while the first is open returns the first (`already_requested`).",
         "security": [
           {
             "bearerAuth": []
@@ -63542,6 +64027,185 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/reinstate": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Reinstate a suspended member",
+        "description": "platform.user.manage with step-up and a coded reason (H-566, H-1463, H-1469). Undoes a suspension, or, for a holder of the permission across the organisation, an ending whose sign-in has not been erased (a wrong leaving date withdrawn; roles and grants ended by the leaver process stay ended, any still in force come back only where the manager holds them): the member is active again (invited when they never made a sign-in), with the roles and grants they had, and only when the manager holds every permission of those roles and grants where they apply (403 beyond_inviter, the invitation rule). Sessions ended at the suspension stay ended, so the member signs in again; held entries stay on their devices until the member sends them or a manager hands them over. Otherwise an ended membership is not reinstated (409 membership_ended); an active one changes nothing (replay). Same reach and refusals as suspending. Audited (platform.member.reinstated), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReinstateMember"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reinstated (or already active)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipChangeResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{tenantUserId}/lifecycle": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "A member's membership and sign-in status",
+        "description": "platform.user.manage, for a member it reaches (anyone else reads as not found, audited by opaque id). The membership's state, when it last changed, whether the member asked for their account to be deleted and whether that request is open, what happened to their sign-in, the entries their devices last reported waiting as theirs and those still to hand over, how many devices they used and when one last reported. No address or sign-in detail.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The member's status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -103607,7 +104271,7 @@
           "sync"
         ],
         "summary": "A short-lived token for the PowerSync service, scoped to tenant and assignments",
-        "description": "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
+        "description": "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), shift_days (the UTC days of the member's own shifts and clock events, two back and eight ahead, for holders of scheduling.timesheet.self only, else empty), meds_location_ids and meds_assigned (where medicines.emar.administer reaches) with meds_recent_days (the UTC days of the administrations that sync, today and the 34 before; empty when it reaches no one) and meds_recent_blocks (the ten-day blocks of those days, at most eight, which both administrations streams filter on; empty when the reach is empty), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 care_mode_off.",
         "security": [
           {
             "bearerAuth": []
@@ -104512,7 +105176,7 @@
         "tags": [
           "integrations"
         ],
-        "summary": "Change the owners, staleness limit or webhook secret (step-up)",
+        "summary": "Change the owners, staleness limit, webhook secret, pay codes or route to payroll (step-up)",
         "security": [
           {
             "bearerAuth": []
@@ -105619,6 +106283,65 @@
           },
           "503": {
             "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/hr-link/absences/held": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The absence copies a release would cancel now (read only)",
+        "description": "While linked, the current copies the HR platform no longer lists, read again from it now; once disconnected, every copy still in force. The release sends these ids back as expectedHrIds. Changes nothing.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Copies to release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrCopiesHeld"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -116768,6 +117491,199 @@
           },
           "422": {
             "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/mar/print": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "The MAR chart for a month, to print (PDF)",
+        "description": "One person, one calendar month: the allergies, a key to the codes, each medicine's doses by day with outcome, giver's initials, covert and corrected marks, and when-required doses. Every page names the person and says when it was printed and that it is not the live record (HZ-122). Audited by the person's id.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "description": "The calendar month, yyyy-mm (UK time), from 2000 to next year."
+            },
+            "required": true,
+            "description": "The calendar month, yyyy-mm (UK time), from 2000 to next year.",
+            "name": "month",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The MAR chart",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/controlled-drugs/pages/{pageId}/print": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "A controlled drugs register page, to print (PDF)",
+        "description": "The page heading, every entry in order with its signatures and running balance, every entry in register order, each correction saying which entry it corrects, and every stock check. Every page says when it was printed and that it is not the live record (HZ-122). Replaces the plain print view (H-1331). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "pageId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The register page",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -131526,6 +132442,65 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkingTimeResultList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/medicines/device-subset": {
+      "get": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "The dm+d rows the member's phone needs",
+        "description": "medicines.emar.administer. For the MAR entries the member's phone holds (the people the medicines sync streams give the member: the live people at the homes that permission reaches and their assigned people; every version not withdrawn or removed): the products they name and the products that replaced them, every valid AMP of a VMP-level entry (the named AMP for an AMP-level one), their valid packs and the barcodes on them not withdrawn and not ended, and the identifiers the reference data lacks (integrations.md section 12 rule 9; ADR-0130; slice 68). National reference data with no personal data; not audited one by one.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The phone's dm+d rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmdDeviceSubset"
                 }
               }
             }

@@ -20,11 +20,14 @@ import { evidencePacksShown } from "@/lib/evidence-packs";
 import { exportShown } from "@/lib/exports";
 import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
 import { handoverShown } from "@/lib/handover";
+import { hrLinkNavShown } from "@/lib/hr-link";
 import { peopleLabel, t } from "@/lib/i18n";
 import { importShown } from "@/lib/imports";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { loneWorkerNavShown } from "@/lib/lone-worker";
+import { medicinesRoundShown } from "@/lib/medicine-round";
+import { stockShown } from "@/lib/medicine-stock";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { absencesShown, myTimeShown, payShown, timesheetsShown } from "@/lib/pay-time";
 import { dashboardShown } from "@/lib/quality-dashboard";
@@ -90,6 +93,13 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           : undefined,
         search: searchShown(me.permissions) ? t("shell.nav.search") : undefined,
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
+        medicinesRound: medicinesRoundShown(me.permissions)
+          ? t("shell.nav.medicinesRound")
+          : undefined,
+        medicinesStock: stockShown(me.permissions) ? t("shell.nav.medicinesStock") : undefined,
+        medicinesReports: me.permissions.includes("medicines.record.manage")
+          ? t("shell.nav.medicinesReports")
+          : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         rota: rotaShown(me.permissions) ? t("shell.nav.rota") : undefined,
         myShifts: myShiftsShown(me.permissions) ? t("shell.nav.myShifts") : undefined,
@@ -158,6 +168,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         pir: dashboardShown(me.permissions) ? t("shell.nav.pir") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
+        hrLink: hrLinkNavShown(me) ? t("shell.nav.hrLink") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
         dataImport: importShown(me.permissions) ? t("shell.nav.import") : undefined,
         dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,

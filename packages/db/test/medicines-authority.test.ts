@@ -263,8 +263,9 @@ describe("hazard HZ-120 homely remedies in the database (migration 0140)", () =>
     VALUES ($1, $2, 'Simple linctus', 'Dry cough', 5, 'ml', 4, 20, 2, $3, 'Dr A Example', 'gp',
       current_date, current_date + 365)`;
   const doseSql = `INSERT INTO homely_remedy_administration (id, person_id, protocol_id,
-      protocol_version, outcome, quantity, reason, given_at, given_by, allergies_checked)
-    VALUES ($1, $2, $3, $4, 'given', 5, 'Cough', now(), $5, true)`;
+      protocol_version, outcome, quantity, reason, given_at, given_by, allergies_checked,
+      medicines_compared)
+    VALUES ($1, $2, $3, $4, 'given', 5, 'Cough', now(), $5, true, true)`;
 
   it("lets only a holder of medicines.record.manage at the home write a protocol", async () => {
     expect(await attempt(carer, protocolSql, [PROTOCOL, a.locationNorth, [a.carer]])).toMatch(
@@ -291,15 +292,21 @@ describe("hazard HZ-120 homely remedies in the database (migration 0140)", () =>
     expect(await attempt(carer, doseSql, [fresh(), a.personAda, PROTOCOL, 2, a.carer])).toMatch(
       /outside_protocol/,
     );
-    expect(
-      await attempt(carer, doseSql.replace(", true)", ", false)"), [
-        fresh(),
-        a.personAda,
-        PROTOCOL,
-        1,
-        a.carer,
-      ]),
-    ).toMatch(/^23514/);
+    // Allergies not checked (HZ-007), or the current medicines not compared (HZ-120, 0150).
+    for (const [allergies, compared] of [
+      ["false", "true"],
+      ["true", "false"],
+    ]) {
+      expect(
+        await attempt(carer, doseSql.replace(", true, true)", `, ${allergies}, ${compared})`), [
+          fresh(),
+          a.personAda,
+          PROTOCOL,
+          1,
+          a.carer,
+        ]),
+      ).toMatch(/^23514/);
+    }
     // The north deputy holds no medicines.emar.administer and is not named: refused (the guard
     // runs before the write policy, which the self-administration case proves).
     expect(

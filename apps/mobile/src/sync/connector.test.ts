@@ -18,6 +18,7 @@ import {
   UploadRejectedError,
   type UploadSource,
 } from "./connector";
+import { scopeRefused } from "./scope-refusal-store";
 
 const API = "https://api.example.invalid";
 const TENANT = "00000000-0000-4000-8000-0000000000a1";
@@ -193,6 +194,27 @@ describe("parseSyncCredentials", () => {
 });
 
 describe("fetchCredentials", () => {
+  it("hazard HZ-138 says when the API refuses the phone because the member's access is too wide, and clears it on a token", async () => {
+    const refused = fakeFetch([
+      problem(409, "sync_scope_too_large", "This phone cannot hold everything you can see."),
+    ]);
+    await expect(connector(refused.fetch).instance.fetchCredentials()).rejects.toThrow();
+    expect(scopeRefused()).toBe(true);
+    const given = fakeFetch([
+      json({
+        token: "jwt",
+        endpoint: "https://sync.example.invalid",
+        expiresAt: "2026-10-09T14:00:00Z",
+      }),
+    ]);
+    await connector(given.fetch).instance.fetchCredentials();
+    expect(scopeRefused()).toBe(false);
+    // Another conflict is not this refusal.
+    const other = fakeFetch([problem(409, "something_else", "Changed.")]);
+    await expect(connector(other.fetch).instance.fetchCredentials()).rejects.toThrow();
+    expect(scopeRefused()).toBe(false);
+  });
+
   it("exchanges the session for PowerSync credentials", async () => {
     const { fetch, calls } = fakeFetch([
       json({

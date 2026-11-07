@@ -119,6 +119,16 @@ describe("catalogues", () => {
       "cd.form.occurredSubject",
       // In brackets after a former member's name on a destruction certificate.
       "shred.certificate.memberRef",
+      // The subject of a date check on the homely remedy protocol form.
+      "medicines.homely.form.approvedOnSubject",
+      // Inside a homely remedy dose line ("Paracetamol, quantity not recorded, given …").
+      "medicines.homely.quantityNotRecorded",
+      "medicines.homely.form.reviewOnSubject",
+      // Date check subjects and names inside sentences on the stock screens.
+      "medicines.stock.cycle.anchorSubject",
+      "medicines.stock.order.cycleSubject",
+      "medicines.stock.aMember",
+      "medicines.stock.you",
     ]);
     for (const [key, message] of Object.entries(catalogues["en-GB"])) {
       if (continuations.has(key) || /^[{:]/.test(message)) continue;
