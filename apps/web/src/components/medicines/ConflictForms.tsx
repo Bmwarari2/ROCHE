@@ -13,7 +13,7 @@ import {
 } from "@harbour/ui";
 import { ClipboardCheck, RefreshCw, Signature, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useState, useTransition } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState, useTransition } from "react";
 import { correctAdministration, resolveConflict } from "@/app/actions/administration-corrections";
 import { useFieldIds } from "@/components/care/form-state";
 import { Notice } from "@/components/care/Notice";
@@ -77,6 +77,11 @@ export function ConflictDecisionForm({
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
+  const confirmRef = useRef<HTMLDivElement>(null);
+  // The question "given twice?" is announced and focused when it appears (A1).
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+  }, [confirming]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const parsed = readDecision(new FormData(event.currentTarget), t, offered, correctionId);
@@ -96,7 +101,6 @@ export function ConflictDecisionForm({
         id={ids.outcome}
         name="outcome"
         legend={t("medicines.conflicts.form.outcome")}
-        {...(offered.includes("corrected") ? { defaultValue: "corrected" } : {})}
         options={offered.map((o) => ({
           value: o,
           label: t("medicines.conflicts.decision", { outcome: o }),
@@ -115,13 +119,15 @@ export function ConflictDecisionForm({
         formatCount={count}
         error={errorFor(result, "note")}
       />
-      {confirming ? (
-        <Notice
-          tone="warning"
-          icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
-          title={t("medicines.conflicts.form.confirmBothGiven")}
-        />
-      ) : null}
+      <div ref={confirmRef} tabIndex={-1} aria-live="assertive" className="outline-offset-2">
+        {confirming ? (
+          <Notice
+            tone="warning"
+            icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
+            title={t("medicines.conflicts.form.confirmBothGiven")}
+          />
+        ) : null}
+      </div>
       <div className="flex flex-wrap gap-3">
         <Button type="submit" icon={<ClipboardCheck {...icon} />} disabled={pending}>
           {pending
@@ -216,6 +222,14 @@ export function AdministrationCorrectionForm({
   const [witness, setWitness] = useState<string>("");
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
+  const [checking, startChecking] = useTransition();
+  const [checked, setChecked] = useState(false);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const turnedOff = result !== null && !result.ok && result.code === "cd_recording_not_enabled";
+  // The banner takes focus when the register refuses, so the reason is read first (A5).
+  useEffect(() => {
+    if (turnedOff) bannerRef.current?.focus();
+  }, [turnedOff]);
   const unit = unitName ?? unitCode ?? "";
   const witnessLink = cdPageId
     ? (m: RegisterMove) =>
@@ -260,9 +274,9 @@ export function AdministrationCorrectionForm({
   };
   // Refused because the register is not turned on here: the paper register is the record, so the
   // form goes and the API's words stay (H-1517).
-  if (result && !result.ok && result.code === "cd_recording_not_enabled") {
+  if (turnedOff) {
     return (
-      <div className="flex flex-col gap-3">
+      <div ref={bannerRef} tabIndex={-1} className="flex flex-col gap-3 outline-offset-2">
         <CdRecordingBanner on={false} />
         <ManageFeedback result={result} path={path} />
       </div>
@@ -401,16 +415,34 @@ export function AdministrationCorrectionForm({
         formatCount={count}
         error={errorFor(result, "correctionReason")}
       />
+      {/* Always mounted, so what the witness signs for is announced as it changes (A6, A4). */}
+      <p className="sr-only" aria-live="polite">
+        {controlledDrug && move && recordingOn
+          ? t("medicines.correct.witness.signsFor", { what: moveWords(move, unit) })
+          : ""}
+      </p>
+      <p className="sr-only" aria-live="polite">
+        {checked && !checking
+          ? t(
+              signed.length > 0
+                ? "medicines.correct.witness.found"
+                : "medicines.correct.witness.notYet",
+            )
+          : ""}
+      </p>
       {controlledDrug && move && recordingOn ? (
         <fieldset className="flex flex-col gap-3 rounded-input border border-border p-3">
           <legend className="px-1 font-semibold">{t("medicines.correct.witness.title")}</legend>
-          <p className="m-0" aria-live="polite">
+          <p className="m-0">
             {t("medicines.correct.witness.signsFor", { what: moveWords(move, unit) })}
           </p>
           {witnessLink ? (
             <>
               <p className="m-0 max-w-prose">{t("medicines.correct.witness.linkIntro")}</p>
-              <p className="m-0 break-all font-mono text-body-dense">{witnessLink(move)}</p>
+              {/* The address, for reading out to the witness; the link below is the same (A11). */}
+              <p className="m-0 break-all font-mono text-body-dense" aria-hidden="true">
+                {witnessLink(move)}
+              </p>
               <div className="flex flex-wrap gap-3">
                 <ButtonLink
                   href={witnessLink(move)}
@@ -423,9 +455,15 @@ export function AdministrationCorrectionForm({
                   type="button"
                   variant="secondary"
                   icon={<RefreshCw {...icon} />}
-                  onClick={() => router.refresh()}
+                  disabled={checking}
+                  onClick={() => {
+                    setChecked(true);
+                    startChecking(() => router.refresh());
+                  }}
                 >
-                  {t("medicines.correct.witness.check")}
+                  {checking
+                    ? t("medicines.correct.witness.checking")
+                    : t("medicines.correct.witness.check")}
                 </Button>
               </div>
             </>

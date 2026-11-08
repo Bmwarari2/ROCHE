@@ -11,7 +11,6 @@ import {
   recordsAgree,
   registerMove,
   sameRecorder,
-  stepUpHref,
 } from "./administration-corrections";
 import { t } from "./i18n";
 
@@ -103,6 +102,14 @@ describe("the decisions a conflict allows (HZ-004)", () => {
     expect(recordsAgree(conflict({}))).toBe(true);
     expect(recordsAgree(conflict({ quantity: 2 }))).toBe(false);
     expect(sameRecorder(conflict({}))).toBe(false);
+  });
+
+  it("hazard HZ-004 who recorded is read from the first record, not a later correction", () => {
+    // The carer recorded the first; the nurse sent the second and then corrected the first.
+    const c = { ...conflict({ corrected: true }), uploadedBy: NURSE };
+    expect(c.current.recorded.id).toBe(NURSE);
+    expect(sameRecorder(c)).toBe(false);
+    expect(sameRecorder({ ...c, uploadedBy: CARER })).toBe(true);
   });
 });
 
@@ -224,6 +231,54 @@ describe("reading the correction form", () => {
     ).toMatchObject({ ok: true, body: { controlledDrug: { noWitnessReason: "Alone on nights" } } });
   });
 
+  it.each([
+    // The clocks went back at 02:00 BST on 25/10/2026: 01:30 happened twice, so ask which.
+    [
+      "the repeated hour, unchosen",
+      { "givenAt-day": "25", "givenAt-month": "10", "givenAt-hour": "01", "givenAt-minute": "30" },
+      null,
+    ],
+    [
+      "the repeated hour, the first",
+      {
+        "givenAt-day": "25",
+        "givenAt-month": "10",
+        "givenAt-hour": "01",
+        "givenAt-minute": "30",
+        "givenAt-fold": "first",
+      },
+      "2026-10-25T00:30:00.000Z",
+    ],
+    [
+      "the repeated hour, the second",
+      {
+        "givenAt-day": "25",
+        "givenAt-month": "10",
+        "givenAt-hour": "01",
+        "givenAt-minute": "30",
+        "givenAt-fold": "second",
+      },
+      "2026-10-25T01:30:00.000Z",
+    ],
+    // The clocks went forward at 01:00 GMT on 29/03/2026: 01:30 never happened.
+    [
+      "the skipped hour",
+      { "givenAt-day": "29", "givenAt-month": "03", "givenAt-hour": "01", "givenAt-minute": "30" },
+      null,
+    ],
+  ] as const)(
+    "hazard HZ-010 the time corrected across a clock change: %s",
+    (_name, parts, instant) => {
+      const read = readCorrection(form({ ...base, ...parts }), t, context());
+      if (instant === null) {
+        expect(read.ok).toBe(false);
+        if (!read.ok) expect(Object.keys(read.errors)).toEqual(["givenAt"]);
+      } else {
+        expect(read).toMatchObject({ ok: true, body: { givenAt: instant } });
+      }
+    },
+  );
+
   it("asks for no witness when the register does not move", () => {
     const same = { ...base, "givenAt-minute": "05" };
     expect(readCorrection(form(same), t, context({ controlledDrug: true }))).toMatchObject({
@@ -247,11 +302,10 @@ describe("reading the decision", () => {
     });
   });
 
-  it("builds the addresses, the step-up one coming back here", () => {
+  it("builds the addresses", () => {
     expect(conflictHref(A, B)).toBe(`/medicines-round/${A}/conflicts/${B}`);
     expect(correctHref(B, A, SIG)).toBe(
       `/people/${B}/medicines/administrations/${A}/correct?conflict=${SIG}`,
     );
-    expect(stepUpHref("/x/y")).toBe("/sign-in?reason=step-up&next=%2Fx%2Fy");
   });
 });

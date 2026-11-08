@@ -38,7 +38,12 @@ export function ConflictRecords({
           {corrected ? (
             <dd className="m-0">
               <del>{recordWords(conflict.standing, unit)}</del>
-              <span className="sr-only"> {t("medicines.conflicts.replaced")}</span>
+              <span className="sr-only">
+                {" "}
+                {t("medicines.conflicts.replaced", {
+                  at: formatDateTime(conflict.current.recorded.at) ?? "",
+                })}
+              </span>
             </dd>
           ) : null}
           <dd className="m-0">{recordWords(conflict.current, unit)}</dd>
@@ -58,6 +63,13 @@ export function ConflictRecords({
               {t("medicines.conflicts.sentAgain", { record: recordWords(j, unit) })}
             </dd>
           ))}
+          {conflict.uploaded.deviceAt ? (
+            <dd className="m-0">
+              {t("medicines.conflicts.deviceAt", {
+                at: formatDateTime(conflict.uploaded.deviceAt) ?? "",
+              })}
+            </dd>
+          ) : null}
           <dd className="m-0">
             {t("medicines.conflicts.received", {
               at: formatDateTime(conflict.receivedAt) ?? "",

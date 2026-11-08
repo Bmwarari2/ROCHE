@@ -76760,6 +76760,7 @@ export interface components {
         mayGive: boolean;
         notice: string | null;
       };
+      controlledDrug: boolean;
     };
     DmdProductRef: {
       vmpId: string;

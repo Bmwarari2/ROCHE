@@ -1369,7 +1369,7 @@ the correction now in force), and `controlledDrug`; each administration carries 
 whether it wrote a register entry; a waiting witness signature carries the `administrationId` it
 was signed for. All are additive.
 
-**On the web (HZ-004; H-1605 closed).** The phone sends staff here for three things, now built:
+**On the web (HZ-004; H-1605 closes when this merges).** The phone sends staff here for three things, now built:
 - *Doses recorded twice* (`/medicines-round/{locationId}/conflicts`, linked from the home's
   medicines round): each conflict with the person, the medicine, both records in words side by
   side, whether they agree and whether one member recorded both. Its page offers only the

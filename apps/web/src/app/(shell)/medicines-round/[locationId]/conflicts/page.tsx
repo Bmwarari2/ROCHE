@@ -1,5 +1,5 @@
 import { Card, EmptyState, PageHeader } from "@harbour/ui";
-import { CircleCheck, TriangleAlert } from "lucide-react";
+import { CircleCheck, ShieldAlert, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -14,6 +14,7 @@ import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { locationRoundHref, medicinesRoundShown } from "@/lib/medicine-round";
+import { personNames } from "@/lib/people";
 import { firstParam } from "@/lib/record-metadata";
 
 type Params = Promise<{ locationId: string }>;
@@ -96,12 +97,19 @@ export default async function ConflictsPage({
                   headingLevel={2}
                 >
                   <div className="flex flex-col gap-3">
-                    {person ? <PersonHeaderCompact person={person} headingLevel={3} /> : null}
+                    {person ? (
+                      <PersonHeaderCompact person={person} headingLevel={3} />
+                    ) : (
+                      <p className="m-0">{t("medicines.conflicts.personHidden")}</p>
+                    )}
                     <p className="m-0">
                       {t("medicines.conflicts.due", { at: formatDateTime(c.dueAt) ?? "" })}
                     </p>
                     {c.controlledDrug ? (
-                      <p className="m-0 font-semibold">{t("medicines.conflicts.controlled")}</p>
+                      <p className="m-0 flex items-center gap-2 font-semibold">
+                        <ShieldAlert size={18} strokeWidth={1.5} aria-hidden="true" />
+                        {t("medicines.conflicts.controlled")}
+                      </p>
                     ) : null}
                     <ConflictRecords
                       conflict={c}
@@ -112,7 +120,13 @@ export default async function ConflictsPage({
                         href={conflictHref(locationId, c.id)}
                         className="inline-flex min-h-target items-center underline"
                       >
-                        {t("medicines.conflicts.open", { medicine })}
+                        {t("medicines.conflicts.open", {
+                          medicine,
+                          person: person
+                            ? personNames(person).full
+                            : t("medicines.conflicts.someone"),
+                          at: formatDateTime(c.dueAt) ?? "",
+                        })}
                       </Link>
                     </p>
                   </div>

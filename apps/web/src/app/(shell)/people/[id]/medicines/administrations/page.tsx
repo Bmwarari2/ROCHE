@@ -9,6 +9,7 @@ import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { correctHref, entryUnit } from "@/lib/administration-corrections";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { tabHref } from "@/lib/care-record";
+import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { medicinesRoundShown } from "@/lib/medicine-round";
 import { medicinesHref } from "@/lib/medicines";
@@ -81,7 +82,15 @@ async function Administrations({
                     <p className="m-0 font-semibold">{product}</p>
                     {r.supersededById ? (
                       <p className="m-0">
-                        <del>{words}</del> <span>{t("medicines.administrations.corrected")}</span>
+                        <del>{words}</del>{" "}
+                        <span>
+                          {t("medicines.administrations.corrected", {
+                            at:
+                              formatDateTime(
+                                rows.find((x) => x.id === r.supersededById)?.recorded.at ?? null,
+                              ) ?? "none",
+                          })}
+                        </span>
                       </p>
                     ) : (
                       <p className="m-0">{words}</p>
@@ -98,7 +107,10 @@ async function Administrations({
                           className="inline-flex min-h-target items-center gap-2 underline"
                         >
                           <PenLine size={18} strokeWidth={1.5} aria-hidden="true" />
-                          {t("medicines.administrations.correct", { product })}
+                          {t("medicines.administrations.correct", {
+                            product,
+                            at: formatDateTime(r.givenAt) ?? "",
+                          })}
                         </Link>
                       </p>
                     ) : null}

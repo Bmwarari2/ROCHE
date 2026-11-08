@@ -1,5 +1,5 @@
 import { Card, PageHeader } from "@harbour/ui";
-import { Info, PenLine } from "lucide-react";
+import { Info, PenLine, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -66,8 +66,28 @@ export default async function ConflictPage({
     api.GET("/v1/people/{id}/medicines", { params: { path: { id: conflict.personId } } }),
   ]);
   const person = (people.data?.items ?? []).find((p) => p.id === conflict.personId);
-  // A dose at another home is decided from that home's list.
-  if (!person) notFound();
+  // Without the person's name, photo and allergies, nothing is decided here (HZ-001): a dose at
+  // another home, or someone this member cannot see, is decided from where they are seen.
+  if (!person) {
+    return (
+      <div className="mx-auto flex w-full max-w-content flex-col gap-6">
+        <PageHeader eyebrow={location.name} title={title} />
+        <Notice
+          tone="warning"
+          icon={<TriangleAlert {...iconProps} />}
+          title={t("medicines.conflicts.personHidden")}
+        />
+        <p className="m-0">
+          <Link
+            href={conflictsHref(locationId)}
+            className="inline-flex min-h-target items-center underline"
+          >
+            {t("medicines.conflicts.back")}
+          </Link>
+        </p>
+      </div>
+    );
+  }
   const entry = (record.data?.entries ?? []).find((e) => e.id === conflict.entryId);
   const medicine = entry?.product.name ?? t("medicines.conflicts.someMedicine");
   const path = conflictHref(locationId, conflictId);

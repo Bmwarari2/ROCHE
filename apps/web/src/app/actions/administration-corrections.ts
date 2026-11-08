@@ -63,13 +63,16 @@ export async function correctAdministration(
   administrationId: string,
   body: Schemas["CorrectAdministration"],
 ): Promise<ActionResult<null>> {
-  if (!isUuid(personId) || !isUuid(administrationId) || !isUuid(body.id)) {
+  // Server actions are public endpoints: the body is parsed before anything in it is read. Only
+  // what the web form sends: no other giver, whatever a crafted call holds; a controlled drug's
+  // phone signatures are sent only by that phone (security review of slice 53).
+  const parsed = CorrectAdministration.safeParse(
+    typeof body === "object" && body !== null ? { ...body, givenBy: null } : body,
+  );
+  if (!parsed.success) return refused(t("errors.generic"), "invalid");
+  if (!isUuid(personId) || !isUuid(administrationId) || !isUuid(parsed.data.id)) {
     return refused(t("errors.notFound"), "not_found");
   }
-  // Only what the web form sends: no other giver, whatever a crafted call holds; a controlled
-  // drug's phone signatures are sent only by that phone (security review of slice 53).
-  const parsed = CorrectAdministration.safeParse({ ...body, givenBy: null });
-  if (!parsed.success) return refused(t("errors.generic"), "invalid");
   if (parsed.data.controlledDrug && "deviceSignatures" in parsed.data.controlledDrug) {
     return refused(t("errors.generic"), "invalid");
   }

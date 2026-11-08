@@ -44833,6 +44833,9 @@
               "mayGive",
               "notice"
             ]
+          },
+          "controlledDrug": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -44863,7 +44866,8 @@
           "replacedFrom",
           "reanchor",
           "withdrawn",
-          "status"
+          "status",
+          "controlledDrug"
         ]
       },
       "DmdProductRef": {

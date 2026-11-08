@@ -58,7 +58,9 @@ async function openConflict(page: Page, medicine: string, words: string) {
     .filter({ hasText: medicine });
   await card
     .first()
-    .getByRole("link", { name: `Review and decide: ${medicine}` })
+    .getByRole("link", {
+      name: new RegExp(`^Review and decide: ${medicine} for Frank Dummy, due `),
+    })
     .click();
   await expect(
     main(page).getByRole("heading", { level: 1, name: `${medicine}: recorded twice` }),
@@ -78,18 +80,32 @@ test("hazard HZ-004 the nurse in charge decides a dose sent twice: the first rec
   await expect(main(manager).getByText("Two different members recorded them.")).toBeVisible();
   const decide = region(manager, "Decide what happened");
   // Saying nothing is refused in words, at the fields.
+  // No decision is chosen for the reader.
+  for (const radio of await decide.getByRole("radio").all()) await expect(radio).not.toBeChecked();
   await decide.getByRole("button", { name: "Save decision" }).click();
+  // The error summary takes focus, so it is heard first.
+  await expect(decide.getByRole("alert")).toBeFocused();
   await expect(decide.getByText("Choose what happened.").first()).toBeVisible();
   await bothThemes(manager, "decision with errors");
-  // "Given twice" asks again before it raises a medication incident.
-  await decide.getByRole("radio", { name: /The dose was given twice/ }).check();
-  await decide.getByLabel("What you found out").fill(`Checked with both staff, run ${RUN}`);
-  await decide.getByRole("button", { name: "Save decision" }).click();
-  await expect(decide.getByText(/raises a medication incident\.$/).first()).toBeVisible();
+  // By keyboard only: "given twice" asks again, and the question takes focus.
+  const given = decide.getByRole("radio", { name: /The dose was given twice/ });
+  await given.focus();
+  await manager.keyboard.press("Space");
+  await expect(given).toBeChecked();
+  await decide.getByLabel("What you found out").focus();
+  await manager.keyboard.type(`Checked with both staff, run ${RUN}`);
+  await decide.getByRole("button", { name: "Save decision" }).focus();
+  await manager.keyboard.press("Enter");
+  const asked = decide.locator("[aria-live=assertive]");
+  await expect(asked).toContainText(/raises a medication incident\.$/);
+  await expect(asked).toBeFocused();
   await bothThemes(manager, "given twice asked again");
-  await decide.getByRole("button", { name: "Keep reviewing" }).click();
-  await decide.getByRole("radio", { name: /the first record stands/ }).check();
-  await decide.getByRole("button", { name: "Save decision" }).click();
+  await decide.getByRole("button", { name: "Keep reviewing" }).press("Enter");
+  const stands = decide.getByRole("radio", { name: /the first record stands/ });
+  await stands.focus();
+  await manager.keyboard.press("Space");
+  await expect(stands).toBeChecked();
+  await decide.getByRole("button", { name: "Save decision" }).press("Enter");
   await expect(status(manager, "Decision saved")).toBeVisible();
   await expect(main(manager).getByRole("article")).toHaveCount(2);
 });
@@ -119,6 +135,7 @@ test("hazard HZ-004 the record that stands is wrong: it is corrected, then the d
   await form.getByRole("radio", { name: "Given", exact: true }).check();
   await form.getByLabel(/^Amount given, in/).fill("1");
   await form.getByRole("button", { name: "Save correction" }).click();
+  await expect(form.getByRole("alert")).toBeFocused();
   await expect(form.getByText("Say why you are correcting it.").first()).toBeVisible();
   await bothThemes(manager, "correction with errors");
   await form
@@ -133,7 +150,8 @@ test("hazard HZ-004 the record that stands is wrong: it is corrected, then the d
       .filter({ hasText: /^Refused/ }),
   ).toBeVisible();
   const decide = region(manager, "Decide what happened");
-  await expect(decide.getByRole("radio", { name: /has been corrected/ })).toBeChecked();
+  await expect(decide.getByRole("radio", { name: /has been corrected/ })).not.toBeChecked();
+  await decide.getByRole("radio", { name: /has been corrected/ }).check();
   await decide
     .getByLabel("What you found out")
     .fill(`The carer confirmed it was given, run ${RUN}`);
@@ -202,12 +220,15 @@ test("hazard HZ-004 hazard HZ-115 a controlled drug's record is corrected with a
   await dose.getByRole("button", { name: "Sign as witness" }).click();
   await expect(status(owner, /Signed as witness\./)).toBeVisible();
   await witness.getByRole("button", { name: "Check for the signature" }).click();
+  // Whether it was found is announced.
+  await expect(form.getByText("Your witness's signature is here. Choose it below.")).toBeAttached();
   await witness.getByLabel("The witness's signature").selectOption({ label: `Signed by ${OWNER}` });
   await form.getByRole("button", { name: "Save correction" }).click();
   await expect(status(manager, "Record corrected. Now decide what happened.")).toBeVisible();
 
   // Having corrected it, the manager may not decide it: the API says why, in its words.
   const decide = region(manager, "Decide what happened");
+  await decide.getByRole("radio", { name: /has been corrected/ }).check();
   await decide.getByLabel("What you found out").fill(`Checked the register, run ${RUN}`);
   await decide.getByRole("button", { name: "Save decision" }).click();
   await expect(
@@ -219,7 +240,7 @@ test("hazard HZ-004 hazard HZ-115 a controlled drug's record is corrected with a
   // The owner, who took no part in the dose, decides it.
   await owner.goto(manager.url().split("?")[0] ?? "");
   const theirs = region(owner, "Decide what happened");
-  await expect(theirs.getByRole("radio", { name: /has been corrected/ })).toBeChecked();
+  await theirs.getByRole("radio", { name: /has been corrected/ }).check();
   await theirs.getByLabel("What you found out").fill(`Witnessed the correction's dose, run ${RUN}`);
   await theirs.getByRole("button", { name: "Save decision" }).click();
   await expect(status(owner, "Decision saved")).toBeVisible();

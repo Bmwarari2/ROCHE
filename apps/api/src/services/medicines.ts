@@ -34,6 +34,8 @@ export const UNCHECKED_POLICY: UncheckedEntryPolicy = "give_with_notice";
 export interface StoredEntry {
   readonly entry: MarEntry;
   readonly medicineId: string;
+  /** The product has a controlled drug schedule (from dm+d, slice 10); unknown is false. */
+  readonly controlledDrug?: boolean;
 }
 
 const num = (value: string | null): number => Number(value);
@@ -176,6 +178,7 @@ export async function personEntries(tx: Transaction, personId: string): Promise<
       times.filter((t) => t.medicationId === row.id),
     ),
     medicineId: row.medicineId,
+    controlledDrug: Boolean(row.cdSchedule),
   }));
 }
 
@@ -367,6 +370,7 @@ export function entryOut(stored: StoredEntry, now: Date): MedicineEntry {
       ? { id: e.withdrawn.by, at: e.withdrawn.at.toISOString(), reason: e.withdrawn.reason }
       : null,
     status: marEntryStatus(e, now, UNCHECKED_POLICY),
+    controlledDrug: stored.controlledDrug ?? false,
   };
 }
 

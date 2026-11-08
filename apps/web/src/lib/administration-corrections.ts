@@ -35,10 +35,6 @@ export const correctHref = (personId: string, administrationId: string, conflict
     conflict ? `?${new URLSearchParams({ conflict }).toString()}` : ""
   }`;
 
-/** Where a refusal for a fresh sign-in goes: to sign in again, then back to this page. */
-export const stepUpHref = (next: string) =>
-  `/sign-in?${new URLSearchParams({ reason: "step-up", next }).toString()}`;
-
 const TAKEN: ReadonlySet<string> = new Set(["given", "self_administered", "given_by_family"]);
 const quantityOf = (r: { readonly amount: { readonly quantity: number } | null }) =>
   r.amount?.quantity ?? null;
@@ -50,9 +46,12 @@ export function recordsAgree(c: Pick<Conflict, "current" | "uploaded">): boolean
   );
 }
 
-/** The same member recorded the record that stands and the second record. */
-export function sameRecorder(c: Pick<Conflict, "current" | "uploadedBy">): boolean {
-  return c.current.recorded.id === c.uploadedBy;
+/**
+ * The same member made the first record and sent the second (the phone's sameRecorder): the
+ * record that stood when the second arrived, never a later correction by the reviewer.
+ */
+export function sameRecorder(c: Pick<Conflict, "standing" | "uploadedBy">): boolean {
+  return c.standing.recorded.id === c.uploadedBy;
 }
 
 /**

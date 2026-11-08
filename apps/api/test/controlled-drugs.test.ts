@@ -205,8 +205,16 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
     expect(mine.assertions.find((a) => a.id === forManager)).toMatchObject({
       movement: "disposal",
       quantity: 1,
+      administrationId: null,
       witnessName: DEMO.users.carer.name,
     });
+    // A signature for a dose record names that record, so the web offers it to that one only.
+    const doseRecord = randomUUID();
+    const forDose = await witness(pageId, "administration", 1, doseRecord);
+    const again = await json<{ assertions: { id: string; administrationId: string | null }[] }>(
+      await send("manager", `/v1/controlled-drugs/pages/${pageId}/witness-assertions`),
+    );
+    expect(again.assertions.find((a) => a.id === forDose)?.administrationId).toBe(doseRecord);
   });
 
   it("hazard HZ-116 refuses the slice 54 reads to members without the permission or the page (slice 54)", async () => {
@@ -330,6 +338,14 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
     }>(await send("manager", `/v1/controlled-drugs/pages/${pageId}`));
     expect(page.balance).toBe(27);
     expect(page.entries.at(-1)).toMatchObject({ movement: "administration", administrationId: id });
+    // The record says it is in the register, so a correction corrects that entry (web screens).
+    const recorded = await json<{ administration: { inCdRegister: boolean } }>(r);
+    expect(recorded.administration.inCdRegister).toBe(true);
+    // The MAR says the medicine is a controlled drug, so the web asks for a witness (HZ-115).
+    const mar = await json<{ entries: { id: string; controlledDrug: boolean }[] }>(
+      await send("manager", `/v1/people/${ADA}/medicines`),
+    );
+    expect(mar.entries.find((e) => e.id === entryId)?.controlledDrug).toBe(true);
     givenId = id;
     givenDueAt = dueAt as string;
   });

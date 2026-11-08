@@ -1,5 +1,5 @@
 import type { MedicineRound } from "@harbour/contracts";
-import { medication, medicationAdministrationConflict, type Transaction, task } from "@harbour/db";
+import { medicationAdministrationConflict, type Transaction, task } from "@harbour/db";
 import {
   isTimeCritical,
   type MarEntry,
@@ -16,6 +16,7 @@ import { publish } from "../outbox";
 import {
   type AdministrationRow,
   administrationOut,
+  isControlledDrug,
   personAdministrations,
   supersededBy,
   witnessesFor,
@@ -292,15 +293,6 @@ export function joinedTo(tx: Transaction, conflictId: string): Promise<ConflictR
     .orderBy(asc(medicationAdministrationConflict.receivedAt));
 }
 
-/** Whether the entry's product has a controlled drug schedule (as the routes' isControlledDrug). */
-async function controlledDrugEntry(tx: Transaction, entryId: string): Promise<boolean> {
-  const [row] = await tx
-    .select({ cd: medication.cdSchedule })
-    .from(medication)
-    .where(eq(medication.id, entryId));
-  return Boolean(row?.cd);
-}
-
 /** A conflict with both records (and any further uploads), for the nurse in charge. */
 export async function conflictOut(
   tx: Transaction,
@@ -323,7 +315,7 @@ export async function conflictOut(
     dueAt: row.dueAt.toISOString(),
     standing: administrationOut(standing, later, witnesses),
     current: administrationOut(current, later, witnesses),
-    controlledDrug: await controlledDrugEntry(tx, row.medicationId),
+    controlledDrug: await isControlledDrug(tx, row.medicationId),
     uploaded: first,
     joined: (await joinedTo(tx, row.id)).map(uploadedOut),
     problems: first.problems,

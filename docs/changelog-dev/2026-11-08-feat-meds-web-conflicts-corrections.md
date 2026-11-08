@@ -17,4 +17,4 @@
   offered for another register entry. OpenAPI and the client regenerated.
 - Demo seed (end-to-end only): three conflicts on Frank Dummy's MAR, one on a controlled drug.
 - Docs: medicines.md 15.4, the hazard log's HZ-004 rows, a nurse guide "Decide a dose recorded
-  twice", the browser round guide, H-1605 closed.
+  twice", the browser round guide, H-1605 closes when this merges.

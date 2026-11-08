@@ -118,9 +118,13 @@ async function Correct({
   }
   const unit = entryUnit(entry);
   const page = (pages.data?.pages ?? []).find((p) => p.vmpId === entry.product.vmpId) ?? null;
-  // A controlled drug: the conflict says so, its register has a page, or the record is in it.
+  // A controlled drug: its schedule on the MAR says so (so a dose not given, with no register
+  // page yet, still asks for a witness), as do the conflict, a register page or the record.
   const controlledDrug =
-    Boolean(conflict?.data?.controlledDrug) || page !== null || original.inCdRegister;
+    entry.controlledDrug ||
+    Boolean(conflict?.data?.controlledDrug) ||
+    page !== null ||
+    original.inCdRegister;
   const waiting = page
     ? ((
         await api.GET("/v1/controlled-drugs/pages/{pageId}/witness-assertions", {

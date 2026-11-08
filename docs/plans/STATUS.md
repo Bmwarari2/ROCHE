@@ -99,7 +99,7 @@ and 1 once #193 has its numbers.
 medicines.md 15.4): deciding a dose recorded twice (a controlled drug's included, with step-up and
 someone who took no part), correcting the record that stands, and correcting a controlled drug's
 record with a witness who signs, in their own session, for exactly that correction. H-1605's
-stop-gap is closed. Additive API fields only; no migration.
+stop-gap stays until this merges. Additive API fields only; no migration.
 
 ## Retention sweeps: plan (07/11/2026)
 
