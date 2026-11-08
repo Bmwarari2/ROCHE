@@ -74,7 +74,8 @@ export default async function SupervisionsDuePage({
         >
           <SelectField
             name="location"
-            label={t("development.matrix.location")}
+            label={t("development.supervisionsDue.location")}
+            hint={t("development.supervisionsDue.locationHint")}
             emptyOption={t("development.matrix.anyLocation")}
             defaultValue={locationId ?? ""}
             options={me.locations.map((l) => ({ value: l.id, label: l.name }))}
@@ -91,7 +92,7 @@ export default async function SupervisionsDuePage({
           </Button>
         </form>
       </Card>
-      <p className="m-0 text-body-dense" aria-live="polite">
+      <p className="m-0 text-body-dense">
         {t("development.supervisionsDue.summary", {
           members: members.length,
           overdue: counts.overdue,
@@ -127,12 +128,10 @@ export default async function SupervisionsDuePage({
                       >
                         {m.member.displayName}
                       </Link>
-                      {m.member.jobTitle ? (
-                        <span className="ms-2 font-normal text-text-secondary">
-                          {m.member.jobTitle}
-                        </span>
-                      ) : null}
                     </h2>
+                    {m.member.jobTitle ? (
+                      <p className="m-0 text-body-dense text-text-secondary">{m.member.jobTitle}</p>
+                    ) : null}
                     <dl className="m-0 grid gap-3 sm:grid-cols-3">
                       {m.meetings.map((meeting) => (
                         <div key={meeting.kind} className="flex flex-col gap-1">
@@ -143,19 +142,26 @@ export default async function SupervisionsDuePage({
                             <span>
                               <SafetyChip chip={meetingChip(meeting.state, t)} />
                             </span>
-                            <span className="text-body-dense">
-                              {meeting.dueOn
-                                ? t("development.supervisionsDue.dueOn", {
-                                    date: ukDate(meeting.dueOn),
-                                  })
-                                : t("development.supervisionsDue.noneHeld")}
-                            </span>
+                            {meeting.dueOn ? (
+                              <time dateTime={meeting.dueOn} className="text-body-dense">
+                                {t("development.supervisionsDue.dueOn", {
+                                  date: ukDate(meeting.dueOn),
+                                })}
+                              </time>
+                            ) : (
+                              <span className="text-body-dense">
+                                {t("development.supervisionsDue.noneHeld")}
+                              </span>
+                            )}
                             {meeting.lastHeldOn ? (
-                              <span className="text-body-dense text-text-secondary">
+                              <time
+                                dateTime={meeting.lastHeldOn}
+                                className="text-body-dense text-text-secondary"
+                              >
                                 {t("development.supervisionsDue.lastHeld", {
                                   date: ukDate(meeting.lastHeldOn),
                                 })}
-                              </span>
+                              </time>
                             ) : null}
                           </dd>
                         </div>
@@ -165,9 +171,11 @@ export default async function SupervisionsDuePage({
                           {t("development.supervisionsDue.spotCheck")}
                         </dt>
                         <dd className="m-0 text-body-dense">
-                          {m.lastSpotCheckOn
-                            ? ukDate(m.lastSpotCheckOn)
-                            : t("development.supervisionsDue.noSpotCheck")}
+                          {m.lastSpotCheckOn ? (
+                            <time dateTime={m.lastSpotCheckOn}>{ukDate(m.lastSpotCheckOn)}</time>
+                          ) : (
+                            t("development.supervisionsDue.noSpotCheck")
+                          )}
                         </dd>
                       </div>
                     </dl>

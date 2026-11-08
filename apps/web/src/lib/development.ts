@@ -124,7 +124,7 @@ export function meetingChip(state: string, t: Translator): SafetyChip {
   }
   if (state === "due") return { status: "due", icon: "clock", label: t("development.meeting.due") };
   if (state === "none_recorded") {
-    return { status: "due", icon: "circle-alert", label: t("development.meeting.noneRecorded") };
+    return { status: "due", icon: "circle-minus", label: t("development.meeting.noneRecorded") };
   }
   return { status: "info", icon: "clock", label: t("development.meeting.upcoming") };
 }

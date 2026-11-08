@@ -132,6 +132,10 @@ describe("status as an icon and a word", () => {
     expect(meetingChip(state, t)).toMatchObject({ status, label });
   });
 
+  it("never shows none recorded with the overdue icon", () => {
+    expect(meetingChip("none_recorded", t).icon).not.toBe(meetingChip("overdue", t).icon);
+  });
+
   it("revalidation requirements", () => {
     expect(requirementChip(true, t).label).toBe("Met");
     expect(requirementChip(false, t).label).toBe("To do");

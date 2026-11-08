@@ -105,7 +105,10 @@ pull request. Nothing is scheduled until the owner approves the plans.
 **WORK-009 slice 1 (08/11/2026, `feat/workforce-supervisions-due`):** supervisions and appraisals
 due across staff, on `/training/supervisions` with `GET /v1/workforce/supervisions-due` and the
 rate key `supervision.due_window_days`; WORK-005, 008, 009 and 012 corrected from `todo` to
-`partial`. Next: slice 2, the reminder tasks for supervisions and appraisals due.
+`partial`. Next: slice 2, the reminder tasks for supervisions and appraisals due. **Follow-up:**
+an ADR on whether development reads (the training matrix and the supervisions list) follow
+attribute scope (location, team) rather than organisation-wide HR (migration 0073); a
+least-privilege question the lead kept out of WORK-009 (08/11/2026).
 **Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
 phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
 and 1 once #193 has its numbers.

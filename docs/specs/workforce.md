@@ -320,7 +320,12 @@ whatever the clock change.
    `appraisal.per_year` appraisals a year: the next is due one interval (12 months divided by the
    number) after the last, or after the start date when none has been held; overdue from the day
    after; it shows as due soon `supervision.due_window_days` days before. Spot checks are recorded
-   but do not count as supervisions. What a supervision covered
+   but do not count as supervisions. Across staff (WORK-009, `/training/supervisions`) the list
+   holds everyone with a staff role in force, whether or not their roles need training (unlike the
+   matrix), because everyone in a staff role is due supervision. It is organisation-wide for its
+   readers, as the matrix and the staff file are (migration 0073); the home filter narrows the view,
+   never the access. Whether development reads should follow attribute scope instead is an open
+   question for its own ADR (see Known gaps). What a supervision covered
    (H-692) is recorded by slice 57 (`supervision_note`, migration 0114, ADR-0114).
 8. **Qualifications and NMC revalidation** (`registration.ts`). A registered nurse's registration
    must be current on the day worked; revalidation is due every `nmc.revalidation.cycle_years` years
@@ -672,7 +677,7 @@ offer. No form is offered on one's own record.
 | Screen | Path | Offered to | Does |
 | --- | --- | --- | --- |
 | Training matrix | `/training` | any of `workforce.training.manage`, `.competence.observe`, `.supervision.manage`, `.staff_file.read` | Every member of staff whose roles need training, a column per topic, each state an icon and a word (up to date, due soon, lapsed, not done; not needed for their roles). Filter by location, role and those needing attention (a GET form, ids and codes only); find by name in the browser, so no name enters an address |
-| Supervisions and appraisals due | `/training/supervisions` | as the matrix | Each member of staff's next supervision and appraisal as an icon and a word (overdue, due soon, none recorded, not due yet) with when it falls due and when the last was held, and their last spot check; most urgent first; filter by home and to those needing attention; each name opens the training record (WORK-009) |
+| Supervisions and appraisals due | `/training/supervisions` | as the matrix, organisation-wide (the home filter narrows the view, not access) | Each member of staff's next supervision and appraisal as an icon and a word (overdue, due soon, none recorded, not due yet) with when it falls due and when the last was held, and their last spot check; most urgent first; filter by home and to those needing attention; each name opens the training record (WORK-009) |
 | Training requirements | `/training/requirements` | `workforce.training.manage` | Each role's topics, refresh and Oliver McGowan tier; set one role's requirement for a topic |
 | Training record | `/training/{memberId}` | as the matrix | The member's required training today and their records (record, correct); observed competences and sign-offs (sign off in one's own name, withdraw with a reason and a confirmation); supervisions and appraisals with the next due, and their notes where the viewer may read them (add or correct by whoever held it, earlier notes struck through); the NMC revalidation planner (H-693's default: HR records the evidence) |
 
@@ -685,9 +690,11 @@ offer. No form is offered on one's own record.
     limit and audit. Each member's next supervision and appraisal follow rule 7, with
     `supervision.due_window_days` as the window in which one shows as due soon (the member's record
     uses the same window). With none held the state is `none_recorded` and no date is given: the
-    start date is in the staff file, which these readers may not see. Development records are read
+    start date is in the staff file, which these readers may not see. It lists everyone with a
+    staff role in force, not only those with a training requirement. Development records are read
     organisation-wide, as the staff file is (migration 0073), so a reader sees every home's staff;
-    the location filter narrows the list, never the access.
+    the location filter narrows the list, never the access (the lead's decision, 08/11/2026). Only
+    dates and states are shown: never a supervision note or what a spot check found.
   - `POST /v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes` adds or corrects a
     note. Only whoever held the supervision may use it, never the member. It is audited without the
     note.
@@ -984,6 +991,7 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Gap | Effect now | To close |
 | --- | --- | --- |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
+| Development reads (the training matrix and the supervisions list) are organisation-wide for their readers (migration 0073) | Every holder of a workforce read permission sees every home's staff; the home filter narrows the view only | A separate ADR deciding whether development reads follow attribute scope (location, team) rather than organisation-wide HR: a least-privilege question, not part of WORK-009 |
 | Supervision and appraisal due dates raise no tasks yet | Shown on the training record with their state (slice 57) and across staff on `/training/supervisions` (WORK-009, 08/11/2026) | Reminder tasks for supervisions and appraisals due (with the task engine's workforce reminders; WORK-009 slice 2) |
 | Supervision notes are not read by tenant-wide roles (owner, group executive) for holding `workforce.supervision.manage` alone (slice 57, ADR-0114) | They see that a supervision happened, not what was said | A separate note permission, if wanted (H-1044) |
 | The matrix offers the built-in roles as filters; an organisation's own roles show by key on the requirements screen (slice 57) | A custom role's key, not its name, shows | A roles list in the API (with the role design screens) |
