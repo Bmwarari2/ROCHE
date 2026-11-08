@@ -1016,6 +1016,13 @@
       "when": 1794155866573,
       "tag": "0159_discard_key_invalidated",
       "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1794155867573,
+      "tag": "0161_development_attribute_scope",
+      "breakpoints": true
     }
   ]
 }

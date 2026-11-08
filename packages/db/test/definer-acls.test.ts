@@ -97,6 +97,13 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Who may be named a nurse's revalidation confirmer, and the picker (migration 0157).
   "app.member_may_confirm_revalidation(uuid)": ["harbour_app"],
   "app.revalidation_confirmer_candidates()": ["harbour_app"],
+  // Whether the caller holds a workforce permission in a scope covering a member: development
+  // reads and their reminder tasks (migration 0161, ADR-0136); the task policy is also harbour_owner's.
+  "app.holds_staff_permission_for(text, uuid)": [
+    "harbour_app",
+    "harbour_care_definer",
+    "harbour_owner",
+  ],
   "app.induction_policy_signing(uuid)": ["harbour_app"],
   "app.end_leaver_access(uuid)": ["harbour_app"],
   // Membership changes held by the database (migration 0129, H-566).
