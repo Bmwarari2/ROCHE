@@ -100,6 +100,15 @@ pull request. Nothing is scheduled until the owner approves the plans.
 phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
 and 1 once #193 has its numbers.
 
+## Retention sweeps: plan (07/11/2026)
+
+`feat/platform-retention-sweeps`: `docs/plans/retention-sweeps.md`, a draft inventory and plan for
+destroying Phase 2 records when their retention class ends. Nothing destroys database rows today;
+133 of the 135 Phase 2 tables with personal data are never swept. 15 slices, report only first;
+an ADR and 12 DPO questions come before any record is destroyed.
+Slice 0 done (08/11/2026, docs only): ADR-0135 proposed, retention.md mapping de-duplicated and complete,
+retention-and-deletion.md matches today, the 12 questions logged with provisional answers (H-1556 to H-1560, H-1581 to H-1587).
+
 ## User guides: safety, quality and platform, second pass (07/11/2026)
 
 `docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
