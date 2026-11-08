@@ -627,6 +627,14 @@ describe("hazard HZ-124 training and competence reminders (workforce.md section 
     };
     expect(await remindDevelopmentExpiry(deps)).toBe(2);
     expect(await remindDevelopmentExpiry(deps)).toBe(0);
+    // One audit event for each task raised, none for the run that raised nothing.
+    const raisedAudits = await sql<{ scope: Record<string, unknown> }>(
+      "SELECT scope FROM audit_event WHERE action = 'workforce.reminder.raised' AND scope->>'job' = 'development-reminders'",
+    );
+    expect(raisedAudits).toHaveLength(2);
+    expect(
+      raisedAudits.every((a) => a.scope.actor === "system" && a.scope.memberId === CARER),
+    ).toBe(true);
     const [task] = await sql<{
       title: string;
       assignee_role_key: string;
@@ -658,6 +666,12 @@ describe("hazard HZ-124 reminders end with a renewal, and readers come from the 
       "SELECT status FROM task WHERE kind = 'workforce.competence_expiry'",
     );
     expect(rows.map((r) => r.status)).toEqual(["cancelled"]);
+    const cancelled = await sql<{ scope: Record<string, unknown> }>(
+      "SELECT scope FROM audit_event WHERE action = 'workforce.reminder.cancelled' AND scope->>'kind' = 'workforce.competence_expiry'",
+    );
+    expect(cancelled).toMatchObject([
+      { scope: { actor: "system", cause: "recorded_again", competence: "catheter_care" } },
+    ]);
   });
 
   it("refuses a reader whose permission comes only from a role scoped to assigned people", async () => {

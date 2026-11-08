@@ -86,3 +86,42 @@ export function meetingsDue(
 export function meetingsNeedAttention(meetings: readonly MeetingDue[]): boolean {
   return meetings.some((m) => m.state !== "upcoming");
 }
+
+/** A reminder task to raise for one member's supervision or appraisal (rule 7; WORK-009). */
+export interface MeetingReminder {
+  readonly kind: "supervision" | "appraisal";
+  readonly dueOn: string;
+  /** Overdue reminders are urgent; one still to fall due inside the window is routine. */
+  readonly priority: "urgent" | "routine";
+}
+
+/**
+ * Which reminders to raise for a member's meetings: one per meeting that is due (inside
+ * `supervision.due_window_days`) or overdue, once for each due date. `raised` holds the
+ * `kind:dueOn` keys of reminders already raised, whatever became of them, so a sweep run twice
+ * raises nothing new; a later due date (the meeting held) raises a new one. A meeting with no date
+ * (`none_recorded`) raises none: the date would be a guess.
+ */
+export function meetingReminders(
+  meetings: readonly MeetingDue[],
+  raised: ReadonlySet<string>,
+): readonly MeetingReminder[] {
+  return meetings.flatMap((m) =>
+    m.dueOn !== null &&
+    (m.state === "due" || m.state === "overdue") &&
+    !raised.has(meetingReminderKey(m.kind, m.dueOn))
+      ? [
+          {
+            kind: m.kind,
+            dueOn: m.dueOn,
+            priority: m.state === "overdue" ? ("urgent" as const) : ("routine" as const),
+          },
+        ]
+      : [],
+  );
+}
+
+/** The key a meeting reminder is raised once under: the meeting's kind and due date. */
+export function meetingReminderKey(kind: "supervision" | "appraisal", dueOn: string): string {
+  return `${kind}:${dueOn}`;
+}
