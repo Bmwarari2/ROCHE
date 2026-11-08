@@ -1894,6 +1894,8 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
       expect(t.details).toEqual({
         ownerTenantUserId: DEMO.users.owner.id,
         senderTenantUserId: DEMO.users.owner.id,
+        senderUsedDevice: true,
+        lastReportedAt: expect.any(String),
         sharedDevice: false,
         deviceId: lost,
         entryCount: 3,
@@ -1926,6 +1928,23 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     expect((await transition("manager", "not needed", "skipped")).status).toBe(422);
     expect((await transition("manager", "re_recorded", "cancelled")).status).toBe(422);
     expect((await transition("manager", "re_recorded")).status).toBe(200);
+    // Once it is done, a retry under a new id still raises nothing (security review H1).
+    await lostKey("owner", now, { deviceId: lost });
+    const after = await asTenant(
+      "SELECT 1 FROM task WHERE kind = 'sync.device_key_lost' AND details ->> 'deviceId' = $1",
+      [lost],
+    );
+    expect(after).toHaveLength(tasks.length);
+    // Another member who used the device claims it: audited, nothing more.
+    await use("manager", lost);
+    await use("manager", dev(14));
+    const claim = await lostKey("manager", dev(14), { deviceId: lost });
+    expect(await claim.json()).toMatchObject({ replay: true });
+    const claims = await asTenant(
+      "SELECT 1 FROM audit_event WHERE action = 'sync.device.key_lost_claim' AND resource_id = $1",
+      [id],
+    );
+    expect(claims).toHaveLength(1);
   });
 
   it("names a shared phone's claimed owner, and never takes a count below the last report", async () => {
@@ -1965,7 +1984,31 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     }
   });
 
-  it("refuses, with an audited problem and no review, a device the sender never used or a session on no device", async () => {
+  it("takes a shared phone's report from someone who never used the lost device", async () => {
+    const id = crypto.randomUUID();
+    const lost = dev(15);
+    const now = dev(16);
+    await use("owner", lost, 2);
+    await use("manager", now);
+    const response = await lostKey("manager", now, {
+      id,
+      ownerTenantUserId: DEMO.users.owner.id,
+      deviceId: lost,
+    });
+    expect(response.status).toBe(200);
+    const tasks = await reviews(id);
+    expect(tasks.length).toBeGreaterThan(0);
+    for (const t of tasks) {
+      expect(t.details).toMatchObject({
+        ownerTenantUserId: DEMO.users.owner.id,
+        senderTenantUserId: DEMO.users.manager.id,
+        senderUsedDevice: false,
+        sharedDevice: true,
+      });
+    }
+  });
+
+  it("refuses, with an audited problem and no review, a device this organisation never saw or a session on no device", async () => {
     const now = dev(6);
     await use("manager", now);
     const unused = dev(5);

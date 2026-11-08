@@ -1024,11 +1024,13 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     (`sync.entry.before_discard`; clinical review round 5, C-L2). Each deletion record has one
     review task per kind and location for the Registered Manager there
     (`sync.entry_reported_deleted` or `sync.entry_deleted_after_upload`, source `device_discard`),
-    and a phone's lost key (`key_invalidated`, H-1531: sent by any member to its own route,
-    `POST /v1/sync/key-lost`, and written by the server with cause `device_key_lost`, no reason,
-    deleter or ids) raises a `sync.device_key_lost` review in the same transaction, due at once
-    and urgent unless nothing was waiting, where the owner worked; no later report of the device
-    closes it, its sender cannot, and it is done only with a coded outcome;
+    and a phone's lost key (`key_invalidated`, H-1531: sent from a session on a phone, for a device
+    the organisation knows, to its own route, `POST /v1/sync/key-lost`, and written by the server
+    with cause `device_key_lost`, no reason, deleter or ids; one record per lost database) raises an
+    always-urgent `sync.device_key_lost` review in the same transaction, due at once, where the
+    owner worked, naming the owner or claimed owner, the sender, the device, the count and the last
+    sync; no later report of the device closes it, neither its sender nor the owner can, and it is
+    done only with a coded outcome;
     so each location's managers see only their own people's entries (clinical review round 7, M4),
     whatever its number of entries: the first flagged entry there raises it, later ones add to its
     count, and its audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`) carry the count

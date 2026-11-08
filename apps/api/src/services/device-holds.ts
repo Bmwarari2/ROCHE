@@ -118,6 +118,8 @@ export const KEY_LOST_TASK_KIND = "sync.device_key_lost";
 export const KEY_LOST_ACTIONS = {
   recorded: "sync.device.key_lost",
   raised: "sync.device_key_lost.raised",
+  /** Another member's report of a lost database already on record (changes nothing). */
+  claimOnExisting: "sync.device.key_lost_claim",
   /** A hold task of the lost database's device, linked to the review (left open). */
   linked: "sync.device_hold.key_lost_linked",
 } as const;
@@ -1408,6 +1410,28 @@ export type KeyLostOutcome =
 /** Lost-key records one phone may send in a rolling day, whoever is signed in (the lead's rule). */
 export const KEY_LOST_PER_DEVICE_PER_DAY = 2;
 
+/** The scope of a lost-key record's audit event, for a replay to rebuild its review from. */
+function scopeFlag(scope: unknown, key: string): boolean | null {
+  const value = (scope as Record<string, unknown> | null)?.[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+async function recordedKeyLostScope(tx: Transaction, discardId: string): Promise<unknown> {
+  const [row] = await tx
+    .select({ scope: auditEvent.scope })
+    .from(auditEvent)
+    .where(
+      and(
+        eq(auditEvent.action, KEY_LOST_ACTIONS.recorded),
+        eq(auditEvent.resourceType, "device_discard"),
+        eq(auditEvent.resourceId, discardId),
+      ),
+    )
+    .orderBy(asc(auditEvent.seq))
+    .limit(1);
+  return row?.scope ?? null;
+}
+
 /**
  * Records a device's lost key (H-1531, HZ-006), in one transaction run as the system acting for
  * the sender: the deletion record (kind `key_invalidated`, cause `device_key_lost`, no reason, no
@@ -1416,8 +1440,9 @@ export const KEY_LOST_PER_DEVICE_PER_DAY = 2;
  * still missing.
  *
  * - The owner counts only when on the staff and the sender or bound to the device; otherwise the
- *   name is audited as a claim and the record names no owner (security review M1). The device
- *   counts only when the sender or that owner is bound to it, else it is audited as a claim (L2).
+ *   name is audited as a claim and the record names no owner (security review M1). The report is
+ *   refused unless the session is on a phone and the lost device is one this organisation knows;
+ *   whether the sender used it is on the review.
  * - The count is the higher of the device's and the bound device's last report; the review is
  *   always urgent (clinical reviews H3 and re-review M1).
  * - The review goes where the owner worked, from the hold's locations, else where the sender works
@@ -1433,7 +1458,7 @@ export async function recordKeyLost(
   requestId?: string,
 ): Promise<KeyLostOutcome> {
   return withRequestContext(db, systemFor(access), async (tx) => {
-    const id = body.id.toLowerCase();
+    let id = body.id.toLowerCase();
     await lock(tx, access.tenantId, `device_discard:${id}`);
     const sender = access.tenantUserId;
     const claimedDevice = body.deviceId.toLowerCase();
@@ -1441,7 +1466,14 @@ export async function recordKeyLost(
     // from, and the sender used the lost database's device (row-level security keeps the binding
     // inside the tenant). A client-sent id alone is never trusted (the lead's rule).
     if (!access.deviceId || access.deviceBound !== true) return { outcome: "device_not_bound" };
-    if (!(await boundToDevice(tx, claimedDevice, sender))) return { outcome: "device_not_bound" };
+    // The lost device must be one this organisation knows (someone in it used it). The sender
+    // need not have used it: on a shared phone the next person signed in sends it, and the loss
+    // must still be reviewed (clinical review round 3, H1); whether they did is on the review.
+    if ((await deviceFirstSeen(tx, claimedDevice)) === null) return { outcome: "device_not_bound" };
+    const senderUsedIt = await boundToDevice(tx, claimedDevice, sender);
+    // The reporting phone first, then the lost device, always in that order: the phone's daily
+    // count cannot be raced by members sending for different devices at once (security review M1).
+    await lock(tx, access.tenantId, `key_lost_from:${access.deviceId}`);
     await lock(tx, access.tenantId, `device_key_lost:${claimedDevice}`);
     // One record per lost database: the device id names the database, so a phone that re-keys
     // and loses it again records anew, and a retry under another id finds this one.
@@ -1459,8 +1491,21 @@ export async function recordKeyLost(
       )
       .limit(1);
     if (record && record.kind !== KEY_INVALIDATED_KIND) return { outcome: "other_deletion" };
-    // Only its sender's replay raises a missing review (security re-review L-b).
-    if (record && record.senderTenantUserId !== sender) return { outcome: "replay", tasks: 0 };
+    // A retry, under any id, is the record already kept: its own id from here on, so a new id never
+    // raises a second review (security review H1).
+    if (record) id = record.discardId;
+    // Only its sender's replay raises a missing review (security re-review L-b); another member's
+    // claim on the same lost database is audited and changes nothing (security review L3).
+    if (record && record.senderTenantUserId !== sender) {
+      await auditInTx(tx, access, {
+        action: KEY_LOST_ACTIONS.claimOnExisting,
+        resourceType: "device_discard",
+        resourceId: id,
+        scope: { heldOnDeviceId: claimedDevice, reportedFromDeviceId: access.deviceId },
+        requestId,
+      });
+      return { outcome: "replay", tasks: 0 };
+    }
     const replay = record !== undefined;
     if (!record) {
       await keyLostQuota.take(tx, sender);
@@ -1527,6 +1572,7 @@ export async function recordKeyLost(
           ownerTenantUserId: owner,
           ...(claimedOwner && !ownerBound ? { claimedOwnerTenantUserId: claimedOwner } : {}),
           heldOnDeviceId: deviceId,
+          senderUsedDevice: senderUsedIt,
           reportedFromDeviceId: access.deviceId,
           ...(body.lastSyncedAt ? { lastSyncedAt: body.lastSyncedAt } : {}),
           count,
@@ -1551,23 +1597,35 @@ export async function recordKeyLost(
       .limit(1);
     if (raised.length > 0) return { outcome: "replay", tasks: 0 };
     const owner = record.ownerTenantUserId;
+    // A replay raises the review from what was recorded, never from the replay's body (security
+    // review M2): the claimed owner and last sync from the record's audit event, and no places.
+    const recorded = replay ? await recordedKeyLostScope(tx, id) : null;
+    const claimed = replay
+      ? scopeText(recorded, "claimedOwnerTenantUserId")
+      : (body.ownerTenantUserId?.toLowerCase() ?? null);
+    const lastSyncedAt = replay ? scopeText(recorded, "lastSyncedAt") : body.lastSyncedAt;
+    const lastReport = record.deviceId
+      ? (await lastReportedWaiting(tx, [record.deviceId])).get(record.deviceId)
+      : undefined;
     // What the nurse in charge needs to ask the right question (the lead's rule): the owner (or the
     // name claimed), who sent it and whether that is someone else (a shared phone), the device,
     // the count and the last sync. No entry content.
-    const claimed = body.ownerTenantUserId?.toLowerCase() ?? null;
     const reviewDetails = {
       ownerTenantUserId: owner,
       ...(owner === null && claimed ? { claimedOwnerTenantUserId: claimed } : {}),
       senderTenantUserId: record.senderTenantUserId,
+      senderUsedDevice: replay ? scopeFlag(recorded, "senderUsedDevice") : senderUsedIt,
       sharedDevice: (owner ?? claimed) !== null && (owner ?? claimed) !== record.senderTenantUserId,
       deviceId: record.deviceId,
       entryCount: record.entryCount,
-      lastSyncedAt: body.lastSyncedAt,
+      lastSyncedAt,
+      // The server's own last word from the lost device, beside the phone's (clinical review M3).
+      lastReportedAt: lastReport ? lastReport.at.toISOString() : null,
     };
     const locations = await holdLocations(
       tx,
       { reporter: sender, owner: owner ?? sender },
-      owner ? body.locationIds : [],
+      owner && !replay ? body.locationIds : [],
       now,
     );
     // Always urgent: entries written after the device's last report cannot be known, so a count

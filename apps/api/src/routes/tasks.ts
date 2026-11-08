@@ -106,7 +106,9 @@ async function keyLostParty(
   tenantUserId: string,
 ): Promise<boolean> {
   const details = (row.details ?? {}) as Record<string, unknown>;
+  // The owner, or the name claimed when the owner could not be confirmed (security review L2).
   if (details.ownerTenantUserId === tenantUserId) return true;
+  if (details.claimedOwnerTenantUserId === tenantUserId) return true;
   const sourceId = row.sourceId;
   if (!sourceId) return row.createdBy === tenantUserId;
   const [record] = await withTenantWideScope(tx, () =>
