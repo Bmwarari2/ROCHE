@@ -576,6 +576,48 @@ export const TrainingMatrixQuery = z.object({
   attention: z.enum(["true", "false"]).optional(),
 });
 
+/** One member's next supervision or appraisal, across staff (WORK-009; workforce.md rule 7). */
+export const MeetingDueItem = z
+  .object({
+    kind: z.enum(["supervision", "appraisal"]),
+    /** The last one held, or null when none is recorded. */
+    lastHeldOn: isoDate.nullable(),
+    /** When the next falls due; null when none is recorded. */
+    dueOn: isoDate.nullable(),
+    state: z.enum(["upcoming", "due", "overdue", "none_recorded"]),
+  })
+  .meta({ id: "MeetingDueItem" });
+
+export const SupervisionsDueMember = z
+  .object({
+    member: StaffName,
+    roles: z.array(z.string()),
+    /** Where their roles are held; empty for an organisation-wide role. */
+    locationIds: z.array(uuid),
+    /** The supervision first, then the appraisal. */
+    meetings: z.array(MeetingDueItem),
+    /** The last spot check, which never counts as a supervision; null when none. */
+    lastSpotCheckOn: isoDate.nullable(),
+  })
+  .meta({ id: "SupervisionsDueMember" });
+
+export const SupervisionsDue = z
+  .object({
+    asOf: isoDate,
+    /** How many days before a meeting falls due it shows as due (`supervision.due_window_days`). */
+    dueWindowDays: z.number().int().min(0),
+    members: z.array(SupervisionsDueMember),
+    truncated: z.boolean(),
+  })
+  .meta({ id: "SupervisionsDue" });
+export type SupervisionsDue = z.infer<typeof SupervisionsDue>;
+
+export const SupervisionsDueQuery = z.object({
+  locationId: uuid.optional(),
+  /** Only members with a meeting overdue, due or none recorded. */
+  attention: z.enum(["true", "false"]).optional(),
+});
+
 export const DevelopmentRecord = z
   .object({
     member: StaffName,

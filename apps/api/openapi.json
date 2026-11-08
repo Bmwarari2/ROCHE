@@ -33510,6 +33510,116 @@
           "validUntil"
         ]
       },
+      "SupervisionsDue": {
+        "type": "object",
+        "properties": {
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "dueWindowDays": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupervisionsDueMember"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "asOf",
+          "dueWindowDays",
+          "members",
+          "truncated"
+        ]
+      },
+      "SupervisionsDueMember": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "locationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "meetings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeetingDueItem"
+            }
+          },
+          "lastSpotCheckOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "member",
+          "roles",
+          "locationIds",
+          "meetings",
+          "lastSpotCheckOn"
+        ]
+      },
+      "MeetingDueItem": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "supervision",
+              "appraisal"
+            ]
+          },
+          "lastHeldOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "dueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "due",
+              "overdue",
+              "none_recorded"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "lastHeldOn",
+          "dueOn",
+          "state"
+        ]
+      },
       "PutTrainingRequirement": {
         "type": "object",
         "properties": {
@@ -98875,6 +98985,88 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TrainingMatrix"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/supervisions-due": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Supervisions and appraisals due across staff",
+        "description": "workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read, as the training matrix. Every member of staff by name and job title, with their next supervision and appraisal (upcoming, due within supervision.due_window_days, overdue, or none recorded) by the rules of the member's record, and their last spot check. Filter by location (roles held there) or attention (a meeting not upcoming). At most 2,000 members; truncated says when more match. Audited without names.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "attention",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Supervisions and appraisals due",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisionsDue"
                 }
               }
             }

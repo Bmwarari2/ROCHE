@@ -1,4 +1,4 @@
-import type { DevelopmentRecord, TrainingMatrix } from "@harbour/contracts";
+import type { DevelopmentRecord, SupervisionsDue, TrainingMatrix } from "@harbour/contracts";
 import {
   competenceSignOff,
   competenceWithdrawal,
@@ -20,6 +20,8 @@ import {
   type Competence,
   competenceDecision,
   expiryState,
+  meetingsDue,
+  meetingsNeedAttention,
   nextMeeting,
   PORTAL_ONLY_PERMISSIONS,
   reminderDays,
@@ -280,7 +282,9 @@ export async function developmentRecord(
       .map((h) => h.heldOn)
       .sort()
       .at(-1);
-    return last ? nextMeeting(kind, held, last, perYear, today) : null;
+    return last
+      ? nextMeeting(kind, held, last, perYear, today, rates.supervisionDueWindowDays)
+      : null;
   };
 
   const plan = evidence
@@ -523,24 +527,21 @@ export const MATRIX_MEMBER_LIMIT = 2000;
 
 const PORTAL = sql.raw(`ARRAY[${PORTAL_ONLY_PERMISSIONS.map((p) => `'${p}'`).join(", ")}]::text[]`);
 
+type StaffMember = {
+  displayName: string;
+  keys: Set<string>;
+  roles: Set<string>;
+  locations: Set<string>;
+  nation: Nation | null;
+};
+
 /**
- * The organisation's training matrix (slice 57; WORK-005): every member of staff whose roles need
- * training, each required topic's state today, by the same rules as one member's record. Read by
- * holders of the workforce read permissions only (asked of the database first); the members' roles
- * and places are read with the system's rights, as for one member, and their records under the
- * caller's own row-level security. Null when the caller may not read development records.
+ * Every member of staff with a role in force (no portal account), with their role keys, where the
+ * roles are held and the nation of the first place, read with the system's rights: the matrix and
+ * the supervisions list show members by these, and read each member's records under the caller's
+ * own row-level security.
  */
-export async function trainingMatrixFor(
-  tx: Transaction,
-  tenantId: string,
-  now: Date,
-  filter: { readonly locationId?: string; readonly roleKey?: string; readonly attention?: boolean },
-): Promise<TrainingMatrix | null> {
-  const allowed = await tx.execute<{ ok: boolean }>(
-    sql`SELECT app.is_system() OR app.reads_development() AS ok`,
-  );
-  if (allowed.rows[0]?.ok !== true) return null;
-  const today = ukIsoDate(now);
+async function staffMembers(tx: Transaction, now: Date): Promise<Map<string, StaffMember>> {
   const assignments = await withSystemRights(tx, () =>
     tx
       .select({
@@ -584,16 +585,7 @@ export async function trainingMatrixFor(
         ),
       ),
   );
-  const members = new Map<
-    string,
-    {
-      displayName: string;
-      keys: Set<string>;
-      roles: Set<string>;
-      locations: Set<string>;
-      nation: Nation | null;
-    }
-  >();
+  const members = new Map<string, StaffMember>();
   for (const a of assignments) {
     const m = members.get(a.memberId) ?? {
       displayName: a.displayName,
@@ -609,6 +601,28 @@ export async function trainingMatrixFor(
     m.nation ??= (a.nation as Nation | null) ?? null;
     members.set(a.memberId, m);
   }
+  return members;
+}
+
+/**
+ * The organisation's training matrix (slice 57; WORK-005): every member of staff whose roles need
+ * training, each required topic's state today, by the same rules as one member's record. Read by
+ * holders of the workforce read permissions only (asked of the database first); the members' roles
+ * and places are read with the system's rights, as for one member, and their records under the
+ * caller's own row-level security. Null when the caller may not read development records.
+ */
+export async function trainingMatrixFor(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+  filter: { readonly locationId?: string; readonly roleKey?: string; readonly attention?: boolean },
+): Promise<TrainingMatrix | null> {
+  const allowed = await tx.execute<{ ok: boolean }>(
+    sql`SELECT app.is_system() OR app.reads_development() AS ok`,
+  );
+  if (allowed.rows[0]?.ok !== true) return null;
+  const today = ukIsoDate(now);
+  const members = await staffMembers(tx, now);
   const requirementRows = await activeRequirements(tx);
   const wanted = [...members.entries()]
     .filter(([, m]) => !filter.locationId || m.locations.has(filter.locationId))
@@ -685,4 +699,100 @@ export async function trainingMatrixFor(
     members: rows,
     truncated,
   };
+}
+
+/**
+ * Supervisions and appraisals across staff (WORK-009; workforce.md rule 7): every member of staff,
+ * their next supervision and appraisal by the rules of the member's record, with
+ * `supervision.due_window_days` as the window in which one shows as due, and the last spot check.
+ * The same readers and limit as the matrix; the records are read under the caller's own row-level
+ * security. With none held the state is `none_recorded`: the start date is in the staff file, which
+ * these readers may not see. Null when the caller may not read development records.
+ */
+export async function supervisionsDueFor(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+  filter: { readonly locationId?: string; readonly attention?: boolean },
+): Promise<SupervisionsDue | null> {
+  const allowed = await tx.execute<{ ok: boolean }>(
+    sql`SELECT app.is_system() OR app.reads_development() AS ok`,
+  );
+  if (allowed.rows[0]?.ok !== true) return null;
+  const today = ukIsoDate(now);
+  const members = await staffMembers(tx, now);
+  const wanted = [...members.entries()]
+    .filter(([, m]) => !filter.locationId || m.locations.has(filter.locationId))
+    .map(([id, m]) => ({ id, ...m }))
+    .sort(
+      (x, y) => x.displayName.localeCompare(y.displayName, "en-GB") || x.id.localeCompare(y.id),
+    );
+  const truncated = wanted.length > MATRIX_MEMBER_LIMIT;
+  const capped = wanted.slice(0, MATRIX_MEMBER_LIMIT);
+  const ids = capped.map((m) => m.id);
+  const held: { workerId: string; kind: string; heldOn: string }[] = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    held.push(
+      ...(await tx
+        .select({
+          workerId: supervisionRecord.workerId,
+          kind: supervisionRecord.kind,
+          heldOn: supervisionRecord.heldOn,
+        })
+        .from(supervisionRecord)
+        .where(
+          and(
+            inArray(supervisionRecord.workerId, ids.slice(i, i + 500)),
+            isNull(supervisionRecord.deletedAt),
+          ),
+        )),
+    );
+  }
+  const byWorker = new Map<string, typeof held>();
+  for (const r of held) {
+    const list = byWorker.get(r.workerId) ?? [];
+    list.push(r);
+    byWorker.set(r.workerId, list);
+  }
+  const rates = new Map<Nation, WorkforceRates>();
+  const ratesFor = async (nation: Nation) => {
+    const found = rates.get(nation);
+    if (found) return found;
+    const loaded = await workforceRates(tx, tenantId, nation, today);
+    rates.set(nation, loaded);
+    return loaded;
+  };
+  const home = await ratesFor("england");
+  const names = await staffNames(tx, ids);
+  const rows = [];
+  for (const m of capped) {
+    const member = names(m.id);
+    if (!member) continue;
+    const r = await ratesFor(m.nation ?? "england");
+    const records = (byWorker.get(m.id) ?? []).map((x) => ({
+      kind: x.kind as "supervision" | "appraisal" | "spot_check",
+      heldOn: x.heldOn,
+    }));
+    const meetings = meetingsDue(
+      records,
+      { supervision: r.supervisionsPerYear, appraisal: r.appraisalsPerYear },
+      today,
+      r.supervisionDueWindowDays,
+    );
+    if (filter.attention && !meetingsNeedAttention(meetings)) continue;
+    const lastSpotCheckOn =
+      records
+        .filter((x) => x.kind === "spot_check" && x.heldOn <= today)
+        .map((x) => x.heldOn)
+        .sort()
+        .at(-1) ?? null;
+    rows.push({
+      member,
+      roles: [...m.roles].sort(),
+      locationIds: [...m.locations].sort(),
+      meetings: [...meetings],
+      lastSpotCheckOn,
+    });
+  }
+  return { asOf: today, dueWindowDays: home.supervisionDueWindowDays, members: rows, truncated };
 }

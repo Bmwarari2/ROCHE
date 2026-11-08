@@ -65,7 +65,12 @@ test("the carer is offered no training screens and is refused in words", async (
   await as(page, "carer");
   await page.goto("/");
   await expect(nav(page).getByRole("link", { name: "Training", exact: true })).toHaveCount(0);
-  for (const path of ["/training", "/training/requirements", `/training/${NURSE}`]) {
+  for (const path of [
+    "/training",
+    "/training/requirements",
+    "/training/supervisions",
+    `/training/${NURSE}`,
+  ]) {
     await page.goto(path);
     await expect(main(page)).toContainText("You do not have access to this");
   }
@@ -216,6 +221,48 @@ test("the manager records a supervision with what was discussed", async ({ page 
   ).toBeVisible();
   await expect(after.locator("del")).toHaveText(discussion);
   await expectAccessible(page, "note corrected");
+});
+
+test("WORK-009 the manager reads who is due a supervision or appraisal, most urgent first", async ({
+  page,
+}) => {
+  await as(page, "manager");
+  await page.goto("/training");
+  await main(page).getByRole("link", { name: "Supervisions and appraisals due" }).click();
+  await page.waitForURL((url) => url.pathname === "/training/supervisions");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Supervisions and appraisals due" }),
+  ).toBeVisible();
+  await expect(
+    main(page).getByText(/\d+ overdue, \d+ due soon, \d+ with none recorded\./),
+  ).toBeVisible();
+
+  // The carer's supervision was recorded today: not due yet, in words with its dates.
+  const carer = main(page)
+    .getByRole("listitem")
+    .filter({ has: page.locator(`a[href="/training/${CARER}"]`) });
+  const today = ukDay();
+  const supervision = carer.getByRole("definition").first();
+  await expect(supervision).toContainText("Not due yet");
+  await expect(supervision).toContainText(`Last held ${today.day}/${today.month}/${today.year}`);
+  await expectAccessible(page, "supervisions due (light)");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectAccessible(page, "supervisions due (dark)");
+  await page.emulateMedia({ colorScheme: "light" });
+
+  // Only those needing attention: every card left has a meeting overdue, due soon or none recorded.
+  await main(page).getByLabel("Only those overdue, due soon or with none recorded").check();
+  await main(page).getByRole("button", { name: "Show", exact: true }).click();
+  await page.waitForURL((url) => url.searchParams.get("attention") === "yes");
+  for (const card of await main(page).getByRole("listitem").all()) {
+    await expect(card).toContainText(/Overdue|Due soon|None recorded/);
+  }
+  await expectAccessible(page, "supervisions due, needing attention");
+
+  // Each name opens the member's training record, where a supervision is recorded.
+  await page.goto("/training/supervisions");
+  await carer.locator(`a[href="/training/${CARER}"]`).click();
+  await page.waitForURL((url) => url.pathname === `/training/${CARER}`);
 });
 
 test("the manager records the nurse's revalidation evidence", async ({ page }) => {

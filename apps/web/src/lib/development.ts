@@ -123,7 +123,46 @@ export function meetingChip(state: string, t: Translator): SafetyChip {
     return { status: "overdue", icon: "circle-alert", label: t("development.meeting.overdue") };
   }
   if (state === "due") return { status: "due", icon: "clock", label: t("development.meeting.due") };
+  if (state === "none_recorded") {
+    return { status: "due", icon: "circle-alert", label: t("development.meeting.noneRecorded") };
+  }
   return { status: "info", icon: "clock", label: t("development.meeting.upcoming") };
+}
+
+/** The states a next supervision or appraisal can be in across staff (WORK-009). */
+export const MEETING_STATES = ["overdue", "due", "none_recorded", "upcoming"] as const;
+
+/** How many of each state a list of members' supervisions and appraisals holds, for its summary. */
+export function meetingCounts(
+  members: readonly { readonly meetings: readonly { readonly state: string }[] }[],
+): Record<(typeof MEETING_STATES)[number], number> {
+  const counts = { overdue: 0, due: 0, none_recorded: 0, upcoming: 0 };
+  for (const m of members) {
+    for (const meeting of m.meetings) {
+      if (meeting.state in counts) counts[meeting.state as keyof typeof counts] += 1;
+    }
+  }
+  return counts;
+}
+
+/** Most urgent first: overdue, due soon, none recorded, then the rest, each by name. */
+export function byMeetingUrgency<
+  T extends {
+    readonly member: { readonly displayName: string };
+    readonly meetings: readonly { readonly state: string }[];
+  },
+>(members: readonly T[]): T[] {
+  const rank = (m: T) =>
+    Math.min(
+      ...m.meetings.map((x) => {
+        const i = (MEETING_STATES as readonly string[]).indexOf(x.state);
+        return i < 0 ? MEETING_STATES.length : i;
+      }),
+    );
+  return [...members].sort(
+    (a, b) =>
+      rank(a) - rank(b) || a.member.displayName.localeCompare(b.member.displayName, "en-GB"),
+  );
 }
 
 /** One revalidation requirement: met, or still to do. */

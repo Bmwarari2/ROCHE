@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { addDays, addMonths } from "./dates";
 import { resolveWorkforceRates } from "./rates";
-import { intervalMonths, nextMeeting, type SupervisionRecord } from "./supervision";
+import {
+  intervalMonths,
+  meetingsDue,
+  meetingsNeedAttention,
+  nextMeeting,
+  type SupervisionRecord,
+} from "./supervision";
 
 const rates = resolveWorkforceRates(readRateTable(), "england", "2026-10-31", null);
 const STARTED = "2026-01-12";
@@ -60,5 +66,74 @@ describe("supervision and appraisal (workforce.md rule 7)", () => {
     expect(
       nextMeeting("supervision", [], STARTED, rates.supervisionsPerYear, addDays(due, -8), 7).state,
     ).toBe("upcoming");
+  });
+});
+
+describe("WORK-009 supervisions and appraisals due across staff (rule 7)", () => {
+  const perYear = { supervision: rates.supervisionsPerYear, appraisal: rates.appraisalsPerYear };
+  const window = rates.supervisionDueWindowDays;
+  const last = "2026-05-04";
+  const due = addMonths(last, intervalMonths(rates.supervisionsPerYear));
+  const held: SupervisionRecord[] = [
+    { kind: "supervision", heldOn: last },
+    { kind: "spot_check", heldOn: "2026-06-01" },
+  ];
+
+  it.each([
+    ["well before the window", addDays(due, -(window + 1)), "upcoming"],
+    ["on the first day of the window", addDays(due, -window), "due"],
+    ["on the day it falls due", due, "due"],
+    ["the day after", addDays(due, 1), "overdue"],
+  ])("a supervision %s is %s", (_when, today, state) => {
+    const [supervision] = meetingsDue(held, perYear, today, window);
+    expect(supervision).toEqual({ kind: "supervision", lastHeldOn: last, dueOn: due, state });
+  });
+
+  it("never counts a spot check, and says none is recorded rather than guessing a date", () => {
+    const [supervision, appraisal] = meetingsDue(
+      [{ kind: "spot_check", heldOn: "2026-06-01" }],
+      perYear,
+      "2026-10-31",
+      window,
+    );
+    expect(supervision).toEqual({
+      kind: "supervision",
+      lastHeldOn: null,
+      dueOn: null,
+      state: "none_recorded",
+    });
+    expect(appraisal.state).toBe("none_recorded");
+    expect(meetingsNeedAttention([supervision, appraisal])).toBe(true);
+  });
+
+  it("counts from the start date when it is known and none has been held", () => {
+    const [, appraisal] = meetingsDue([], perYear, "2026-02-01", window, STARTED);
+    expect(appraisal.dueOn).toBe(addMonths(STARTED, intervalMonths(rates.appraisalsPerYear)));
+    expect(appraisal.state).toBe("upcoming");
+  });
+
+  it("ignores a meeting recorded for a date after today", () => {
+    const [supervision] = meetingsDue(
+      [{ kind: "supervision", heldOn: "2027-01-01" }],
+      perYear,
+      "2026-10-31",
+      window,
+    );
+    expect(supervision.state).toBe("none_recorded");
+  });
+
+  it.each([
+    [["upcoming", "upcoming"], false],
+    [["upcoming", "due"], true],
+    [["overdue", "upcoming"], true],
+    [["none_recorded", "upcoming"], true],
+  ] as const)("states %j need attention: %s", (states, attention) => {
+    const meetings = states.map((state, i) => ({
+      kind: i === 0 ? ("supervision" as const) : ("appraisal" as const),
+      lastHeldOn: null,
+      dueOn: null,
+      state,
+    }));
+    expect(meetingsNeedAttention(meetings)).toBe(attention);
   });
 });
