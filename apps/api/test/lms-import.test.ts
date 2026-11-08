@@ -72,9 +72,36 @@ const CSV = [
 let FILE = "";
 let IMPORT = "";
 
+// The Registered Manager also holds HR's role with no person scope here: LMS import is for
+// organisation-wide holders of workforce.training.manage only (ADR-0136, migration 0161).
+const HR_ROLE = "0199f500-0000-7000-8000-000000000501";
+
 beforeAll(async () => {
   h = await createHarness({ LMS_API: "mock" });
+  await sql(
+    `INSERT INTO role (id, key, name, scope_kind, permissions)
+     VALUES ($1, 'hr_lms', 'HR', 'none', '{workforce.training.manage}')`,
+    [HR_ROLE],
+  );
 }, 120_000);
+
+describe("ADR-0136 LMS import is for organisation-wide holders only", () => {
+  it("refuses a home's manager in words, audited, then lets them in as HR", async () => {
+    const refused = await as("manager", "/v1/workforce/lms-sources");
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { code: string }).code).toBe("lms_import_organisation_wide");
+    const [audited] = await sql<{ n: string }>(
+      `SELECT count(*) AS n FROM audit_event
+        WHERE action = 'workforce.lms_import.refused' AND outcome = 'denied'`,
+    );
+    expect(Number(audited?.n)).toBeGreaterThan(0);
+    await sql("INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, $2)", [
+      MANAGER,
+      HR_ROLE,
+    ]);
+    expect((await as("manager", "/v1/workforce/lms-sources")).status).toBe(200);
+  });
+});
 
 afterAll(async () => {
   await h?.close();

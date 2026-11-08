@@ -179,14 +179,35 @@ export async function memberNation(tx: Transaction, memberId: string, now: Date)
 /**
  * Whether the caller may read this member's development record, asked of the database before
  * anything is read with the system's rights (security review round 1, finding 1): the system, a
- * holder of a workforce read permission as the database counts it, or the member themselves.
+ * holder of a workforce read permission in a scope that covers the member (organisation-wide, or
+ * at a home where the member works; ADR-0136), or the member themselves.
  */
 async function mayReadDevelopment(tx: Transaction, memberId: string): Promise<boolean> {
   const result = await tx.execute<{ ok: boolean }>(
-    sql`SELECT app.is_system() OR app.reads_development()
+    sql`SELECT app.is_system() OR app.reads_development_of(${memberId}::uuid)
                OR app.reads_own_development(${memberId}::uuid) AS ok`,
   );
   return result.rows[0]?.ok === true;
+}
+
+/**
+ * The members, of those given, whose development records the caller reads (ADR-0136): the lists
+ * across staff show only these, as the database's row-level security does. One query: the
+ * caller's scope is worked out once (`app.development_scope_members`), not once per member.
+ */
+async function membersInScope(tx: Transaction, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const members = `{${ids.join(",")}}`;
+  const result = await tx.execute<{ id: string }>(
+    sql`SELECT m.id::text AS id FROM unnest(${members}::uuid[]) AS m(id) WHERE app.is_system()
+        UNION
+        SELECT s::text AS id
+          FROM app.development_scope_members(
+            ARRAY['workforce.training.manage', 'workforce.competence.observe',
+                  'workforce.supervision.manage', 'workforce.staff_file.read']::text[],
+            ${members}::uuid[]) AS s`,
+  );
+  return new Set(result.rows.map((r) => r.id));
 }
 
 /** One member's development record, as the caller's row-level security lets them read it. */
@@ -675,8 +696,10 @@ export async function trainingMatrixFor(
   if (allowed.rows[0]?.ok !== true) return null;
   const today = ukIsoDate(now);
   const members = await staffMembers(tx, now);
+  const inScope = await membersInScope(tx, [...members.keys()]);
   const requirementRows = await activeRequirements(tx);
   const wanted = [...members.entries()]
+    .filter(([id]) => inScope.has(id))
     .filter(([, m]) => !filter.locationId || m.locations.has(filter.locationId))
     .filter(([, m]) => !filter.roleKey || m.keys.has(filter.roleKey))
     .map(([id, m]) => ({ id, ...m, requirements: mergeRequirements(requirementRows, m.keys) }))
@@ -773,7 +796,9 @@ export async function supervisionsDueFor(
   if (allowed.rows[0]?.ok !== true) return null;
   const today = ukIsoDate(now);
   const members = await staffMembers(tx, now);
+  const inScope = await membersInScope(tx, [...members.keys()]);
   const wanted = [...members.entries()]
+    .filter(([id]) => inScope.has(id))
     .filter(([, m]) => !filter.locationId || m.locations.has(filter.locationId))
     .map(([id, m]) => ({ id, ...m }))
     .sort(

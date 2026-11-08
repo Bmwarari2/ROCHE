@@ -163,12 +163,13 @@ rate key `supervision.due_window_days`; WORK-005, 008, 009 and 012 corrected fro
 `partial` (#214). **Slice 2** (`feat/workforce-supervision-reminders`, on slice 1, opened once #214
 merges): one reminder task for HR's role per supervision or appraisal due or overdue, once for
 each due date, closed when one is held, on the hourly `development-expiry-reminders` job; no
-migration. **Follow-up:**
-an ADR on whether development reads (the training matrix and the supervisions list) and reminder
-task visibility (workforce reminders about no person and no location reach holders at any home,
-migration 0079) follow attribute scope (location, team) rather than organisation-wide HR
-(migration 0073); a
-least-privilege question the lead kept out of WORK-009 (08/11/2026).
+migration (#216). **Attribute scope (08/11/2026, `feat/workforce-development-attribute-scope`):**
+done. ADR-0136 (proposed; the owner confirms, H-1640) and migration 0161: development records,
+the training matrix, the supervisions list and the reminder tasks about a member follow the
+reader's scope (organisation-wide for HR and the owner, otherwise the members who work at the
+reader's homes), in the API and in row-level security. Open: no team or line-manager scope for
+staff yet; the development write policies still check the permission anywhere (refused outside
+scope by the read policy).
 **Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
 handling of a 409) in #205; its web journey and a navigation entry for the page in
 `feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
