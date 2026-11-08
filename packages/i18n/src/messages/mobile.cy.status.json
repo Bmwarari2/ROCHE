@@ -836,6 +836,7 @@
     "mobile.settings.resyncLocked",
     "mobile.settings.resyncWaiting",
     "mobile.integrity.reason",
-    "mobile.settings.versionDevelopment"
+    "mobile.settings.versionDevelopment",
+    "mobile.vault.resetNoticeHide"
   ]
 }

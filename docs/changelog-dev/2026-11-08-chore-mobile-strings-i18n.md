@@ -25,6 +25,7 @@ string moved as it was, so the Maestro flows and the approved copy still match.
   - The re-download refusals, as one plural (`mobile.settings.resync*`).
   - The device-integrity reasons (`mobile.integrity.reason`).
   - The development-build line.
+  - The reset notice's button, now "Hide message", as on the save confirmation.
   - The banner's last-sync sentence now carries its own full stop, so the detail is joined whole
     sentences, never fragments.
 - **One wording change.** "Device check: not checked yet" (it was "Not checked yet") reads as a

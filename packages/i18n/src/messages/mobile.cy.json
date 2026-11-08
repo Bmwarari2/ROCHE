@@ -835,5 +835,6 @@
   "mobile.settings.resyncLocked": "Unlock Thapsus Care first.",
   "mobile.settings.resyncWaiting": "{count, plural, one {1 change has not uploaded yet. Connect to the internet and wait for it to upload, then try again.} other {# changes have not uploaded yet. Connect to the internet and wait for them to upload, then try again.}}",
   "mobile.integrity.reason": "{reason, select, unavailable {Device integrity checks are not available in this version.} not_checked {The device's integrity could not be checked.} jailbroken {The device is rooted or jailbroken.} other {A tool that can change how apps run is installed.}}",
-  "mobile.settings.versionDevelopment": "Thapsus Care development build"
+  "mobile.settings.versionDevelopment": "Thapsus Care development build",
+  "mobile.vault.resetNoticeHide": "Hide message"
 }
