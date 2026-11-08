@@ -57,5 +57,8 @@ Where it is offered:
   someone who can, and if it has already been given tell the nurse in charge now. You can still
   record that it was refused or not given.
 - **Only where your home records controlled drugs in Thapsus Care.** Where the home still uses
-  the paper register, Thapsus Care refuses the dose when it arrives and the nurse in charge gets an
-  urgent review: record it in the paper register, with a witness, as usual (H-1517).
+  the paper register, the phone says so at the top of the dose and does not let you record it as
+  given: record it in the paper register and on the paper MAR, with a witness, as usual. If the
+  phone has not been able to check yet, it treats the paper register as the record. If the home
+  changed while the phone was offline, Thapsus Care refuses the dose when it arrives and the nurse
+  in charge gets an urgent review (H-1517).

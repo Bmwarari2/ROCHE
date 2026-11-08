@@ -676,3 +676,110 @@ describe("hazard HZ-115 nothing goes in the register where controlled drug recor
     expect(again.status).toBe(200);
   });
 });
+
+describe("hazard HZ-115 hazard HZ-008 turning controlled drug recording on and off at a home (H-1518)", () => {
+  const path = `/v1/locations/${DEMO.locationId}/controlled-drugs/recording`;
+  const on = {
+    enabled: true,
+    paperRegisterClosed: true,
+    balancesToCarryForward: true,
+    phonesUpdated: true,
+  };
+  const off = {
+    enabled: false,
+    reason: "Phones at the home are being replaced this week",
+    paperRegisterRestarted: true,
+  };
+  const flag = () =>
+    asDemo(
+      async (c) =>
+        (
+          await c.query<{ enabled: boolean }>(
+            "SELECT enabled FROM feature_flag WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+            [DEMO.locationId],
+          )
+        ).rows[0]?.enabled ?? false,
+    );
+  const audits = (outcome: string) =>
+    asDemo(
+      async (c) =>
+        (
+          await c.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM audit_event
+              WHERE action = 'medicines.cd_recording.changed' AND resource_id = $1 AND outcome = $2`,
+            [DEMO.locationId, outcome],
+          )
+        ).rows[0]?.n ?? 0,
+    );
+
+  it("lets the Registered Manager turn it off with a reason, refuses register writes, and turn it on again", async () => {
+    const before = await audits("success");
+    const turnedOff = await send("manager", path, { method: "PUT", body: off });
+    expect(turnedOff.status, await turnedOff.clone().text()).toBe(200);
+    expect(await json(turnedOff)).toEqual({
+      locationId: DEMO.locationId,
+      enabled: false,
+      changed: true,
+    });
+    expect(await flag()).toBe(false);
+    try {
+      const entryId = await morphineEntry(ADA);
+      const refused = await send("manager", `/v1/people/${ADA}/controlled-drugs/pages`, {
+        method: "POST",
+        body: { entryId },
+      });
+      expect(refused.status).toBe(409);
+      expect((await json<{ code: string }>(refused)).code).toBe("cd_recording_not_enabled");
+    } finally {
+      const turnedOn = await send("manager", path, { method: "PUT", body: on });
+      expect(turnedOn.status, await turnedOn.clone().text()).toBe(200);
+    }
+    expect(await flag()).toBe(true);
+    expect(await audits("success")).toBe(before + 2);
+    // Asking for what is already so changes nothing and writes no audit.
+    const again = await send("manager", path, { method: "PUT", body: on });
+    expect((await json<{ changed: boolean }>(again)).changed).toBe(false);
+    expect(await audits("success")).toBe(before + 2);
+  });
+
+  it.each([
+    [
+      "turning it on without saying the paper register is closed",
+      { ...on, paperRegisterClosed: false },
+    ],
+    [
+      "turning it on without the balances to carry forward",
+      { ...on, balancesToCarryForward: undefined },
+    ],
+    ["turning it off without a reason", { ...off, reason: " " }],
+    [
+      "turning it off without restarting the paper register",
+      { ...off, paperRegisterRestarted: false },
+    ],
+  ])("refuses %s", async (_case, body) => {
+    const r = await send("manager", path, { method: "PUT", body });
+    expect(r.status).toBe(422);
+    expect(await flag()).toBe(true);
+  });
+
+  it("is not for a care worker or a nurse, and refuses a stale second sign-in step, audited", async () => {
+    for (const user of ["carer", "nurse"]) {
+      const r = await send(user, path, { method: "PUT", body: off });
+      expect([403, 404], `${user}: ${r.status}`).toContain(r.status);
+    }
+    expect(await flag()).toBe(true);
+    const deniedBefore = await audits("denied");
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.manager?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      const r = await send("manager", path, { method: "PUT", body: off });
+      expect(r.status).toBe(403);
+      expect((await json<{ code: string }>(r)).code).toBe("step_up_required");
+    } finally {
+      await ageSession(auth, session, 0);
+    }
+    expect(await flag()).toBe(true);
+    expect(await audits("denied")).toBeGreaterThan(deniedBefore);
+  });
+});

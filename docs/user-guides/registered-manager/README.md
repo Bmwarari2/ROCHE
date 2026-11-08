@@ -47,6 +47,7 @@ statutory notification as submitted or not required, which needs an acting-up gr
 - [How to set up a dependency scale](set-up-a-dependency-scale.md)
 - [How to set up shift templates and patterns](set-up-shift-templates-and-patterns.md)
 - [How to tag a record as evidence](tag-a-record-as-evidence.md)
+- [How to turn controlled drug recording on or off](turn-controlled-drug-recording-on-or-off.md)
 - [How to write and approve a letter template](write-a-letter-template.md)
 - [How to write and publish a policy](write-and-publish-a-policy.md)
 

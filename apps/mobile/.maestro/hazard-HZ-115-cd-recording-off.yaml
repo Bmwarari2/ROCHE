@@ -1,0 +1,34 @@
+# Hazard HZ-115 (a controlled drugs register entry wrong or missing), H-1517 and H-1518: at a home
+# where controlled drug recording is not turned on, the paper register is the record, so the phone
+# says so as a controlled drug's dose opens and does not record it as given.
+#
+# Needs the live API stack; HARBOUR_CD_MEDICINE is a controlled drug due now on the MAR of a person
+# the test member is assigned to, at a home with `medicines.cd_recording` off, and the member holds
+# medicines.cd.administer. Written for H-1518; not yet run on a device or emulator.
+appId: uk.co.thapsus.harbour
+name: Controlled drugs on the phone wait for recording to be turned on
+tags:
+  - medicines
+env:
+  HARBOUR_CD_MEDICINE: ${HARBOUR_CD_MEDICINE || "Morphine"}
+---
+- runFlow: sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 60000
+- tapOn:
+    id: "tab-medicines"
+- tapOn:
+    text: ".*${HARBOUR_CD_MEDICINE}.*"
+- tapOn:
+    text: "${HARBOUR_CD_MEDICINE}.*"
+- extendedWaitUntil:
+    visible:
+      id: "cd-recording-off"
+    timeout: 15000
+- assertVisible:
+    text: "Controlled drugs are recorded in the paper register at this home.*"
+- tapOn: "Given"
+- assertNotVisible:
+    id: "cd-signatures"

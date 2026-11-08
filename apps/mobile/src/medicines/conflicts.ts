@@ -103,7 +103,7 @@ export interface ApiOptions {
   readonly deviceId: string;
 }
 
-const headers = (o: ApiOptions) => ({
+export const apiHeaders = (o: ApiOptions) => ({
   Accept: "application/json",
   "Content-Type": "application/json",
   Authorization: `Bearer ${o.token}`,
@@ -118,7 +118,7 @@ export async function fetchConflicts(
   try {
     const r = await o.fetch(
       `${o.apiUrl}/v1/medicine-administration-conflicts?locationId=${encodeURIComponent(locationId)}`,
-      { method: "GET", headers: headers(o), credentials: "omit" },
+      { method: "GET", headers: apiHeaders(o), credentials: "omit" },
     );
     return r.ok ? parseConflicts(await r.json()) : null;
   } catch {
@@ -139,7 +139,7 @@ export async function resolveConflict(
       `${o.apiUrl}/v1/medicine-administration-conflicts/${encodeURIComponent(conflictId)}/resolve`,
       {
         method: "POST",
-        headers: headers(o),
+        headers: apiHeaders(o),
         credentials: "omit",
         body: JSON.stringify({ outcome, correctionId: null, note: note.trim() }),
       },
