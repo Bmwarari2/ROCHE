@@ -3,8 +3,9 @@
 Stop records being destroyed while a complaint, claim, inquest, safeguarding enquiry or
 investigation needs them, and release the hold when it is over.
 
-**Who can do this**: the owner and the quality and compliance lead. Thapsus Care asks you to
-confirm it is you with your passkey or authenticator app each time.
+**Who can do this**: only the owner and the quality and compliance lead, or someone whose
+organisation-wide role has been given retention management. Thapsus Care asks you to confirm it is
+you with your passkey or authenticator app each time.
 
 **Register row**: PLAT-012.
 
@@ -35,5 +36,6 @@ confirm it is you with your passkey or authenticator app each time.
 ## Good to know
 
 - A hold stops destruction whatever the record's retention period, until it is released.
-- Thapsus Care destroys documents only, so a hold on one record covers one document.
+- For now Thapsus Care destroys only documents, so a hold on one record is a hold on one
+  document.
 - Placing and releasing holds is recorded, with who did it.

@@ -11,7 +11,7 @@ medicines or witness controlled drugs, nurses, managers, and roles that read car
 > **If the page says "Controlled drug recording is not turned on for this home"**, the paper
 > controlled drugs register is the record at your home, and what Thapsus Care holds may be
 > incomplete. You can still print a page, but it is not the register: for an inspection or a
-> pharmacy audit, use the paper register (H-1517).
+> pharmacy audit, use the paper register (HZ-115; decision H-1517).
 
 ## Steps
 
@@ -19,6 +19,7 @@ medicines or witness controlled drugs, nurses, managers, and roles that read car
 2. Choose one:
    - **Download the register page (PDF)**: the PDF downloads to your device. If the page says "The
      register page could not be made just now. Try again in a moment.", try again in a moment.
+     Use the PDF only where controlled drug recording is turned on for your home.
    - **Print this page from the browser**: a plain print view opens. Choose **Print**, then
      **Back to the register page**.
 
@@ -35,8 +36,10 @@ medicines or witness controlled drugs, nurses, managers, and roles that read car
   in Thapsus Care is the record." Where it is not, it says "This is a copy of what Thapsus Care
   held when printed. Controlled drug recording is not turned on for this home, so the paper
   controlled drugs register is the record."
-- The PDF says on every page when it was printed and that it is not the live record. It does not
-  say which register is the record, so check the banner on the register page.
+- The PDF says on every page when it was printed and to check the eMAR. Where the page says
+  "Controlled drug recording is not turned on for this home", that is wrong for your home: do not
+  use the PDF. Print from the browser instead, which says the paper register is the record, or use
+  the paper register itself (HZ-122).
 
 ## Important
 

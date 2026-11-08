@@ -16,9 +16,9 @@ the Registered Manager and the owner.
 3. Choose the **Category** and enter **How many**. Tick **A valuable** for anything of value that
    is not jewellery, a watch, electronics or documents (those are always valuables).
 4. Enter the **Day it came in**.
-5. Under **Who signed for it**, choose **The person signed** or **Their representative signed**
-   and type the name they typed, or choose **Nobody could sign** and say **Why nobody could
-   sign**.
+5. Under **Who signed for it**, choose **The person signed** or **Their representative signed**,
+   and they type their name in **Name the person typed** (or **Name the representative typed**),
+   as they would sign it. Or choose **Nobody could sign** and say **Why nobody could sign**.
 6. For a valuable, or when nobody could sign, a second member of staff witnesses it: type their
    **Colleague's name**, choose **Find colleague**, then **Choose the witness**. They do not sign
    in; the record names you both.
@@ -27,8 +27,8 @@ the Registered Manager and the owner.
 ## Return, dispose of or lose an item
 
 - **Return:** choose **Return:** and the item. Enter the **Day it was returned**, the **Name of
-  who received it** and how **They received it as**, then choose **Record the return**. After a
-  death, property goes only to the personal representative.
+  who received it** and choose what **They received it as**, then choose **Record the return**.
+  After a death, property goes only to the personal representative.
 - **Dispose of:** choose **Dispose of:** and the item, enter the day and **Why it was disposed
   of**, name a witness, and choose **Record disposal**.
 - **Lost:** record the incident first. Then choose **Record as lost:** and the item, enter the

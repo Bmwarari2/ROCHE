@@ -15,8 +15,10 @@ see.
 
 ## Good to know
 
+- The counts are for the location you have chosen, named at the top of the page.
 - **Counts only, as recorded.** Each incident counts in the month it happened, in UK time.
   Thapsus Care does not judge what a count means.
 - If the page says "These counts leave out incidents you cannot see", the counts are not the
   whole home's. Ask your manager for the home's figures.
-- A month that shows a number "or more" reached the most that can be read at once.
+- If a month shows a number with "or more", there were too many to count at once, so the real
+  number may be higher.

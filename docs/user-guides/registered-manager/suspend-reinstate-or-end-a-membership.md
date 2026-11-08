@@ -16,7 +16,8 @@ passkey or authenticator app.
    sent.
 3. Choose **Suspend membership**. Thapsus Care asks whether to suspend them and says what happens:
    they can no longer use Thapsus Care for your organisation, Care mode on their phone stops, and
-   they are signed out everywhere. If they are on shift, arrange cover first.
+   they are signed out everywhere, unless they also work for another organisation. If they are on
+   shift, arrange cover first.
 4. Choose the **Reason**, for example **An investigation** or **A long absence**.
 5. If care entries are waiting on their phone, tick to confirm you understand they have not been
    sent. They stay on the phone, protected, until a manager hands them over.

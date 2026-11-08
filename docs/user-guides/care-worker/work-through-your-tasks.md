@@ -45,4 +45,7 @@ late, or one sent from a phone after someone else had changed the record. The ta
 
 - Do not write anyone's name or care details in a reason.
 - If more than 1,000 tasks fall in the period, the page says so. Choose **Yesterday to tomorrow**,
-  or **My tasks**, to see them all.
+  or **My tasks**, so fewer tasks fall in the period.
+- **Open from earlier** shows the most recent open tasks first and may leave older ones out. If it
+  does, the page says how many, for example "1 older open task is not listed. Ask Thapsus Care
+  support if you need to see it."

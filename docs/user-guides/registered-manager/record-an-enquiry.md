@@ -3,7 +3,8 @@
 Record that someone has asked about living at, or using, your home, then start their
 pre-admission assessment, or close the enquiry if they are not being admitted.
 
-**Who can do this**: the Registered Manager, deputy managers and the owner.
+**Who can do this**: the Registered Manager, deputy managers, the owner, and administrators or
+receptionists. Filling in the assessment itself is for managers and nurses.
 
 **Register row**: PEOP-005.
 

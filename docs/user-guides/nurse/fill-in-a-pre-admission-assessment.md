@@ -33,7 +33,11 @@ owner.
 ## Important
 
 - **Allergies, resuscitation, and eating and drinking are always recorded as what is known**,
-  never marked not applicable. Record that there are none, if so, and who confirmed it.
+  never marked not applicable. Record that there are none, if so, and who confirmed it
+  (HZ-007, HZ-015, HZ-016).
+- The allergies recorded here do not appear at the top of the person's record. Staff giving care
+  see only what the top of the record shows, so tell the manager admitting the person what you
+  recorded (HZ-007).
 - Sections marked **Optional** are not needed for a decision.
 - The hospital transfer pack prints the medicines list, marked to be checked, until the person's
   medicines record is in Thapsus Care.

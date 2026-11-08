@@ -19,7 +19,9 @@ the person's record can read the tab.
 
 ## Record the national data opt-out
 
-1. Under **National data opt-out**, the page says **Opted out** or **Not opted out**.
+1. Under **National data opt-out**, the page says **Opted out** or **Not opted out**. If they
+   have opted out, the page says "Their information is not used for research or planning. It is
+   still used and shared for their own care."
 2. Choose **Record that they have opted out**, or **Record that they have not opted out**. The page
    says "Opt-out recorded" or "Opt-out removed".
 
@@ -37,6 +39,8 @@ the person's record can read the tab.
 
 ## Important
 
+- Check a change to a name, date of birth or NHS number against an official document: staff
+  check these before giving care (HZ-001).
 - **An attorney, deputy or appointee acts only within their authority, and only while it lasts.**
   Nothing is shared on an authority until its reference or evidence is recorded: the contact says
   **Evidence not recorded**.

@@ -84,10 +84,12 @@ Thapsus Care checks your medicines competence each time you record a dose.
     paper controlled drugs register and on the paper MAR, with a witness, and tell the nurse in
     charge. The paper register is the record at this home until controlled drug recording is
     turned on." The MAR is the medicines administration record.
-  - Once it is turned on: "Record a controlled drug in the controlled drugs register on this
-    person's record, with a witness, and tell the nurse in charge." Giving a controlled drug still
-    cannot be recorded on the web, so ask the nurse or senior in charge how your home records the
-    dose (H-1517).
+  - Once it is turned on, the notice says "Controlled drugs cannot be recorded on this round.
+    Record a controlled drug in the controlled drugs register on this person's record, with a
+    witness, and tell the nurse in charge." The register page cannot record a dose given. Do not
+    record the dose as any other movement on the register, and do not record it in the paper
+    register as well, so the balance is never split. Tell the nurse or senior in charge before the
+    dose is due, and follow your home's controlled drugs policy (HZ-115; decision H-1517).
 - If your medicines competence is not current, the dose is refused unless a manager has approved
   an override (HZ-119).
 - Corrections and recording a dose given earlier are not on the web yet.

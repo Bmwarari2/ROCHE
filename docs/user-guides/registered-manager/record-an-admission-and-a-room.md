@@ -34,6 +34,21 @@ Under **Welcome checklist**, each item says **Done**, **Not applicable**, **To d
 **Optional**. Choose the item's "Done:" button, or its "Not applicable:" button and then **Mark
 not applicable** with a reason. The page counts how many safety-critical items are still to do.
 
+## Important
+
+- Safety-critical items cannot be marked not applicable: allergies confirmed and recorded,
+  medicines received and checked against the list, diet, allergens and IDDSI levels shared with
+  the kitchen, and the personal emergency evacuation plan. Do them on the day the person arrives
+  (HZ-005, HZ-007, HZ-016).
+- Mark "Allergies confirmed and recorded" done only when the top of the person's record shows
+  their allergies or "No known allergies". What the pre-admission assessment says is not shown
+  there (HZ-007).
+- The photo at the top of the record helps staff check they have the right person, so take it on
+  the day they arrive (HZ-001).
+- After the admission, a nurse reconciles the person's medicines (see
+  [How to reconcile medicines](../nurse/reconcile-medicines.md)). Until then, the medicines record
+  lists the admission under **Reconciliations due** (HZ-121).
+
 ## Good to know
 
 - If the page says "No bed is free in a room in use today.", ask a manager to check the rooms.

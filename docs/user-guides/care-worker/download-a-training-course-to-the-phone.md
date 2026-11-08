@@ -12,8 +12,8 @@ activities, catering, housekeeping and maintenance staff, and agency or bank wor
 ## Steps
 
 1. Connect to the internet, ideally Wi-Fi.
-2. Choose **Training** at the bottom of the screen, beside **Shifts**. You can also go to
-   **Settings** and, under **Training**, choose **Open training courses**.
+2. Choose **Training** at the bottom of the screen. You can also go to **Settings** and,
+   under **Training**, choose **Open training courses**.
 3. Find the course. **Not on this phone** means it is not downloaded yet.
 4. Choose **Download**. The screen shows "Downloading: 3 of 40 files", for example.
 5. When it is done, the course says **On this phone** and its size, for example "Size: 12 MB".

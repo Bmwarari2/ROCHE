@@ -18,7 +18,7 @@ Releasing needs you to confirm it is you with your passkey or authenticator app.
 3. Write **What the pack is for**. It is printed on every page.
 4. Enter **Records from** and **Records to**, and tick the **Locations**.
 5. Tick each of the **People the pack is about**. Anyone else named in a record is shown by role
-   or left out.
+   or withheld.
 6. Choose **Staff names**: **Staff shown by role only**, unless the inspector needs names, for
    example to check staffing.
 7. Under **Which areas of the inspection**, choose **Every area** or **Only the areas I choose**.
@@ -33,12 +33,13 @@ Releasing needs you to confirm it is you with your passkey or authenticator app.
    never sent.
 4. Free text is withheld until someone redacts it. To include it, choose **Redact by hand**, type
    the **Redacted copy** with every name, address, date of birth and long number taken out, and
-   choose **Save the redacted copy**. Otherwise leave it withheld.
+   choose **Save the redacted copy**. Otherwise leave it withheld. Whoever redacts becomes someone
+   who worked on the pack, so another person must release it.
 
 ## Release it
 
-1. Ask a manager who did not work on the pack to open it and read **What will be shared** and
-   every record and redaction.
+1. Ask someone else who can release packs and did not work on this one to open it and read
+   **What will be shared** and every record and redaction.
 2. They choose **How long the link works**: the shortest time the inspector needs.
 3. They tick **I have read every record and redaction in this pack** and choose **Release and make
    the link**.

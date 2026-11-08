@@ -19,7 +19,8 @@ Registered Manager and the owner.
    environment.
 5. Write the **Lessons learned**: what will change, in plain words, so others can learn from it.
 6. To add an action, under **Add an action** write **What needs doing?**, choose **Who will do
-   it?** and **When is it due?**. Add one action at a time: save, then add the next.
+   it?** and **When is it due?**. The person who will do it must be someone who manages
+   incidents at that location. Add one action at a time: save, then add the next.
 7. Choose **Save the investigation**. When the findings and lessons are written, choose **Save and
    complete it**.
 

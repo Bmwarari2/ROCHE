@@ -3,8 +3,9 @@
 Destroy stored documents that are past their retention period and under no legal hold, and keep
 the destruction certificate.
 
-**Who can do this**: the owner and the quality and compliance lead. Thapsus Care asks you to
-confirm it is you with your passkey or authenticator app.
+**Who can do this**: only the owner and the quality and compliance lead, or someone whose
+organisation-wide role has been given retention management. Thapsus Care asks you to confirm it is
+you with your passkey or authenticator app.
 
 **Register row**: PLAT-012.
 
@@ -12,10 +13,12 @@ confirm it is you with your passkey or authenticator app.
 
 1. Go to **Records retention** in the menu.
 2. Under **Documents due for destruction**, read the list: each document's title and kind, when
-   it was stored and since when it has been past its retention period.
+   it was stored and the date it went past its retention period. A document about someone whose
+   record you cannot open says "Title not shown: it is about a person whose record you cannot
+   open".
 3. Under **Choose the documents to destroy**, tick the ones to destroy.
 4. Under **Why are these records being destroyed?**, write a reason, for example "Annual records
-   review". It is written on the destruction certificate.
+   review". It needs at least 10 characters and is written on the destruction certificate.
 5. Tick **I understand destroyed documents cannot be recovered by anyone, including Thapsus Care**.
 6. Choose **Destroy chosen documents**. Read what happens, then choose **Destroy** with the number
    of documents, or **Keep the documents**.

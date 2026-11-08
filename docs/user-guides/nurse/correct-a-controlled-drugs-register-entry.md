@@ -12,10 +12,11 @@ deputy managers, Registered Managers and owners, with a witness.
 
 > **If the page says "Controlled drug recording is not turned on for this home"**, the paper
 > controlled drugs register is the record at your home. The page still shows what Thapsus Care
-> holds, which may be incomplete, but none of the forms in these steps, and Thapsus Care refuses
-> anything recorded there. Record every receipt, dose given, transfer, disposal and stock count in
-> the paper register, with a witness, as your home's policy says. One register is the record, so
-> its balance is never split between paper and Thapsus Care (H-1517).
+> holds, which may be incomplete. It does not show the forms in these steps, and Thapsus Care will
+> not accept a controlled drug entry for this home. Record every receipt, dose given, transfer,
+> disposal and stock count in the paper register, with a witness, as your home's policy says. One
+> register is the record, so its balance is never split between paper and Thapsus Care (HZ-115;
+> decision H-1517).
 
 ## Steps
 

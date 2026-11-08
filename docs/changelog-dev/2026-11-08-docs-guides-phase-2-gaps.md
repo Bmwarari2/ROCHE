@@ -30,9 +30,9 @@ too.
     say **Missing person** or **Left without agreement** opens the episode, and that the button
     ("Record the missing person episode for" and the name) shows only for the resident recorded as
     the person affected, on an open incident. #191 had already replaced the interim wording.
-  - Phone training (#184): both training guides start from the **Training** tab beside
-    **Shifts**, with the Settings link as a second way in.
-  - Controlled drugs (#187): the five register guides start with the banner's own words
+  - Phone training (#184): both training guides start from the **Training** tab, with the
+    Settings link as a second way in.
+  - Controlled drugs (#187): the four register guides start with the banner's own words
     ("Controlled drug recording is not turned on for this home") and say the forms are not offered
     and the paper register is the record; the print guide quotes both print footers; the browser
     round guide quotes both round notices; the stock, disposal and order guides say which register
@@ -93,9 +93,67 @@ too.
 - A share link's code can be made, but there is no page where the recipient uses it.
 - With Medicines due in batch 5, the phone's tab bar may reach eight tabs (H-1527).
 
+## Reviews
+
+A clinical safety review and an accessibility review of this branch; their findings are applied.
+
+- **Clinical safety, blocking**:
+  - B1, browser round: the turned-on notice is quoted in full; the guide says the register page
+    cannot record a dose given, not to record it as another movement or in the paper register as
+    well, and to tell the nurse or senior in charge before the dose is due (HZ-115; decision
+    H-1517).
+  - B2, register print: the PDF says to check the eMAR; where the home's recording is not turned
+    on, print from the browser or use the paper register; the PDF is for homes where recording is
+    turned on (HZ-122).
+  - B3, duty of candour: the regulation 20(9) definition for adult social care, who is told
+    instead (regulation 20(7), as `safety.candour.hint` says), the clocks quoted exactly (**Due
+    now**, the written notification target in working days from the decision, **Past your
+    organisation's target**), HZ-013.
+  - B4, discharge and transfer: plan before the person leaves; money items need a ledger approver
+    who did not record the exit; the return steps with their labels; a new Important section
+    (summary, medicines, receiving provider and GP before leaving; a controlled drug leaving
+    recorded in the paper register with a witness; notifications submitted only by the Registered
+    Manager or owner; HZ-013, HZ-023, HZ-115, HZ-121); what can be added after the person leaves
+    (care given before, sent late from a phone).
+  - B5, admission: the safety-critical welcome items that cannot be not applicable (from
+    `DEFAULT_WELCOME_CHECKLIST`), allergies ticked only when the top of the record shows them,
+    medicines reconciliation after admission (HZ-001, HZ-005, HZ-007, HZ-016, HZ-121); the
+    pre-admission guide says its allergies do not reach the top of the record (HZ-007, HZ-015,
+    HZ-016).
+- **Accessibility, blocking**: the opt-out wording quoted on the details page (A5); who can record
+  an enquiry, now including administrators or receptionists (A6); every `approvals.sla` wording
+  and the candour target on the approvals page (A7).
+- **Non-blocking**: "HZ-115; decision H-1517" wherever H-1517 was cited alone; hazard ids in the
+  clinical guides; checking identity changes against an official document (HZ-001); **Open from
+  earlier** may leave older tasks out; an investigation action's owner must manage incidents at
+  the location; incident trends are for the chosen location and "or more" means there may be
+  more; break-glass explained on the home page; "scope" and "module" replaced in the approvals
+  guide; the property signing and return labels; legal hold and destruction limited to the owner,
+  the quality and compliance lead or a role given retention management, with the 10-character
+  reason, the date a document went past its period and "Title not shown"; the controlled drugs
+  box wording; evidence pack redaction and release by someone else; suspension signs out
+  everywhere unless they also work for another organisation; "beside **Shifts**" dropped from the
+  phone training guides.
+- **CSO decisions** logged in `docs/plans/human-actions.md` as H-NEW-G1 to H-NEW-G6 (numbered at
+  merge), each provisional pending CSO review at the testing phase (ADR-0132): recording a
+  controlled drug dose once recording is on (G1), the register PDF footer (G2), a controlled drug
+  leaving with the person (G3), allergies and the photo not recordable on the web, a pre-pilot
+  blocker (G4), the candour wording and working-days target (G5), and approving these guides as
+  the training control (G6).
+- **Product fixes needed**:
+  - The turned-on round notice (`medicines.round.cdNoticeTurnedOn`) points to a register that
+    cannot record a dose given (H-NEW-G1).
+  - The register PDF footer names the eMAR, not the record that applies at the home (H-NEW-G2).
+  - No screen shows or sets controlled drug recording for a home (H-1518).
+  - `people.exit.archiveConfirmButton` "Yes, archive the record" breaks `packages/ui/CONTENT.md`.
+  - `safety.notification.deadline` says "Thapsus Care's target" where the candour record says
+    "your organisation's target".
+  - `approvals.truncated` says "module", which staff do not use.
+  - The handover summary still says "absconding" (`care.handover.summary.incident`).
+
 ## Tests
 
-- `node scripts/check-markdown-links.mjs`: 555 files, no broken links.
+- `node scripts/check-markdown-links.mjs`: 556 files, no broken links.
 - `node scripts/rename-product.mjs --check`: no in-scope old product name left.
 - Every bold label in the new and changed guides was checked by a script against `en-GB.json` and
   `mobile.en-GB.json`; the remaining matches are emphasis, not labels.

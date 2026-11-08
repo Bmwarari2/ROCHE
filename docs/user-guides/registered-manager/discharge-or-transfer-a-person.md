@@ -5,16 +5,18 @@ return what the home holds for them, and archive the record.
 
 **Who can do this**: the Registered Manager, deputy managers and the owner. Team leaders or
 senior carers and nurses can tick checklist items and record returns of property. Items about
-money need someone who approves the residents' money ledger. To record a death, see
-[How to record a death](../senior-carer/record-a-death.md).
+money need someone who approves the residents' money ledger and who did not record the exit.
+To record a death, see [How to record a death](../senior-carer/record-a-death.md).
 
 **Register row**: PEOP-010.
 
 ## Plan or record the exit
 
 1. Open the person's record and choose **Leaving**.
-2. To start before they leave, use **Plan a discharge or transfer**. Once they have gone, use
-   **Record a discharge or transfer**.
+2. Plan the exit before the person leaves, with **Plan a discharge or transfer**, so the
+   discharge or transfer of care summary, their medicines and the notifications are done before
+   they go. Use **Record a discharge or transfer** only when they have already gone without a
+   plan, and do those items at once.
 3. Under **Kind of exit**, choose **Discharge** (home, to family, or somewhere that is not a care
    provider) or **Transfer to another provider** (another care home, a hospice or another
    provider takes over their care).
@@ -38,9 +40,11 @@ money need someone who approves the residents' money ledger. To record a death, 
 
 ## Return money, property and keys
 
-1. Under **Property and keys to return**, record each return: **Who received it**, who **They
-   are**, and **Who signed for it**. Confirming the return of the person's money or deposit needs
-   you to confirm it is you with your passkey or authenticator app.
+1. Under **Property and keys to return**, choose **Record the return** on each item. Enter **Who
+   received it**, choose what **They are**, answer **Who signed for it**, and choose **Save the
+   return**. The return of the person's money or deposit is confirmed by someone other than the
+   person who recorded the exit, after they confirm it is them with their passkey or
+   authenticator app.
 2. When everything but the returns is done, choose **Wait for returns**. When everything is done
    and returned, choose **Close the checklist**. The page says "Checklist closed. The record can
    now be archived."
@@ -50,8 +54,18 @@ money need someone who approves the residents' money ledger. To record a death, 
 Choose **Archive the record**. Thapsus Care asks **Archive this record? It cannot be undone:
 nothing can be added to it afterwards.** Choose **Yes, archive the record**, or **Do not archive**.
 
+## Important
+
+- Before the person leaves, send the discharge or transfer of care summary, their medicines and
+  medicines list, and tell the receiving provider and the GP, so nothing essential is missing
+  when another service takes over their care (HZ-023). A controlled drug that goes with them is
+  recorded in the paper controlled drugs register, with a witness (HZ-121, HZ-115).
+- Statutory notifications are submitted only by the Registered Manager or the owner (HZ-013).
+
 ## Good to know
 
-- Once the person has left, their record is read-only except for records made after they left.
+- Once the person has left, their record is read-only. The only records added after they leave
+  are records of care given before they left that a phone sends late, flagged as recorded after
+  they left.
 - The page lists what is still to do before the checklist can move on or close.
 - An archived record is kept under the retention schedule.

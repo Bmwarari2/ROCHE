@@ -1,8 +1,14 @@
 # How to keep a duty of candour record
 
-When something goes wrong in a person's care and causes, or could cause, them harm, the law
-(the duty of candour, regulation 20) says the home tells them, apologises and follows it up in
-writing. Record each step on the incident.
+When something unintended or unexpected happens in a person's care and, in the reasonable opinion
+of a health care professional, it appears to have caused their death, an impairment or prolonged
+pain or psychological harm lasting or likely to last at least the set number of days, changes to
+the structure of their body, or a shortened life expectancy, or it needs treatment to prevent death
+or such harm, it is a notifiable safety incident. The law (the duty of candour, regulation 20 of the
+Health and Social Care Act 2008 (Regulated Activities) Regulations 2014) says the registered
+provider tells the person in person, as soon as reasonably practicable, with an apology, follows it
+up in writing, shares what further enquiries find and keeps copies of all correspondence. Record
+each step on the incident.
 
 **Who can do this**: people who manage incidents: nurses and clinical leads, deputy managers, the
 Registered Manager and the owner. Everyone who can read the incident sees where the record
@@ -16,7 +22,9 @@ stands.
    may apply, for example "Thapsus Care found the duty of candour may apply". This is a prompt, not
    a decision.
 2. Under **Record the threshold decision**, choose **Who did it happen to?**: the person affected.
-   Tell someone acting lawfully for them instead only when the hint on the page says so.
+   Tell someone lawfully acting on their behalf instead only if the person has died, is under 16
+   and not competent to decide about their care, or is 16 or over and lacks capacity in relation
+   to the matter.
 3. Answer **Is it a notifiable safety incident?** with **Yes** or **No**, as the health care
    professional judged it.
 4. Under **When was the decision made?**, choose **Just now** or **Earlier** and enter the date and
@@ -56,8 +64,12 @@ stands.
 
 ## Important
 
-- **Tell the person as soon as reasonably practicable.** The page shows the time for the written
-  notification as your organisation's target, not a legal deadline.
+- **Tell the person in person, with an apology, as soon as reasonably practicable.** The page
+  shows this as **Due now**. For the written notification the page says "Written notification:
+  your organisation's target is" and the date, then "This is a target, not a legal deadline: the
+  law says as soon as reasonably practicable." The target is counted in working days from the
+  threshold decision; until the decision is recorded, the times count from when the incident
+  happened. Once that date passes, it says **Past your organisation's target**.
 - The incident cannot close until the duty of candour record is finished, or recorded as not
   notifiable (see [How to review and close an incident](../registered-manager/review-and-close-an-incident.md)).
 - Letters and documents are chosen from the person's record. Send the letter from their letters
@@ -66,4 +78,4 @@ stands.
   if new facts change that, for example a fracture confirmed later, or they can now be contacted.
   Choose **Reopen the record** and say **Why is it reopened?**.
 - Thapsus Care never decides whether an incident is notifiable. The decision is the health care
-  professional's, recorded with their name.
+  professional's, recorded with their name (HZ-013).

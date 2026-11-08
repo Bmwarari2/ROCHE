@@ -13,9 +13,9 @@ members see their updates page instead.
    counts were worked out.
 2. **Today** shows the work of the shift: **Alerts**, **Tasks on the round** and **Handover**.
 3. **Safety and oversight** shows the rest your role uses, for example **Reviews due**,
-   **Incidents open**, **Statutory notifications**, **DoLS expiry reminders** (DoLS is the Deprivation of Liberty
-   Safeguards), **Outages** and
-   **Break-glass reports**.
+   **Incidents open**, **Statutory notifications**, **DoLS expiry reminders** (DoLS is the
+   Deprivation of Liberty Safeguards), **Outages** and **Break-glass reports**. Break-glass is
+   when someone opened a record outside their usual access in an emergency.
 4. Each tile says where it stands in a word: **Nothing waiting**, **None open**, **To do**,
    **Overdue**, **Urgent** or **Not known**. It says how many, and how many of those are overdue or
    urgent.
