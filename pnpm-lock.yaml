@@ -612,6 +612,9 @@ importers:
       '@harbour/config':
         specifier: workspace:*
         version: link:../config
+      '@harbour/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@react-native/metro-config':
         specifier: 0.86.3
         version: 0.86.3(@babel/core@7.29.7)

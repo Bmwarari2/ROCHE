@@ -1,10 +1,11 @@
 import { ComingSoon } from "../components/ComingSoon";
+import { t } from "../i18n/t";
 
 export default function ManageScreen() {
   return (
     <ComingSoon
-      title="Manage"
-      description="Approvals, alerts and dashboards for managers arrive in a later release. Use Care mode or the Thapsus Care website for now."
+      title={t("mobile.mode.title", { mode: "manage" })}
+      description={t("mobile.mode.comingSoon", { mode: "manage" })}
     />
   );
 }

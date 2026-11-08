@@ -107,15 +107,12 @@ export default function PeopleScreen() {
             <ActivityIndicator
               style={{ marginTop: theme.space[4] }}
               color={theme.colors.textSecondary}
-              accessibilityLabel="Loading people"
+              accessibilityLabel={t("mobile.people.loading")}
             />
           ) : (
             <View style={{ padding: theme.space[3], gap: theme.space[1] }} testID="people-empty">
-              <Text emphasis>No people on this device yet</Text>
-              <Text tone="secondary">
-                People assigned to you appear here after the first sync. Check the banner above for
-                the sync status.
-              </Text>
+              <Text emphasis>{t("mobile.people.emptyTitle")}</Text>
+              <Text tone="secondary">{t("mobile.people.emptyBody")}</Text>
             </View>
           )
         }

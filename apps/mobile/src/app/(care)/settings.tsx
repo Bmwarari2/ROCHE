@@ -78,7 +78,7 @@ function Choice({
       <Text emphasis={selected}>{label}</Text>
       {selected ? (
         <Text tone="accent" emphasis>
-          Selected
+          {t("mobile.settings.selected")}
         </Text>
       ) : null}
     </Pressable>
@@ -87,11 +87,9 @@ function Choice({
 
 function encryptionLabel(): string {
   try {
-    return isSQLCipher()
-      ? "Encrypted (SQLCipher, AES-256)"
-      : "Not encrypted: care data is not stored";
+    return t("mobile.settings.encryption", { state: isSQLCipher() ? "encrypted" : "none" });
   } catch {
-    return "Unknown";
+    return t("mobile.settings.encryption", { state: "unknown" });
   }
 }
 
@@ -140,25 +138,21 @@ export default function SettingsScreen() {
   };
 
   const confirmResync = () => {
-    Alert.alert(
-      "Download everything again?",
-      "This clears the care data on this device and downloads it again. Use it when support asks you to. You need an internet connection.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Download again",
-          onPress: async () => {
-            setResyncing(true);
-            const result = await vault.forceResync().catch(() => ({
-              ok: false as const,
-              reason: "The download could not start. Try again.",
-            }));
-            setResyncing(false);
-            if (!result.ok) Alert.alert("Not downloaded", result.reason);
-          },
+    Alert.alert(t("mobile.settings.resyncTitle"), t("mobile.settings.resyncBody"), [
+      { text: t("mobile.settings.cancel"), style: "cancel" },
+      {
+        text: t("mobile.settings.resyncConfirm"),
+        onPress: async () => {
+          setResyncing(true);
+          const result = await vault.forceResync().catch(() => ({
+            ok: false as const,
+            reason: t("mobile.settings.resyncNotStarted"),
+          }));
+          setResyncing(false);
+          if (!result.ok) Alert.alert(t("mobile.settings.resyncFailedTitle"), result.reason);
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const version = Application.nativeApplicationVersion ?? "development";
@@ -167,11 +161,11 @@ export default function SettingsScreen() {
   return (
     <Screen testID="settings-screen">
       <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[3] }}>
-        <Section title="Account">
-          <Text emphasis>{session.me?.user.name ?? "Signed in"}</Text>
+        <Section title={t("mobile.settings.section", { section: "account" })}>
+          <Text emphasis>{session.me?.user.name ?? t("mobile.settings.signedIn")}</Text>
           <Text tone="secondary">{session.me?.tenant.name}</Text>
           <Button
-            label="Change mode"
+            label={t("mobile.settings.changeMode")}
             variant="secondary"
             onPress={() => router.push("/mode")}
             testID="settings-change-mode"
@@ -203,12 +197,10 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        <Section title="Sync">
-          <Text tone="secondary">
-            If records look wrong or incomplete, download everything again.
-          </Text>
+        <Section title={t("mobile.settings.section", { section: "sync" })}>
+          <Text tone="secondary">{t("mobile.settings.resyncAbout")}</Text>
           <Button
-            label="Download all data again"
+            label={t("mobile.settings.resync")}
             variant="secondary"
             loading={resyncing}
             onPress={confirmResync}
@@ -216,9 +208,9 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        <Section title="Security">
+        <Section title={t("mobile.settings.section", { section: "security" })}>
           <Text tone="secondary">
-            Thapsus Care locks after {describeTimeout(vault.autoLockMs)} without use.
+            {t("mobile.settings.locksAfter", { duration: describeTimeout(vault.autoLockMs, t) })}
           </Text>
           {/* Personal or shared, and how soon a shared device locks, are set by a manager who may
               withdraw devices, never by any signed-in member (guides review; HZ-001, H-1530). */}
@@ -265,7 +257,7 @@ export default function SettingsScreen() {
                 ).map((ms) => (
                   <Choice
                     key={ms}
-                    label={describeTimeout(ms)}
+                    label={describeTimeout(ms, t)}
                     selected={preferences.sharedAutoLockMs === ms}
                     onSelect={() => update({ sharedAutoLockMs: ms })}
                     testID={`auto-lock-${ms}`}
@@ -274,10 +266,15 @@ export default function SettingsScreen() {
               </View>
             </>
           ) : null}
-          <Button label="Lock now" variant="secondary" onPress={vault.lock} testID="lock-now" />
+          <Button
+            label={t("mobile.settings.lockNow")}
+            variant="secondary"
+            onPress={vault.lock}
+            testID="lock-now"
+          />
         </Section>
 
-        <Section title="Display">
+        <Section title={t("mobile.settings.section", { section: "display" })}>
           <View
             style={{
               flexDirection: "row",
@@ -286,21 +283,21 @@ export default function SettingsScreen() {
               minHeight: theme.touchTarget,
             }}
           >
-            <Text style={{ flex: 1 }}>High contrast</Text>
+            <Text style={{ flex: 1 }}>{t("mobile.settings.highContrast")}</Text>
             <Switch
               testID="high-contrast-switch"
-              accessibilityLabel="High contrast"
+              accessibilityLabel={t("mobile.settings.highContrast")}
               value={preferences.theme.highContrast}
               onValueChange={(highContrast) =>
                 update({ theme: { ...preferences.theme, highContrast } })
               }
             />
           </View>
-          <Text emphasis>Appearance</Text>
+          <Text emphasis>{t("mobile.settings.appearance")}</Text>
           {(["system", "light", "dark"] as const).map((scheme) => (
             <Choice
               key={scheme}
-              label={scheme === "system" ? "Same as device" : scheme === "light" ? "Light" : "Dark"}
+              label={t("mobile.settings.scheme", { scheme })}
               selected={preferences.theme.scheme === scheme}
               onSelect={() => update({ theme: { ...preferences.theme, scheme } })}
               testID={`appearance-${scheme}`}
@@ -308,16 +305,18 @@ export default function SettingsScreen() {
           ))}
         </Section>
 
-        <Section title="About">
-          <Text testID="about-version">
-            Thapsus Care {version} (build {build})
-          </Text>
-          <Text tone="secondary">Local database: {encryptionLabel()}</Text>
+        <Section title={t("mobile.settings.section", { section: "about" })}>
+          <Text testID="about-version">{t("mobile.settings.version", { version, build })}</Text>
           <Text tone="secondary">
-            Device check: {vault.integrity?.reasons[0] ?? "Not checked yet"}
+            {t("mobile.settings.localDatabase", { state: encryptionLabel() })}
           </Text>
-          {appEnv.demoMode ? <Text tone="secondary">Demo mode: invented data only.</Text> : null}
-          <Text tone="secondary">Thapsus Cargo Ltd. Thapsus Care is not a medical device.</Text>
+          <Text tone="secondary">
+            {vault.integrity?.reasons[0]
+              ? t("mobile.settings.deviceCheck", { result: vault.integrity.reasons[0] })
+              : t("mobile.settings.deviceNotChecked")}
+          </Text>
+          {appEnv.demoMode ? <Text tone="secondary">{t("mobile.settings.demo")}</Text> : null}
+          <Text tone="secondary">{t("mobile.settings.notMedicalDevice")}</Text>
         </Section>
       </ScrollView>
     </Screen>

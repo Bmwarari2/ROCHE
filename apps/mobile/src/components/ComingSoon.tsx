@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../app-state/session";
+import { t } from "../i18n/t";
 import { Screen } from "./Screen";
 
 /** Stub for the Manage and Family modes, which arrive in later phases. */
@@ -28,7 +29,7 @@ export function ComingSoon({ title, description }: { title: string; description:
         </View>
         <View style={{ padding: theme.space[3], gap: theme.space[1.5] }}>
           <Button
-            label="Switch to Care mode"
+            label={t("mobile.mode.switchToCare")}
             onPress={() => {
               session.setMode("care");
               router.replace("/today");
@@ -37,7 +38,7 @@ export function ComingSoon({ title, description }: { title: string; description:
             testID="switch-to-care"
           />
           <Button
-            label="Choose another mode"
+            label={t("mobile.mode.chooseAnother")}
             variant="secondary"
             onPress={() => router.replace("/mode")}
             fullWidth

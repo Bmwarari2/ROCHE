@@ -7,6 +7,8 @@
  * `Authorization: Bearer <token>`. For accounts with TOTP, sign-in answers `twoFactorRedirect`
  * and sets a short-lived two-factor cookie that must accompany the verify call.
  */
+
+import { t } from "../i18n/t";
 import { isSessionProblem, readProblemBody, TENANT_HEADER } from "../sync/session-signals";
 import { cookiePairsFromSetCookie, type FetchLike, HttpError } from "./http";
 
@@ -19,24 +21,14 @@ export type AuthErrorKind =
   | "server"
   | "unexpected";
 
-/** User-facing messages: plain English, never blaming the user. */
-const messages: Record<AuthErrorKind, string> = {
-  invalid_credentials:
-    "We could not sign you in with those details. Check your email address and password, then try again.",
-  invalid_code:
-    "That code did not work. Codes change every 30 seconds, so enter the latest one from your authenticator app.",
-  rate_limited: "There have been several attempts in a short time. Wait a minute, then try again.",
-  session_expired: "Your session has ended. Sign in again to continue.",
-  network: "Thapsus Care cannot be reached. Check your internet connection and try again.",
-  server: "Thapsus Care is not responding as expected. Try again in a few minutes.",
-  unexpected: "Something went wrong while signing in. Try again.",
-};
+/** User-facing messages, from the catalogue (`mobile.signIn.error`): plain English, never blaming. */
+const messageFor = (kind: AuthErrorKind): string => t("mobile.signIn.error", { kind });
 
 export class AuthError extends Error {
   readonly kind: AuthErrorKind;
 
   constructor(kind: AuthErrorKind, cause?: unknown) {
-    super(messages[kind], cause === undefined ? undefined : { cause });
+    super(messageFor(kind), cause === undefined ? undefined : { cause });
     this.name = "AuthError";
     this.kind = kind;
   }

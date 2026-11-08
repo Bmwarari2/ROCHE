@@ -9,7 +9,7 @@
  */
 import { isStale } from "./staleness";
 import type { Tone } from "./theme";
-import { formatLastSynced } from "./time";
+import { DAY_MS, formatDate, formatTime, HOUR_MS, MINUTE_MS } from "./time";
 
 export type SyncConnectionState = "offline" | "syncing" | "synced" | "failed";
 
@@ -59,63 +59,107 @@ export interface SyncBannerContent {
   readonly accessibilityLabel: string;
 }
 
-const titles: Record<SyncConnectionState, string> = {
-  offline: "Offline",
-  syncing: "Syncing",
-  synced: "Up to date",
-  failed: "Sync failed",
-};
-
 /**
- * Shown when the API refuses this phone because the member's access is too wide (ADR-0134; HZ-138),
- * beside the stale-data warning, never instead of it (accessibility review, blocker 1).
+ * The banner's words, from the app's catalogue (`mobile.syncBanner.*`; section 5.4: every string
+ * through i18n). Build them with `syncBannerWords(t)`; the logic here only chooses among them.
  */
-export const SCOPE_TOO_LARGE_TITLE = "This phone cannot sync";
-export const SCOPE_TOO_LARGE_REASON =
-  "Before giving medicines, check the paper MAR or ask the nurse in charge. You can see more homes and people than a phone can keep: use the web app, or ask your manager to reduce the homes and people you can see. Your changes are safe on this phone.";
-const RETRY_HINT = "Tries to connect and sync again";
-const SCOPE_RETRY_HINT = "Checks again whether this phone can sync";
-
-export const STALE_WARNING = "Data may be out of date. Check important details before you act.";
-export const NEVER_SYNCED_WARNING =
-  "No data has been downloaded yet. Connect to the internet to sync.";
-
-function queuedText(count: number): string | null {
-  if (count <= 0) return null;
-  return count === 1 ? "1 change waiting to upload." : `${count} changes waiting to upload.`;
+export interface SyncBannerWords {
+  readonly title: (state: SyncConnectionState) => string;
+  /** Shown instead of "Up to date" while refused entries are on the device. */
+  readonly refusedTitle: string;
+  /**
+   * Shown when the API refuses this phone because the member's access is too wide (ADR-0134;
+   * HZ-138), beside the stale-data warning, never instead of it (accessibility review, blocker 1).
+   */
+  readonly scopeTitle: string;
+  readonly scopeReason: string;
+  readonly staleWarning: string;
+  readonly neverSyncedWarning: string;
+  readonly retryHint: string;
+  readonly scopeRetryHint: string;
+  /** The Retry button's words and its accessible name. */
+  readonly retry: string;
+  readonly retryLabel: string;
+  /** "Last synced 4 minutes ago", or "Not synced yet". */
+  readonly lastSynced: (lastSyncedAt: Date | null, now: Date) => string;
+  /** "3 changes waiting to upload.", or null for none. */
+  readonly queued: (count: number) => string | null;
+  /** Entries needing attention, "could not be counted" for null, or null for none. */
+  readonly refused: (count: number | null) => string | null;
 }
 
-/** Title shown instead of "Up to date" while refused entries are on the device. */
-export const REFUSED_TITLE = "Not all saved";
+/** A translator: the app's `t`, typed loosely so this package needs no catalogue at run time. */
+export type Translate = (key: never, values?: Record<string, string | number>) => string;
 
-/** Shown when the entries needing attention could not be counted (clinical review round 4, M4). */
-export const UNCOUNTED_TEXT =
-  "Some entries on this device could not be counted and need attention.";
+/** A moment this far in the future (a wrong device clock) is said as a date, not "ago". */
+const FUTURE_TOLERANCE_MS = MINUTE_MS;
 
-export function refusedText(count: number | null): string | null {
-  if (count === null) return UNCOUNTED_TEXT;
-  if (count <= 0) return null;
-  return count === 1
-    ? "1 entry was not saved and needs attention."
-    : `${count} entries were not saved and need attention.`;
+/** The banner's words from the catalogue (`mobile.syncBanner.*`). */
+export function syncBannerWords(translate: Translate): SyncBannerWords {
+  const t = translate as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
+  return {
+    title: (state) => t("mobile.syncBanner.title", { state }),
+    refusedTitle: t("mobile.syncBanner.refusedTitle"),
+    scopeTitle: t("mobile.syncBanner.scopeTitle"),
+    scopeReason: t("mobile.syncBanner.scopeReason"),
+    staleWarning: t("mobile.syncBanner.stale"),
+    neverSyncedWarning: t("mobile.syncBanner.neverSynced"),
+    retryHint: t("mobile.syncBanner.retryHint"),
+    scopeRetryHint: t("mobile.syncBanner.scopeRetryHint"),
+    retry: t("mobile.syncBanner.retry"),
+    retryLabel: t("mobile.syncBanner.retryLabel"),
+    lastSynced: (at, now) => {
+      if (!at) return t("mobile.syncBanner.lastSynced", { when: "never" });
+      const diff = now.getTime() - at.getTime();
+      const date = formatDate(at);
+      const time = formatTime(at);
+      if (diff < -FUTURE_TOLERANCE_MS || diff >= DAY_MS) {
+        return t("mobile.syncBanner.lastSynced", { when: "on", date, time });
+      }
+      if (diff < MINUTE_MS) return t("mobile.syncBanner.lastSynced", { when: "now" });
+      if (diff < HOUR_MS) {
+        return t("mobile.syncBanner.lastSynced", {
+          when: "minutes",
+          count: Math.floor(diff / MINUTE_MS),
+        });
+      }
+      return t("mobile.syncBanner.lastSynced", {
+        when: "hours",
+        count: Math.floor(diff / HOUR_MS),
+      });
+    },
+    queued: (count) => (count > 0 ? t("mobile.syncBanner.queued", { count }) : null),
+    refused: (count) =>
+      count === null
+        ? t("mobile.syncBanner.uncounted")
+        : count > 0
+          ? t("mobile.syncBanner.refused", { count })
+          : null,
+  };
 }
 
-export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
+export function describeSyncBanner(
+  input: SyncBannerInput,
+  words: SyncBannerWords,
+): SyncBannerContent {
   const { state, lastSyncedAt, now, staleAfterMs } = input;
   const stale = isStale(lastSyncedAt, now, staleAfterMs);
   // While a first sync is in progress there is nothing stale on screen yet, only an empty list.
   const neverSynced = lastSyncedAt === null;
 
-  const detailParts = [`${formatLastSynced(lastSyncedAt, now)}.`];
-  const queued = queuedText(input.queuedChanges ?? 0);
+  const detailParts = [`${words.lastSynced(lastSyncedAt, now)}.`];
+  const queued = words.queued(input.queuedChanges ?? 0);
   if (queued) detailParts.push(queued);
-  const refused = refusedText(input.refusedEntries === undefined ? 0 : input.refusedEntries);
+  const refused = words.refused(input.refusedEntries === undefined ? 0 : input.refusedEntries);
   if (refused) detailParts.push(refused);
   const detail = detailParts.join(" ");
 
   let warning: string | null = null;
-  if (neverSynced && state !== "syncing") warning = NEVER_SYNCED_WARNING;
-  else if (stale && !neverSynced) warning = STALE_WARNING;
+  if (neverSynced && state !== "syncing") warning = words.neverSyncedWarning;
+  else if (stale && !neverSynced) warning = words.staleWarning;
 
   let tone: Tone;
   let icon: SyncBannerIcon;
@@ -144,16 +188,16 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     icon = "cloud-alert";
   }
   const scopeTooLarge = input.failureReason === "scope_too_large";
-  const reason = scopeTooLarge ? SCOPE_TOO_LARGE_REASON : null;
+  const reason = scopeTooLarge ? words.scopeReason : null;
   if (scopeTooLarge) {
     tone = "danger";
     icon = "cloud-alert";
   }
   const title = scopeTooLarge
-    ? SCOPE_TOO_LARGE_TITLE
+    ? words.scopeTitle
     : refused && state === "synced"
-      ? REFUSED_TITLE
-      : titles[state];
+      ? words.refusedTitle
+      : words.title(state);
   const urgent = state === "failed" || warning !== null || refused !== null || scopeTooLarge;
   const accessibilityLabel = [`${title}.`, reason, detail, warning].filter(Boolean).join(" ");
 
@@ -164,7 +208,7 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     detail,
     warning,
     reason,
-    retryHint: scopeTooLarge ? SCOPE_RETRY_HINT : RETRY_HINT,
+    retryHint: scopeTooLarge ? words.scopeRetryHint : words.retryHint,
     stale,
     showRetry: state === "failed" || scopeTooLarge,
     urgent,

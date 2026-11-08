@@ -1,3 +1,4 @@
+import type { Translator } from "../i18n/t";
 /**
  * Auto-lock policy (section 5.3 and 17.2): 2 minutes on personal devices; 30 seconds by default on
  * shared and kiosk devices, configurable from 30 seconds to 2 minutes. These are security policy
@@ -24,14 +25,12 @@ export function resolveAutoLockMs(mode: DeviceMode, sharedTimeoutMs?: number | n
 }
 
 /** "30 seconds", "1 minute", "1 minute 30 seconds", "2 minutes". */
-export function describeTimeout(ms: number): string {
+export function describeTimeout(ms: number, t: Translator): string {
   const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const parts: string[] = [];
-  if (minutes > 0) parts.push(minutes === 1 ? "1 minute" : `${minutes} minutes`);
-  if (seconds > 0 || minutes === 0) parts.push(seconds === 1 ? "1 second" : `${seconds} seconds`);
-  return parts.join(" ");
+  return t("mobile.autoLock.duration", {
+    minutes: Math.floor(totalSeconds / 60),
+    seconds: totalSeconds % 60,
+  });
 }
 
 /**

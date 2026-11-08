@@ -1,3 +1,4 @@
+import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
   clampSharedTimeout,
@@ -45,7 +46,7 @@ describe("auto-lock policy (section 17.2)", () => {
     [120_000, "2 minutes"],
     [1_000, "1 second"],
   ])("describes %d ms as %s", (ms, text) => {
-    expect(describeTimeout(ms)).toBe(text);
+    expect(describeTimeout(ms, createTranslator("en-GB"))).toBe(text);
   });
 
   it("starts personal and treats anything unexpected as shared (stricter)", () => {

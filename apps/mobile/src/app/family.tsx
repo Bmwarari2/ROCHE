@@ -1,10 +1,11 @@
 import { ComingSoon } from "../components/ComingSoon";
+import { t } from "../i18n/t";
 
 export default function FamilyScreen() {
   return (
     <ComingSoon
-      title="Family"
-      description="Updates, messages and visit booking for families arrive in a later release."
+      title={t("mobile.mode.title", { mode: "family" })}
+      description={t("mobile.mode.comingSoon", { mode: "family" })}
     />
   );
 }

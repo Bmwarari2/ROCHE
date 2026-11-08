@@ -3,8 +3,8 @@
  * `mobile.*` keys, plus shared keys such as `common.save`). English (en-GB) only until Welsh
  * tenants go live; the locale will then come from the tenant and the person's preference.
  *
- * Phase 0 screens (sign-in, lock, settings) still hold their English copy inline; moving them to
- * the catalogue is a follow-up.
+ * Every string on screen comes from here (section 5.4), the sign-in, lock, settings and mode
+ * screens and the sync banner's words included.
  */
 import { createTranslator, type MessageKey, type Translator } from "@harbour/i18n";
 

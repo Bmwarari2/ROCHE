@@ -5,6 +5,7 @@ import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../app-state/session";
 import { useVault } from "../app-state/vault";
+import { t } from "../i18n/t";
 import { SignOutControl } from "./SignOutControl";
 
 /**
@@ -41,11 +42,10 @@ export function LockScreen() {
             importantForAccessibility="no"
           />
           <Text variant="title" accessibilityRole="header">
-            Thapsus Care is locked
+            {t("mobile.lock.title")}
           </Text>
           <Text tone="secondary">
-            {me ? `Signed in as ${me.user.name}.` : null} Unlock with Face ID, fingerprint or your
-            device passcode.
+            {me ? t("mobile.lock.bodySignedIn", { name: me.user.name }) : t("mobile.lock.body")}
           </Text>
           {vault.error ? (
             <Text tone="danger" accessibilityRole="alert" testID="lock-error">
@@ -55,7 +55,7 @@ export function LockScreen() {
         </View>
         <View style={{ gap: theme.space[1.5] }}>
           <Button
-            label={vault.status === "unlocking" ? "Unlocking" : "Unlock"}
+            label={t(vault.status === "unlocking" ? "mobile.lock.unlocking" : "mobile.lock.unlock")}
             onPress={() => {
               void vault.unlock();
             }}
