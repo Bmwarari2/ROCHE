@@ -94,6 +94,8 @@ export interface Tombstone {
    * round 6, M1).
    */
   readonly deviceId?: string;
+  /** For a lost key only: where the hold's owner worked, so its review goes there (H-1531). */
+  readonly locationIds?: readonly string[];
 }
 
 export interface TombstoneStore {
@@ -168,6 +170,8 @@ export function cleanTombstone(value: unknown): Tombstone | null {
     ? DISCARD_LEFTOVERS.filter((l) => (value.leftover as unknown[]).includes(l))
     : [];
   const deviceId = opaqueOrNull(value.deviceId);
+  const locationIds =
+    kind === "key_invalidated" ? opaqueList(value.locationIds, MAX_TOMBSTONE_PERSON_IDS) : [];
   return {
     id: value.id.toLowerCase(),
     kind,
@@ -184,6 +188,7 @@ export function cleanTombstone(value: unknown): Tombstone | null {
     ...(idsMissing ? { idsMissing } : {}),
     ...(leftover.length > 0 ? { leftover } : {}),
     ...(deviceId ? { deviceId: deviceId.toLowerCase() } : {}),
+    ...(locationIds.length > 0 ? { locationIds: locationIds.map((l) => l.toLowerCase()) } : {}),
   };
 }
 
@@ -243,7 +248,10 @@ export async function recordTombstone(store: TombstoneStore, tombstone: Tombston
       return;
     }
     let kept = index;
-    const excess = index.length + 1 - MAX_TOMBSTONES;
+    // A lost key's record always has a place: one slot past the limit is kept for it (clinical
+    // review of H-1531, M5), so a full list never loses the only record of a lost database.
+    const limit = stored.kind === "key_invalidated" ? MAX_TOMBSTONES + 1 : MAX_TOMBSTONES;
+    const excess = index.length + 1 - limit;
     if (excess > 0) {
       const droppable: string[] = [];
       for (const id of index) {
@@ -330,10 +338,11 @@ export async function readTombstones(store: TombstoneStore): Promise<Tombstone[]
 }
 
 /**
- * The record of a database its key no longer opens (H-1531, HZ-006): the file is already gone, so
- * it is "deleted" from the start, with no reason, no deleter and no ids, only the count the hold
- * knew. Whose and which organisation's come from the hold, else the person signed in. Null when
- * no organisation is known: there is nowhere to send it.
+ * The record of a database its key no longer opens (H-1531, HZ-006), sent to
+ * `POST /v1/sync/key-lost`: the file is already gone, so it is "deleted" from the start, with no
+ * reason, no deleter and no ids. Whose and how many come from the hold, else the person signed in
+ * (whose count the server takes from the device's last report). With no organisation known it is
+ * kept all the same and goes with the next session (clinical review of H-1531, M5).
  */
 export function keyLostTombstone(input: {
   readonly id: string;
@@ -342,12 +351,23 @@ export function keyLostTombstone(input: {
     readonly tenantId: string;
     readonly tenantUserId: string | null;
     readonly entries: number | null;
+    readonly locationIds?: readonly string[];
   } | null;
-  readonly signedInTenantId: string | null;
+  readonly signedIn: {
+    readonly tenantId: string | null;
+    readonly tenantUserId: string | null;
+    readonly locationIds: readonly string[];
+  };
   readonly deviceId: string | null;
 }): Tombstone | null {
-  const tenantId = opaqueOrNull(input.held?.tenantId) ?? opaqueOrNull(input.signedInTenantId);
-  if (!tenantId || !isOpaqueId(input.id)) return null;
+  if (!isOpaqueId(input.id)) return null;
+  const held = input.held;
+  const tenantId = opaqueOrNull(held?.tenantId) ?? opaqueOrNull(input.signedIn.tenantId);
+  const owner = held ? opaqueOrNull(held.tenantUserId) : opaqueOrNull(input.signedIn.tenantUserId);
+  const locations = opaqueList(
+    held ? (held.locationIds ?? []) : input.signedIn.locationIds,
+    MAX_TOMBSTONE_PERSON_IDS,
+  );
   const deviceId = opaqueOrNull(input.deviceId);
   return {
     id: input.id.toLowerCase(),
@@ -356,13 +376,14 @@ export function keyLostTombstone(input: {
     stage: "deleted",
     unsent: ["deleted"],
     tenantId,
-    ownerTenantUserId: opaqueOrNull(input.held?.tenantUserId),
+    ownerTenantUserId: owner,
     deletedByTenantUserId: null,
     entryIds: [],
     personIds: [],
-    count: input.held?.entries ?? null,
+    count: held ? held.entries : null,
     at: input.at.toISOString(),
     idsMissing: "key_invalid",
     ...(deviceId ? { deviceId: deviceId.toLowerCase() } : {}),
+    ...(locations.length > 0 ? { locationIds: locations.map((l) => l.toLowerCase()) } : {}),
   };
 }

@@ -1,5 +1,5 @@
 {
-  "id": "9d327ea7-94fa-4921-adac-ae580674cef5",
+  "id": "482535b7-d040-4977-a025-a7ca8b18257d",
   "prevId": "de477f26-92c8-4a8c-8afd-c6cb5f4ffe99",
   "version": "7",
   "dialect": "postgresql",
@@ -58649,6 +58649,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "cause": {
+          "name": "cause",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "owner_tenant_user_id": {
           "name": "owner_tenant_user_id",
           "type": "uuid",
@@ -58831,6 +58837,10 @@
         "device_discard_record_reason": {
           "name": "device_discard_record_reason",
           "value": "(reason_code IS NULL) = (kind = 'key_invalidated')"
+        },
+        "device_discard_record_cause": {
+          "name": "device_discard_record_cause",
+          "value": "(cause IS NOT NULL) = (kind = 'key_invalidated') AND (cause IS NULL OR cause IN ('device_key_lost'))"
         },
         "device_discard_record_count": {
           "name": "device_discard_record_count",
@@ -62222,7 +62232,7 @@
             }
           ],
           "isUnique": true,
-          "where": "status IN ('open', 'in_progress') AND deleted_at IS NULL AND kind IN ('sync.device_hold', 'sync.entry_reported_deleted', 'sync.entry_deleted_after_upload', 'care.refused_entry_review')",
+          "where": "status IN ('open', 'in_progress') AND deleted_at IS NULL AND kind IN ('sync.device_hold', 'sync.entry_reported_deleted', 'sync.entry_deleted_after_upload', 'care.refused_entry_review', 'sync.device_key_lost')",
           "concurrently": false,
           "method": "btree",
           "with": {}

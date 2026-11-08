@@ -326,13 +326,7 @@ export const SYNC_DISCARD_KINDS = [
   "held_deleted",
   "signed_out_with_unsent",
   "refused_removed",
-  // The device's key stopped opening its database, so its unsent entries were lost: nobody chose
-  // it, so it has no reason code, no deleter and no entry ids (H-1531, HZ-006).
-  "key_invalidated",
 ] as const;
-
-/** The kind of deletion nobody chose: recorded only once done, with no reason or deleter. */
-export const SYNC_DISCARD_UNCHOSEN_KIND = "key_invalidated" as const;
 
 /**
  * Why: a coded reason. The person's own words never reach the server's audit trail, which is
@@ -434,10 +428,9 @@ export const SyncDiscard = z
     stage: z.enum(SYNC_DISCARD_STAGES),
     /**
      * The coded reason: one of the five every organisation starts with. A reason the organisation
-     * added goes in `organisationReasonCode`, with `other` here. Null only for a
-     * `key_invalidated` loss, which nobody chose.
+     * added goes in `organisationReasonCode`, with `other` here.
      */
-    reasonCode: z.enum(SYNC_DISCARD_REASON_CODES).nullable(),
+    reasonCode: z.enum(SYNC_DISCARD_REASON_CODES),
     /**
      * One of the organisation's own coded reasons (`GET /v1/discard-reasons`), when the reason is
      * one it added; `reasonCode` is then `other`. The API checks it against the organisation's
@@ -477,32 +470,54 @@ export const SyncDiscard = z
     message: "Send an organisation's own reason with the reason code other.",
     path: ["reasonCode"],
   })
-  // A key that stopped opening the database is a loss nobody chose (H-1531): no reason, no
-  // deleter and no ids, recorded once it has happened; every other kind needs a reason.
-  .refine((d) => (d.reasonCode === null) === (d.kind === SYNC_DISCARD_UNCHOSEN_KIND), {
-    message: "Only a lost key's record has no reason, and it always has none.",
-    path: ["reasonCode"],
-  })
-  .refine(
-    (d) =>
-      d.kind !== SYNC_DISCARD_UNCHOSEN_KIND ||
-      (d.stage === "deleted" &&
-        (d.deletedByTenantUserId ?? null) === null &&
-        d.organisationReasonCode === undefined &&
-        d.entryIds.length === 0 &&
-        d.idsMissing === "key_invalid"),
-    {
-      message:
-        "A lost key's record is sent once, as deleted, with no deleter, no ids and idsMissing key_invalid.",
-      path: ["kind"],
-    },
-  )
   .meta({
     id: "SyncDiscard",
     description:
       "A device deleted, or is about to delete, entries that never reached the server; recorded as an audit event",
   });
 export type SyncDiscard = z.infer<typeof SyncDiscard>;
+
+/** The system cause a `key_invalidated` deletion record carries (H-1531): never a staff reason. */
+export const SYNC_KEY_LOST_CAUSES = ["device_key_lost"] as const;
+
+/**
+ * A device's keystore key stopped opening its encrypted database, so the unsent entries in it were
+ * lost (H-1531, HZ-006). Nobody chose it: it carries no reason, no deleter and no ids, only what
+ * the device knew of its hold. Sent once, to `POST /v1/sync/key-lost`; the server writes the
+ * deletion record (kind `key_invalidated`) and the review. The staff route
+ * (`POST /v1/sync/discards`) never takes it.
+ */
+export const SyncKeyLost = z
+  .object({
+    /** The device's record id: a replay is recorded once. */
+    id: uuid,
+    /** Whose entries, as the device knew (the hold's owner, else the person signed in). */
+    ownerTenantUserId: uuid.nullable(),
+    /** How many entries the hold counted; null when the device did not know. */
+    count: z.number().int().min(0).max(100_000).nullable(),
+    /** The device whose database was lost (its opaque id then); null when it was unreadable. */
+    deviceId: uuid.nullable(),
+    /** Where the hold's owner worked, as the device knew (at most 50). */
+    locationIds: z.array(uuid).max(50),
+    lostAt: isoDateTime,
+  })
+  .strict()
+  .meta({
+    id: "SyncKeyLost",
+    description:
+      "A device's key stopped opening its database and its unsent entries were lost; recorded with a review",
+  });
+export type SyncKeyLost = z.infer<typeof SyncKeyLost>;
+
+/**
+ * How a lost key's review ends (H-1531): its `reason` when marked done is one of these codes, so
+ * the review is never closed without saying what was found.
+ */
+export const KEY_LOST_REVIEW_OUTCOMES = [
+  "nothing_missing",
+  "re_recorded",
+  "incident_raised",
+] as const;
 
 export const SyncDiscardResult = z
   .object({ id: uuid, recorded: z.boolean(), replay: z.boolean() })

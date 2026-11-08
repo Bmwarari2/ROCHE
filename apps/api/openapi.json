@@ -36732,8 +36732,7 @@
             "enum": [
               "held_deleted",
               "signed_out_with_unsent",
-              "refused_removed",
-              "key_invalidated"
+              "refused_removed"
             ]
           },
           "stage": {
@@ -36745,17 +36744,13 @@
             ]
           },
           "reasonCode": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
             "enum": [
               "recorded_elsewhere",
               "entered_in_error",
               "staff_left",
               "nurse_in_charge_informed",
-              "other",
-              null
+              "other"
             ]
           },
           "organisationReasonCode": {
@@ -36839,6 +36834,59 @@
         ],
         "additionalProperties": false,
         "description": "A device deleted, or is about to delete, entries that never reached the server; recorded as an audit event"
+      },
+      "SyncKeyLost": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "deviceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "locationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 50
+          },
+          "lostAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "ownerTenantUserId",
+          "count",
+          "deviceId",
+          "locationIds",
+          "lostAt"
+        ],
+        "additionalProperties": false,
+        "description": "A device's key stopped opening its database and its unsent entries were lost; recorded with a review"
       },
       "SyncDeviceReport": {
         "type": "object",
@@ -104962,6 +105010,74 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SyncDiscard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncDiscardResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/key-lost": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Record that a device's key stopped opening its database and its unsent entries were lost",
+        "description": "Nobody chose this loss (H-1531, HZ-006), so it carries no reason, no deleter and no ids. The server writes the deletion record (kind key_invalidated, cause device_key_lost), its audit event and an urgent review task for the holders of safety.incident.manage where the owner worked, in one transaction. Any member of the organisation may send it (with MFA when their roles call for it), up to 3 a day. The owner counts only when on the staff and the sender or bound to the device; the device only when the sender or that owner is bound to it; otherwise each is audited as a claim. A count left out is taken from the device's last report. A replay raises the review if it is missing, and the old device's hold tasks close as superseded by it. The staff route POST /v1/sync/discards never takes this kind.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncKeyLost"
               }
             }
           }

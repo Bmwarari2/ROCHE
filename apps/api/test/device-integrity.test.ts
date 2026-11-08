@@ -1816,107 +1816,184 @@ describe("part 7: shared per-user quotas", () => {
 });
 
 describe("hazard HZ-006 a device's lost key is put on record with a review (H-1531)", () => {
-  const lostKey = (who: Who, overrides: Record<string, unknown> = {}, device?: string) =>
-    call(who, "/v1/sync/discards", {
+  const lostKey = (who: Who, overrides: Record<string, unknown> = {}) =>
+    call(who, "/v1/sync/key-lost", {
       method: "POST",
-      ...(device ? { device } : {}),
       body: {
         id: crypto.randomUUID(),
-        kind: "key_invalidated",
-        stage: "deleted",
-        reasonCode: null,
-        ownerTenantUserId: DEMO.users.nurse.id,
-        entryIds: [],
-        personIds: [],
+        ownerTenantUserId: null,
         count: 3,
-        idsMissing: "key_invalid",
-        discardedAt: new Date().toISOString(),
+        deviceId: null,
+        locationIds: [],
+        lostAt: new Date().toISOString(),
         ...overrides,
       },
     });
+  const reviews = (discardId: string) =>
+    asTenant<{
+      id: string;
+      priority: string;
+      status: string;
+      version: number;
+      details: Record<string, unknown>;
+    }>(
+      "SELECT id, priority, status, version, details FROM task WHERE kind = 'sync.device_key_lost' AND source_id = $1",
+      [discardId],
+    );
+  const recordOf = (discardId: string) =>
+    asTenant<Record<string, unknown>>(
+      "SELECT kind, reason_code, cause, owner_tenant_user_id AS owner, device_id, entry_count AS count FROM device_discard_record WHERE discard_id = $1",
+      [discardId],
+    );
 
-  it("takes the record from a carer, whoever's entries they were, and raises an urgent task", async () => {
+  it("records the loss, raises one urgent review and supersedes the device's hold task", async () => {
     const id = crypto.randomUUID();
     const device = "0199d000-0000-4000-8000-0000000b1531";
-    const response = await lostKey("carer", { id }, device);
+    // The owner used the device (a report binds it) and its hold has a task open.
+    expect((await report("owner", {}, device)).status).toBe(204);
+    await asTenant(
+      `INSERT INTO task (kind, title, required_permission, source_type, source_id, due_at, priority)
+       VALUES ('sync.device_hold', 'Unsent care entries are waiting on a device', 'safety.incident.manage', 'device_hold', $1, now(), 'routine')`,
+      [device],
+    );
+    const response = await lostKey("owner", {
+      id,
+      ownerTenantUserId: DEMO.users.owner.id,
+      deviceId: device,
+    });
     expect(response.status).toBe(200);
-    const [record] = await asTenant<{ kind: string; reason_code: string | null; count: number }>(
-      "SELECT kind, reason_code, entry_count AS count FROM device_discard_record WHERE discard_id = $1",
-      [id],
-    );
-    expect(record).toEqual({ kind: "key_invalidated", reason_code: null, count: 3 });
-    const tasks = await asTenant<{ priority: string; status: string; details: unknown }>(
-      "SELECT priority, status, details FROM task WHERE kind = 'sync.device_key_lost' AND source_id = $1",
-      [id],
-    );
+    expect(await recordOf(id)).toEqual([
+      {
+        kind: "key_invalidated",
+        reason_code: null,
+        cause: "device_key_lost",
+        owner: DEMO.users.owner.id,
+        device_id: device,
+        count: 3,
+      },
+    ]);
+    const tasks = await reviews(id);
     expect(tasks.length).toBeGreaterThan(0);
     for (const t of tasks) {
       expect(t).toMatchObject({ priority: "urgent", status: "open" });
-      expect(t.details).toEqual({ ownerTenantUserId: DEMO.users.nurse.id, entryCount: 3 });
+      expect(t.details).toEqual({ ownerTenantUserId: DEMO.users.owner.id, entryCount: 3 });
     }
-    const [audit] = await asTenant<{ reason: string; scope: Record<string, unknown> }>(
-      "SELECT reason, scope FROM audit_event WHERE resource_type = 'device_discard' AND resource_id = $1",
-      [id],
+    const holds = await asTenant<{ status: string }>(
+      "SELECT status FROM task WHERE kind = 'sync.device_hold' AND source_id = $1",
+      [device],
     );
-    expect(audit?.reason).toBe("key_invalidated");
-    expect(audit?.scope.reasonCode).toBeNull();
-    // A replay records nothing more and raises no second task.
-    const again = await lostKey("carer", { id }, device);
+    expect(holds.length).toBeGreaterThan(0);
+    expect(holds.every((t) => t.status === "done")).toBe(true);
+    // A replay records nothing more and raises no second review.
+    const again = await lostKey("owner", { id, ownerTenantUserId: DEMO.users.owner.id });
     expect(await again.json()).toMatchObject({ replay: true });
-    const after = await asTenant(
-      "SELECT 1 FROM task WHERE kind = 'sync.device_key_lost' AND source_id = $1",
-      [id],
-    );
-    expect(after).toHaveLength(tasks.length);
+    expect(await reviews(id)).toHaveLength(tasks.length);
     // The device's later report with nothing waiting leaves the review open.
-    expect((await report("carer", {}, device)).status).toBe(204);
-    const open = await asTenant<{ status: string }>(
-      "SELECT status FROM task WHERE kind = 'sync.device_key_lost' AND source_id = $1",
+    expect((await report("owner", {}, device)).status).toBe(204);
+    expect((await reviews(id)).every((t) => t.status === "open")).toBe(true);
+
+    // The sender cannot close it; a reviewer must say what was found.
+    const [review] = tasks;
+    if (!review) throw new Error("expected a review");
+    const transition = (who: Who, reason?: string) =>
+      call(who, `/v1/tasks/${review.id}/transition`, {
+        method: "POST",
+        body: { to: "done", version: review.version, ...(reason ? { reason } : {}) },
+      });
+    expect((await transition("owner")).status).toBe(403);
+    expect((await transition("manager")).status).toBe(422);
+    expect((await transition("manager", "looked")).status).toBe(422);
+    expect((await transition("manager", "re_recorded")).status).toBe(200);
+  });
+
+  it("takes an owner who never used the device only as a claim, and the count from the last report", async () => {
+    const id = crypto.randomUUID();
+    const device = "0199d000-0000-4000-8000-0000000b1532";
+    expect((await report("manager", { held: 0 }, device)).status).toBe(204);
+    const response = await lostKey("manager", {
+      id,
+      ownerTenantUserId: DEMO.users.owner.id,
+      deviceId: device,
+      count: null,
+    });
+    expect(response.status).toBe(200);
+    expect(await recordOf(id)).toEqual([
+      expect.objectContaining({ owner: null, device_id: device, count: 0 }),
+    ]);
+    const [audit] = await asTenant<{ scope: Record<string, unknown> }>(
+      "SELECT scope FROM audit_event WHERE action = 'sync.device.key_lost' AND resource_id = $1",
       [id],
     );
-    expect(open.every((t) => t.status === "open")).toBe(true);
+    expect(audit?.scope).toMatchObject({
+      claimedOwnerTenantUserId: DEMO.users.owner.id,
+      countFrom: "last_report",
+      count: 0,
+    });
+    // Nothing was waiting when it last reported: the review is routine, not urgent.
+    expect((await reviews(id)).every((t) => t.priority === "routine")).toBe(true);
   });
 
-  it.each([
-    ["a reason", { reasonCode: "recorded_elsewhere" }],
-    ["a deleter", { deletedByTenantUserId: DEMO.users.carer.id }],
-    ["entry ids", { entryIds: [crypto.randomUUID()], count: 3 }],
-    ["the requested stage", { stage: "requested" }],
-    ["no reason for ids missing", { idsMissing: undefined }],
-  ])("refuses a lost key's record with %s", async (_label, overrides) => {
-    expect((await lostKey("carer", overrides)).status).toBe(422);
+  it("takes a device nobody involved used only as a claim", async () => {
+    const id = crypto.randomUUID();
+    const response = await lostKey("manager", {
+      id,
+      deviceId: "0199d000-0000-4000-8000-0000000b1533",
+    });
+    expect(response.status).toBe(200);
+    expect(await recordOf(id)).toEqual([expect.objectContaining({ device_id: null })]);
   });
 
-  it("refuses any other kind without a reason", async () => {
+  it("the staff route never takes a lost key", async () => {
     const response = await call("carer", "/v1/sync/discards", {
       method: "POST",
       body: {
         id: crypto.randomUUID(),
-        kind: "held_deleted",
-        stage: "requested",
-        reasonCode: null,
+        kind: "key_invalidated",
+        stage: "deleted",
+        reasonCode: "other",
         ownerTenantUserId: DEMO.users.carer.id,
         deletedByTenantUserId: DEMO.users.carer.id,
         entryIds: [],
         personIds: [],
         count: 0,
-        idsMissing: "key_absent",
+        idsMissing: "key_invalid",
         discardedAt: new Date().toISOString(),
       },
     });
     expect(response.status).toBe(422);
   });
 
-  it("the table refuses a lost key with a reason, and any other kind without one", async () => {
-    const insert = (kind: string, reason: string | null) =>
+  it.each([
+    ["a reason", { reasonCode: "other" }],
+    ["person ids", { personIds: [crypto.randomUUID()] }],
+    ["entry ids", { entryIds: [crypto.randomUUID()] }],
+  ])("refuses a lost key's record with %s", async (_label, extra) => {
+    expect((await lostKey("owner", extra)).status).toBe(422);
+  });
+
+  it("refuses a member past 3 lost keys a day", async () => {
+    for (let n = 0; n < 3; n += 1) expect((await lostKey("carer")).status).toBe(200);
+    expect((await lostKey("carer")).status).toBe(429);
+  });
+
+  it("the table allows no reason and a cause only for a lost key", async () => {
+    const insert = (kind: string, reason: string | null, cause: string | null) =>
       asTenant(
-        `INSERT INTO device_discard_record (discard_id, stage, kind, reason_code, sender_tenant_user_id, discarded_at)
-         VALUES ($1, 'deleted', $2, $3, $4, now())`,
-        [crypto.randomUUID(), kind, reason, DEMO.users.carer.id],
+        `INSERT INTO device_discard_record (discard_id, stage, kind, reason_code, cause, sender_tenant_user_id, discarded_at)
+         VALUES ($1, 'deleted', $2, $3, $4, $5, now())`,
+        [crypto.randomUUID(), kind, reason, cause, DEMO.users.carer.id],
       );
-    await expect(insert("key_invalidated", "recorded_elsewhere")).rejects.toThrow(
+    await expect(
+      insert("key_invalidated", "recorded_elsewhere", "device_key_lost"),
+    ).rejects.toThrow(/device_discard_record_reason/);
+    await expect(insert("key_invalidated", null, null)).rejects.toThrow(
+      /device_discard_record_cause/,
+    );
+    await expect(insert("held_deleted", "recorded_elsewhere", "device_key_lost")).rejects.toThrow(
+      /device_discard_record_cause/,
+    );
+    await expect(insert("held_deleted", null, null)).rejects.toThrow(
       /device_discard_record_reason/,
     );
-    await expect(insert("held_deleted", null)).rejects.toThrow(/device_discard_record_reason/);
   });
 });

@@ -4,10 +4,10 @@ import {
   SYNC_DISCARD_LEFTOVERS,
   SYNC_DISCARD_REASON_CODES,
   SYNC_DISCARD_STAGES,
-  SyncDiscard,
+  SyncKeyLost,
 } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
-import { discardBody } from "../sync/discards";
+import { keyLostBody } from "../sync/discards";
 import {
   acknowledgeStage,
   cleanTombstone,
@@ -66,7 +66,8 @@ function memoryStore(options: { failWrites?: boolean } = {}) {
 
 describe("hazard HZ-040 tombstones hold no personal data (security review M1)", () => {
   it("uses the API's kinds, reason codes and stages", () => {
-    expect([...DISCARD_KINDS]).toEqual([...SYNC_DISCARD_KINDS]);
+    // The staff route's kinds, and the lost key, which has its own route (H-1531).
+    expect([...DISCARD_KINDS]).toEqual([...SYNC_DISCARD_KINDS, "key_invalidated"]);
     expect([...DISCARD_REASON_CODES]).toEqual([...SYNC_DISCARD_REASON_CODES]);
     expect([...DISCARD_STAGES]).toEqual([...SYNC_DISCARD_STAGES]);
     expect([...DISCARD_LEFTOVERS]).toEqual([...SYNC_DISCARD_LEFTOVERS]);
@@ -205,19 +206,16 @@ describe("hazard HZ-040 tombstones in the keystore (S4, M1, L4)", () => {
 
 describe("hazard HZ-006 a database its key no longer opens is put on record (H-1531)", () => {
   const at = new Date("2026-11-08T10:00:00.000Z");
-  const held = { tenantId: id(1), tenantUserId: id(2), entries: 4 };
+  const held = { tenantId: id(1), tenantUserId: id(2), entries: 4, locationIds: [id(3)] };
+  const signedIn = { tenantId: id(5), tenantUserId: id(6), locationIds: [id(8)] };
+  const none = { tenantId: null, tenantUserId: null, locationIds: [] };
 
   it.each([
-    ["the hold's organisation, owner and count", held, null, id(1), id(2), 4],
-    ["the signed-in organisation when nothing was held", null, id(5), id(5), null, null],
-  ] as const)("names %s", (_label, h, signedIn, tenant, owner, count) => {
-    const t = keyLostTombstone({
-      id: id(9),
-      at,
-      held: h,
-      signedInTenantId: signedIn,
-      deviceId: id(7),
-    });
+    ["the hold's organisation, owner, count and places", held, signedIn, id(1), id(2), 4, [id(3)]],
+    ["the person signed in when nothing was held", null, signedIn, id(5), id(6), null, [id(8)]],
+    ["no organisation, kept for the next session", null, none, null, null, null, undefined],
+  ] as const)("names %s", (_label, h, who, tenant, owner, count, places) => {
+    const t = keyLostTombstone({ id: id(9), at, held: h, signedIn: who, deviceId: id(7) });
     expect(t).toMatchObject({
       kind: "key_invalidated",
       reasonCode: null,
@@ -227,23 +225,30 @@ describe("hazard HZ-006 a database its key no longer opens is put on record (H-1
       ownerTenantUserId: owner,
       deletedByTenantUserId: null,
       entryIds: [],
+      personIds: [],
       count,
       idsMissing: "key_invalid",
       deviceId: id(7),
     });
+    expect(t?.locationIds).toEqual(places);
   });
 
-  it("is not made when no organisation is known", () => {
-    expect(
-      keyLostTombstone({ id: id(9), at, held: null, signedInTenantId: null, deviceId: null }),
-    ).toBeNull();
-  });
-
-  it("is what the API takes, and survives the keystore", () => {
-    const t = keyLostTombstone({ id: id(9), at, held, signedInTenantId: null, deviceId: id(7) });
+  it("goes to the key-lost route in the shape the API takes, and survives the keystore", () => {
+    const t = keyLostTombstone({ id: id(9), at, held, signedIn, deviceId: null });
     if (!t) throw new Error("expected a record");
-    expect(SyncDiscard.safeParse(discardBody(t, "deleted")).success).toBe(true);
+    const body = keyLostBody(t);
+    expect(SyncKeyLost.safeParse(body).success).toBe(true);
+    expect(body).toMatchObject({ deviceId: null, count: 4, locationIds: [id(3)] });
     expect(cleanTombstone(JSON.parse(JSON.stringify(t)))).toEqual(t);
+  });
+
+  it("keeps a lost key's record when the list is full", async () => {
+    const { store } = memoryStore();
+    for (let n = 0; n < MAX_TOMBSTONES; n += 1) await recordTombstone(store, stone(100 + n));
+    const t = keyLostTombstone({ id: id(9), at, held, signedIn, deviceId: null });
+    if (!t) throw new Error("expected a record");
+    await recordTombstone(store, t);
+    expect((await readTombstones(store)).map((r) => r.id)).toContain(id(9));
   });
 
   it.each([

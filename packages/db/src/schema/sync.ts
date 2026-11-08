@@ -155,6 +155,9 @@ export const DEVICE_DISCARD_KINDS = [
   "key_invalidated",
 ] as const;
 
+/** The system causes of a deletion nobody chose (`SYNC_KEY_LOST_CAUSES` in contracts). */
+export const DEVICE_DISCARD_CAUSES = ["device_key_lost"] as const;
+
 /** A coded reason: lower-case letters, digits and underscores, starting with a letter. */
 const DISCARD_REASON_CODE_SQL = "'^[a-z][a-z0-9_]{1,39}$'";
 
@@ -220,6 +223,11 @@ export const deviceDiscardRecord = pgTable(
     kind: text("kind").notNull(),
     /** Null only for `key_invalidated`, a loss nobody chose (H-1531). */
     reasonCode: text("reason_code"),
+    /**
+     * The system cause of a `key_invalidated` record (`DEVICE_DISCARD_CAUSES`), written only by
+     * the server's key-lost route; null for every deletion a member made (H-1531).
+     */
+    cause: text("cause"),
     ownerTenantUserId: uuid("owner_tenant_user_id"),
     /** Who deleted them, as the device recorded it; null when it did not know. */
     deletedByTenantUserId: uuid("deleted_by_tenant_user_id"),
@@ -260,6 +268,10 @@ export const deviceDiscardRecord = pgTable(
     check("device_discard_record_stage", sql`stage IN (${sqlList(DEVICE_DISCARD_STAGES)})`),
     check("device_discard_record_kind", sql`kind IN (${sqlList(DEVICE_DISCARD_KINDS)})`),
     check("device_discard_record_reason", sql`(reason_code IS NULL) = (kind = 'key_invalidated')`),
+    check(
+      "device_discard_record_cause",
+      sql`(cause IS NOT NULL) = (kind = 'key_invalidated') AND (cause IS NULL OR cause IN (${sqlList(DEVICE_DISCARD_CAUSES)}))`,
+    ),
     check(
       "device_discard_record_count",
       sql`entry_count IS NULL OR entry_count BETWEEN 0 AND 100000`,

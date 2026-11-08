@@ -37021,6 +37021,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sync/key-lost": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record that a device's key stopped opening its database and its unsent entries were lost
+     * @description Nobody chose this loss (H-1531, HZ-006), so it carries no reason, no deleter and no ids. The server writes the deletion record (kind key_invalidated, cause device_key_lost), its audit event and an urgent review task for the holders of safety.incident.manage where the owner worked, in one transaction. Any member of the organisation may send it (with MFA when their roles call for it), up to 3 a day. The owner counts only when on the staff and the sender or bound to the device; the device only when the sender or that owner is bound to it; otherwise each is audited as a claim. A count left out is taken from the device's last report. A replay raises the review if it is missing, and the old device's hold tasks close as superseded by it. The staff route POST /v1/sync/discards never takes this kind.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SyncKeyLost"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SyncDiscardResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sync/device-report": {
     parameters: {
       query?: never;
@@ -74585,17 +74655,16 @@ export interface components {
       /** Format: uuid */
       id: string;
       /** @enum {string} */
-      kind: "held_deleted" | "signed_out_with_unsent" | "refused_removed" | "key_invalidated";
+      kind: "held_deleted" | "signed_out_with_unsent" | "refused_removed";
       /** @enum {string} */
       stage: "requested" | "deleted" | "failed";
-      /** @enum {string|null} */
+      /** @enum {string} */
       reasonCode:
         | "recorded_elsewhere"
         | "entered_in_error"
         | "staff_left"
         | "nurse_in_charge_informed"
-        | "other"
-        | null;
+        | "other";
       organisationReasonCode?: components["schemas"]["DiscardReasonCode"];
       /** Format: uuid */
       ownerTenantUserId: string | null;
@@ -74611,6 +74680,19 @@ export interface components {
       idsMissing?: "key_absent" | "key_invalid";
       /** Format: uuid */
       deviceId?: string;
+    };
+    /** @description A device's key stopped opening its database and its unsent entries were lost; recorded with a review */
+    SyncKeyLost: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      ownerTenantUserId: string | null;
+      count: number | null;
+      /** Format: uuid */
+      deviceId: string | null;
+      locationIds: string[];
+      /** Format: date-time */
+      lostAt: string;
     };
     SyncDeviceReport: {
       unsent: number;

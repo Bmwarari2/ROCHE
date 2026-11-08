@@ -2,6 +2,7 @@ import {
   CreateTask,
   CreateTaskSeries,
   EndTaskSeries,
+  KEY_LOST_REVIEW_OUTCOMES,
   TaskAssignRequest,
   TaskItem,
   TaskList,
@@ -50,7 +51,7 @@ import {
 } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
-import { COVER_TASK_KIND } from "../services/device-holds";
+import { COVER_TASK_KIND, KEY_LOST_TASK_KIND } from "../services/device-holds";
 import { RETROSPECTIVE_TASK, retrospectiveRefusal } from "../services/medicine-rounds";
 import {
   assigneeMayComplete,
@@ -109,6 +110,11 @@ async function completionRefusal(
   now: Date,
 ): Promise<string | null> {
   if (EVIDENCE_ONLY_TASK_KINDS.includes(row.kind)) return "completed_by_its_evidence";
+  // A lost key's review is done by someone other than whoever sent the loss (H-1531; clinical
+  // review of H-1531, M7).
+  if (row.kind === KEY_LOST_TASK_KIND && row.createdBy === access.tenantUserId) {
+    return "reviewed_by_someone_else";
+  }
   // A self-reviewed medicines conflict is reviewed by someone else (slice 48 clinical review B1).
   if (row.kind === RETROSPECTIVE_TASK) {
     const own = await retrospectiveRefusal(tx, access.tenantUserId, row.sourceId);
@@ -779,6 +785,17 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
       if (SELF_ESCALATED_TASK_KINDS.includes(row.kind) && body.to !== "in_progress") {
         throw problems.invalid(
           "This task finishes on its own once the duty of candour no longer holds the incident open: finish the duty of candour on the incident.",
+        );
+      }
+      // A lost key's review says what was found when it is done (H-1531): one of the coded
+      // outcomes, never a bare "done".
+      if (
+        row.kind === KEY_LOST_TASK_KIND &&
+        body.to === "done" &&
+        !KEY_LOST_REVIEW_OUTCOMES.some((o) => o === body.reason)
+      ) {
+        throw problems.invalid(
+          `Say what the review found: ${KEY_LOST_REVIEW_OUTCOMES.join(", ")}.`,
         );
       }
       const check = checkTaskTransition(asTaskStatus(row.status), {

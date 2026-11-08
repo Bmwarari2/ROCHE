@@ -1,8 +1,8 @@
 import {
-  SYNC_DISCARD_UNCHOSEN_KIND,
   SyncDeviceReport,
   SyncDiscard,
   SyncDiscardResult,
+  SyncKeyLost,
   SyncToken,
   SyncUpload,
   SyncUploadResult,
@@ -48,8 +48,8 @@ import {
   DISCARD_ACTIONS,
   DISCARD_OTHERS_PERMISSION,
   flagEntriesAlreadyUploaded,
-  raiseKeyLostTask,
   recordDeviceHold,
+  recordKeyLost,
 } from "../services/device-holds";
 import {
   bindDevice,
@@ -646,14 +646,10 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // owner, another member of staff's entries, or a deletion the device says someone else made
         // (security review round 4, M1). Registered Managers, deputies and nurses hold it.
         let asManager = false;
-        // A key that stopped opening the device's database is a loss nobody chose (H-1531): the
-        // sender reports it, whoever's entries they were, and a manager reviews it.
-        const unchosen = body.kind === SYNC_DISCARD_UNCHOSEN_KIND;
         if (
-          !unchosen &&
-          (!body.ownerTenantUserId ||
-            body.ownerTenantUserId !== access.tenantUserId ||
-            deleter !== access.tenantUserId)
+          !body.ownerTenantUserId ||
+          body.ownerTenantUserId !== access.tenantUserId ||
+          deleter !== access.tenantUserId
         ) {
           access = await requirePermission(c, DISCARD_OTHERS_PERMISSION);
           asManager = true;
@@ -667,7 +663,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           first !== undefined &&
           first.senderTenantUserId !== access.tenantUserId &&
           owner !== access.tenantUserId;
-        if (!asManager && !unchosen) {
+        if (!asManager) {
           const [first] = await withTenant(c, (tx) =>
             withTenantWideScope(tx, () =>
               tx
@@ -704,15 +700,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           // One of the organisation's coded reasons (care.md section 6, Device integrity part 8): a
           // code it never had is refused; a retired one is still taken, because the device may
           // have recorded the deletion before it was retired, and a deletion is never stranded.
-          // A lost key has no reason: nobody chose it (H-1531; the contract allows null only then).
-          const [reason] =
-            reasonCode === null
-              ? [null]
-              : await tx
-                  .select({ id: discardReason.id, code: discardReason.code })
-                  .from(discardReason)
-                  .where(eq(discardReason.code, reasonCode));
-          if (reason === undefined) {
+          const [reason] = await tx
+            .select({ id: discardReason.id, code: discardReason.code })
+            .from(discardReason)
+            .where(eq(discardReason.code, reasonCode));
+          if (!reason) {
             throw problems.invalid(
               "That reason is not one of your organisation's coded reasons for deleting entries.",
             );
@@ -796,12 +788,12 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             // One of the five is audited by its code; a code the organisation wrote is audited as
             // "other" with the reason's id, so no name it might contain enters the trail (#26
             // review round 2, low). The deletion record keeps the code.
-            reason: body.organisationReasonCode ? "other" : (reasonCode ?? body.kind),
+            reason: body.organisationReasonCode ? "other" : reasonCode,
             scope: {
               kind: body.kind,
               stage: body.stage,
               reasonCode: body.organisationReasonCode ? "other" : reasonCode,
-              ...(body.organisationReasonCode && reason ? { organisationReasonId: reason.id } : {}),
+              ...(body.organisationReasonCode ? { organisationReasonId: reason.id } : {}),
               ownerTenantUserId: body.ownerTenantUserId,
               // As the device recorded it; the event's actor is whoever sent this request.
               deletedByTenantUserId: recordedDeleter,
@@ -861,11 +853,6 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               requestId,
             );
           }
-          // Entries lost with the device's key: a manager checks with their owner what was not
-          // recorded, on a task no later report of the device closes (H-1531, HZ-006).
-          if (body.stage === "deleted" && unchosen) {
-            await raiseKeyLostTask(services.db, access, body, new Date(), requestId);
-          }
           // Listed entries the server already had are flagged once the deletion is done (C-L2;
           // security review round 6, N1).
           if (body.stage === "deleted") {
@@ -873,6 +860,36 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           }
         }
         return c.json({ id: body.id, recorded: true, replay }, 200);
+      },
+    )
+    .openapi(
+      createRoute({
+        method: "post",
+        path: "/v1/sync/key-lost",
+        tags: ["sync"],
+        summary:
+          "Record that a device's key stopped opening its database and its unsent entries were lost",
+        description:
+          "Nobody chose this loss (H-1531, HZ-006), so it carries no reason, no deleter and no ids. The server writes the deletion record (kind key_invalidated, cause device_key_lost), its audit event and an urgent review task for the holders of safety.incident.manage where the owner worked, in one transaction. Any member of the organisation may send it (with MFA when their roles call for it), up to 3 a day. The owner counts only when on the staff and the sender or bound to the device; the device only when the sender or that owner is bound to it; otherwise each is audited as a claim. A count left out is taken from the device's last report. A replay raises the review if it is missing, and the old device's hold tasks close as superseded by it. The staff route POST /v1/sync/discards never takes this kind.",
+        security,
+        request: { body: { content: { "application/json": { schema: SyncKeyLost } } } },
+        responses: { 200: jsonBody(SyncDiscardResult, "Recorded"), ...errorResponses },
+      }),
+      async (c) => {
+        const access = c.get("access");
+        if (!access.mfaSatisfied) throw mfaRefusal(access);
+        const body = c.req.valid("json");
+        const result = await recordKeyLost(
+          c.get("services").db,
+          access,
+          body,
+          new Date(),
+          c.get("requestId"),
+        );
+        if (result.outcome === "other_deletion") {
+          throw problems.invalid("This deletion was recorded for other entries.");
+        }
+        return c.json({ id: body.id, recorded: true, replay: result.outcome === "replay" }, 200);
       },
     )
     .openapi(

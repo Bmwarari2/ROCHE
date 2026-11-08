@@ -645,7 +645,12 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
             id: Crypto.randomUUID(),
             at: new Date(),
             held: heldRef.current,
-            signedInTenantId: tenantRef.current,
+            signedIn: {
+              tenantId: tenantRef.current,
+              tenantUserId: meRef.current?.tenantUserId ?? null,
+              locationIds: locationIdsOf(meRef.current),
+            },
+            // The lost database's device; null rather than this new one when it cannot be read.
             deviceId: await readPlain(DEVICE_ID_ITEM).catch(() => null),
           });
           if (lost) await recordTombstone(tombstoneStore, lost).catch(() => undefined);
