@@ -77,7 +77,9 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
       >
         <p className="m-0">
           {police === "called"
-            ? t("missing.police.reference", { reference: data.policeReference ?? "" })
+            ? data.policeReferenceHidden
+              ? t("missing.police.referenceHidden")
+              : t("missing.police.reference", { reference: data.policeReference ?? "" })
             : t("missing.police.body", { state: police, when: due })}
         </p>
       </Notice>

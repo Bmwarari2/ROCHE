@@ -22426,6 +22426,9 @@
               "null"
             ]
           },
+          "policeReferenceHidden": {
+            "type": "boolean"
+          },
           "cqcNotificationPrompt": {
             "type": "boolean"
           },
@@ -22500,6 +22503,7 @@
           "policeCallDueAt",
           "policeCallLate",
           "policeReference",
+          "policeReferenceHidden",
           "cqcNotificationPrompt",
           "herbertProfile",
           "herbertProfileVersionAtOpening",

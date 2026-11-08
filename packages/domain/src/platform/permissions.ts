@@ -201,6 +201,11 @@ export const PERMISSIONS = {
     careRecord: true,
   },
   "safety.incident.manage": { description: "Investigate and close incidents", careRecord: true },
+  "safety.death_detail.read": {
+    description:
+      "Read a death record (the clinician's judgement, police references and the mortality review) and police references on a missing person episode",
+    careRecord: true,
+  },
   "safety.notification.submit": {
     description:
       "Submit statutory notifications (CQC, RIDDOR, safeguarding) or mark them not required",

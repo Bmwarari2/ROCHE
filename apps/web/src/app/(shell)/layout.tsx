@@ -11,6 +11,7 @@ import { complaintsShown } from "@/lib/complaints";
 import { readNotifications } from "@/lib/dashboard-data";
 import { dataRightsShown } from "@/lib/data-rights";
 import { dataSecurityShown } from "@/lib/data-security";
+import { deathsShown } from "@/lib/deaths";
 import { dependencyShown } from "@/lib/dependency";
 import { developmentShown } from "@/lib/development";
 import { downtimeNavShown } from "@/lib/downtime";
@@ -117,7 +118,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         outbreaks: me.permissions.includes("safety.outbreak.manage")
           ? t("shell.nav.outbreaks")
           : undefined,
-        deaths: me.permissions.includes("safety.incident.read") ? t("shell.nav.deaths") : undefined,
+        deaths: deathsShown(me.permissions) ? t("shell.nav.deaths") : undefined,
         missing: me.permissions.includes("safety.incident.read")
           ? t("shell.nav.missing")
           : undefined,

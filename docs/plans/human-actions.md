@@ -1047,6 +1047,17 @@ rows from H-1543). Each open question takes its recommended answer until the tes
 | H-1562 | Decide whether the incident record asks when the person was found for absconding too, or the episode's found entry stays the only found time for both types. Recommended answer: the episode's found entry (the incident's found time only drives post-fall observations) | CSO | HZ-127; `apps/web/src/lib/incident-forms.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 | H-1563 | Confirm that absconding (which can be a capacitous person choosing to leave) gets the same police call target (`missing_person.police_call_minutes`) and immediate-risk alert as going missing, or ask for a separate rate key. Recommended answer: the same target; staff call at once when worried | CSO | HZ-127; [rates.md](../specs/rates.md) | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 
+## Guide gaps from the slice 83 review: death record detail (H-1578 to H-1580)
+
+Logged by the death record detail permission PR (lead's list of 07/11/2026, item 4; block H-1561 to
+H-1580).
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1578 | Confirm the default holders of `safety.death_detail.read` (owner, Registered Manager, deputy, clinical lead, team leader, quality lead; not agency workers, care coordinators or care workers), and that a missing person episode's police reference is hidden in words from other readers while the police call itself still shows (row-level security cannot hide one column; the lateness is worked from the call) | DPO with the CSO | HZ-011; `packages/domain/src/platform/roles.ts`; migration 0159 | First real tenant | provisional: owner-accepted recommendation, pending DPO and CSO review at the testing phase |
+| H-1579 | Decide whether a missing person episode's police reference should move to its own table so row-level security can hold it too (today the API hides it). Recommended answer: yes, with the next change to the episode timeline | Lead engineer with the DPO | HZ-011; `apps/api/src/services/deaths-missing.ts` (`episodeItem`) | None | provisional: owner-accepted recommendation, pending review at the testing phase |
+| H-1580 | Add a warning in the role editor when a custom role manages incidents (`safety.incident.manage`) without `safety.death_detail.read`, since it cannot then open a death record. Recommended answer: warn, never block | Lead engineer | HZ-013; migration 0159 | None | provisional: owner-accepted recommendation, pending review at the testing phase |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

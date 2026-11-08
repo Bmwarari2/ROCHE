@@ -40,6 +40,7 @@ import {
   MISSING_INCIDENT_TYPES,
   type MissingTimelineKind,
   type PersonStatus,
+  scopeFor,
   timelineEntryProblems,
   ukIsoDate,
 } from "@harbour/domain";
@@ -86,10 +87,21 @@ import {
 const IdParam = z.object({ id: z.uuid() });
 const MANAGE = "safety.incident.manage";
 const READ = "safety.incident.read";
+/** A death record, and police references anywhere here (migration 0159; HZ-011, HZ-013). */
+const DETAIL = "safety.death_detail.read";
 const REPORT = "safety.incident.report";
 /** A device's clock may run a little ahead: a time up to a minute later than now is taken. */
 const FUTURE_TOLERANCE_MS = 60_000;
 const LIST_LIMIT = 200;
+
+/** The reader holds safety.death_detail.read across the organisation or where the person is. */
+function policeVisible(access: TenantAccess, row: { readonly locationId: string }): boolean {
+  const scope = scopeFor(access.effective, DETAIL);
+  return (
+    scope.scope === "tenant" ||
+    (scope.scope === "locations" && scope.locationIds.includes(row.locationId))
+  );
+}
 
 function audit(
   c: Context<AppEnv>,
@@ -149,7 +161,7 @@ export const deathsMissingRouter = createRouter()
       responses: { 200: jsonBody(DeathList, "Death records"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, READ);
+      const access = await requirePermission(c, DETAIL);
       const { status } = c.req.valid("query");
       const now = new Date();
       const list = await withTenant(c, async (tx) => {
@@ -236,7 +248,7 @@ export const deathsMissingRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, READ);
+      const access = await requirePermission(c, DETAIL);
       const { id } = c.req.valid("param");
       const now = new Date();
       const view = await withTenant(c, async (tx) => {
@@ -573,7 +585,11 @@ export const deathsMissingRouter = createRouter()
           }
           return {
             created: false,
-            item: episodeItem(again, await readEpisode(tx, access.tenantId, again, now)),
+            item: episodeItem(
+              again,
+              await readEpisode(tx, access.tenantId, again, now),
+              policeVisible(access, again),
+            ),
           };
         }
         const person = await loadPerson(tx, body.personId);
@@ -667,7 +683,7 @@ export const deathsMissingRouter = createRouter()
           resourceId: row.id,
           scope: { incidentId: body.incidentId, immediateRisk: body.immediateRisk },
         });
-        return { created: true, item: episodeItem(row, read) };
+        return { created: true, item: episodeItem(row, read, policeVisible(access, row)) };
       });
       return c.json(result.item, result.created ? 201 : 200);
     },
@@ -697,7 +713,11 @@ export const deathsMissingRouter = createRouter()
           resourceType: "missing_episode",
           resourceId: id,
         });
-        return episodeItem(row, await readEpisode(tx, access.tenantId, row, now));
+        return episodeItem(
+          row,
+          await readEpisode(tx, access.tenantId, row, now),
+          policeVisible(access, row),
+        );
       });
       return c.json(view, 200);
     },
@@ -738,7 +758,11 @@ export const deathsMissingRouter = createRouter()
             again.kind === body.kind &&
             again.at.getTime() === new Date(body.at).getTime();
           if (!same) throw problems.alreadySavedDifferently();
-          return episodeItem(row, await readEpisode(tx, access.tenantId, row, now));
+          return episodeItem(
+            row,
+            await readEpisode(tx, access.tenantId, row, now),
+            policeVisible(access, row),
+          );
         }
         const before = await readEpisode(tx, access.tenantId, row, now);
         const entry = {
@@ -806,7 +830,7 @@ export const deathsMissingRouter = createRouter()
           resourceId: id,
           scope: { eventId: body.id, kind: body.kind },
         });
-        return episodeItem(row, read);
+        return episodeItem(row, read, policeVisible(access, row));
       });
       return c.json(view, 200);
     },
@@ -853,7 +877,11 @@ export const deathsMissingRouter = createRouter()
           resourceType: "missing_episode",
           resourceId: id,
         });
-        return episodeItem(saved, await readEpisode(tx, access.tenantId, saved, now));
+        return episodeItem(
+          saved,
+          await readEpisode(tx, access.tenantId, saved, now),
+          policeVisible(access, saved),
+        );
       });
       return c.json(view, 200);
     },

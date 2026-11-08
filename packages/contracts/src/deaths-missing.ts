@@ -202,6 +202,8 @@ export const MissingEpisodeView = z
     policeCallDueAt: isoDateTime.nullable(),
     policeCallLate: z.boolean(),
     policeReference: z.string().nullable(),
+    /** A police reference is recorded but the reader may not see it (safety.death_detail.read). */
+    policeReferenceHidden: z.boolean(),
     /** Police involved, or the person is under DoLS or the Mental Health Act (regulation 18(2)(f)). */
     cqcNotificationPrompt: z.boolean(),
     herbertProfile: HerbertProfileState,

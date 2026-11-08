@@ -15,7 +15,8 @@ import { type FormLike, readDateTimeField, type TimeProblem } from "./uk-time";
  *   recorded on it.
  */
 
-export const DEATHS_READ = "safety.incident.read";
+/** The clinician's judgement, police references and the mortality review (migration 0159). */
+export const DEATHS_READ = "safety.death_detail.read";
 export const DEATHS_MANAGE = "safety.incident.manage";
 
 export type DeathStepKey = DeathView["steps"][number]["step"];

@@ -456,10 +456,17 @@ HZ-013 and HZ-127). Web screens (slice 63): `apps/web/src/app/(shell)/deaths`, `
    longer needed; saving a profile finishes it. Dementia prompts too
    once the record holds diagnoses (H-773, recommended answer applied 31/10/2026).
 
-Permissions: `safety.incident.read` (read), `safety.incident.report` (open an episode, add to its
-timeline), `safety.incident.manage` (the death record, the welfare check, the debrief, closing, the
-profile), each where it reaches the person (row-level security, ADR-0071). Every read and write is
-audited by record id, never content.
+Permissions: `safety.incident.read` (read an episode), `safety.incident.report` (open an episode,
+add to its timeline), `safety.incident.manage` (the death record, the welfare check, the debrief,
+closing, the profile), each where it reaches the person (row-level security, ADR-0071). The death
+record (the clinician's judgement on whether the death may be unnatural or suspicious, its steps
+with the police reference, the mortality review) and the police references on an episode are read
+only with `safety.death_detail.read` where the person is: the owner, the Registered Manager, the
+deputy, the clinical lead, the team leader and the quality lead by default, never agency workers,
+care coordinators or care workers (slice 83 guides review; migration 0159). Row-level security
+keeps the death record and its steps from anyone else; an episode's police call still shows,
+its reference hidden in words, since the police call's lateness is worked from it (H-1578). Every
+read and write is audited by record id, never content.
 
 ## 5. API and events
 

@@ -287,7 +287,12 @@ export async function readEpisode(tx: Transaction, tenantId: string, row: Episod
 }
 
 /** The episode as the API returns it. */
-export function episodeItem(row: EpisodeRow, read: Awaited<ReturnType<typeof readEpisode>>) {
+export function episodeItem(
+  row: EpisodeRow,
+  read: Awaited<ReturnType<typeof readEpisode>>,
+  /** Whether the reader may see police references (safety.death_detail.read where they are). */
+  policeVisible = true,
+) {
   const { view, events, notifications } = read;
   return {
     id: row.id,
@@ -301,7 +306,7 @@ export function episodeItem(row: EpisodeRow, read: Awaited<ReturnType<typeof rea
       id: e.id,
       kind: e.kind as MissingTimelineKind,
       at: e.at.toISOString(),
-      reference: e.reference,
+      reference: policeVisible ? e.reference : null,
       area: e.area,
       note: e.note,
       recordedAt: e.recordedAt.toISOString(),
@@ -309,7 +314,8 @@ export function episodeItem(row: EpisodeRow, read: Awaited<ReturnType<typeof rea
     })),
     policeCallDueAt: view.policeCallDueAt ? view.policeCallDueAt.toISOString() : null,
     policeCallLate: view.policeCallLate,
-    policeReference: view.policeReference,
+    policeReference: policeVisible ? view.policeReference : null,
+    policeReferenceHidden: !policeVisible && view.policeReference !== null,
     cqcNotificationPrompt: view.cqcNotificationPrompt,
     herbertProfile: view.herbertProfile,
     herbertProfileVersionAtOpening: row.herbertProfileVersion,

@@ -2951,6 +2951,7 @@
   "missing.police.title": "{state, select, overdue {The police call is overdue: it was due by {when}} missed {Found after the police call was due: the call was missed} now {Call the police now} due {Call the police now if you are worried. You must call by {when}.} called {The police have been called} not_needed {The police call is no longer needed} other {The police call is not known}}",
   "missing.police.body": "{state, select, overdue {Call the police now, then record it below with their reference.} missed {The police were not called by {when}. Record why in the timeline and tell the Registered Manager.} now {Call the police now, then record it below with their reference.} due {Call the police now if you are worried. You must call by {when}. Record the call below with their reference.} not_needed {They were found before the police call was due.} other {Check the timeline.}}",
   "missing.police.reference": "Police reference: {reference}",
+  "missing.police.referenceHidden": "A police reference is recorded. It is shown to the nurse in charge and managers.",
   "missing.timeline.title": "Timeline and search log",
   "missing.timeline.empty": "Nothing recorded yet.",
   "missing.timeline.add": "Add to the timeline",

@@ -100,8 +100,9 @@ export interface ShellFrameLabels {
   readonly incidents?: string | undefined;
   /** Shown only to holders of safety.outbreak.manage (SAFE-013). */
   readonly outbreaks?: string | undefined;
-  /** Shown only to people who may read incidents (SAFE-014, SAFE-015). */
+  /** Shown only to holders of safety.death_detail.read (SAFE-014; migration 0159). */
   readonly deaths?: string | undefined;
+  /** Shown only to people who may read incidents (SAFE-015). */
   readonly missing?: string | undefined;
   /** Shown only to holders of safety.incident.manage or safety.disclosure.approve (SAFE-016). */
   readonly disclosures?: string | undefined;

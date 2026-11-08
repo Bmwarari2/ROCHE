@@ -30,6 +30,7 @@ const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
 const ownerDb = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), fn);
 const INCIDENT = "0199f000-0000-7000-8000-0000000037a1";
+const DEATH_DETAIL_ROLE = "0199f000-0000-7000-8000-0000000037b1";
 let exitId = "";
 let deathId = "";
 let episodeId = "";
@@ -44,6 +45,16 @@ beforeAll(async () => {
   db = await createTestDatabase();
   await seedTwoTenants(db.pool("harbour_owner"));
   await ownerDb(async (c) => {
+    // The manager reads death records' detail across the organisation (migration 0159).
+    await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+         ($1, 'death_detail', 'Death detail', 'tenant', '{safety.death_detail.read}')`,
+      [DEATH_DETAIL_ROLE],
+    );
+    await c.query("INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, $2)", [
+      a.manager,
+      DEATH_DETAIL_ROLE,
+    ]);
     await c.query(
       `INSERT INTO incident (id, location_id, type, occurred_at, description, raised_by, person_ids)
        VALUES ($1, $2, 'missing_person', now() - interval '1 hour', 'Fixture incident', $3, $4)`,
@@ -168,6 +179,27 @@ describe("hazard HZ-013 the death record (migration 0099)", () => {
         c.query("UPDATE death_record SET judged_by = 'Dr Example, GP' WHERE id = $1", [deathId]),
       ),
     ).rejects.toThrow(/death_record_finished/);
+  });
+
+  it("hazard HZ-011 shows a death record and its steps only to a holder of safety.death_detail.read (migration 0159)", async () => {
+    // A member who reads everyone in the organisation but holds no death detail: nothing.
+    const northManager = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      inContext(app(), ctx(TENANT_A, a.northManager, "tenant"), fn);
+    expect(
+      await northManager(
+        async (c) =>
+          (await c.query("SELECT id FROM person WHERE id = $1", [a.personBen])).rows.length,
+      ),
+    ).toBe(1);
+    expect(
+      await northManager(async (c) => (await c.query("SELECT id FROM death_record")).rows.length),
+    ).toBe(0);
+    expect(
+      await northManager(async (c) => (await c.query("SELECT id FROM death_step")).rows.length),
+    ).toBe(0);
+    expect(
+      await asManager(async (c) => (await c.query("SELECT id FROM death_step")).rows.length),
+    ).toBeGreaterThan(0);
   });
 
   it("hazard HZ-011 shows a death record to no one outside the person's scope or organisation", async () => {

@@ -50,8 +50,9 @@ const step = (s: DeathView["steps"][number]["step"]): DeathView["steps"][number]
 });
 
 describe("the death record screens", () => {
-  it("are read with safety.incident.read and managed with safety.incident.manage", () => {
-    expect(deathsShown(["safety.incident.read"])).toBe(true);
+  it("hazard HZ-011 are read with safety.death_detail.read, never safety.incident.read alone, and managed with safety.incident.manage", () => {
+    expect(deathsShown(["safety.death_detail.read"])).toBe(true);
+    expect(deathsShown(["safety.incident.read"])).toBe(false);
     expect(deathsShown(["care.plan.read"])).toBe(false);
     expect(canManageDeaths(["safety.incident.manage"])).toBe(true);
     expect(canManageDeaths(["safety.incident.read"])).toBe(false);

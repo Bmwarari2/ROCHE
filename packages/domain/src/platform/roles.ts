@@ -169,6 +169,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "medicines.cd.witness",
       "medicines.stock.manage",
       "safety.incident.manage",
+      "safety.death_detail.read",
       // Who deletes held entries may also send them (care.md section 6, Device integrity part 6).
       "care.held_entry.hand_over",
       "workforce.competence.observe",
@@ -187,6 +188,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     description: "Handover, task allocation, eMAR, incidents, spot checks, competency observation.",
     scopeKind: "location",
     permissions: [
+      "safety.death_detail.read",
       ...pointOfCare,
       "care.dependency.assess",
       "medicines.cd.witness",
@@ -384,6 +386,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "quality.dsar.manage",
       "safety.complaint.manage",
       "safety.incident.read",
+      "safety.death_detail.read",
       "platform.audit.read",
       "platform.document.manage",
       "platform.retention.manage",

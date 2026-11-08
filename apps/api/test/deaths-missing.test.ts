@@ -288,6 +288,12 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
     // Resident 6 is not one of the care worker's people.
     const read = await as("carer", `/v1/deaths/${view.id}`);
     expect([403, 404]).toContain(read.status);
+    // Nor any death record at all: the clinician's judgement, police references and the
+    // mortality review need safety.death_detail.read, which a care worker does not hold (0159).
+    const list = await as("carer", "/v1/deaths");
+    expect(list.status).toBe(403);
+    expect((await json<ProblemDetails>(list)).code).toBe("missing_permission");
+    expect((await as("manager", "/v1/deaths")).status).toBe(200);
   });
 });
 
@@ -376,7 +382,18 @@ describe("hazard HZ-127 the missing person episode (slice 37)", () => {
     const called = await add({ kind: "police_called", reference: "CAD 1234" });
     expect(called.status, await called.clone().text()).toBe(200);
     const view = await json<MissingEpisodeView>(called);
-    expect(view).toMatchObject({ policeReference: "CAD 1234", cqcNotificationPrompt: true });
+    // A care worker records the call but does not read the police reference (migration 0159):
+    // the call stands, the reference is kept for those with safety.death_detail.read.
+    expect(view).toMatchObject({
+      policeReference: null,
+      policeReferenceHidden: true,
+      cqcNotificationPrompt: true,
+    });
+    expect(view.timeline.find((e) => e.kind === "police_called")?.reference).toBeNull();
+    const managed = await json<MissingEpisodeView>(
+      await as("manager", `/v1/missing-episodes/${episodeId}`),
+    );
+    expect(managed).toMatchObject({ policeReference: "CAD 1234", policeReferenceHidden: false });
     expect(view.notifications.map((n) => n.kind)).toContain("cqc_reg18_police");
     const status = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ status: string }>(

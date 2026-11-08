@@ -70661,6 +70661,7 @@ export interface components {
       policeCallDueAt: string | null;
       policeCallLate: boolean;
       policeReference: string | null;
+      policeReferenceHidden: boolean;
       cqcNotificationPrompt: boolean;
       herbertProfile: components["schemas"]["HerbertProfileState"];
       herbertProfileVersionAtOpening: number | null;
