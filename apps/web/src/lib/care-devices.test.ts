@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { devicesShown, groupDevices, isWithdrawReason, mayWithdrawDevices } from "./care-devices";
+import {
+  devicesShown,
+  groupDevices,
+  isWithdrawReason,
+  mayWithdrawDevices,
+  namesInWords,
+} from "./care-devices";
 
 /** Invented device and member ids, and invented staff. */
 const PHONE = "0199d000-0000-4000-8000-0000000babcd";
@@ -79,5 +85,18 @@ describe("hazard HZ-040 Care mode phones grouped for a manager", () => {
     [null, false],
   ])("reason %j is a code the API takes: %s", (value, ok) => {
     expect(isWithdrawReason(value)).toBe(ok);
+  });
+
+  it("never names two phones the same", () => {
+    const a = "0199d000-0000-4000-8000-00000011abcd";
+    const b = "0199d000-0000-4000-8000-00000022abcd";
+    const [first, second] = groupDevices([binding({ deviceId: a }), binding({ deviceId: b })]);
+    expect(first?.shortId).not.toBe(second?.shortId);
+    expect(first?.shortId).toMatch(/ABCD$/);
+  });
+
+  it("says the names as a list in words", () => {
+    expect(namesInWords(["Ada Example"])).toBe("Ada Example");
+    expect(namesInWords(["Ada Example", "Ben Example"])).toBe("Ada Example and Ben Example");
   });
 });

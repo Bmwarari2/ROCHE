@@ -8191,11 +8191,8 @@
     "devices.neverReported",
     "devices.state",
     "devices.reason",
-    "devices.withdrawnOn",
     "devices.detail.title",
     "devices.back",
-    "devices.withdraw.title",
-    "devices.withdraw.description",
     "devices.withdraw.cardTitle",
     "devices.withdraw.about",
     "devices.withdraw.reason",
@@ -8205,8 +8202,13 @@
     "devices.withdraw.submit",
     "devices.withdraw.stepUp",
     "devices.withdraw.done",
-    "devices.withdraw.already",
-    "devices.withdraw.notAllowed",
-    "shell.nav.devices"
+    "shell.nav.devices",
+    "devices.reportedAt",
+    "devices.timeUnknown",
+    "devices.withdrawnAt",
+    "devices.withdrawnReason",
+    "devices.detail.description",
+    "devices.withdraw.entriesArrived",
+    "devices.withdraw.sending"
   ]
 }

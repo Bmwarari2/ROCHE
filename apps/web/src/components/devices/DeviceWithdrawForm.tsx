@@ -2,6 +2,7 @@
 
 import type { DeviceRevocationReason } from "@harbour/contracts";
 import { Button, Checkbox, RadioGroup } from "@harbour/ui";
+import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 import { withdrawDevice } from "@/app/actions/care-devices";
 import { FormFeedback } from "@/components/care/FormFeedback";
@@ -14,10 +15,11 @@ import { type ActionResult, collectedRefusal, errorFor, type FieldProblem } from
 const FIELDS = ["reason", "confirm"] as const;
 
 /**
- * Withdraws one Care mode phone (HZ-040, HZ-006): a coded reason, never words; and, when the phone
- * last reported entries waiting, the manager confirms they stay on it until handed over or
- * deleted and that its review falls due at once. Nothing is chosen or ticked for them. The API's
- * own refusal for entries it heard about since this page loaded asks for the same confirmation.
+ * Withdraws one Care mode phone (HZ-040, HZ-006): a coded reason, never words, and a tick that
+ * says what happens and that it cannot be undone, including any entries waiting on it, which stay
+ * there until handed over or deleted, their task due now. Nothing is chosen or ticked for the
+ * manager. Entries the API heard about since the page loaded ask for the same tick again. On
+ * success the page opens again at `done`, whose status takes focus (WCAG 4.1.3, 2.4.3).
  */
 export function DeviceWithdrawForm({
   deviceId,
@@ -26,13 +28,12 @@ export function DeviceWithdrawForm({
   readonly deviceId: string;
   readonly entriesWaiting: number;
 }) {
+  const router = useRouter();
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [reason, setReason] = useState<DeviceRevocationReason | null>(null);
   const [pending, startTransition] = useTransition();
   const ids = useFieldIds(FIELDS);
-  // Entries the API reported since the page loaded ask for the confirmation too.
-  const askConfirm =
-    entriesWaiting > 0 || (result?.ok === false && result.code === "entries_waiting");
+  const path = `/settings/devices/${deviceId}`;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,7 +41,7 @@ export function DeviceWithdrawForm({
     const problems: FieldProblem[] = [];
     if (!reason) problems.push({ field: "reason", message: t("devices.withdraw.reasonRequired") });
     const confirmed = form.get("confirm") === "on";
-    if (askConfirm && !confirmed) {
+    if (!confirmed) {
       problems.push({ field: "confirm", message: t("devices.withdraw.confirmRequired") });
     }
     const refusal = collectedRefusal(problems);
@@ -48,28 +49,31 @@ export function DeviceWithdrawForm({
       setResult(refusal);
       return;
     }
-    startTransition(async () =>
-      setResult(
-        await withdrawDevice(deviceId, {
-          reasonCode: reason,
-          confirmEntriesWaiting: askConfirm && confirmed,
-        }),
-      ),
-    );
+    startTransition(async () => {
+      const outcome = await withdrawDevice(deviceId, {
+        reasonCode: reason,
+        confirmEntriesWaiting: confirmed,
+      });
+      setResult(outcome);
+      if (outcome.ok) {
+        const done = outcome.data.replay ? "already" : "withdrawn";
+        router.replace(`${path}?done=${done}&at=${Date.now()}`);
+      }
+    });
   };
 
   if (result && !result.ok && result.code === "step_up_required") {
-    return (
-      <StepUpNotice
-        next={`/settings/devices/${deviceId}`}
-        refusal={result}
-        body={t("devices.withdraw.stepUp")}
-      />
-    );
+    return <StepUpNotice next={path} refusal={result} body={t("devices.withdraw.stepUp")} />;
   }
 
   return (
-    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form
+      method="post"
+      className="flex flex-col gap-4"
+      onSubmit={submit}
+      noValidate
+      aria-busy={pending}
+    >
       <RadioGroup
         id={ids.reason}
         name="reason"
@@ -83,28 +87,18 @@ export function DeviceWithdrawForm({
         onValueChange={setReason}
         required
       />
-      {askConfirm ? (
-        <Checkbox
-          id={ids.confirm}
-          name="confirm"
-          error={errorFor(result, "confirm")}
-          label={t("devices.withdraw.confirm", { count: entriesWaiting })}
-        />
-      ) : null}
+      <Checkbox
+        id={ids.confirm}
+        name="confirm"
+        error={errorFor(result, "confirm")}
+        label={t("devices.withdraw.confirm", { count: entriesWaiting })}
+      />
       <div>
         <Button type="submit" variant="destructive" disabled={pending}>
-          {t("devices.withdraw.submit")}
+          {pending ? t("devices.withdraw.sending") : t("devices.withdraw.submit")}
         </Button>
       </div>
-      <FormFeedback
-        result={result}
-        success={
-          result?.ok && (result.data as { replay?: boolean }).replay
-            ? t("devices.withdraw.already")
-            : t("devices.withdraw.done")
-        }
-        fieldIds={ids}
-      />
+      {result && !result.ok ? <FormFeedback result={result} success="" fieldIds={ids} /> : null}
     </form>
   );
 }

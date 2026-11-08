@@ -2,11 +2,11 @@ import { Card, EmptyState, PageHeader } from "@harbour/ui";
 import { Smartphone } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DeviceFacts } from "@/components/devices/DeviceFacts";
 import { DeviceStateChip } from "@/components/devices/DeviceStateChip";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { devicesShown, groupDevices } from "@/lib/care-devices";
-import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: t("devices.title") };
@@ -47,20 +47,7 @@ export default async function DevicesPage() {
                     {t("devices.name", { shortId: d.shortId })}
                   </Link>
                 </h3>
-                <p className="m-0 text-body-dense">
-                  {t("devices.usedBy", { names: d.members.map((m) => m.name).join(", ") })}
-                </p>
-                <p className="m-0 text-body-dense">
-                  {t("devices.lastSeen", { when: formatDateTime(d.lastSeenAt) ?? "" })}
-                </p>
-                <p className="m-0 text-body-dense">
-                  {d.lastReportedAt
-                    ? t("devices.waiting", {
-                        count: d.entriesWaiting,
-                        when: formatDateTime(d.lastReportedAt) ?? "",
-                      })
-                    : t("devices.neverReported")}
-                </p>
+                <DeviceFacts device={d} />
                 <p className="m-0">
                   <DeviceStateChip device={d} />
                 </p>

@@ -55,7 +55,7 @@ export function groupDevices(items: readonly DeviceBindingItem[]): DeviceSummary
     if (!was) {
       byDevice.set(id, {
         deviceId: id,
-        shortId: id.slice(-4).toUpperCase(),
+        shortId: id.replace(/-/g, "").slice(-4).toUpperCase(),
         members: [member],
         firstSeenAt: item.firstSeenAt,
         lastSeenAt: item.lastSeenAt,
@@ -82,7 +82,20 @@ export function groupDevices(items: readonly DeviceBindingItem[]): DeviceSummary
           : (was.lastReportedAt ?? item.lastReportedAt),
     });
   }
-  return [...byDevice.values()]
+  const devices = [...byDevice.values()]
     .map((d) => ({ ...d, members: [...d.members].sort((a, b) => a.name.localeCompare(b.name)) }))
     .sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt));
+  // Two phones never share a name on screen: the short id grows until each is told apart
+  // (accessibility review, 2.4.4).
+  let length = 4;
+  const short = (id: string) => id.replace(/-/g, "").slice(-length).toUpperCase();
+  while (length < 32 && new Set(devices.map((d) => short(d.deviceId))).size < devices.length) {
+    length += 2;
+  }
+  return devices.map((d) => ({ ...d, shortId: short(d.deviceId) }));
+}
+
+/** The names as a list in words ("Ada Example and Ben Example"), never joined fragments. */
+export function namesInWords(names: readonly string[], locale = "en-GB"): string {
+  return new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(names);
 }
