@@ -20,5 +20,14 @@ string moved as it was, so the Maestro flows and the approved copy still match.
 - **Other screens.** The mode chooser, the Manage and Family placeholders, the splash and the empty
   people list: `mobile.mode.*`, `mobile.splash.*` and `mobile.people.*`.
 - **Welsh.** Every new key is marked untranslated in `mobile.cy.status.json`.
-- **Left as they are.** The device-integrity reasons shown in Settings come from the integrity
-  check's own messages, in another module, and are a follow-up.
+- **Also moved, after the accessibility review.**
+  - The unlock failures and the "could not be unlocked" message (`mobile.unlock.*`).
+  - The re-download refusals, as one plural (`mobile.settings.resync*`).
+  - The device-integrity reasons (`mobile.integrity.reason`).
+  - The development-build line.
+  - The banner's last-sync sentence now carries its own full stop, so the detail is joined whole
+    sentences, never fragments.
+- **One wording change.** "Device check: not checked yet" (it was "Not checked yet") reads as a
+  sentence.
+- **Left for a follow-up.** Some select messages use `other` for a real case. The `{state}` and
+  `{duration}` labels take translated values, which Welsh translators need to know about.

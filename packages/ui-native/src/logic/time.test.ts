@@ -49,32 +49,32 @@ describe("the banner's last-sync wording, from the en-GB catalogue", () => {
   const ago = (ms: number) => new Date(now.getTime() - ms);
 
   it.each([
-    [0, "Last synced just now"],
-    [59_999, "Last synced just now"],
-    [MINUTE_MS, "Last synced 1 minute ago"],
-    [2 * MINUTE_MS - 1, "Last synced 1 minute ago"],
-    [2 * MINUTE_MS, "Last synced 2 minutes ago"],
-    [59 * MINUTE_MS, "Last synced 59 minutes ago"],
-    [HOUR_MS, "Last synced 1 hour ago"],
-    [2 * HOUR_MS, "Last synced 2 hours ago"],
-    [23 * HOUR_MS + 59 * MINUTE_MS, "Last synced 23 hours ago"],
-    [24 * HOUR_MS, "Last synced on 08/10/2026 at 14:05"],
-    [3 * 24 * HOUR_MS + 30 * MINUTE_MS, "Last synced on 06/10/2026 at 13:35"],
+    [0, "Last synced just now."],
+    [59_999, "Last synced just now."],
+    [MINUTE_MS, "Last synced 1 minute ago."],
+    [2 * MINUTE_MS - 1, "Last synced 1 minute ago."],
+    [2 * MINUTE_MS, "Last synced 2 minutes ago."],
+    [59 * MINUTE_MS, "Last synced 59 minutes ago."],
+    [HOUR_MS, "Last synced 1 hour ago."],
+    [2 * HOUR_MS, "Last synced 2 hours ago."],
+    [23 * HOUR_MS + 59 * MINUTE_MS, "Last synced 23 hours ago."],
+    [24 * HOUR_MS, "Last synced on 08/10/2026 at 14:05."],
+    [3 * 24 * HOUR_MS + 30 * MINUTE_MS, "Last synced on 06/10/2026 at 13:35."],
   ])("%i ms ago reads %s", (ms, expected) => {
     expect(words.lastSynced(ago(ms), now)).toBe(expected);
   });
 
   it("tolerates up to a minute of clock skew as just now", () => {
-    expect(words.lastSynced(new Date(now.getTime() + 30_000), now)).toBe("Last synced just now");
+    expect(words.lastSynced(new Date(now.getTime() + 30_000), now)).toBe("Last synced just now.");
   });
 
   it("shows an absolute time for a moment well in the future rather than a negative age", () => {
     expect(words.lastSynced(new Date(now.getTime() + 2 * HOUR_MS), now)).toBe(
-      "Last synced on 09/10/2026 at 16:05",
+      "Last synced on 09/10/2026 at 16:05.",
     );
   });
 
   it("says when there has never been a sync", () => {
-    expect(words.lastSynced(null, now)).toBe("Not synced yet");
+    expect(words.lastSynced(null, now)).toBe("Not synced yet.");
   });
 });

@@ -830,6 +830,12 @@
     "mobile.splash.name",
     "mobile.people.loading",
     "mobile.people.emptyTitle",
-    "mobile.people.emptyBody"
+    "mobile.people.emptyBody",
+    "mobile.unlock.failure",
+    "mobile.unlock.couldNot",
+    "mobile.settings.resyncLocked",
+    "mobile.settings.resyncWaiting",
+    "mobile.integrity.reason",
+    "mobile.settings.versionDevelopment"
   ]
 }

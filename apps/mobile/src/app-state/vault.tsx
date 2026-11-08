@@ -319,7 +319,7 @@ function errorMessage(error: unknown): string {
   }
   const text = error instanceof Error ? error.message.toLowerCase() : "";
   if (text.includes("cancel")) return unlockFailureMessages.cancelled;
-  return "Thapsus Care could not be unlocked. Try again, or sign out and sign in again.";
+  return t("mobile.unlock.couldNot");
 }
 
 /** Opens the database with its key, reads the unsent entries' ids, and closes it again. */
@@ -1353,15 +1353,12 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
 
   const forceResync = useCallback(async (): Promise<ResyncResult> => {
     const current = dbRef.current;
-    if (!current) return { ok: false, reason: "Unlock Thapsus Care first." };
+    if (!current) return { ok: false, reason: t("mobile.settings.resyncLocked") };
     const queue = await current.getUploadQueueStats();
     if (queue.count > 0) {
       return {
         ok: false,
-        reason:
-          queue.count === 1
-            ? "1 change has not uploaded yet. Connect to the internet and wait for it to upload, then try again."
-            : `${queue.count} changes have not uploaded yet. Connect to the internet and wait for them to upload, then try again.`,
+        reason: t("mobile.settings.resyncWaiting", { count: queue.count }),
       };
     }
     await current.disconnectAndClear({ clearLocal: appEnv.demoMode });

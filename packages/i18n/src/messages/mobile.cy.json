@@ -773,7 +773,7 @@
   "mobile.syncBanner.scopeRetryHint": "Checks again whether this phone can sync",
   "mobile.syncBanner.retry": "Retry",
   "mobile.syncBanner.retryLabel": "Retry sync",
-  "mobile.syncBanner.lastSynced": "{when, select, never {Not synced yet} now {Last synced just now} minutes {Last synced {count, plural, one {# minute} other {# minutes}} ago} hours {Last synced {count, plural, one {# hour} other {# hours}} ago} other {Last synced on {date} at {time}}}",
+  "mobile.syncBanner.lastSynced": "{when, select, never {Not synced yet.} now {Last synced just now.} minutes {Last synced {count, plural, one {# minute} other {# minutes}} ago.} hours {Last synced {count, plural, one {# hour} other {# hours}} ago.} other {Last synced on {date} at {time}.}}",
   "mobile.syncBanner.queued": "{count, plural, one {# change waiting to upload.} other {# changes waiting to upload.}}",
   "mobile.syncBanner.refused": "{count, plural, one {# entry was not saved and needs attention.} other {# entries were not saved and need attention.}}",
   "mobile.syncBanner.uncounted": "Some entries on this device could not be counted and need attention.",
@@ -829,5 +829,11 @@
   "mobile.splash.name": "Thapsus Care",
   "mobile.people.loading": "Loading people",
   "mobile.people.emptyTitle": "No people on this device yet",
-  "mobile.people.emptyBody": "People assigned to you appear here after the first sync. Check the banner above for the sync status."
+  "mobile.people.emptyBody": "People assigned to you appear here after the first sync. Check the banner above for the sync status.",
+  "mobile.unlock.failure": "{reason, select, cancelled {Unlock was cancelled. Tap Unlock to try again.} not_secure {This device has no screen lock. Set a passcode, PIN or pattern in Settings to use Thapsus Care.} locked_out {Too many attempts. Unlock your device with its passcode first, then try again.} unavailable {Device authentication is not available. Check your device security settings.} other {That did not work. Tap Unlock to try again.}}",
+  "mobile.unlock.couldNot": "Thapsus Care could not be unlocked. Try again, or sign out and sign in again.",
+  "mobile.settings.resyncLocked": "Unlock Thapsus Care first.",
+  "mobile.settings.resyncWaiting": "{count, plural, one {1 change has not uploaded yet. Connect to the internet and wait for it to upload, then try again.} other {# changes have not uploaded yet. Connect to the internet and wait for them to upload, then try again.}}",
+  "mobile.integrity.reason": "{reason, select, unavailable {Device integrity checks are not available in this version.} not_checked {The device's integrity could not be checked.} jailbroken {The device is rooted or jailbroken.} other {A tool that can change how apps run is installed.}}",
+  "mobile.settings.versionDevelopment": "Thapsus Care development build"
 }

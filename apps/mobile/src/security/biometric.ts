@@ -3,6 +3,7 @@
  * fingerprint or face) with the device passcode as the fallback (section 17.2).
  */
 import * as LocalAuthentication from "expo-local-authentication";
+import { t } from "../i18n/t";
 
 export type UnlockFailure = "cancelled" | "not_secure" | "locked_out" | "unavailable" | "failed";
 
@@ -49,11 +50,11 @@ export async function authenticate(
   }
 }
 
+/** What each unlock failure says, from the catalogue (`mobile.unlock.failure`; section 5.4). */
 export const unlockFailureMessages: Record<UnlockFailure, string> = {
-  cancelled: "Unlock was cancelled. Tap Unlock to try again.",
-  not_secure:
-    "This device has no screen lock. Set a passcode, PIN or pattern in Settings to use Thapsus Care.",
-  locked_out: "Too many attempts. Unlock your device with its passcode first, then try again.",
-  unavailable: "Device authentication is not available. Check your device security settings.",
-  failed: "That did not work. Tap Unlock to try again.",
+  cancelled: t("mobile.unlock.failure", { reason: "cancelled" }),
+  not_secure: t("mobile.unlock.failure", { reason: "not_secure" }),
+  locked_out: t("mobile.unlock.failure", { reason: "locked_out" }),
+  unavailable: t("mobile.unlock.failure", { reason: "unavailable" }),
+  failed: t("mobile.unlock.failure", { reason: "failed" }),
 };

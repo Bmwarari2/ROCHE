@@ -155,8 +155,8 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const version = Application.nativeApplicationVersion ?? "development";
-  const build = Application.nativeBuildVersion ?? "-";
+  const version = Application.nativeApplicationVersion;
+  const build = Application.nativeBuildVersion;
 
   return (
     <Screen testID="settings-screen">
@@ -306,7 +306,11 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title={t("mobile.settings.section", { section: "about" })}>
-          <Text testID="about-version">{t("mobile.settings.version", { version, build })}</Text>
+          <Text testID="about-version">
+            {version && build
+              ? t("mobile.settings.version", { version, build })
+              : t("mobile.settings.versionDevelopment")}
+          </Text>
           <Text tone="secondary">
             {t("mobile.settings.localDatabase", { state: encryptionLabel() })}
           </Text>

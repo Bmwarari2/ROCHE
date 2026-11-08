@@ -150,7 +150,8 @@ export function describeSyncBanner(
   // While a first sync is in progress there is nothing stale on screen yet, only an empty list.
   const neverSynced = lastSyncedAt === null;
 
-  const detailParts = [`${words.lastSynced(lastSyncedAt, now)}.`];
+  // Whole sentences, each with its own full stop from the catalogue (CONTENT.md: no fragments).
+  const detailParts = [words.lastSynced(lastSyncedAt, now)];
   const queued = words.queued(input.queuedChanges ?? 0);
   if (queued) detailParts.push(queued);
   const refused = words.refused(input.refusedEntries === undefined ? 0 : input.refusedEntries);
