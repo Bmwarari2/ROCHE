@@ -3,7 +3,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Destruction batches (retention sweeps plan 5.4 and 5.5, slice 6; ADR-0135; migration 0161): only
+ * Destruction batches (retention sweeps plan 5.4 and 5.5, slice 6; ADR-0135; migration 0162): only
  * the system proposes a batch and its items; they are read in tenant-wide scope only and never by
  * another organisation; a batch moves once, from proposed to cancelled, by a holder of
  * platform.retention.manage in their own name, and is never deleted; items are append-only.

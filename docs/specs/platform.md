@@ -996,10 +996,10 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (registry: `permanent`, provisional H-1622; `subject_ids` cleared at destruction, provisional
   H-1623).
   Both have forced RLS, the tenant policy and a tenant-wide-only restrictive policy for
-  `harbour_app`, `harbour_owner` and the context definers (ADR-0002, ADR-0133; migration 0161 gives
+  `harbour_app`, `harbour_owner` and the context definers (ADR-0002, ADR-0133; migration 0162 gives
   `retention_report`'s policy the same roles); only the system (`app.is_system()`) inserts, and only as `proposed`; a cancel is a
   holder of `platform.retention.manage`'s own (`cancelled_by`), with UPDATE granted on the cancel
-  columns only (migration 0161).
+  columns only (migration 0162).
 - `GET /v1/retention/batches` (newest first, optional `status`, `cursor` and `limit`),
   `GET /v1/retention/batches/{id}/items` (the batch and its items in the order proposed, a page at
   a time) and `POST /v1/retention/batches/{id}/cancel` (`expectedVersion` and a reason code:

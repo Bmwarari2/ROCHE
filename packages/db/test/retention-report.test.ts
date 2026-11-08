@@ -49,7 +49,7 @@ describe("retention_report", () => {
     expect(await count(ctx(TENANT_A, ids.a.northManager, "locations", [ids.a.locationNorth]))).toBe(
       0,
     );
-    // The owner too is held to tenant-wide scope (ADR-0002; migration 0161).
+    // The owner too is held to tenant-wide scope (ADR-0002; migration 0162).
     const asOwner = await inContext(
       db.pool("harbour_owner"),
       ctx(TENANT_A, ids.a.northManager, "locations", [ids.a.locationNorth]),

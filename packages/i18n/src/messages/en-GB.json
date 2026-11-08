@@ -63,7 +63,7 @@
   "development.supervisionsDue.kind": "{kind, select, supervision {Supervision} appraisal {Appraisal} other {Meeting}}",
   "development.supervisionsDue.lastHeld": "Last held {date}",
   "development.supervisionsDue.location": "Show staff at",
-  "development.supervisionsDue.locationHint": "Narrows this list only. You can still see staff at every home.",
+  "development.supervisionsDue.locationHint": "Narrows this list only. It shows the staff you may see: everyone, or those who work at your homes.",
   "development.supervisionsDue.noSpotCheck": "None",
   "development.supervisionsDue.noneHeld": "None held yet: due from their start date. Record one on their training record.",
   "development.supervisionsDue.open": "Supervisions and appraisals due",

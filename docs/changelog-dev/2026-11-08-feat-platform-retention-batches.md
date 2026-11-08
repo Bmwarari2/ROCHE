@@ -28,11 +28,11 @@ Branch `feat/platform-retention-batches`, from `main` at 89d118d0 (the report-on
   and open cases for the chosen ids only (`recheckedBatch`), and writes each batch, its items and
   the audit event `platform.retention.batch_proposed` (batch id, class, counts per table; no record or
   subject id). The report row's mode is now `report` or `propose`.
-- **`destruction_batch`** (migration 0161): a mutable aggregate (`version`, `touch_mutable`,
+- **`destruction_batch`** (migration 0162): a mutable aggregate (`version`, `touch_mutable`,
   `capture_version`), `proposed` then `cancelled` with who, when and a reason code; a guard
   trigger allows only that move and never a change to what was proposed; never deleted; one
   proposed batch per class (a partial unique index). No personal data (`no-personal-data.ts`).
-- **`destruction_batch_item`** (migration 0161): append-only; table, record id, class, trigger and
+- **`destruction_batch_item`** (migration 0162): append-only; table, record id, class, trigger and
   due dates, the subject's kind (`person`, `applicant`, `none`) and ids. Personal data by opaque id:
   a registry entry (`permanent`, method `never`, provisional H-1622) and an export catalogue entry
   (`personal: true`).
@@ -83,7 +83,7 @@ The security review found nothing blocking. Fixed in the same branch:
 - **L1, restrictive policies.** Every restrictive policy on `destruction_batch` and
   `destruction_batch_item` (tenant-wide only, propose, decide) now holds `harbour_app`,
   `harbour_owner` and the five context definers (ADR-0002, ADR-0133), so only the system ever
-  proposes; migration 0161 also gives `retention_report`'s tenant-wide policy (0160) the same
+  proposes; migration 0162 also gives `retention_report`'s tenant-wide policy (0160) the same
   roles, with a test that the owner in location scope reads no report.
 - **L2, tests.** Database: another organisation's holder cancelling a batch updates nothing; an
   item naming another organisation's batch fails the foreign key; the owner with the system's

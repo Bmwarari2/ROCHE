@@ -214,8 +214,16 @@ Slice 11 adds four permissions so that HR data has its own (section 12.4), repla
 
 Slice 17 adds no permission. Training, competence, supervision and revalidation rows are read by
 holders of `workforce.training.manage`, `workforce.competence.observe`,
-`workforce.supervision.manage` or `workforce.staff_file.read` (organisation-wide, as the staff
-file), and by the member for their own (`workforce.self.read`); written as section 2b says, never
+`workforce.supervision.manage` or `workforce.staff_file.read` within the holder's scope
+(ADR-0136, migration 0162): organisation-wide for a role with no person scope (HR's), a
+tenant-scoped role or one held organisation-wide; otherwise only the members who work at the
+holder's homes, as `app.works_at` counts them (a role in force there or across the organisation,
+or that home on their staff profile; an access grant at a home counts as a role there). Members
+with an organisation-wide role (the HR director, the Nominated Individual) are therefore in every
+home's scope. Writes follow the same scope in the policies themselves, so a revalidation confirmer
+must hold training or supervision rights in a scope that covers the nurse (only such members are
+offered or may be named; H-1641). The member reads their own
+(`workforce.self.read`); written as section 2b says, never
 by the member about themselves. None of them is special category data, so they need MFA only where
 the role does. Medicines and scheduling never read these tables: they ask the competence port
 (ADR-0085).
@@ -328,10 +336,9 @@ whatever the clock change.
    after; it shows as due soon `supervision.due_window_days` days before. Spot checks are recorded
    but do not count as supervisions. Across staff (WORK-009, `/training/supervisions`) the list
    holds everyone with a staff role in force, whether or not their roles need training (unlike the
-   matrix), because everyone in a staff role is due supervision. It is organisation-wide for its
-   readers, as the matrix and the staff file are (migration 0073); the home filter narrows the view,
-   never the access. Whether development reads should follow attribute scope instead is an open
-   question for its own ADR (see Known gaps). A supervision or appraisal due inside the window or
+   matrix), because everyone in a staff role is due supervision. It shows the members in the
+   reader's scope (ADR-0136): everyone for HR and the owner, the members who work at their homes
+   for a home's manager; the home filter narrows that view further. A supervision or appraisal due inside the window or
    overdue raises one reminder task for HR's role, once for each due date; holding one closes its
    open reminder (WORK-009 slice 2; see the reminders after the competence port). What a supervision
    covered (H-692) is recorded by slice 57 (`supervision_note`, migration 0114, ADR-0114).
@@ -724,12 +731,15 @@ offer. No form is offered on one's own record.
 | Screen | Path | Offered to | Does |
 | --- | --- | --- | --- |
 | Training matrix | `/training` | any of `workforce.training.manage`, `.competence.observe`, `.supervision.manage`, `.staff_file.read` | Every member of staff whose roles need training, a column per topic, each state an icon and a word (up to date, due soon, lapsed, not done; not needed for their roles). Filter by location, role and those needing attention (a GET form, ids and codes only); find by name in the browser, so no name enters an address |
-| Supervisions and appraisals due | `/training/supervisions` | as the matrix, organisation-wide (the home filter narrows the view, not access) | Each member of staff's next supervision and appraisal as an icon and a word (overdue, due soon, none recorded, not due yet) with when it falls due and when the last was held, and their last spot check; most urgent first; filter by home and to those needing attention; each name opens the training record (WORK-009) |
+| Supervisions and appraisals due | `/training/supervisions` | as the matrix, within the reader's scope (ADR-0136; the home filter narrows the view further) | Each member of staff's next supervision and appraisal as an icon and a word (overdue, due soon, none recorded, not due yet) with when it falls due and when the last was held, and their last spot check; most urgent first; filter by home and to those needing attention; each name opens the training record (WORK-009) |
 | Training requirements | `/training/requirements` | `workforce.training.manage` | Each role's topics, refresh and Oliver McGowan tier; set one role's requirement for a topic |
 | Training record | `/training/{memberId}` | as the matrix | The member's required training today and their records (record, correct); observed competences and sign-offs (sign off in one's own name, withdraw with a reason and a confirmation); supervisions and appraisals with the next due, and their notes where the viewer may read them (add or correct by whoever held it, earlier notes struck through); the Care Certificate's standards, assessed and observed here by observers without the staff file (rule 20); the NMC revalidation planner (H-693's default: HR records the evidence and names the confirmer; the confirmation is offered only to the named confirmer, never to HR unless named, rule 8) |
 
 - **Routes added:**
-  - `GET /v1/workforce/training-matrix` uses the same permissions as one member's record. It
+  - `GET /v1/workforce/training-matrix` uses the same permissions as one member's record and lists
+    only the members in the reader's scope (ADR-0136; `app.reads_development_of`, the predicate the
+    row-level security uses), so it never shows a member whose record the reader cannot open; a
+    member out of scope reads as 404 on `GET .../members/{memberId}/development`. It
     applies the member record's rules and filters by location (roles held there), role key and
     attention. It returns at most 2,000 members, capped before any record is read, and says when
     more match. It is audited without names.
@@ -738,9 +748,9 @@ offer. No form is offered on one's own record.
     `supervision.due_window_days` as the window in which one shows as due soon (the member's record
     uses the same window). With none held the state is `none_recorded` and no date is given: the
     start date is in the staff file, which these readers may not see. It lists everyone with a
-    staff role in force, not only those with a training requirement. Development records are read
-    organisation-wide, as the staff file is (migration 0073), so a reader sees every home's staff;
-    the location filter narrows the list, never the access (the lead's decision, 08/11/2026). Only
+    staff role in force, not only those with a training requirement. Only members in the reader's
+    scope are listed (ADR-0136, migration 0162), as for the matrix and each member's record; the
+    location filter narrows the list further. Only
     dates and states are shown: never a supervision note or what a spot check found.
   - `POST /v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes` adds or corrects a
     note. Only whoever held the supervision may use it, never the member. It is audited without the
@@ -1038,8 +1048,9 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Gap | Effect now | To close |
 | --- | --- | --- |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
-| Development reads (the training matrix and the supervisions list) are organisation-wide for their readers (migration 0073) | Every holder of a workforce read permission sees every home's staff; the home filter narrows the view only | A separate ADR deciding whether development reads follow attribute scope (location, team) rather than organisation-wide HR: a least-privilege question, not part of WORK-009 |
-| Supervision and appraisal reminders are seen at every home | A reminder has no location, so holders of `workforce.supervision.manage` at any home see it (migration 0079), more widely than supervision records (migration 0114). Kept as it is (lead, 08/11/2026): a location on the task would show it to everyone whose scope reaches that home, whatever they hold (0008's `app.task_visible`) | Settled by the follow-up ADR on attribute scope, which covers development reads and reminder task visibility together |
+| Development reads (the training matrix and the supervisions list) were organisation-wide for their readers (migration 0073), and reminders about a member were seen at every home (migration 0079) | Closed by ADR-0136 (provisional, H-1640) and migration 0162: records, lists and reminder tasks about a member follow the reader's attribute scope | - |
+| No team or line-manager scope for staff | Scope kinds are tenant, location, assigned, self and none, so a team lead's scope for development reads is their home (ADR-0136) | A line-manager field on the staff file, then a scope that uses it |
+| LMS import is for organisation-wide holders only | A home's manager is refused (403 `lms_import_organisation_wide`, audited; ADR-0136): its learner links and rows name members at every home | Scope each row by its worker, if homes need to import their own staff |
 | Supervision and appraisal reminders go to HR's role, not the member's line manager | Shown on the training record (slice 57), across staff on `/training/supervisions` and raised as reminder tasks for holders of `workforce.supervision.manage` (WORK-009, 08/11/2026) | Address the reminder to the member's line manager once the staff file records one |
 | Supervision notes are not read by tenant-wide roles (owner, group executive) for holding `workforce.supervision.manage` alone (slice 57, ADR-0114) | They see that a supervision happened, not what was said | A separate note permission, if wanted (H-1044) |
 | The matrix offers the built-in roles as filters; an organisation's own roles show by key on the requirements screen (slice 57) | A custom role's key, not its name, shows | A roles list in the API (with the role design screens) |
@@ -1389,6 +1400,12 @@ records, from a file the platform exports or by a pull through the learning plat
 platform is the organisation's own processor, not a Thapsus sub-processor, unless the DPO decides
 otherwise (H-520; ADR-0102). Nothing here is clinical: an imported completion is a training record
 like any other (workforce.md rule 5), and it never creates a competence sign-off (HZ-119, HZ-124).
+
+LMS import is for organisation-wide holders of `workforce.training.manage` only (HR's role with no
+person scope, the owner, or a role held organisation-wide; ADR-0136, migration 0162): its learner
+links and rows name members at every home. A home's manager is refused with 403
+`lms_import_organisation_wide`, audited as `workforce.lms_import.refused`, and the database holds
+the same rule.
 
 ### 13.1 Records
 
