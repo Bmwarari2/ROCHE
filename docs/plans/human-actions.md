@@ -1347,10 +1347,9 @@ section 7B, still a draft for the DPO).
 
 ## H-1555: monitoring under a signed DPIA (#197)
 
-Logged by the security review of the H-1555 fix on 7 November 2026. Numbered at merge as the next
-free numbers on main (the `H-NEW-D` placeholders below).
+Logged by the security review of the H-1555 fix on 7 November 2026.
 
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
-| H-NEW-D1 | Decide whether a signed DPIA whose yearly review is overdue still covers location or NFC clock evidence and the lone-worker location. Owner-accepted recommendation, pending DPO review at the testing phase: it still covers them, so evidence is not lost mid-shift, but the DPIA shows as due for review and the data protection lead is told; monitoring stops only when a new DPIA is signed without it | DPO | #197 security review; `apps/api/src/services/dpia.ts` | Nothing | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
-| H-NEW-D2 | Decide whether clock evidence or lone-worker locations stored before #197 under a self-declared tick need a breach or DPIA assessment. Owner-accepted recommendation, pending DPO review at the testing phase: no breach assessment, because the phone has always sent clock evidence `none` and no location, so none can have been collected; confirm with a count per organisation at the testing phase, and assess any non-zero count | DPO | #197 security review | Nothing | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
+| H-1588 | Decide whether a signed DPIA whose yearly review is overdue still covers location or NFC clock evidence and the lone-worker location. Owner-accepted recommendation, pending DPO review at the testing phase: it still covers them, so evidence is not lost mid-shift, but the DPIA shows as due for review and the data protection lead is told; monitoring stops only when a new DPIA is signed without it | DPO | #197 security review; `apps/api/src/services/dpia.ts` | Nothing | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
+| H-1589 | Decide whether clock evidence or lone-worker locations stored before #197 under a self-declared tick need a breach or DPIA assessment. Owner-accepted recommendation, pending DPO review at the testing phase: no breach assessment, because the phone has always sent clock evidence `none` and no location, so none can have been collected; confirm with a count per organisation at the testing phase, and assess any non-zero count | DPO | #197 security review | Nothing | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
