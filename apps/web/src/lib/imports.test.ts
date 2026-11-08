@@ -234,11 +234,28 @@ describe("undo, while available, else a plain statement", () => {
         undoAvailable: true,
         undoClosesAt: "2026-11-01T09:00:00Z",
         undoneAt: null,
+        recordType: "people",
       },
-      /can be undone until 01\/11\/2026 09:00/,
+      /can be undone until 01\/11\/2026 09:00, or until a phone may have received the people/,
     ],
     [
-      { status: "committed", undoAvailable: false, undoClosesAt: null, undoneAt: null },
+      {
+        status: "committed",
+        undoAvailable: true,
+        undoClosesAt: "2026-11-01T09:00:00Z",
+        undoneAt: null,
+        recordType: "medicines",
+      },
+      /may have received the records/,
+    ],
+    [
+      {
+        status: "committed",
+        undoAvailable: false,
+        undoClosesAt: null,
+        undoneAt: null,
+        recordType: "people",
+      },
       /can no longer be undone/,
     ],
     [
@@ -247,6 +264,7 @@ describe("undo, while available, else a plain statement", () => {
         undoAvailable: false,
         undoClosesAt: null,
         undoneAt: "2026-11-01T09:00:00Z",
+        recordType: "people",
       },
       /was undone at/,
     ],
@@ -257,10 +275,47 @@ describe("undo, while available, else a plain statement", () => {
   it("says nothing about undo before a commit", () => {
     expect(
       undoWords(
-        { status: "staged", undoAvailable: false, undoClosesAt: null, undoneAt: null },
+        {
+          status: "staged",
+          undoAvailable: false,
+          undoClosesAt: null,
+          undoneAt: null,
+          recordType: "people",
+        },
         t,
         when,
       ),
     ).toBeNull();
+  });
+});
+
+describe("undo names what it removes (HZ-005, HZ-130)", () => {
+  it.each([
+    ["people", 2, "Remove 2 people"],
+    ["medicines", 3, "Withdraw 3 medicines"],
+    ["medicines", 1, "Withdraw 1 medicine"],
+    ["care_plans", 2, "Remove 2 draft care plans"],
+    ["staff_files", 4, "Remove 4 staff file checks"],
+  ] as const)("hazard HZ-130 a %s undo of %i says %s", (type, records, words) => {
+    expect(t("import.undo.confirm", { type, records })).toBe(words);
+  });
+
+  it("hazard HZ-130 never says an undo removes people for a type it does not name", () => {
+    expect(t("import.undo.confirm", { type: "lab_results", records: 2 })).toBe("Remove 2 records");
+    expect(t("import.undo.about", { type: "lab_results", records: 2 })).not.toMatch(
+      /people|person/,
+    );
+  });
+
+  it("hazard HZ-005 says one medicine in the singular", () => {
+    expect(t("import.undo.about", { type: "medicines", records: 1 })).toContain(
+      "withdraws the medicine this import added, and removes the open task to check it. It stays",
+    );
+  });
+
+  it("hazard HZ-005 says a medicines undo withdraws, never that it removes people", () => {
+    const about = t("import.undo.about", { type: "medicines", records: 3 });
+    expect(about).toContain("withdraws the 3 medicines");
+    expect(about).not.toMatch(/people|person/);
   });
 });

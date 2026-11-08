@@ -146,7 +146,7 @@ export async function draftReport(
         {
           key: "without_delay",
           dueAt: now,
-          wording: "Report the outbreak to the UKHSA health protection team as soon as possible.",
+          wording: "Report the outbreak to the health protection team as soon as possible.",
           statutory: false,
         },
       ],
