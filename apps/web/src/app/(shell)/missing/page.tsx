@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: t("missing.title") };
 /**
  * Missing person episodes in scope, still missing first (SAFE-015; HZ-127): each with who it is,
  * their communication needs, where it stands, and the police call target first, in words.
- * Episodes are opened from their missing person incident.
+ * Episodes are opened from their missing person or absconding incident.
  */
 export default async function MissingPage() {
   const { me } = await getShellContext();
