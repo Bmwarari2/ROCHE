@@ -160,7 +160,7 @@ export const reportingLinesRouter = createRouter()
       tags,
       summary: "A member's line manager, now and before",
       description:
-        "HR, the member themselves, or a holder of a development read permission whose scope covers the member (ADR-0137). Anyone else gets 404. Audited.",
+        "HR, the member themselves, a manager on one of their lines (who sees their own lines), or a holder of a development read permission whose reach covers the member (ADR-0137), as row-level security allows. Anyone else gets 404. Audited.",
       security,
       request: { params: MemberParam },
       responses: {
@@ -176,7 +176,10 @@ export const reportingLinesRouter = createRouter()
         const r = await tx.execute<{ ok: boolean }>(
           sql`SELECT (${memberId}::uuid = app.current_user_id()
                 OR app.holds_staff_permission_everywhere(${MANAGE})
-                OR app.reads_development_of(${memberId}::uuid)) AS ok`,
+                OR app.reads_development_of(${memberId}::uuid)
+                OR EXISTS (SELECT 1 FROM staff_line_manager
+                            WHERE worker_id = ${memberId}::uuid
+                              AND manager_id = app.current_user_id())) AS ok`,
         );
         if (r.rows[0]?.ok !== true) throw problems.notFound();
         await audit(c, tx, access, {
@@ -260,11 +263,14 @@ export const reportingLinesRouter = createRouter()
             throw problems.conflict();
           }
           if (body.managerId) {
-            await tx.insert(staffLineManager).values({
-              workerId: memberId,
-              managerId: body.managerId,
-              validFrom: body.from,
-            });
+            // A concurrent first line for the same member hits the one-current-line index: a conflict.
+            await tx
+              .insert(staffLineManager)
+              .values({ workerId: memberId, managerId: body.managerId, validFrom: body.from })
+              .catch((error: unknown) => {
+                if (dbCode(error) === "23505") throw problems.conflict();
+                throw error;
+              });
           }
           await audit(c, tx, access, {
             action: A.lineSet,

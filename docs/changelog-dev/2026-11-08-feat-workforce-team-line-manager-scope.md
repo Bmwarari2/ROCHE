@@ -23,6 +23,26 @@ lead asked for: a line manager reads their direct reports and a team lead their 
   entries. ADR-0137, ADR-0136 linked, H-1643 and H-1644, workforce.md (scope rule, API, screens
   marked "Next: PR 2", known gaps), STATUS and the WORK-009 register row.
 
+## Review round (security and clinical safety)
+
+- Clinical, blocking (HZ-119): reporting lines now widen READS only. 0161's
+  `app.development_scope_members_for` is no longer replaced; a new definer,
+  `app.development_reach_for` (with `app.development_reach` for the session), adds reporting lines
+  for reads: `app.reads_development_of`, the reminder task policy (through
+  `app.reaches_staff_permission_for`) and the API lists. Development writes, competence sign-offs and
+  withdrawals and revalidation confirmer naming keep the unwidened scope; the training certificate
+  update policy moves to `app.reads_development_in_scope_of` before the read helper widens.
+  HZ-119 Design and Verification rows; ADR-0137 says reads only; H-1645 for the CSO. The PR now
+  needs the `clinical` label.
+- Security, low: self-scoped roles never count towards reporting-line reads; the version-history
+  rule matches the rows' own read rules (teams included; the member and manager read their own
+  line's versions); a concurrent first line is a 409 conflict; the line-manager read matches row-level
+  security (a manager reads their own lines).
+- Tests: HZ-119 writes refused for a line manager at another home and a team lead (sign-off,
+  withdrawal, training, supervision) while reads work; an archived team, a future-dated line, an
+  ended lead membership, a non-lead member, a self-scoped role, a non-HR reader of version history;
+  API concurrency and a line manager reading their own line.
+
 ## Not in this PR
 
 - The screens to keep line managers and teams (PR 2, after this merges).

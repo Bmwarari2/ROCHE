@@ -18,6 +18,7 @@ const as = (who: string, path: string, init: { method?: string; body?: unknown }
 const NURSE = DEMO.users.nurse.id;
 const LODGE_WORKER = "0199f500-0000-7000-8000-000000000611";
 const LODGE_ROLE = "0199f500-0000-7000-8000-000000000501";
+const LODGE_TWO = "0199f500-0000-7000-8000-000000000612";
 
 type Listed = { members: { member: { id: string } }[] };
 type Tasks = { items: { kind: string; title: string }[] };
@@ -63,13 +64,16 @@ beforeAll(async () => {
   );
   await sql(
     `INSERT INTO tenant_user (id, display_name, email, status)
-     VALUES ($1, 'Lou Lodge', 'lou.lodge@example.invalid', 'active')`,
-    [LODGE_WORKER],
+     VALUES ($1, 'Lou Lodge', 'lou.lodge@example.invalid', 'active'),
+            ($2, 'Lyn Lodge', 'lyn.lodge@example.invalid', 'active')`,
+    [LODGE_WORKER, LODGE_TWO],
   );
-  await sql(
-    "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
-    [LODGE_WORKER, LODGE_ROLE, LODGE.locationId],
-  );
+  for (const member of [LODGE_WORKER, LODGE_TWO]) {
+    await sql(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+      [member, LODGE_ROLE, LODGE.locationId],
+    );
+  }
   await sql(
     `INSERT INTO task (kind, title, required_permission, due_at, assignee_role_key,
                        source_type, source_id, details)
@@ -156,6 +160,25 @@ describe("ADR-0137 a line manager reads their direct reports wherever they work"
     expect(ended.status).toBe(200);
     expect(((await ended.json()) as Line).current).toBeNull();
     expect(await supervisionsSeenBy("nurse")).not.toContain(LODGE_WORKER);
+  });
+});
+
+describe("ADR-0137 concurrency and who reads a line", () => {
+  it("two first lines saved at once: one is saved, the other is a conflict", async () => {
+    const put = () =>
+      as("owner", `/v1/workforce/members/${LODGE_TWO}/line-manager`, {
+        method: "PUT",
+        body: { managerId: DEMO.users.carer.id, from: "2026-01-01", expectedVersion: null },
+      });
+    const statuses = (await Promise.all([put(), put()])).map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 409]);
+  });
+
+  it("a line manager with no development permission reads their own line, as row-level security allows", async () => {
+    const response = await as("carer", `/v1/workforce/members/${LODGE_TWO}/line-manager`);
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as Line).current?.managerId).toBe(DEMO.users.carer.id);
+    expect((await as("carer", "/v1/workforce/supervisions-due")).status).toBe(403);
   });
 });
 

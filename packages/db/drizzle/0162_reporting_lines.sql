@@ -65,8 +65,9 @@ CREATE UNIQUE INDEX "staff_team_member_current_key" ON "staff_team_member" USING
 -- with their leads, kept with history. Maintained by organisation-wide holders of
 -- workforce.staff_file.manage (HR). Read by HR, by the members a row is about, and by holders of a
 -- development read permission whose scope covers the member. A line manager's current direct reports
--- and a team lead's current team widen the scope of the development permissions they already hold;
--- the relationship grants nothing by itself (least privilege). Runs as harbour_owner.
+-- and a team lead's current team widen what the development permissions they already hold let them
+-- READ; never what they may write, sign off or withdraw (HZ-119), and the relationship grants
+-- nothing by itself (least privilege). Runs as harbour_owner.
 DO $$
 DECLARE t text;
 BEGIN
@@ -148,68 +149,61 @@ GRANT SELECT, INSERT, UPDATE ON public.staff_line_manager, public.staff_team, pu
 GRANT SELECT ON public.staff_line_manager, public.staff_team, public.staff_team_member
   TO harbour_workforce_definer;
 --> statement-breakpoint
--- Earlier versions follow the rows' own read rule.
+-- Earlier versions follow the rows' own read rules: HR, the members a line is about (the member and
+-- their manager), and readers whose reach covers the member; a team's versions as the team.
 CREATE POLICY record_version_reporting_lines ON public.record_version AS RESTRICTIVE FOR SELECT
   TO harbour_app
-  USING (table_name NOT IN ('staff_line_manager', 'staff_team_member')
+  USING (table_name NOT IN ('staff_line_manager', 'staff_team_member', 'staff_team')
     OR app.is_system()
     OR app.holds_staff_permission_everywhere('workforce.staff_file.manage')
-    OR app.reads_development_of(COALESCE(data->>'worker_id', data->>'member_id')::uuid));
+    OR (table_name = 'staff_team'
+        AND (app.reads_development() OR app.holds_staff_permission('workforce.staff_file.manage')))
+    OR (table_name = 'staff_line_manager'
+        AND app.current_user_id() IN ((data->>'worker_id')::uuid, (data->>'manager_id')::uuid))
+    OR (table_name = 'staff_team_member' AND (data->>'member_id')::uuid = app.current_user_id())
+    OR (table_name <> 'staff_team'
+        AND app.reads_development_of(COALESCE(data->>'worker_id', data->>'member_id')::uuid)));
 --> statement-breakpoint
 
--- Development scope (ADR-0136, amended by ADR-0137): as migration 0161, and also, for a reader who
--- holds one of the permissions in any role in force or access grant, their current direct reports
--- and the current members of the teams they currently lead. One set-based query. Replaced as its
--- owner, so its ACL stays as 0161 set it.
-GRANT CREATE ON SCHEMA app TO harbour_workforce_definer;
---> statement-breakpoint
-SET ROLE harbour_workforce_definer;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION app.development_scope_members_for(p_reader uuid, p_permissions text[],
+-- Development reach (ADR-0137, amending ADR-0136): reporting lines widen READS only. Who may write a
+-- development record (a training record, a supervision, revalidation evidence, a competence sign-off
+-- or withdrawal, a certificate) and who may be named a revalidation confirmer keep 0161's scope
+-- (app.development_scope_members_for, unchanged): a line manager or team lead never signs off or
+-- withdraws a report's competence at another home through the relationship (HZ-119). For reads, a
+-- holder of one of the permissions in a tenant, location, no-person or assigned role in force, or an
+-- access grant, also reaches their current direct reports and the current members of the teams they
+-- currently lead (team not archived), wherever those members work. One set-based query.
+CREATE OR REPLACE FUNCTION app.development_reach_for(p_reader uuid, p_permissions text[],
   p_workers uuid[])
 RETURNS SETOF uuid
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
-  WITH reader_roles AS (
-    SELECT ra.location_id, ra.organisation_wide, r.scope_kind::text AS scope
-    FROM public.role_assignment ra
-    JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
-    WHERE ra.tenant_id = app.current_tenant_id()
-      AND ra.tenant_user_id = p_reader
-      AND ra.deleted_at IS NULL
-      AND r.archived_at IS NULL
-      AND ra.valid_from <= now()
-      AND (ra.valid_to IS NULL OR ra.valid_to > now())
-      AND NOT (r.permissions && ARRAY['comms.portal.family', 'comms.portal.self', 'comms.feed.read',
-        'comms.notification.subscribe', 'comms.visit_booking.request']::text[])
-      AND r.permissions && p_permissions
+  WITH today AS (SELECT (now() AT TIME ZONE 'Europe/London')::date AS d),
+  holds AS (
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.role_assignment ra
+        JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
+        WHERE ra.tenant_id = app.current_tenant_id()
+          AND ra.tenant_user_id = p_reader
+          AND ra.deleted_at IS NULL
+          AND r.archived_at IS NULL
+          AND ra.valid_from <= now()
+          AND (ra.valid_to IS NULL OR ra.valid_to > now())
+          AND r.scope_kind::text IN ('tenant', 'location', 'none', 'assigned')
+          AND NOT (r.permissions && ARRAY['comms.portal.family', 'comms.portal.self',
+            'comms.feed.read', 'comms.notification.subscribe', 'comms.visit_booking.request']::text[])
+          AND r.permissions && p_permissions)
+      OR EXISTS (
+        SELECT 1
+        FROM public.access_grant g
+        WHERE g.tenant_id = app.current_tenant_id()
+          AND g.tenant_user_id = p_reader
+          AND g.deleted_at IS NULL
+          AND g.revoked_at IS NULL
+          AND g.valid_from <= now()
+          AND g.valid_to > now()
+          AND g.permissions && p_permissions) AS yes
   ),
-  reader_grants AS (
-    SELECT g.location_id, g.organisation_wide
-    FROM public.access_grant g
-    WHERE g.tenant_id = app.current_tenant_id()
-      AND g.tenant_user_id = p_reader
-      AND g.deleted_at IS NULL
-      AND g.revoked_at IS NULL
-      AND g.valid_from <= now()
-      AND g.valid_to > now()
-      AND g.permissions && p_permissions
-  ),
-  everywhere AS (
-    SELECT EXISTS (SELECT 1 FROM reader_roles
-                   WHERE scope = 'none'
-                      OR (location_id IS NULL AND scope IN ('tenant', 'location')
-                          AND (scope = 'tenant' OR organisation_wide)))
-        OR EXISTS (SELECT 1 FROM reader_grants WHERE location_id IS NULL AND organisation_wide)
-      AS yes
-  ),
-  homes AS (
-    SELECT location_id FROM reader_roles
-     WHERE scope IN ('tenant', 'location') AND location_id IS NOT NULL
-    UNION
-    SELECT location_id FROM reader_grants WHERE location_id IS NOT NULL
-  ),
-  today AS (SELECT (now() AT TIME ZONE 'Europe/London')::date AS d),
-  -- Reporting lines widen a holder's scope; they never grant a permission (ADR-0137).
   related AS (
     SELECT lm.worker_id AS member
     FROM public.staff_line_manager lm, today
@@ -236,39 +230,94 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_te
       AND m.member_id <> p_reader
       AND m.valid_from <= today.d
       AND (m.valid_to IS NULL OR m.valid_to > today.d)
-  ),
-  holds AS (
-    SELECT EXISTS (SELECT 1 FROM reader_roles) OR EXISTS (SELECT 1 FROM reader_grants) AS yes
   )
+  SELECT s FROM app.development_scope_members_for(p_reader, p_permissions, p_workers) AS s
+  UNION
   SELECT tu.id
   FROM public.tenant_user tu
   WHERE p_reader IS NOT NULL
     AND tu.tenant_id = app.current_tenant_id()
     AND tu.id = ANY (p_workers)
-    AND ((SELECT yes FROM everywhere)
-      OR ((SELECT yes FROM holds) AND tu.id IN (SELECT member FROM related))
-      OR (EXISTS (SELECT 1 FROM homes) AND (
-        EXISTS (
-          SELECT 1
-          FROM public.role_assignment wa
-          JOIN public.role wr ON wr.id = wa.role_id AND wr.tenant_id = wa.tenant_id
-          WHERE wa.tenant_id = tu.tenant_id
-            AND wa.tenant_user_id = tu.id
-            AND wa.deleted_at IS NULL
-            AND wr.archived_at IS NULL
-            AND wa.valid_from <= now()
-            AND (wa.valid_to IS NULL OR wa.valid_to > now())
-            AND (wa.location_id IN (SELECT location_id FROM homes)
-              OR (wa.location_id IS NULL AND (wr.scope_kind = 'tenant' OR wa.organisation_wide))))
-        OR EXISTS (
-          SELECT 1
-          FROM public.staff_profile sp
-          WHERE sp.tenant_id = tu.tenant_id
-            AND sp.tenant_user_id = tu.id
-            AND sp.deleted_at IS NULL
-            AND sp.location_id IN (SELECT location_id FROM homes)))))
+    AND (SELECT yes FROM holds)
+    AND tu.id IN (SELECT member FROM related)
 $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.development_reach_for(uuid, text[], uuid[]) FROM PUBLIC;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION app.development_reach(p_permissions text[], p_workers uuid[])
+RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT m FROM app.development_reach_for(app.current_user_id(), p_permissions, p_workers) AS m
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.development_reach(text[], uuid[]) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.development_reach(text[], uuid[])
+  TO harbour_app, harbour_care_definer, harbour_platform_definer;
+--> statement-breakpoint
+GRANT CREATE ON SCHEMA app TO harbour_workforce_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.development_reach_for(uuid, text[], uuid[]) OWNER TO harbour_workforce_definer;
+--> statement-breakpoint
+ALTER FUNCTION app.development_reach(text[], uuid[]) OWNER TO harbour_workforce_definer;
+--> statement-breakpoint
+REVOKE CREATE ON SCHEMA app FROM harbour_workforce_definer;
+--> statement-breakpoint
+SET ROLE harbour_workforce_definer;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.development_reach(text[], uuid[]) TO harbour_owner;
 --> statement-breakpoint
 RESET ROLE;
 --> statement-breakpoint
-REVOKE CREATE ON SCHEMA app FROM harbour_workforce_definer;
+
+-- Reads use the reach; the unwidened 0161 scope stays for writes. The certificate update policy
+-- read app.reads_development_of in 0161, so it moves to the unwidened check before that widens.
+CREATE OR REPLACE FUNCTION app.reads_development_in_scope_of(p_worker uuid) RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT p_worker IS NOT NULL AND EXISTS (
+    SELECT 1 FROM app.development_scope_members(ARRAY['workforce.training.manage',
+      'workforce.competence.observe', 'workforce.supervision.manage', 'workforce.staff_file.read'],
+      ARRAY[p_worker]))
+$$;
+--> statement-breakpoint
+ALTER POLICY document_training_certificate_update ON public.document
+  USING (category <> 'training_certificate' OR app.is_system()
+    OR (subject_type = 'training_record'
+        AND app.reads_development_in_scope_of(app.training_record_worker(subject_id))
+        AND app.training_record_worker(subject_id) IS DISTINCT FROM app.current_user_id()))
+  WITH CHECK (category <> 'training_certificate' OR app.is_system()
+    OR (subject_type = 'training_record'
+        AND app.reads_development_in_scope_of(app.training_record_worker(subject_id))
+        AND app.training_record_worker(subject_id) IS DISTINCT FROM app.current_user_id()));
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION app.reads_development_of(p_worker uuid) RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT p_worker IS NOT NULL AND EXISTS (
+    SELECT 1 FROM app.development_reach(ARRAY['workforce.training.manage',
+      'workforce.competence.observe', 'workforce.supervision.manage', 'workforce.staff_file.read'],
+      ARRAY[p_worker]))
+$$;
+--> statement-breakpoint
+-- Reminder tasks about a member are read with the reach (a line manager sees their reports'
+-- reminders); app.holds_staff_permission_for stays unwidened for the development write checks.
+CREATE OR REPLACE FUNCTION app.reaches_staff_permission_for(p_permission text, p_worker uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT p_worker IS NOT NULL AND EXISTS (
+    SELECT 1 FROM app.development_reach(ARRAY[p_permission], ARRAY[p_worker]))
+$$;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION app.task_visible_for(p_person_id uuid, p_location_id uuid,
+  p_assignee uuid, p_required_permission text, p_source_type text, p_source_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT CASE
+    WHEN p_source_type = 'tenant_user' AND p_source_id IS NOT NULL
+         AND p_person_id IS NULL AND p_location_id IS NULL
+         AND p_required_permission IN ('workforce.training.manage', 'workforce.competence.observe',
+           'workforce.supervision.manage', 'workforce.staff_file.read')
+      THEN app.task_visible(NULL, NULL, p_assignee)
+        OR app.reaches_staff_permission_for(p_required_permission, p_source_id)
+    ELSE app.task_visible_with(p_person_id, p_location_id, p_assignee, p_required_permission)
+  END
+$$;

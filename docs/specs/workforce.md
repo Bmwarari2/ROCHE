@@ -220,12 +220,17 @@ tenant-scoped role or one held organisation-wide; otherwise only the members who
 holder's homes, as `app.works_at` counts them (a role in force there or across the organisation,
 or that home on their staff profile; an access grant at a home counts as a role there). Members
 with an organisation-wide role (the HR director, the Nominated Individual) are therefore in every
-home's scope. Reporting lines widen it (ADR-0137, migration 0162): a holder of one of these
-permissions in any role in force (an assigned-scope senior carer's included) also reaches their
-current direct reports (`staff_line_manager`) and the current members of the teams they currently
-lead (`staff_team_member`, team not archived), wherever those members work; a line manager or team
-lead who holds none of them reaches nothing more, since a relationship grants no permission by
-itself. Writes follow the same scope in the policies themselves, so a revalidation confirmer
+home's scope. Reporting lines widen reads only (ADR-0137, migration 0162; HZ-119): a holder of one
+of these permissions in a tenant, location, no-person or assigned role in force (an assigned-scope
+senior carer's included, never a self-scoped role), or an access grant, also reads the records of
+their current direct reports (`staff_line_manager`) and of the current members of the teams they
+currently lead (`staff_team_member`, team not archived), wherever those members work, with the
+lists and reminder tasks about them; a line manager or team lead who holds none of them reads
+nothing more, since a relationship grants no permission by itself. Writes (training records,
+supervisions, revalidation evidence, certificates, competence sign-offs and withdrawals) and
+revalidation confirmer naming never widen: they follow the scope in the policies themselves, so
+nobody signs off or withdraws a report's competence at another home through a reporting line, and a
+revalidation confirmer
 must hold training or supervision rights in a scope that covers the nurse (only such members are
 offered or may be named; H-1641). The member reads their own
 (`workforce.self.read`); written as section 2b says, never

@@ -34415,7 +34415,7 @@ export interface paths {
     };
     /**
      * A member's line manager, now and before
-     * @description HR, the member themselves, or a holder of a development read permission whose scope covers the member (ADR-0137). Anyone else gets 404. Audited.
+     * @description HR, the member themselves, a manager on one of their lines (who sees their own lines), or a holder of a development read permission whose reach covers the member (ADR-0137), as row-level security allows. Anyone else gets 404. Audited.
      */
     get: {
       parameters: {

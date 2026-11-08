@@ -111,6 +111,15 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     "harbour_owner",
     "harbour_platform_definer",
   ],
+  // Reporting lines widen reads only (migration 0162, ADR-0137): the reach of any reader, asked
+  // only by the definer below, and the caller's reach for reads and reminder tasks.
+  "app.development_reach_for(uuid, text[], uuid[])": [],
+  "app.development_reach(text[], uuid[])": [
+    "harbour_app",
+    "harbour_care_definer",
+    "harbour_owner",
+    "harbour_platform_definer",
+  ],
   // HZ-119: the sign-off guard's withdrawal lookup (migration 0161).
   "app.competence_withdrawn_after(uuid, text, date)": ["harbour_app", "harbour_owner"],
   "app.induction_policy_signing(uuid)": ["harbour_app"],
