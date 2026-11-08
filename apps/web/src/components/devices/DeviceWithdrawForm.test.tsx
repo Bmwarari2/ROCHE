@@ -131,7 +131,7 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
     },
   );
 
-  it("asks to reload and tick again when entries were reported since the page opened", async () => {
+  it("asks to reload and tick again when what the phone reported has changed since the page opened", async () => {
     const message = t("devices.withdraw.entriesArrived");
     withdrawDevice.mockResolvedValue({
       ok: false,
@@ -146,7 +146,9 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
     await tick();
     await submit();
     expect(router.replace).not.toHaveBeenCalled();
-    expect(text()).toContain("Reload the page to see how many, then tick the box to confirm.");
+    expect(text()).toContain(
+      "Reload the page to see what it reports now, then tick the box again.",
+    );
     // The words are tied to the box.
     const box = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
     const described = (box.getAttribute("aria-describedby") ?? "")
@@ -154,6 +156,12 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
       .map((id) => document.getElementById(id)?.textContent ?? "")
       .join(" ");
     expect(described).toContain(message);
+    expect(await violations()).toEqual([]);
+  });
+
+  it("says plainly when the phone has never reported what it holds", async () => {
+    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} lastReportedAt={null} />);
+    expect(text()).toContain("it has never reported what it holds");
     expect(await violations()).toEqual([]);
   });
 

@@ -41,6 +41,7 @@ import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle
 import { auditInTx, writeAudit } from "../http/audit";
 import type { Services, TenantAccess } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { lastReportedWaiting } from "./device-holds";
 import { rateNumber } from "./rates";
 
 type Db = Parameters<typeof withRequestContext>[0];
@@ -535,10 +536,22 @@ export async function revokeDevice(
     readonly reasonCode: DeviceRevocationReason;
     readonly now: Date;
     readonly requestId: string | undefined;
-    /** Entries the device last reported waiting that the manager has not confirmed seeing. */
-    readonly unconfirmedWaiting?: number;
+    /**
+     * What the manager confirmed: the exact count and report time they saw (H-1535), "legacy"
+     * for an older client's bare confirmation (taken only when nothing is waiting), or null.
+     */
+    readonly confirmed:
+      | { readonly count: number; readonly reportedAt: string | null }
+      | "legacy"
+      | null;
   },
-): Promise<{ revokedAt: Date; replay: boolean; bindings: number } | null> {
+): Promise<{
+  revokedAt: Date;
+  replay: boolean;
+  bindings: number;
+  waiting: number;
+  lastReportedAt: Date | null;
+} | null> {
   return inSystemView(db, access, async (tx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtext(${`${access.tenantId}:device_revoke:${input.deviceId}`}))`,
@@ -555,12 +568,34 @@ export async function revokeDevice(
       .map((r) => r.revokedAt)
       .filter((at): at is Date => at !== null)
       .sort((a, b) => a.getTime() - b.getTime())[0];
+    // What the device last reported, read under the lock its reports take, so a report cannot
+    // land between the check and the revocation (security review of H-1535, H1).
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${`${access.tenantId}:device_hold:${input.deviceId}`}))`,
+    );
+    const last = (await lastReportedWaiting(tx, [input.deviceId])).get(input.deviceId);
+    const waiting = last?.waiting ?? 0;
+    const lastReportedAt = last?.at ?? null;
     if (earliest && rows.every((r) => r.revokedAt !== null)) {
-      return { revokedAt: earliest, replay: true, bindings: rows.length };
+      return { revokedAt: earliest, replay: true, bindings: rows.length, waiting, lastReportedAt };
     }
-    // Told first how many entries the device last reported waiting (#25 review round 2, M4).
-    if ((input.unconfirmedWaiting ?? 0) > 0) {
-      throw problems.entriesWaiting(input.unconfirmedWaiting ?? 0);
+    // Checked only once the caller is known to reach the device (it reads as not found
+    // otherwise), so no count is told across locations (security review of H-1535, M2).
+    const confirmed = input.confirmed;
+    if (confirmed && confirmed !== "legacy") {
+      // The exact count and report the manager saw (H-1535; HZ-006): any difference is refused.
+      const seen = confirmed.reportedAt ? Date.parse(confirmed.reportedAt) : null;
+      const reported = lastReportedAt ? lastReportedAt.getTime() : null;
+      if (confirmed.count !== waiting || seen !== reported) {
+        throw problems.entriesChanged(waiting, lastReportedAt !== null);
+      }
+    } else if (waiting > 0 && confirmed !== "legacy") {
+      // Told first how many entries the device last reported waiting (#25 review round 2, M4).
+      throw problems.entriesWaiting(waiting);
+    } else if (waiting > 0) {
+      // An older client's bare confirmation never stands in for a count it did not send while
+      // entries are waiting (clinical and security reviews of H-1535).
+      throw problems.entriesChanged(waiting, true);
     }
     await tx
       .update(deviceBinding)
@@ -575,9 +610,22 @@ export async function revokeDevice(
       resourceType: "device",
       resourceId: input.deviceId,
       reason: input.reasonCode,
-      scope: { reasonCode: input.reasonCode, bindings: rows.length, memberIds: members },
+      scope: {
+        reasonCode: input.reasonCode,
+        bindings: rows.length,
+        memberIds: members,
+        // What was confirmed: the exact count and report, or an older client's bare tick.
+        confirmed: confirmed === "legacy" ? "legacy" : confirmed ? "exact" : "none",
+        entriesWaiting: waiting,
+      },
       requestId: input.requestId,
     });
-    return { revokedAt: earliest ?? input.now, replay: false, bindings: rows.length };
+    return {
+      revokedAt: earliest ?? input.now,
+      replay: false,
+      bindings: rows.length,
+      waiting,
+      lastReportedAt,
+    };
   });
 }

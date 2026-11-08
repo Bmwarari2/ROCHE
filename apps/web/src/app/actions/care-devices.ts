@@ -41,8 +41,8 @@ export async function withdrawDevice(
       revalidatePath(`/settings/devices/${deviceId}`);
       return { ok: true, data };
     }
-    // Entries reported since the page loaded: the manager is asked to confirm them, in words
-    // tied to the box, never told to try again (accessibility review H1).
+    // What the phone reported changed since the page loaded (a different count or report, H-1535):
+    // the manager reloads and confirms it, in words tied to the box, never told to try again.
     if ((error as { code?: unknown } | undefined)?.code === "entries_waiting") {
       return refused(t("devices.withdraw.entriesArrived"), "entries_waiting", ["confirm"]);
     }

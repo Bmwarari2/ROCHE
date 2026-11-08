@@ -98,10 +98,11 @@ export const RevokeDevice = z
   .object({
     reasonCode: z.enum(DEVICE_REVOCATION_REASONS),
     /**
-     * True once the manager has been told how many entries the device last reported waiting; a
-     * revocation of a device with entries waiting is refused (409 `entries_waiting`) without it.
+     * Deprecated (H-1535): use `confirmedEntriesWaiting`. Taken only when the device last
+     * reported nothing waiting; with entries waiting it is refused (409 `entries_waiting`), since
+     * it does not say which count the manager saw.
      */
-    confirmEntriesWaiting: z.boolean().optional(),
+    confirmEntriesWaiting: z.boolean().optional().meta({ deprecated: true }),
     /**
      * What the manager saw, confirmed exactly (H-1535; HZ-006): the entries the device last
      * reported waiting and when it reported (null when it never had). The revocation is refused
@@ -118,6 +119,11 @@ export const RevokeDevice = z
       .optional(),
   })
   .strict()
+  // One confirmation or the other, never both (security review of H-1535, low).
+  .refine((d) => d.confirmEntriesWaiting === undefined || d.confirmedEntriesWaiting === undefined, {
+    message: "Send confirmedEntriesWaiting alone.",
+    path: ["confirmEntriesWaiting"],
+  })
   .meta({ id: "RevokeDevice" });
 export type RevokeDevice = z.infer<typeof RevokeDevice>;
 

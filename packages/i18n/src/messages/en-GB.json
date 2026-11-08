@@ -8228,7 +8228,7 @@
   "devices.withdrawnAt": "Withdrawn:",
   "devices.withdrawnReason": "Reason:",
   "devices.detail.description": "{state, select, withdrawn {This phone is withdrawn. Thapsus Care refuses it whenever it connects.} withdraw {Who used this phone, what it last reported, and how to withdraw it if it is lost, stolen or no longer used.} other {Who used this phone and what it last reported.}}",
-  "devices.withdraw.entriesArrived": "The phone has reported entries waiting since this page opened. Reload the page to see how many, then tick the box to confirm.",
+  "devices.withdraw.entriesArrived": "What the phone reported has changed since this page opened. Reload the page to see what it reports now, then tick the box again.",
   "devices.withdraw.sending": "Withdrawing the phone",
   "devices.withdraw.confirmNeverReported": "I understand that withdrawing this phone cannot be undone, and that it has never reported what it holds: it may hold care entries that were never sent."
 }
