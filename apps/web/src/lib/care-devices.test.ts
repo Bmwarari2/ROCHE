@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest";
+import { devicesShown, groupDevices, isWithdrawReason, mayWithdrawDevices } from "./care-devices";
+
+/** Invented device and member ids, and invented staff. */
+const PHONE = "0199d000-0000-4000-8000-0000000babcd";
+const OTHER = "0199d000-0000-4000-8000-0000000b1234";
+const ADA = "0199d000-0000-7000-8000-000000000a01";
+const BEN = "0199d000-0000-7000-8000-000000000b01";
+
+const binding = (overrides: Record<string, unknown> = {}) => ({
+  deviceId: PHONE,
+  tenantUserId: ADA,
+  memberName: "Ada Example",
+  firstSeenAt: "2026-11-01T08:00:00Z",
+  lastSeenAt: "2026-11-07T08:00:00Z",
+  revokedAt: null,
+  revokedBy: null,
+  revocationReason: null,
+  entriesWaiting: 0,
+  lastReportedAt: null,
+  ...overrides,
+});
+
+describe("hazard HZ-040 Care mode phones grouped for a manager", () => {
+  it("groups bindings by phone, with everyone who used it, the earliest and latest times", () => {
+    const [phone, other] = groupDevices([
+      binding({ entriesWaiting: 3, lastReportedAt: "2026-11-07T09:00:00Z" }),
+      binding({
+        tenantUserId: BEN,
+        memberName: "Ben Example",
+        firstSeenAt: "2026-10-30T08:00:00Z",
+        lastSeenAt: "2026-11-08T08:00:00Z",
+        entriesWaiting: 3,
+        lastReportedAt: "2026-11-07T09:00:00Z",
+      }),
+      binding({ deviceId: OTHER, lastSeenAt: "2026-11-02T08:00:00Z" }),
+    ]);
+    expect(phone).toMatchObject({
+      deviceId: PHONE,
+      shortId: "ABCD",
+      firstSeenAt: "2026-10-30T08:00:00Z",
+      lastSeenAt: "2026-11-08T08:00:00Z",
+      entriesWaiting: 3,
+      revokedAt: null,
+    });
+    expect(phone?.members.map((m) => m.name)).toEqual(["Ada Example", "Ben Example"]);
+    expect(other?.deviceId).toBe(OTHER);
+  });
+
+  it("counts a phone withdrawn when any of its bindings is", () => {
+    const [phone] = groupDevices([
+      binding(),
+      binding({
+        tenantUserId: BEN,
+        memberName: "Ben Example",
+        revokedAt: "2026-11-08T10:00:00Z",
+        revocationReason: "lost_or_stolen",
+      }),
+    ]);
+    expect(phone).toMatchObject({
+      revokedAt: "2026-11-08T10:00:00Z",
+      revocationReason: "lost_or_stolen",
+    });
+  });
+
+  it.each([
+    [["platform.device.read"], true, false],
+    [["platform.device.read", "platform.device.revoke"], true, true],
+    [[], false, false],
+  ])("permissions %j: shown %s, may withdraw %s", (permissions, shown, withdraw) => {
+    expect(devicesShown(permissions)).toBe(shown);
+    expect(mayWithdrawDevices(permissions)).toBe(withdraw);
+  });
+
+  it.each([
+    ["lost_or_stolen", true],
+    ["other", true],
+    ["because", false],
+    [null, false],
+  ])("reason %j is a code the API takes: %s", (value, ok) => {
+    expect(isWithdrawReason(value)).toBe(ok);
+  });
+});
