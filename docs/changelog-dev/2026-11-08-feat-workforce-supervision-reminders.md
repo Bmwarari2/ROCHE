@@ -19,4 +19,12 @@ Branch `feat/workforce-supervision-reminders`, built on slice 1 (`feat/workforce
 - Docs: `workforce.md` rule 7, the reminders section and the known gaps; the WORK-009 register row;
   STATUS.
 
+- Security review: a per-organisation transaction advisory lock around the sweep and around closing
+  reminders when a meeting is recorded, so two sweeps at once raise one task (tested with two at
+  once); a check inside the lock, just before raising, that no meeting has been held since. Not
+  done, and recorded in the known gaps: putting the member's home on the reminder (row-level
+  security would then show it to everyone at that home, whatever they hold, so the visibility rule
+  must change first, which needs a decision) and audit events for the workforce reminder jobs (none
+  of the three write one today).
+
 No migration, no new personal data, no web change (the tasks page shows a task's own title).

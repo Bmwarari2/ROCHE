@@ -803,6 +803,19 @@ export async function supervisionsDueFor(
 }
 
 /**
+ * Serialises the supervision reminder sweep and a meeting being recorded, per organisation, for the
+ * rest of the transaction: two sweeps at once (pg-boss may run the job twice, or retry it) read and
+ * insert one after the other, so the read-first check raises each reminder once, and a meeting
+ * recorded during a sweep is either seen by it or closes what it raised. No migration: a
+ * transaction advisory lock on a fixed name and the organisation.
+ */
+async function lockSupervisionReminders(tx: Transaction): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('workforce.supervision_reminders'), hashtext(current_setting('app.tenant_id')))`,
+  );
+}
+
+/**
  * Supervision and appraisal reminders (workforce.md rule 7; WORK-009): for every member of staff
  * with a role in force, one task when a supervision or appraisal falls due inside
  * `supervision.due_window_days` or is overdue, once for each due date (a task already raised for
@@ -818,6 +831,7 @@ export async function raiseSupervisionReminders(
   now: Date,
 ): Promise<number> {
   const today = ukIsoDate(now);
+  await lockSupervisionReminders(tx);
   const members = await staffMembers(tx, now);
   if (members.size === 0) return 0;
   const ids = [...members.keys()];
@@ -880,6 +894,20 @@ export async function raiseSupervisionReminders(
       profile?.startsOn && profile.startsOn <= today ? profile.startsOn : null,
     );
     for (const reminder of meetingReminders(meetings, raisedFor(id))) {
+      // Inside the lock, just before raising: a meeting held since the read above stops it.
+      const lastHeldOn = meetings.find((m) => m.kind === reminder.kind)?.lastHeldOn ?? null;
+      const [latest] = await tx
+        .select({ heldOn: sql<string | null>`max(${supervisionRecord.heldOn})` })
+        .from(supervisionRecord)
+        .where(
+          and(
+            eq(supervisionRecord.workerId, id),
+            eq(supervisionRecord.kind, reminder.kind),
+            isNull(supervisionRecord.deletedAt),
+            lte(supervisionRecord.heldOn, today),
+          ),
+        );
+      if ((latest?.heldOn ?? null) !== lastHeldOn) continue;
       await tx.insert(task).values({
         kind: SUPERVISION_DUE_TASK,
         title:
@@ -914,6 +942,7 @@ export function endSupervisionReminders(
 ): Promise<number> {
   if (kind === "spot_check") return Promise.resolve(0);
   return withSystemRights(tx, async () => {
+    await lockSupervisionReminders(tx);
     const ended = await tx
       .update(task)
       .set({ status: "cancelled", statusReason: "Ended: held" })

@@ -105,6 +105,16 @@ afterAll(async () => {
 });
 
 describe("WORK-009 supervision and appraisal reminders (workforce.md rule 7)", () => {
+  it("raises one reminder when two sweeps run at once (the per-organisation lock)", async () => {
+    const dueOn = await nextSupervisionDue(CARER);
+    const overdue = at(ukIsoDate(addUkDays(at(dueOn), 3)));
+    await Promise.all([
+      remindSupervisionsDue(deps(), overdue),
+      remindSupervisionsDue(deps(), overdue),
+    ]);
+    expect((await reminders(CARER)).map((r) => r.details.reminderDueOn)).toEqual([dueOn]);
+  });
+
   it("raises one reminder for HR's role when a supervision is overdue, and only once", async () => {
     const dueOn = await nextSupervisionDue(CARER);
     const overdue = at(ukIsoDate(addUkDays(at(dueOn), 3)));
