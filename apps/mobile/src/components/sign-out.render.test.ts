@@ -20,7 +20,7 @@ interface RecordedAlert {
 const alerts = (Alert as unknown as { calls: RecordedAlert[] }).calls;
 
 function actions(count: number | null, failure?: Error) {
-  const calls = { wiped: 0, discarded: [] as Array<[DiscardReason, number | null]> };
+  const calls = { wiped: 0, kept: 0, discarded: [] as Array<[DiscardReason, number | null]> };
   const value: SignOutActions = {
     countUnsent: async () => count,
     signOutAndWipe: async () => {
@@ -29,6 +29,9 @@ function actions(count: number | null, failure?: Error) {
     signOutDiscarding: async (choice, n) => {
       if (failure) throw failure;
       calls.discarded.push([choice, n]);
+    },
+    signOutKeeping: async () => {
+      calls.kept += 1;
     },
   };
   return { value, calls };
@@ -72,7 +75,8 @@ describe("hazard HZ-006 signing out with unsent entries (C2)", () => {
       }),
     );
     await view.press("sign-out");
-    expect(view.texts()).toContain("3 entries have not reached the server and will be deleted.");
+    expect(view.texts()).toContain("3 entries have not reached Thapsus Care yet.");
+    await view.press("sign-out-discard");
     // No reason yet: nothing is asked or deleted.
     await view.press("sign-out-discard-confirm");
     expect(view.texts()).toContain(t("mobile.discard.reasonCodeRequired"));
@@ -96,6 +100,7 @@ describe("hazard HZ-006 signing out with unsent entries (C2)", () => {
       }),
     );
     await view.press("sign-out");
+    await view.press("sign-out-discard");
     expect(view.find("sign-out-discard-code-other")).toBeNull();
     expect(view.find("sign-out-discard-reason")).toBeNull();
     expect(view.texts()).not.toContain(t("mobile.discard.wordsLabel"));
@@ -103,6 +108,24 @@ describe("hazard HZ-006 signing out with unsent entries (C2)", () => {
     await view.press("sign-out-discard-confirm");
     await answer(0, t("mobile.held.discardConfirm"));
     expect(calls.discarded).toEqual([[{ reasonCode: "entered_in_error", reason: "" }, 1]]);
+  });
+
+  it("hazard HZ-006 hazard HZ-040 offers to keep the entries first, and deletes nothing when kept (guides review)", async () => {
+    const { value, calls } = actions(2);
+    const view = await render(
+      createElement(SignOutControlView, {
+        actions: value,
+        variant: "secondary",
+        testID: "sign-out",
+      }),
+    );
+    await view.press("sign-out");
+    // Deletion is not open until asked for; keeping is the first choice.
+    expect(view.find("sign-out-discard-form")).toBeNull();
+    await view.press("sign-out-keep");
+    expect(calls.kept).toBe(1);
+    expect(calls.discarded).toEqual([]);
+    expect(calls.wiped).toBe(0);
   });
 
   it("says when the count cannot be known while the database is closed", async () => {
@@ -127,6 +150,7 @@ describe("hazard HZ-006 signing out with unsent entries (C2)", () => {
       }),
     );
     await view.press("sign-out");
+    await view.press("sign-out-discard");
     await view.press("sign-out-discard-code-recorded_elsewhere");
     await view.press("sign-out-discard-confirm");
     await answer(0, t("mobile.held.discardConfirm"));

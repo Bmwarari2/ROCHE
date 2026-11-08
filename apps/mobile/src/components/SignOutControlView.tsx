@@ -10,6 +10,8 @@ export interface SignOutActions {
   countUnsent(): Promise<number | null>;
   signOutAndWipe(): Promise<void>;
   signOutDiscarding(choice: DiscardReason, count: number | null): Promise<void>;
+  /** Signs out keeping the unsent entries for the member (guides review, HZ-006, HZ-040). */
+  signOutKeeping(): Promise<void>;
 }
 
 /**
@@ -77,8 +79,20 @@ export function SignOutControlView({
           ? t("mobile.signOut.unsentUnknown")
           : t("mobile.signOut.unsent", { count: unsent })}
       </Text>
+      {/* Keeping comes first: losing care records is the worse outcome (guides review, HZ-006). */}
+      <Button
+        label={t("mobile.signOut.keep")}
+        accessibilityHint={t("mobile.signOut.keepHint")}
+        variant="primary"
+        onPress={() => {
+          void actions.signOutKeeping();
+        }}
+        fullWidth
+        testID={`${testID}-keep`}
+      />
+      <Text tone="secondary">{t("mobile.signOut.keepHint")}</Text>
+      <Text>{t("mobile.signOut.orDelete")}</Text>
       <DeleteWithReason
-        initiallyOpen
         buttonLabel={
           unsent === null
             ? t("mobile.signOut.discardUnknown")

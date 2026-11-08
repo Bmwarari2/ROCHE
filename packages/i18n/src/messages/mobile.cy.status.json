@@ -1,5 +1,10 @@
 {
   "untranslated": [
+    "mobile.signOut.done",
+    "mobile.held.keptAtSignOut",
+    "mobile.signOut.keep",
+    "mobile.signOut.keepHint",
+    "mobile.signOut.orDelete",
     "mobile.account.alreadyRequested",
     "mobile.account.alreadyTitle",
     "mobile.account.cancel",

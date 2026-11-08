@@ -217,6 +217,8 @@ interface VaultValue {
    * device authentication, and is put on record before anything is deleted (S4, M1, M2).
    */
   signOutDiscarding(choice: DiscardReason, count: number | null): Promise<void>;
+  /** Signs out keeping unsent entries held for the member (guides review, HZ-006). */
+  signOutKeeping(): Promise<void>;
   /**
    * Deletes held entries from the sign-in screen (M2): `signerToken` is a session just signed in
    * for the purpose, by the entries' owner or a manager, never the device passcode alone. Then
@@ -851,10 +853,14 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
    * hold's report and notifications start here.
    */
   const sessionEnded = useCallback(
-    async (revoked = false, careModeOff = false) => {
+    async (revoked = false, careModeOff = false, keptByMember = false) => {
       if (wipingRef.current || holdingRef.current) return;
-      // Care mode switched off for the organisation is said as such (H-381).
-      const notices = sessionEndNotices({ revoked, careModeOff, wipeNotice: REMOTE_WIPE_NOTICE });
+      // Care mode switched off for the organisation is said as such (H-381); a member who chose to
+      // keep their entries is told so in their own words (guides review, HZ-006).
+      const ended = sessionEndNotices({ revoked, careModeOff, wipeNotice: REMOTE_WIPE_NOTICE });
+      const notices = keptByMember
+        ? { wipe: t("mobile.signOut.done"), held: t("mobile.held.keptAtSignOut") }
+        : ended;
       holdingRef.current = true;
       try {
         const current = dbRef.current;
@@ -913,6 +919,11 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     [closeKeepingData, idle, session.holdSession, signOutAndWipe],
   );
   sessionEndedRef.current = sessionEnded;
+
+  // Signing out with unsent entries, keeping them for the member (guides review, HZ-006, HZ-040):
+  // the same hold as when the server ends the session, so nobody else opens the phone's records
+  // until the member signs in again and they are sent, or a manager releases them.
+  const signOutKeeping = useCallback(() => sessionEnded(false, false, true), [sessionEnded]);
 
   const countUnsent = useCallback(async (): Promise<number | null> => {
     const current = dbRef.current;
@@ -1359,6 +1370,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       signOutAndWipe,
       countUnsent,
       signOutDiscarding,
+      signOutKeeping,
       discardHeld,
       handOverHeld,
       removeRefused,
@@ -1383,6 +1395,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       signOutAndWipe,
       countUnsent,
       signOutDiscarding,
+      signOutKeeping,
       discardHeld,
       handOverHeld,
       removeRefused,
