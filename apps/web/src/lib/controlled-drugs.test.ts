@@ -3,6 +3,8 @@ import {
   CD_RECORDING_FLAG,
   type CdEntry,
   cdRecordingOn,
+  cdRecordingSettingsHref,
+  cdRecordingSettingsShown,
   cdShown,
   countOverdue,
   movementChip,
@@ -227,5 +229,21 @@ describe("hazard HZ-115 hazard HZ-008 the paper register is the record until Tha
     expect(t("cd.notTurnedOn.body")).toMatch(/paper controlled drugs register is the record/);
     expect(t("medicines.round.cdNotice")).toMatch(/paper controlled drugs register/);
     expect(t("medicines.round.cdNotice")).not.toMatch(/in the controlled drugs register/);
+  });
+});
+
+describe("who is offered the controlled drug recording page (H-1518)", () => {
+  it.each([
+    [["medicines.record.manage", "platform.location.manage"], true],
+    [["medicines.record.manage"], false],
+    [["platform.location.manage"], false],
+    [[], false],
+  ])("permissions %j: %s", (permissions, shown) => {
+    expect(cdRecordingSettingsShown(permissions)).toBe(shown);
+  });
+  it("links to the home's page", () => {
+    expect(cdRecordingSettingsHref("0194d000-0000-7000-8000-000000000101")).toBe(
+      "/medicines-settings/0194d000-0000-7000-8000-000000000101",
+    );
   });
 });

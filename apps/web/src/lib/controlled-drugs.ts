@@ -347,3 +347,15 @@ export function cdRecordingOn(
 ): boolean {
   return flags?.[CD_RECORDING_FLAG] === true;
 }
+
+/**
+ * Who may turn controlled drug recording on or off at a home (H-1518): both permissions, as the
+ * API checks again at the home. Only they are offered the page and its navigation entry.
+ */
+export const CD_RECORDING_SETTERS = [
+  "medicines.record.manage",
+  "platform.location.manage",
+] as const;
+export const cdRecordingSettingsShown = (permissions: readonly string[]) =>
+  CD_RECORDING_SETTERS.every((p) => permissions.includes(p));
+export const cdRecordingSettingsHref = (locationId: string) => `/medicines-settings/${locationId}`;

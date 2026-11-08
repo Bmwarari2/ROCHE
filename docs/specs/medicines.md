@@ -1704,9 +1704,11 @@ record; and the web round's record page tells staff to record a controlled drug 
 register and on the paper MAR. A flag the web cannot read counts as off. The API refuses every
 register write where it is off (opening a page, a witness signature, every movement and
 correction, a stock count, and a controlled drug given) with 409 `cd_recording_not_enabled`,
-audited. The demo seed releases recording at the demo home only. Until the switch-on flow (H-1518:
-a Registered Manager with step-up, confirming the paper balance is carried over as an opening
-count) only Thapsus operators set the flag, as a location row.
+audited. The demo seed releases recording at the demo home only. The Owner or Registered Manager
+turns recording on or off at a home on the Controlled drug recording page (`/medicines-settings`,
+in the navigation for those who hold `medicines.record.manage` and `platform.location.manage`;
+H-1518, #205): on with the three confirmations, off with a reason and the paper register
+restarted, each with a fresh second sign-in step. A state the web cannot read offers no change.
 
 **Rules**
 

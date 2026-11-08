@@ -8,6 +8,7 @@ import { approvalsShown } from "@/lib/approvals";
 import { accentStyle, brandingShown, logoSrc } from "@/lib/branding";
 import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { complaintsShown } from "@/lib/complaints";
+import { cdRecordingSettingsShown } from "@/lib/controlled-drugs";
 import { readNotifications } from "@/lib/dashboard-data";
 import { dataRightsShown } from "@/lib/data-rights";
 import { dataSecurityShown } from "@/lib/data-security";
@@ -97,6 +98,9 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           ? t("shell.nav.medicinesRound")
           : undefined,
         medicinesStock: stockShown(me.permissions) ? t("shell.nav.medicinesStock") : undefined,
+        medicinesSettings: cdRecordingSettingsShown(me.permissions)
+          ? t("shell.nav.medicinesSettings")
+          : undefined,
         medicinesReports: me.permissions.includes("medicines.record.manage")
           ? t("shell.nav.medicinesReports")
           : undefined,
