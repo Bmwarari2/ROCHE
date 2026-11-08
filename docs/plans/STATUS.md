@@ -82,8 +82,8 @@ episode, and the DPIA section 7B for Phase 2).
   rules only. Still to do: the migration (`supersedes_id` and a reason on `death_step`), the API,
   the history struck through on the web, the line-list reason, docs and the reviewers. Item 4 (a
   narrower incident permission) is not started.
-- `docs/guides-medicines-phone` at `9c2b6178`: the 7 phone guides for slices 69 and 70. Rebase
-  them after #188 merges.
+- `docs/guides-medicines-phone`: the 7 phone guides for slices 69 and 70, checked against #188 on
+  `main` (08/11/2026; see below). Committed, not pushed.
 
 **The Thapsus suite plan** (Finance, CRM and ERP, and how Care joins): `docs/plans/thapsus-suite.md`
 and slices S.1 to S.6 for Care are on branch `claude/thapsus-systems-dev-plan-2rkfaj`, with no
@@ -101,6 +101,15 @@ destroying Phase 2 records when their retention class ends. Nothing destroys dat
 an ADR and 12 DPO questions come before any record is destroyed.
 Slice 0 done (08/11/2026, docs only): ADR-0135 proposed, retention.md mapping de-duplicated and complete,
 retention-and-deletion.md matches today, the 12 questions logged with provisional answers (H-1556 to H-1560, H-1581 to H-1587).
+
+## User guides: medicines on the phone (08/11/2026)
+
+`docs/guides-medicines-phone` (Phase 2 slice 81), merged with `main` at d4c81025: the 7 phone
+guides for slices 69 and 70 (giving medicines, scanning a pack, correcting a record, medicines
+PINs, witnessing and giving a controlled drug, doses recorded twice), checked against the merged
+phone release (#188) and linked from the indexes and the register (MEDS-002, 003, 005, MOB-007).
+Four phone gaps for the builders and the CSO, and the web screens the phone points to that do not
+exist yet: `docs/changelog-dev/2026-11-08-docs-guides-medicines-phone.md`.
 
 ## User guides: safety, quality and platform, second pass (07/11/2026)
 
