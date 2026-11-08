@@ -38,6 +38,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
 destroying Phase 2 records when their retention class ends. Nothing destroys database rows today;
 133 of the 135 Phase 2 tables with personal data are never swept. 15 slices, report only first;
 an ADR and 12 DPO questions come before any record is destroyed.
+Slice 0 done (08/11/2026, docs only): ADR-0135 proposed, retention.md mapping de-duplicated and complete,
+retention-and-deletion.md matches today, the 12 questions logged with provisional answers (H-1556 to H-1560, H-NEW-1 to H-NEW-7).
 
 ## User guides: safety, quality and platform, second pass (07/11/2026)
 

@@ -334,7 +334,8 @@ tables).
 the induction tables, the casework tables, `letter` and the letter templates twice or more. Two pairs
 disagree: the second `outbreak_case` row still says staff "follow it for now" (settled by H-767), and the
 second casework row says "a shorter period for some cases is open" (settled by H-806, migration 0121).
-A sweep driven from this table needs it cleaned first (slice 0).
+A sweep driven from this table needs it cleaned first (slice 0). Done in slice 0 (08/11/2026), with rows added for the 32 tables above
+(provisional, H-1557 and H-1558).
 
 **Trigger dates with no column.** A compliment never closes (no `record_closed` date); a withdrawn DSAR
 case has no withdrawal date; a disclosure request has no closed date; the end of the pay reference period
@@ -562,27 +563,31 @@ of staff.
 
 ## 7. Questions for the DPO
 
-Each is worded so it can go into [human-actions.md](human-actions.md) as it stands (owner: DPO; numbers
-to be given when added).
+Each is worded so it can go into [human-actions.md](human-actions.md) as it stands (owner: DPO). Slice 0
+(08/11/2026) logged them there under "Phase 2: retention sweeps (plan and slice 0)". **Every answer is
+provisional**: each took its recommended answer as an owner-accepted recommendation, pending DPO review
+at the testing phase (ADR-0132), so no slice waits. Questions 6 to 12 carry placeholders (`H-NEW-1` to
+`H-NEW-7`) until they are numbered at merge, as the next free numbers on `main` after H-1580.
 
-| # | Action | What the build produced | Unblocks |
-| --- | --- | --- | --- |
-| 1 | Confirm the grace period between soft delete and permanent deletion of records past retention (proposed: 30 days, as retention-and-deletion.md section 1), and that Thapsus support may restore a batch only on the organisation's written request in that time | This plan, section 5.5 | Slice 9 |
-| 2 | Decide which class governs routine lone-worker check-ins (`lone_worker_check_in`, 3 months from the check-in, or `lone_worker`, 3 years from the session's finish) and staff survey responses (`staff_survey_response`, 12 months from close, or `staff_wellbeing`, 2 years); retire the one not chosen, and retire `whistleblowing` in favour of `speak_up_concern` | Section 3.2 | Slices 0 and 11 |
-| 3 | Set classes for the tables that have none: deaths and missing episodes (`death_record`, `death_step`, `herbert_profile`, `missing_episode`, `missing_event`), the learning-system import (`lms_import`, `lms_import_row`, `lms_learner_link`), medicine orders (`medicine_order`, `medicine_order_line`), the Thapsus-HR link (`hr_person_link`, `hr_pay_rate`, `hr_pay_unit`), `evidence_link` and `shift_cover_need`; and confirm the classes named only in notes for complaints and compliments, audits, absences, wellbeing, payroll exports and medicines stock, disposal and temperature logs | Section 3.2 | Slice 0 |
-| 4 | Decide whether audit events about a destroyed record are destroyed with it (retention-and-deletion.md section 2) or kept for their own class (8 years from creation) as opaque ids, given they are hash-chained and archived in a bucket locked for 365 days; and whether the free-text `reason` must be cleared earlier | Section 2.4, 5.8 | Slice 14 |
-| 5 | Confirm that, where a record has organisational value (rota, pay runs, audits, outbreak line lists), clearing the personal columns and keeping the anonymous row is an acceptable alternative to deleting it, and for which classes | Section 5.3 (`clear_columns`) | Slices 3 and 11 |
-| 6 | Confirm that one reviewer with `platform.retention.manage` and step-up may approve a destruction batch, or require a second person as the whole-organisation shred does | Section 5.5 | Slice 9 |
-| 7 | Confirm that deleted rows leaving point-in-time recovery after 7 (or 35) days, stated on the certificate, meets the "crypto-shred" requirement for database rows, as ADR-0109 decided, or require field-level encryption first | ADR-0109; section 5.6 | Slice 10 |
-| 8 | Confirm which setting decides the staff file period: the organisation's `staff_file_option` from the onboarding checklist, or whether it has its own `staff_file.after_leaving` row (today's code), and whether a keep-until date must be worked out again when the period or the date of birth changes | Section 3.2 | Slice 11 (`staff_file`) |
-| 9 | Confirm the trigger dates where the record has no column: a compliment (never closes; propose 10 years from receipt), a withdrawn DSAR case (propose the withdrawal's audit time), a disclosure request (propose hand-over, else release), a Thapsus breach notice (propose its acknowledgement), an agency worker (propose the last booking), and the pay reference period end for rota and time records | Section 3.2 | Slices 2 and 3 |
-| 10 | Confirm that records whose class is `tenant_policy` (organisation documents, CCTV) are never offered for destruction until the organisation sets a period | retention.md | Slice 4 |
-| 11 | Decide whether an open DSAR case, complaint, safeguarding enquiry or employee relations case about a person or member of staff holds their records automatically, without someone placing a hold | Section 4 item 8 | Slice 12 |
-| 12 | Confirm the order in which classes are turned on (section 6, slice 11) and that each needs the DPO's sign-off of its report from a pilot organisation first | Section 6 | Slice 11 |
+| # | ID | Action | What the build produced | Unblocks |
+| --- | --- | --- | --- | --- |
+| 1 | H-1556 (provisional) | Confirm the grace period between soft delete and permanent deletion of records past retention (proposed: 30 days, as retention-and-deletion.md section 1), and that Thapsus support may restore a batch only on the organisation's written request in that time | This plan, section 5.5 | Slice 9 |
+| 2 | H-1557 (provisional) | Decide which class governs routine lone-worker check-ins (`lone_worker_check_in`, 3 months from the check-in, or `lone_worker`, 3 years from the session's finish) and staff survey responses (`staff_survey_response`, 12 months from close, or `staff_wellbeing`, 2 years); retire the one not chosen, and retire `whistleblowing` in favour of `speak_up_concern` | Section 3.2 | Slices 0 and 11 |
+| 3 | H-1558 (provisional) | Set classes for the tables that have none: deaths and missing episodes (`death_record`, `death_step`, `herbert_profile`, `missing_episode`, `missing_event`), the learning-system import (`lms_import`, `lms_import_row`, `lms_learner_link`), medicine orders (`medicine_order`, `medicine_order_line`), the Thapsus-HR link (`hr_person_link`, `hr_pay_rate`, `hr_pay_unit`), `evidence_link` and `shift_cover_need`; and confirm the classes named only in notes for complaints and compliments, audits, absences, wellbeing, payroll exports and medicines stock, disposal and temperature logs | Section 3.2 | Slice 0 |
+| 4 | H-1559 (provisional) | Decide whether audit events about a destroyed record are destroyed with it (retention-and-deletion.md section 2) or kept for their own class (8 years from creation) as opaque ids, given they are hash-chained and archived in a bucket locked for 365 days; and whether the free-text `reason` must be cleared earlier | Section 2.4, 5.8 | Slice 14 |
+| 5 | H-1560 (provisional) | Confirm that, where a record has organisational value (rota, pay runs, audits, outbreak line lists), clearing the personal columns and keeping the anonymous row is an acceptable alternative to deleting it, and for which classes | Section 5.3 (`clear_columns`) | Slices 3 and 11 |
+| 6 | H-NEW-1 (provisional) | Confirm that one reviewer with `platform.retention.manage` and step-up may approve a destruction batch, or require a second person as the whole-organisation shred does | Section 5.5 | Slice 9 |
+| 7 | H-NEW-2 (provisional) | Confirm that deleted rows leaving point-in-time recovery after 7 (or 35) days, stated on the certificate, meets the "crypto-shred" requirement for database rows, as ADR-0109 decided, or require field-level encryption first | ADR-0109; section 5.6 | Slice 10 |
+| 8 | H-NEW-3 (provisional) | Confirm which setting decides the staff file period: the organisation's `staff_file_option` from the onboarding checklist, or whether it has its own `staff_file.after_leaving` row (today's code), and whether a keep-until date must be worked out again when the period or the date of birth changes | Section 3.2 | Slice 11 (`staff_file`) |
+| 9 | H-NEW-4 (provisional) | Confirm the trigger dates where the record has no column: a compliment (never closes; propose 10 years from receipt), a withdrawn DSAR case (propose the withdrawal's audit time), a disclosure request (propose hand-over, else release), a Thapsus breach notice (propose its acknowledgement), an agency worker (propose the last booking), and the pay reference period end for rota and time records | Section 3.2 | Slices 2 and 3 |
+| 10 | H-NEW-5 (provisional) | Confirm that records whose class is `tenant_policy` (organisation documents, CCTV) are never offered for destruction until the organisation sets a period | retention.md | Slice 4 |
+| 11 | H-NEW-6 (provisional) | Decide whether an open DSAR case, complaint, safeguarding enquiry or employee relations case about a person or member of staff holds their records automatically, without someone placing a hold | Section 4 item 8 | Slice 12 |
+| 12 | H-NEW-7 (provisional) | Confirm the order in which classes are turned on (section 6, slice 11) and that each needs the DPO's sign-off of its report from a pilot organisation first | Section 6 | Slice 11 |
 
 ## 8. Is an ADR needed?
 
-Yes, one ADR before slice 7 (drafted in slice 0). It would decide:
+Yes, one ADR before slice 7, drafted in slice 0 as
+[ADR-0135](../decisions/0135-retention-row-destruction.md) (proposed; number confirmed at merge). It decides:
 
 1. **Row destruction**: soft delete through a retention-only column (option A) or `deleted_at` (option
    B), a grace period, then hard delete or column clearing, with a signed certificate per batch, class
