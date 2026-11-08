@@ -46,3 +46,5 @@ anything.
   and new people start as an enquiry (see
   [How to record an enquiry](../registered-manager/record-an-enquiry.md)). Changing allergies or
   the photo is not on the web yet.
+- On the phone, see
+  [How to check the person before you give care on the phone](check-the-person-before-you-act-on-the-phone.md).

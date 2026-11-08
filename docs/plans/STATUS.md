@@ -39,6 +39,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## User guides: Care mode on the phone (08/11/2026)
+
+`docs/guides-mobile-care-mode`, from `main` at ea6fc04d: 19 guides for the phone's Care mode
+(sign-in, lock, shared devices, Today and People, checking the person, notes, charts, vital signs,
+the body map, corrections, the round, the handover, the sync banner, entries not saved, unsent
+entries, sign-out, device safety, a lost phone, and a manager's hand-over of held entries), linked
+from the role indexes, the guides README and the user docs column of MOB-001, 002, 005, 006, 009 and
+010. Kiosk sign-in, phone incidents, the conflict review, root detection and device withdrawal have
+no screen yet. Gaps, hard-coded strings and what the guides found on screen (shared devices unlock
+with device biometrics; switching user offline deletes unsent entries): see
+`docs/changelog-dev/2026-11-08-docs-guides-mobile-care-mode.md`.
+
 ## User guides: Phase 2 gaps (08/11/2026)
 
 `docs/guides-phase-2-gaps`, from `main` at ea6fc04d: 24 new guides for screens that merged after
@@ -138,9 +150,10 @@ rate key `supervision.due_window_days`; WORK-005, 008, 009 and 012 corrected fro
 an ADR on whether development reads (the training matrix and the supervisions list) follow
 attribute scope (location, team) rather than organisation-wide HR (migration 0073); a
 least-privilege question the lead kept out of WORK-009 (08/11/2026).
-**Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
-phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
-and 1 once #193 has its numbers.
+**Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
+handling of a 409) in #205; its web journey and a navigation entry for the page in
+`feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
+tab); retention slices 0 and 1 once #193 has its numbers.
 
 ## Doses recorded twice and corrections on the web (08/11/2026)
 

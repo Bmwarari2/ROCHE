@@ -8190,5 +8190,8 @@
   "payTime.absence.decide.statutory": "The law does not let you refuse this leave.",
   "payTime.absence.decide.tooLateError": "The new first day must be no later than {latest}.",
   "payTime.absence.postponedFrom": "Given on new dates after a postponement.",
-  "payTime.absence.postponedTo": "New dates: {from} to {to}."
+  "payTime.absence.postponedTo": "New dates: {from} to {to}.",
+  "medicines.cdRecording.chooseNone": "You do not work at any home, so there is nothing to choose.",
+  "medicines.cdRecording.choose": "Choose the home where you want to see or change which register is the record for controlled drugs.",
+  "shell.nav.medicinesSettings": "Controlled drug recording"
 }
