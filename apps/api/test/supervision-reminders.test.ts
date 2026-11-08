@@ -65,6 +65,20 @@ const reminders = (memberId: string, kind = "supervision") =>
     [memberId, kind],
   );
 
+type AuditRow = { resource_id: string; scope: Record<string, unknown> };
+const audits = (change: "raised" | "cancelled", tenantId: string = DEMO.tenantId) =>
+  sql<AuditRow>(
+    `SELECT resource_id, scope FROM audit_event
+      WHERE action = $1 AND scope->>'kind' = 'workforce.supervision_due' ORDER BY seq`,
+    [`workforce.reminder.${change}`],
+    tenantId,
+  );
+const taskIds = (memberId: string) =>
+  sql<{ id: string }>(
+    "SELECT id FROM task WHERE kind = 'workforce.supervision_due' AND source_id = $1 ORDER BY created_at",
+    [memberId],
+  );
+
 const deps = () => ({
   workerPool: h.db.pool("harbour_worker"),
   appDb: createDatabase(h.db.pool("harbour_app")),
@@ -113,6 +127,26 @@ describe("WORK-009 supervision and appraisal reminders (workforce.md rule 7)", (
       remindSupervisionsDue(deps(), overdue),
     ]);
     expect((await reminders(CARER)).map((r) => r.details.reminderDueOn)).toEqual([dueOn]);
+    // One audit event for the one task, as the system, with its key and opaque ids only.
+    const [only] = await taskIds(CARER);
+    const raised = (await audits("raised")).filter((a) => a.resource_id === only?.id);
+    expect(raised).toEqual([
+      {
+        resource_id: only?.id,
+        scope: {
+          actor: "system",
+          job: "supervision-reminders",
+          kind: "workforce.supervision_due",
+          memberId: CARER,
+          meetingKind: "supervision",
+          reminderDueOn: dueOn,
+        },
+      },
+    ]);
+    // A run that raises nothing writes nothing.
+    const before = (await audits("raised")).length;
+    expect(await remindSupervisionsDue(deps(), overdue)).toBe(0);
+    expect(await audits("raised")).toHaveLength(before);
   });
 
   it("raises one reminder for HR's role when a supervision is overdue, and only once", async () => {
@@ -144,6 +178,19 @@ describe("WORK-009 supervision and appraisal reminders (workforce.md rule 7)", (
     expect((await reminders(CARER)).map((r) => r.status)).toEqual(["open"]);
     await hold(CARER, "supervision", day(0));
     expect((await reminders(CARER)).map((r) => r.status)).toEqual(["cancelled"]);
+    const [cancelled] = await taskIds(CARER);
+    expect(
+      (await audits("cancelled")).filter((a) => a.resource_id === cancelled?.id),
+    ).toMatchObject([
+      {
+        scope: {
+          actor: "system",
+          cause: "meeting_recorded",
+          memberId: CARER,
+          meetingKind: "supervision",
+        },
+      },
+    ]);
     const next = await nextSupervisionDue(CARER);
     expect(next > first).toBe(true);
     // Not yet due: nothing new.
@@ -171,6 +218,15 @@ describe("WORK-009 supervision and appraisal reminders (workforce.md rule 7)", (
       OTHER.tenantId,
     );
     expect(Number(elsewhere[0]?.n)).toBe(0);
+    // Nor any audit event about them in another organisation.
+    for (const change of ["raised", "cancelled"] as const) {
+      expect(
+        (await audits(change, OTHER.tenantId)).filter(
+          (a) => a.scope.memberId === CARER || a.scope.memberId === NURSE,
+        ),
+      ).toEqual([]);
+    }
+    expect((await audits("raised")).length).toBeGreaterThan(0);
   });
 
   it("takes the window from the rate table: none outside it, one inside it", async () => {

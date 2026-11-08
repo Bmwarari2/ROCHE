@@ -606,6 +606,12 @@ supervision records themselves (migration 0114); see Known gaps. Once twice: the
 recording a meeting take a transaction advisory lock on `workforce.supervision_reminders` and the
 organisation, so two sweeps at once (pg-boss may run the job twice, or retry it) raise one task,
 and the sweep checks again inside the lock, just before raising, that no meeting has been held.
+Each task raised and each reminder cancelled writes an append-only audit event in the same
+transaction (`workforce.reminder.raised`, `workforce.reminder.cancelled`; section 5.5): resource the
+task, actor the system, the job (`supervision-reminders`, `development-reminders`) or the cause
+(`meeting_recorded`, `recorded_again`), and the reminder's key (the member's id, the task kind, the
+meeting kind or topic or competence, the due date): opaque ids and codes only. The training and
+competence reminders write the same events.
 
 Expiry tasks (rule 1): the `staff-file-expiry-reminders` job runs hourly. For each item with an
 expiry or a re-check date, at `document_expiry.reminder_days.first`, `.second` and `.third` days
@@ -1014,8 +1020,7 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | --- | --- | --- |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
 | Development reads (the training matrix and the supervisions list) are organisation-wide for their readers (migration 0073) | Every holder of a workforce read permission sees every home's staff; the home filter narrows the view only | A separate ADR deciding whether development reads follow attribute scope (location, team) rather than organisation-wide HR: a least-privilege question, not part of WORK-009 |
-| Supervision and appraisal reminders are seen at every home | A reminder has no location, so holders of `workforce.supervision.manage` at any home see it (migration 0079), more widely than supervision records (migration 0114). Giving it the member's home is not enough: row-level security shows a task with a location to everyone whose scope reaches that home, whatever they hold (0008's `app.task_visible`), and the tasks API checks the permission only to complete one | A task visibility rule that also needs the task's permission at its location, decided with the security reviewer (a policy change), then the member's home on the reminder |
-| The workforce reminder jobs write no audit events | Training, competence and supervision reminders are raised and cancelled by the system without an `audit_event` (the task rows and their history stand as the record) | One audit event when a workforce reminder is raised or cancelled, with opaque ids only, for all three together |
+| Supervision and appraisal reminders are seen at every home | A reminder has no location, so holders of `workforce.supervision.manage` at any home see it (migration 0079), more widely than supervision records (migration 0114). Kept as it is (lead, 08/11/2026): a location on the task would show it to everyone whose scope reaches that home, whatever they hold (0008's `app.task_visible`) | Settled by the follow-up ADR on attribute scope, which covers development reads and reminder task visibility together |
 | Supervision and appraisal reminders go to HR's role, not the member's line manager | Shown on the training record (slice 57), across staff on `/training/supervisions` and raised as reminder tasks for holders of `workforce.supervision.manage` (WORK-009, 08/11/2026) | Address the reminder to the member's line manager once the staff file records one |
 | Supervision notes are not read by tenant-wide roles (owner, group executive) for holding `workforce.supervision.manage` alone (slice 57, ADR-0114) | They see that a supervision happened, not what was said | A separate note permission, if wanted (H-1044) |
 | The matrix offers the built-in roles as filters; an organisation's own roles show by key on the requirements screen (slice 57) | A custom role's key, not its name, shows | A roles list in the API (with the role design screens) |

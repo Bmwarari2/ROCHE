@@ -1,5 +1,6 @@
 import type { DevelopmentRecord, SupervisionsDue, TrainingMatrix } from "@harbour/contracts";
 import {
+  auditEvent,
   competenceSignOff,
   competenceWithdrawal,
   location,
@@ -56,6 +57,26 @@ export const SUPERVISION_DUE_TASK = "workforce.supervision_due";
 export const SUPERVISION_REMINDER_PERMISSION = "workforce.supervision.manage";
 /** Who the reminders go to: the built-in HR role (no person scope: the tasks are about no person). */
 export const DEVELOPMENT_REMINDER_ROLE = "hr";
+
+/**
+ * The audit event for a workforce reminder task the system raised or cancelled (section 5.5: every
+ * write): actor the system, the job or the cause, the reminder's idempotency key and the task id,
+ * opaque ids and codes only. In the transaction that wrote the task, for its organisation.
+ */
+async function auditReminder(
+  tx: Transaction,
+  change: "raised" | "cancelled",
+  taskId: string,
+  scope: Record<string, string | number>,
+): Promise<void> {
+  await tx.insert(auditEvent).values({
+    tenantId: sql`current_setting('app.tenant_id')::uuid`,
+    action: `workforce.reminder.${change}`,
+    resourceType: "task",
+    resourceId: taskId,
+    scope: { actor: "system", ...scope },
+  });
+}
 
 type Nation = "england" | "wales" | "scotland" | "northern_ireland";
 
@@ -431,26 +452,39 @@ export async function raiseDevelopmentReminders(
     );
     if (state.reminderDue === null) return;
     const nearest = Math.min(...reminderDays(rates));
-    await tx.insert(task).values({
-      kind,
-      title:
-        kind === TRAINING_EXPIRY_TASK
-          ? "Renew training before it expires"
-          : "Observe a competence again before it expires",
-      requiredPermission: DEVELOPMENT_REMINDER_PERMISSION,
-      sourceType: "tenant_user",
-      sourceId: memberId,
-      locationId: null,
-      assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
-      dueAt: ukEndOfDay(dueOn),
-      priority: state.reminderDue <= nearest ? "urgent" : "routine",
-      details: {
+    const [created] = await tx
+      .insert(task)
+      .values({
+        kind,
+        title:
+          kind === TRAINING_EXPIRY_TASK
+            ? "Renew training before it expires"
+            : "Observe a competence again before it expires",
+        requiredPermission: DEVELOPMENT_REMINDER_PERMISSION,
+        sourceType: "tenant_user",
+        sourceId: memberId,
+        locationId: null,
+        assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
+        dueAt: ukEndOfDay(dueOn),
+        priority: state.reminderDue <= nearest ? "urgent" : "routine",
+        details: {
+          memberId,
+          ...subject,
+          reminderDueOn: dueOn,
+          reminderDays: state.reminderDue,
+        },
+      })
+      .returning({ id: task.id });
+    if (created) {
+      await auditReminder(tx, "raised", created.id, {
+        job: "development-reminders",
+        kind,
         memberId,
         ...subject,
         reminderDueOn: dueOn,
         reminderDays: state.reminderDue,
-      },
-    });
+      });
+    }
     raised += 1;
   };
   const left = new Set(
@@ -523,6 +557,14 @@ export function endDevelopmentReminders(
         ),
       )
       .returning({ id: task.id });
+    for (const t of ended) {
+      await auditReminder(tx, "cancelled", t.id, {
+        cause: "recorded_again",
+        kind,
+        memberId,
+        [key]: value,
+      });
+    }
     return ended.length;
   });
 }
@@ -908,21 +950,33 @@ export async function raiseSupervisionReminders(
           ),
         );
       if ((latest?.heldOn ?? null) !== lastHeldOn) continue;
-      await tx.insert(task).values({
-        kind: SUPERVISION_DUE_TASK,
-        title:
-          reminder.kind === "supervision"
-            ? "Hold a supervision that is due"
-            : "Hold an appraisal that is due",
-        requiredPermission: SUPERVISION_REMINDER_PERMISSION,
-        sourceType: "tenant_user",
-        sourceId: id,
-        locationId: null,
-        assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
-        dueAt: ukEndOfDay(reminder.dueOn),
-        priority: reminder.priority,
-        details: { memberId: id, meetingKind: reminder.kind, reminderDueOn: reminder.dueOn },
-      });
+      const [created] = await tx
+        .insert(task)
+        .values({
+          kind: SUPERVISION_DUE_TASK,
+          title:
+            reminder.kind === "supervision"
+              ? "Hold a supervision that is due"
+              : "Hold an appraisal that is due",
+          requiredPermission: SUPERVISION_REMINDER_PERMISSION,
+          sourceType: "tenant_user",
+          sourceId: id,
+          locationId: null,
+          assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
+          dueAt: ukEndOfDay(reminder.dueOn),
+          priority: reminder.priority,
+          details: { memberId: id, meetingKind: reminder.kind, reminderDueOn: reminder.dueOn },
+        })
+        .returning({ id: task.id });
+      if (created) {
+        await auditReminder(tx, "raised", created.id, {
+          job: "supervision-reminders",
+          kind: SUPERVISION_DUE_TASK,
+          memberId: id,
+          meetingKind: reminder.kind,
+          reminderDueOn: reminder.dueOn,
+        });
+      }
       raised += 1;
     }
   }
@@ -956,6 +1010,14 @@ export function endSupervisionReminders(
         ),
       )
       .returning({ id: task.id });
+    for (const t of ended) {
+      await auditReminder(tx, "cancelled", t.id, {
+        cause: "meeting_recorded",
+        kind: SUPERVISION_DUE_TASK,
+        memberId,
+        meetingKind: kind,
+      });
+    }
     return ended.length;
   });
 }

@@ -22,9 +22,12 @@ Branch `feat/workforce-supervision-reminders`, built on slice 1 (`feat/workforce
 - Security review: a per-organisation transaction advisory lock around the sweep and around closing
   reminders when a meeting is recorded, so two sweeps at once raise one task (tested with two at
   once); a check inside the lock, just before raising, that no meeting has been held since. Not
-  done, and recorded in the known gaps: putting the member's home on the reminder (row-level
-  security would then show it to everyone at that home, whatever they hold, so the visibility rule
-  must change first, which needs a decision) and audit events for the workforce reminder jobs (none
-  of the three write one today).
+  done: putting the member's home on the reminder (the lead kept the visibility as it is; the
+  follow-up ADR on attribute scope now covers reminder task visibility too).
+- Audit (section 5.5): each reminder raised and each cancelled writes an audit event in the same
+  transaction (`workforce.reminder.raised`, `workforce.reminder.cancelled`; actor the system, the
+  job or the cause, the reminder's key and the task id, opaque ids only), for the supervision
+  reminders and for the training and competence reminders alike. Tested: one per task raised,
+  none for a run that raises nothing, one per cancellation, none in another organisation.
 
 No migration, no new personal data, no web change (the tasks page shows a task's own title).
