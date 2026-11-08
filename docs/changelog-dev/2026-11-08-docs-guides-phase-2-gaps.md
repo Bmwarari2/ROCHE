@@ -134,7 +134,7 @@ A clinical safety review and an accessibility review of this branch; their findi
   box wording; evidence pack redaction and release by someone else; suspension signs out
   everywhere unless they also work for another organisation; "beside **Shifts**" dropped from the
   phone training guides.
-- **CSO decisions** logged in `docs/plans/human-actions.md` as H-NEW-G1 to H-NEW-G6 (numbered at
+- **CSO decisions** logged in `docs/plans/human-actions.md` as H-1590 to H-1595 (numbered at
   merge), each provisional pending CSO review at the testing phase (ADR-0132): recording a
   controlled drug dose once recording is on (G1), the register PDF footer (G2), a controlled drug
   leaving with the person (G3), allergies and the photo not recordable on the web, a pre-pilot
@@ -142,8 +142,8 @@ A clinical safety review and an accessibility review of this branch; their findi
   the training control (G6).
 - **Product fixes needed**:
   - The turned-on round notice (`medicines.round.cdNoticeTurnedOn`) points to a register that
-    cannot record a dose given (H-NEW-G1).
-  - The register PDF footer names the eMAR, not the record that applies at the home (H-NEW-G2).
+    cannot record a dose given (H-1590).
+  - The register PDF footer names the eMAR, not the record that applies at the home (H-1591).
   - No screen shows or sets controlled drug recording for a home (H-1518).
   - `people.exit.archiveConfirmButton` "Yes, archive the record" breaks `packages/ui/CONTENT.md`.
   - `safety.notification.deadline` says "Thapsus Care's target" where the candour record says
