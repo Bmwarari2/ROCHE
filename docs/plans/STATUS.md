@@ -32,6 +32,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Retention sweep rules (08/11/2026)
+
+`feat/platform-retention-rules` (retention sweeps plan slice 1, on #193), from `main` at ea6fc04d: the
+six pure domain rules of plan section 5.2 with table-driven tests per class; no database and no record
+changes. See `docs/changelog-dev/2026-11-08-feat-platform-retention-rules.md`.
+
 ## Paused 07/11/2026: where to resume on Sunday 08/11 at 08:00
 
 The owner paused every session at about 11:00 on 07/11 (UK time). Work in progress was finished
