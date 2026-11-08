@@ -54,6 +54,35 @@ export function defaultCdWitnessPolicy(service: ServiceType): CdWitnessPolicy {
     : "where_available";
 }
 
+const SERVICE_TYPES: ReadonlySet<string> = new Set<ServiceType>([
+  "residential",
+  "nursing",
+  "supported_living",
+  "domiciliary",
+  "complex_care",
+  "live_in",
+  "respite",
+  "day_service",
+  "childrens_home",
+]);
+
+/**
+ * A home's witness policy from its active services (medicines.md rule 27): the strictest of them,
+ * and `required` when it runs none or one this code does not know. The API and the phone both use
+ * this, so the phone never offers what the register then refuses (HZ-116).
+ */
+export function witnessPolicyForServices(types: readonly (string | null)[]): CdWitnessPolicy {
+  if (types.length === 0) return "required";
+  return types.every(
+    (type) =>
+      type !== null &&
+      SERVICE_TYPES.has(type) &&
+      defaultCdWitnessPolicy(type as ServiceType) === "where_available",
+  )
+    ? "where_available"
+    : "required";
+}
+
 /** The page a controlled drug's entries go on: the person and the dm+d VMP (drug, form and strength). */
 export function cdPageKey(personId: string, product: Pick<DmdProductRef, "vmpId">): string {
   return `${personId}|${product.vmpId}`;

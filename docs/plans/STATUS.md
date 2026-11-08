@@ -32,12 +32,105 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Paused 07/11/2026: where to resume on Sunday 08/11 at 08:00
+
+The owner paused every session at about 11:00 on 07/11 (UK time). Work in progress was finished
+or committed and pushed; nothing is uncommitted. The owner expects plans for new integrated
+projects on 08/11. Main ends at migration 0152 (after #190 and #191).
+
+**Merged on 07/11:** #174 to #187, #189, #190 and #191 (batch 3c, the sync buckets per home, no SMS at
+launch, the dm+d job, batch 4, the rename to Thapsus Care, the add-migration skill, the
+workforce, medicines and safety guides, the Training tab, the scheduling spec headings, the paper
+register until controlled drug recording is turned on, absconding opening a missing person
+episode, and the DPIA section 7B for Phase 2).
+
+**Open pull requests, in merge order.** Each migration takes the next free number at merge
+(migration-journal test).
+
+1. **#188** (slices 69 and 70, `feat/mobile-meds-cd-offline`, head `3fe419cd`, migration 0153).
+   Reviewed. Since #187 merged, it conflicts in `apps/api/src/routes/medicine-administrations.ts`
+   (two hunks) and in the generated `openapi.json` and `api-types.ts`. Resolve each hunk by keeping
+   #187's `requireCdRecording` call first, then #188's `requireCdSignatures` with the device
+   header. Then regenerate the OpenAPI document and the client, and run the API tests on a private
+   Postgres. Ask the clinical reviewer to confirm that a device-signed dose at a home where
+   recording is off gets the audited 409 and becomes a refused entry with an urgent review.
+   `3fe419cd` also records the CD witness schema correction in `openapi-breaking-ignore.txt`. The
+   null alternative the API never accepted is no longer in the document. All of CI passed on `3fe419cd`
+   before #187 merged.
+2. **#197** (H-1555, `fix/scheduling-clock-evidence-dpia`, `5df65b77`, label `data-protection`).
+   A security fix: clock evidence and lone-worker location only under a signed DPIA. Renumber its
+   migration after #188. Two DPO decisions are noted in the PR.
+3. **#192** (leave postponement, `554f6689`, label `data-protection`). Renumber its migration.
+   Approved by the security and accessibility reviewers.
+4. **#195** (Care Certificate and revalidation separation of duties, `2bd0bc65`). Renumber its two
+   migrations. Approved; the journeys were not re-run on the last commit.
+5. **#198** (Regulation 28 date sent and the coroner's extension, SAFE-016, `cfe310c4`).
+   Migration 0157 is provisional. The due date stays at 56 days after the date sent (reg 29(4));
+   the clinical reviewer confirmed it. H-1570 to H-1572.
+6. **#194** (copy from the slice 83 guides review, label `clinical`, `189899ba`). It conflicts with
+   main again after #191, in `record-a-missing-person.md`, and its unit job failed on that head.
+   Merge main and re-run.
+7. **#196** (a police call recorded after the person is found, HZ-127, `919ed6d2`, label
+   `clinical`). Expect conflicts with #194 in human actions and the HZ-127 rows.
+8. **#193** (retention sweeps plan, docs only, `19cc1e08`). It needs an ADR number (before
+   slice 7), 7 more H-numbers for its 12 DPO questions, and the lead's call on whether those
+   questions are provisional with recommended answers or open.
+
+**Pushed, no pull request yet:**
+
+- `feat/safety-death-step-corrections` at `8030db38` (item 3 of the slice 83 review gaps): domain
+  rules only. Still to do: the migration (`supersedes_id` and a reason on `death_step`), the API,
+  the history struck through on the web, the line-list reason, docs and the reviewers. Item 4 (a
+  narrower incident permission) is not started.
+- `docs/guides-medicines-phone` at `9c2b6178`: the 7 phone guides for slices 69 and 70. Rebase
+  them after #188 merges.
+
+**The Thapsus suite plan** (Finance, CRM and ERP, and how Care joins): `docs/plans/thapsus-suite.md`
+and slices S.1 to S.6 for Care are on branch `claude/thapsus-systems-dev-plan-2rkfaj`, with no
+pull request. Nothing is scheduled until the owner approves the plans.
+
+**Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
+phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
+and 1 once #193 has its numbers.
+
+## Retention sweeps: plan (07/11/2026)
+
+`feat/platform-retention-sweeps`: `docs/plans/retention-sweeps.md`, a draft inventory and plan for
+destroying Phase 2 records when their retention class ends. Nothing destroys database rows today;
+133 of the 135 Phase 2 tables with personal data are never swept. 15 slices, report only first;
+an ADR and 12 DPO questions come before any record is destroyed.
+Slice 0 done (08/11/2026, docs only): ADR-0135 proposed, retention.md mapping de-duplicated and complete,
+retention-and-deletion.md matches today, the 12 questions logged with provisional answers (H-1556 to H-1560, H-1581 to H-1587).
+
+## User guides: safety, quality and platform, second pass (07/11/2026)
+
+`docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
+(outbreaks, deaths, missing persons, disclosures, importing medicines, care plans and staff checks)
+and about 30 brought up to `main`, linked from the indexes and the register. Gaps and findings:
+`docs/changelog-dev/2026-11-07-docs-guides-safety-quality-platform-2.md`.
+
+## DPIA for the Phase 2 processing (07/11/2026)
+
+`feat/platform-dpia-phase-2` (Phase 2 slice 84), from `main` at daa038a7: DPIA section 7B, the R20
+to R29 rows and the prefill's tests now match what is on `main` (still a draft for the DPO).
+H-1552 to H-1555; H-1555 (clock-in evidence switched on by a self-declared tick) is a security fix
+before any tenant turns location evidence on. See
+`docs/changelog-dev/2026-11-07-feat-platform-dpia-phase-2.md`.
+
+## User guides: workforce and scheduling (07/11/2026)
+
+`docs/guides-workforce-scheduling` (Phase 2 slice 82), from `main` at b65e7b61: 63 guides for the
+HR lead (new role folder), Registered Manager, senior carer, care worker (web and phone) and owner,
+linked from the role indexes, the guides README and the register's user docs column. Rows with no
+screen yet, and what the guides found in the screens, are in
+`docs/changelog-dev/2026-11-07-docs-guides-workforce-scheduling.md`.
+
 ## User guides: medicines (07/11/2026)
 
 `docs/guides-medicines` (Phase 2 slice 81), from `main` at b65e7b61: 24 web guides for slices 50
-and 52 to 55 and 7 phone guides for slices 69 and 70 (from `feat/mobile-meds-cd-offline`, final
-once that pull request merges), for the care worker, nurse and Registered Manager, linked from the
-indexes and the register. Gaps and findings: `docs/changelog-dev/2026-11-07-docs-guides-medicines.md`.
+and 52 to 55, for the care worker, nurse and Registered Manager, linked from the indexes and the
+register. The 7 phone guides for slices 69 and 70 wait on `docs/guides-medicines-phone` until
+`feat/mobile-meds-cd-offline` and its fixes merge. Gaps and findings: `docs/changelog-dev/2026-11-07-docs-guides-medicines.md`.
 
 ## Product rename: Thapsus Care (07/11/2026)
 
@@ -589,7 +682,10 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
+- slice 72 leftovers, `feat/mobile-training-placement`: Training tab beside Shifts (H-1365 done); Welsh strings H-1526; tab bar H-1527; Android Maestro run not done (no emulator here);
 - slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0147; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
+- slice 69 the medicines round on the phone, `feat/mobile-meds-round` (no migration; ADR-0081; H-1432 to H-1438; on slice 68): the round shared with the API, GS1 pack scan and photo confirmation, offline records judged at the phone's time, integrity gate, reminders; MOB-007, MEDS-002 partial; Maestro flow written, not run;
+- slice 70 controlled drugs, corrections and conflicts on the phone, `feat/mobile-meds-cd-offline` (0153 for now, the integrator renumbers; ADR-0084; H-1439, H-1440, H-1521 to H-1525; on slice 69): PIN keys per member and phone, two signatures verified on upload, referenced corrections, conflict review; MOB-007, MEDS-005 partial; Maestro flows written, not run;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
 - slice 71 shifts, clock and lone working on the phone, `feat/mobile-shifts-checkins` (0139; HZ-125; H-1310 to H-1319): streams, phone screens, offline queue; MOB-007 partial;

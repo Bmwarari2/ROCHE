@@ -1,7 +1,7 @@
 # How to order medicines for the next cycle
 
 Medicines are ordered from the pharmacy once a cycle, usually every 28 days. Each order lists, for
-each person, the medicines on their MAR and how much to order.
+each person, the medicines on their MAR (medicines administration record) and how much to order.
 
 **Who can do this**: nurses (clinical lead or nurse), deputy managers, Registered Managers and
 owners. Staff who give medicines can see the orders but not change them.

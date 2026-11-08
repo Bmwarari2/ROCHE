@@ -8,7 +8,7 @@ it read-only.
 confirmed by people who review the link. The page is shown only when the link is turned on for your
 organisation.
 
-**Register rows**: INTG-014.
+**Register row**: INTG-014.
 
 ## Steps
 

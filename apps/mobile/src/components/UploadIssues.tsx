@@ -48,6 +48,7 @@ export function UploadIssues({ personId }: { readonly personId?: string }) {
             ) : null}
             <Text variant="bodyDense">{item.reason}</Text>
             {item.content ? <Text variant="bodyDense">{item.content}</Text> : null}
+            {item.advice ? <Text variant="bodyDense">{item.advice}</Text> : null}
             {item.copy ? (
               <Text variant="bodyDense" tone="secondary">
                 {item.copy}

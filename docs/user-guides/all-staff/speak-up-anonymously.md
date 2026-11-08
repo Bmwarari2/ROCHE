@@ -47,7 +47,8 @@ agency workers and visitors.
 - If something is putting a person in danger now, tell the person in charge or call the
   emergency services. The lead is told in Thapsus Care that a concern has arrived,
   naming nobody, but may not read it straight away.
-- You can also speak up outside the organisation, to the National Guardian's Office or a prescribed
-  person such as the Care Quality Commission.
+- You can also speak up outside the organisation. The Care Quality Commission is the prescribed
+  person for care services, and Protect, a charity, gives free, confidential advice about speaking
+  up.
 - The rules: [safety specification, web screens](../../specs/safety.md#web-screens-phase-2-slice-62)
   and [ADR-0089](../../decisions/0089-restricted-silos-whistleblowing.md).

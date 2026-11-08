@@ -1,7 +1,7 @@
 # How to add a medicine to the MAR
 
 Adding a medicine copies it from its source, such as a prescription or a pharmacy label, onto the
-person's MAR. It stays "Not yet checked" until a second person checks it against the source.
+person's MAR (medicines administration record). It stays "Not yet checked" until a second person checks it against the source.
 
 **Who can do this**: nurses (clinical lead or nurse), deputy managers, Registered Managers and
 owners. Senior carers and care workers cannot, unless your organisation's own role adds it.
@@ -15,8 +15,8 @@ owners. Senior carers and care workers cannot, unless your organisation's own ro
 3. Under **Medicine**, type part of the name in **Find the medicine** and choose **Search
    medicines**. Under **Choose the medicine**, choose the exact product, form and strength on the
    source, for example "Examplomol 500 mg tablets".
-4. Choose the **Route** and the **Dose unit**. Only what the NHS medicines list (dm+d) allows for
-   that product is offered.
+4. Choose the **Route** and the **Dose unit**. Only what the NHS medicines list, the NHS
+   dictionary of medicines and devices (dm+d), allows for that product is offered.
 5. Under **What kind of dose is it?**, choose **An amount**, **A range, for example 1 to 2** or
    **Variable, as directed**.
 6. Under **When is it given?**:

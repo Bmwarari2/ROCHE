@@ -1,0 +1,14 @@
+# The Training tab beside Shifts (slice 72 leftover, H-1365): a member with their own training
+# reaches it from the tab bar; the Settings link stays as a second way in (training-offline.yaml).
+# Needs the live API stack and a test member holding the training self permission. Written with the
+# tab and not yet run on a device or emulator.
+appId: uk.co.thapsus.harbour
+name: Training reached from its tab
+---
+- runFlow: sign-in.yaml
+- tapOn:
+    id: "tab-training"
+- extendedWaitUntil:
+    visible:
+      id: "training-screen"
+    timeout: 15000

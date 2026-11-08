@@ -102,6 +102,12 @@ afterAll(async () => {
   await h?.close();
 });
 
+// The phone's checks (ADR-0081): photo confirmation, and a pack with no barcode, with why.
+const POINT_OF_CARE = {
+  identity: "photo",
+  pack: { method: "override", override: { code: "no_barcode_on_pack", note: null } },
+};
+
 describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
   let entryId = "";
   let dueAt = "";
@@ -141,7 +147,7 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     expect(record?.state).toBe("due");
     dueAt = record?.dueAt as string;
     recordId = randomUUID();
-    const r = await give(recordId);
+    const r = await give(recordId, { pointOfCare: POINT_OF_CARE });
     expect(r.status, await r.clone().text()).toBe(201);
     const out = await json<Recorded>(r);
     expect(out.administration.flags).toContain("entry_not_yet_checked");
@@ -156,6 +162,33 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     const r = await give(randomUUID());
     expect(r.status).toBe(422);
     expect((await json<{ code: string }>(r)).code).toBe("administration_already_recorded");
+  });
+
+  it("hazard HZ-001 refuses a dose given from the phone without identity or pack checks (ADR-0081)", async () => {
+    const r = await give(randomUUID(), { pointOfCare: { identity: null, pack: null } });
+    expect(r.status).toBe(422);
+    const body = await json<{ code: string; detail: string }>(r);
+    expect(body.code).toBe("administration_identity_not_confirmed");
+    expect(body.detail).toContain("Scan the pack");
+    const scannedWithoutGtin = await give(randomUUID(), {
+      pointOfCare: { identity: "photo", pack: { method: "scanned" } },
+    });
+    expect((await json<{ code: string }>(scannedWithoutGtin)).code).toBe(
+      "administration_pack_not_checked",
+    );
+  });
+
+  it("keeps the phone's identity and pack checks with the record as its barcode evidence", async () => {
+    const stored = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ scan_evidence: unknown }>(
+            "SELECT scan_evidence FROM medication_administration WHERE id = $1",
+            [recordId],
+          )
+        ).rows[0],
+    );
+    expect(stored?.scan_evidence).toMatchObject(POINT_OF_CARE);
   });
 
   it("refuses a dose without its amount, or in another unit", async () => {
@@ -716,5 +749,97 @@ describe("hazard HZ-113 the dm+d rows a phone needs (slice 68; ADR-0130)", () =>
     // A quality lead reads records but does not give medicines.
     const quality = await send("quality", "/v1/medicines/device-subset");
     expect(quality.status).toBe(403);
+  });
+});
+
+describe("a dose recorded on a phone offline and sent later (slice 69; ADR-0081)", () => {
+  const DEVICE = { "x-harbour-device": "0194d000-0000-7000-8600-0000000000d1" };
+  /** A UUIDv7 carrying the given time, as the phone makes its record ids. */
+  const uuidV7At = (at: Date) => {
+    const hex = at.getTime().toString(16).padStart(12, "0");
+    const rest = randomUUID().replace(/-/g, "").slice(13);
+    const id = `${hex}7${rest}`;
+    return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20, 32)}`;
+  };
+  let entryId = "";
+  const post = (body: Record<string, unknown>, headers: Record<string, string> = DEVICE) =>
+    h.request(`/v1/people/${ADA}/medicine-administrations`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      headers,
+      body: { entryId, outcome: "given", amount: { quantity: 15, unitCode: ML.code }, ...body },
+    });
+
+  beforeAll(async () => {
+    const entry = await transcribe(ADA, {
+      product: LACTULOSE,
+      indication: "Constipation",
+      directions: {
+        kind: "when_required",
+        dose: { kind: "amount", quantity: 15, unit: ML },
+        maxQuantityPer24Hours: 30,
+      },
+    });
+    entryId = entry.id;
+  });
+
+  it("hazard HZ-001 refuses a phone's dose given with no identity or pack checks", async () => {
+    const at = new Date();
+    const r = await post({ id: uuidV7At(at), givenAt: at.toISOString() });
+    expect(r.status).toBe(422);
+    expect((await json<{ code: string }>(r)).code).toBe("administration_identity_not_confirmed");
+  });
+
+  it("hazard HZ-113 refuses a scanned pack that is not this medicine in dm+d", async () => {
+    const at = new Date();
+    const r = await post({
+      id: uuidV7At(at),
+      givenAt: at.toISOString(),
+      deviceRecordedAt: at.toISOString(),
+      pointOfCare: {
+        identity: "photo",
+        pack: { method: "scanned", gtin: "00000096385074" },
+      },
+    });
+    expect(r.status).toBe(422);
+    expect((await json<{ code: string }>(r)).code).toBe("administration_pack_mismatch");
+  });
+
+  it("hazard HZ-004 judges the dose at the time the phone recorded it, not when it arrived", async () => {
+    // Given 45 minutes ago, past the record delay tolerance, and sent only now.
+    const at = new Date(Math.max(Date.now() - 45 * MINUTE, today().getTime() + MINUTE));
+    const r = await post({
+      id: uuidV7At(at),
+      givenAt: at.toISOString(),
+      deviceRecordedAt: at.toISOString(),
+      pointOfCare: POINT_OF_CARE,
+    });
+    expect(r.status, await r.clone().text()).toBe(201);
+  });
+
+  it("refuses a recorded time that does not agree with the record's id, or from no device", async () => {
+    const at = new Date();
+    const wrong = await post({
+      id: uuidV7At(new Date(at.getTime() - 120 * MINUTE)),
+      givenAt: at.toISOString(),
+      deviceRecordedAt: at.toISOString(),
+      pointOfCare: POINT_OF_CARE,
+    });
+    expect((await json<{ code: string }>(wrong)).code).toBe(
+      "administration_device_recorded_at_invalid",
+    );
+    const web = await post(
+      {
+        id: uuidV7At(at),
+        givenAt: at.toISOString(),
+        deviceRecordedAt: at.toISOString(),
+        pointOfCare: POINT_OF_CARE,
+      },
+      {},
+    );
+    expect((await json<{ code: string }>(web)).code).toBe(
+      "administration_device_recorded_at_invalid",
+    );
   });
 });

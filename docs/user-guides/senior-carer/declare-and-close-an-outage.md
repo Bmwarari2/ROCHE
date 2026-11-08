@@ -2,7 +2,7 @@
 
 Declare an outage when Thapsus Care cannot be used, so paper records can be entered against it later.
 
-**Who can do this**: senior carers and team leaders, nurses, managers and the owner.
+**Who can do this**: team leaders or senior carers, nurses, managers and the owner.
 
 **Register row**: OPS-028.
 
@@ -12,7 +12,7 @@ Declare an outage when Thapsus Care cannot be used, so paper records can be ente
 2. Under **Declare an outage**, choose **What has stopped working?**, for example "Power cut" or
    "Network down".
 3. Under **What happened**, say what has stopped and what staff are doing instead (at least 10
-   characters). Do not write anyone's name: care workers can read this.
+   characters). Do not write anyone's name: care and support workers can read this.
 4. Enter **When did it start?** in UK time on the 24-hour clock.
 5. Leave **When did it end?** empty if it is still going on.
 6. Choose **Declare outage**. The Registered Manager is told.

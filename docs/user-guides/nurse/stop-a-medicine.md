@@ -1,6 +1,6 @@
 # How to stop a medicine
 
-Stopping a medicine takes it off the MAR from the time you give, on a prescriber's instruction.
+Stopping a medicine takes it off the MAR (medicines administration record) from the time you give, on a prescriber's instruction.
 
 **Who can do this**: nurses (clinical lead or nurse), deputy managers, Registered Managers and
 owners.

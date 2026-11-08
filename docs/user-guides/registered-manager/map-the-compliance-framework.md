@@ -1,19 +1,19 @@
 # How to read the compliance framework and map its statements
 
-The compliance framework is the regulator's set of key questions and quality statements that your
-evidence and audits are mapped to. Mapping gives each statement your own title, the role that owns
-it and the evidence you expect.
+The compliance framework is the regulator's set of key questions and quality statements, for
+example those of the Care Quality Commission (CQC), that your evidence and audits are mapped to.
+Mapping gives each statement your own title, the role that owns it and the evidence you expect.
 
 **Who can do this**: reading the framework: the Registered Manager, the deputy manager, the owner,
-the group executive and the quality and compliance lead. Saving the mapping: the Registered
-Manager, the deputy manager, the owner and the quality and compliance lead. Care workers, senior
-carers and nurses cannot.
+the group executive and the quality and compliance lead. Saving the mapping: the Registered Manager,
+the deputy manager, the owner and the quality and compliance lead. Care and support workers, team
+leaders or senior carers, and nurses cannot.
 
 **Register rows**: QUAL-001, QUAL-002.
 
 ## Steps
 
-1. In the side bar, choose **Framework and evidence**. The page **Compliance framework** lists
+1. In the menu, choose **Framework and evidence**. The page **Compliance framework** lists
    every version under **Versions**. The version in force today is marked **In force**; others
    show **Published**, **Draft** or **Retired**, with the date each took effect.
 2. Choose a version, for example **CQC single assessment framework, version 1**.
@@ -41,5 +41,5 @@ carers and nurses cannot.
   check it again and try once more.
 - To see which statements have evidence, choose **View evidence coverage** (see
   [How to check evidence coverage and its gaps](check-evidence-coverage.md)).
-- The rules: [quality spec section 17, rules 1 to 5](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012)
-  and [section 20](../../specs/quality.md#20-web-screens-framework-evidence-library-and-audits-slice-64-qual-001-qual-002-qual-004).
+- The rules are in the [quality specification](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012) and its
+  [framework screens](../../specs/quality.md#21-web-screens-framework-evidence-library-and-audits-slice-64-qual-001-qual-002-qual-004).

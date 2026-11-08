@@ -1,7 +1,8 @@
 # How to review and close an incident
 
 **Who can do this**: people who manage incidents: the Registered Manager, the deputy manager, the
-nurse or clinical lead, and the owner. Senior carers and care workers cannot.
+nurse or clinical lead, and the owner. Team leaders or senior carers, and care and support workers,
+cannot.
 
 **Register rows**: SAFE-001, SAFE-002.
 

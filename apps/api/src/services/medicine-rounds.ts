@@ -1,19 +1,12 @@
 import type { MedicineRound } from "@harbour/contracts";
 import { medicationAdministrationConflict, type Transaction, task } from "@harbour/db";
 import {
-  addUkDays,
-  doseNotices,
-  doseWindow,
-  entryVersionIds,
-  formatDose,
   isTimeCritical,
   type MarEntry,
   type MedicinesRates,
-  marEntryDoses,
-  marEntryStatus,
-  prnStatus,
-  SCHEDULED_DOSE_WORDS,
-  scheduledDoseState,
+  medicineRound,
+  type PendingConflict,
+  REVIEW_PENDING_WORDS,
 } from "@harbour/domain";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
@@ -23,8 +16,6 @@ import { publish } from "../outbox";
 import {
   type AdministrationRow,
   administrationOut,
-  effective,
-  givenDoses,
   personAdministrations,
   supersededBy,
   witnessesFor,
@@ -37,7 +28,6 @@ import { UNCHECKED_POLICY } from "./medicines";
  * each when-required medicine that may be given now, with when it was last given. The person and
  * location views share it.
  */
-const STATE_ORDER = { late: 0, due: 1, not_yet_due: 2, recorded: 3 } as const;
 
 /** Outcomes that mean the person took the dose. */
 export const TAKEN: ReadonlySet<string> = new Set([
@@ -46,13 +36,8 @@ export const TAKEN: ReadonlySet<string> = new Set([
   "given_by_family",
 ]);
 
-/** A dose with an open conflict, so the round says a review is waiting (clinical re-review H3). */
-export interface PendingConflict {
-  readonly medicationId: string;
-  readonly dueAt: Date;
-}
-
-export const REVIEW_PENDING_WORDS = "Recorded twice on different devices: waiting for review";
+export type { PendingConflict };
+export { REVIEW_PENDING_WORDS };
 
 /** The open first conflicts for a person, for the round. */
 export function pendingConflicts(tx: Transaction, personId: string): Promise<PendingConflict[]> {
@@ -82,88 +67,13 @@ export function roundFor(
   at: Date,
   now: Date,
 ): Pick<MedicineRound, "doses" | "whenRequired"> {
-  const pending = facts.pending ?? [];
-  const eff = effective(facts.rows);
-  const history = givenDoses(facts.rows, new Map(facts.entries.map((e) => [e.id, e])));
-  const doses = facts.entries
-    .flatMap((entry) => {
-      const versionIds = entryVersionIds(entry, facts.entries);
-      const status = marEntryStatus(entry, at, UNCHECKED_POLICY);
-      // The slot's doses, and any dose since the same UK clock time the day before that is still
-      // late or due, so an earlier dose is never off the round (clinical review M4; re-review H1
-      // and M6: a UK day back, not 24 hours, so a clock change moves nothing out of reach).
-      const reach = { from: addUkDays(range.from, -1), to: range.to };
-      return marEntryDoses(entry, reach).flatMap((d) => {
-        const window = doseWindow(d.dueAt, isTimeCritical(entry), facts.rates);
-        const recorded = eff.some(
-          (r) => versionIds.has(r.medicationId) && r.dueAt?.getTime() === d.dueAt.getTime(),
-        );
-        const state = scheduledDoseState(window, recorded, now);
-        if (
-          d.dueAt.getTime() < range.from.getTime() &&
-          (state === "recorded" || state === "not_yet_due")
-        ) {
-          return [];
-        }
-        const reviewPending = pending.some(
-          (p) => versionIds.has(p.medicationId) && p.dueAt.getTime() === d.dueAt.getTime(),
-        );
-        return [
-          {
-            entryId: entry.id,
-            productName: entry.product.name,
-            dueAt: d.dueAt.toISOString(),
-            date: d.date,
-            time: d.time,
-            // The weekday for a non-daily pattern, and a clock change moving or repeating the time
-            // (HZ-009, H-553; re-review H2).
-            dayName: d.dayName,
-            clockChange: d.clockChange,
-            doseInWords: formatDose(d.dose),
-            timeCritical: window.timeCritical,
-            state,
-            stateInWords: SCHEDULED_DOSE_WORDS[state],
-            reviewPending,
-            reviewInWords: reviewPending ? REVIEW_PENDING_WORDS : null,
-            opensAt: window.opensAt.toISOString(),
-            lateAfter: window.lateAfter.toISOString(),
-            notices: [...doseNotices(entry, facts.rates)],
-            entryStatus: status,
-          },
-        ];
-      });
-    })
-    // Late first, then due now, then not due yet, then recorded; time-critical first within each
-    // (HZ-003; clinical review M5), then by due time.
-    .sort(
-      (a, b) =>
-        STATE_ORDER[a.state] - STATE_ORDER[b.state] ||
-        Number(b.timeCritical) - Number(a.timeCritical) ||
-        a.dueAt.localeCompare(b.dueAt),
-    );
-  const whenRequired = facts.entries
-    .filter(
-      (e) =>
-        e.directions.kind === "when_required" &&
-        e.withdrawn === null &&
-        marEntryStatus(e, at, UNCHECKED_POLICY).mayGive,
-    )
-    .map((entry) => {
-      const s = prnStatus(entry, entryVersionIds(entry, facts.entries), history, at, facts.rates);
-      return {
-        entryId: entry.id,
-        productName: entry.product.name,
-        lastGiven: s.lastGiven
-          ? { at: s.lastGiven.at.toISOString(), by: s.lastGiven.by, synced: s.lastGiven.synced }
-          : null,
-        givenInLast24Hours: s.givenInLast24Hours,
-        maxPer24Hours: s.maxPer24Hours,
-        remaining: s.remaining,
-        nextAllowedAt: s.nextAllowedAt?.toISOString() ?? null,
-        notices: [...s.notices],
-      };
-    });
-  return { doses, whenRequired };
+  // The phone runs the same round on its synced rows (slice 69); the server holds every record, so
+  // nothing here is "not on this device".
+  const round = medicineRound({ ...facts, policy: UNCHECKED_POLICY }, range, at, now);
+  return {
+    doses: round.doses,
+    whenRequired: round.whenRequired.map(({ lastDoseNotOnDevice: _, ...w }) => w),
+  };
 }
 
 export type ConflictRow = typeof medicationAdministrationConflict.$inferSelect;

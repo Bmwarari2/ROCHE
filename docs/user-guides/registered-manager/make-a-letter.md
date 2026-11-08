@@ -1,7 +1,7 @@
 # How to make a letter from the record
 
-**Who can do this**: the owner, Registered Manager, deputy and administrator. Incident follow-up
-letters also need permission to manage incidents.
+**Who can do this**: the owner, Registered Manager, deputy manager and administrator. Incident
+follow-up letters also need permission to manage incidents.
 
 **Register row**: COMMS-007.
 

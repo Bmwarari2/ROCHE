@@ -10,6 +10,13 @@ witness controlled drugs.
 
 **Register row**: MEDS-005.
 
+**Depends on**: H-1202 (controlled drug doses taken by the person themselves or given by family), still open (H-1541).
+
+> **Until your home's electronic controlled drugs register is turned on**, keep every controlled
+> drug record for your home (receipts, doses given, counts and returns) in the paper controlled
+> drugs register, and do not use these screens. One register is the record, so its balance is
+> never split between paper and Thapsus Care (H-1517).
+
 ## Steps
 
 1. Open the person's record and choose **Controlled drugs**.
@@ -17,8 +24,8 @@ witness controlled drugs.
    choose the **Medicine on the MAR chart** and choose **Open the register page**.
 3. Check **In stock** at the top of the page, and read the witness rule for your organisation
    under it.
-4. Do the movement with your witness watching. Your witness signs first, in their own session
-   (see [How to sign as a controlled drugs witness in the browser](../care-worker/sign-as-a-controlled-drugs-witness.md)).
+4. Do the movement with your witness watching. Your witness signs first, signed in as
+   themselves (see [How to sign as a controlled drugs witness in the browser](../care-worker/sign-as-a-controlled-drugs-witness.md)).
 5. Reload the page. Under **Record a movement**:
    - **What happened**: **Received**, **Returned to the pharmacy**, **Disposed of** or
      **Destroyed**.
@@ -40,7 +47,7 @@ always needs a witness.
 
 ## Important
 
-- **Controlled drugs need two different people and step-up confirmation.** You cannot use your own
+- **Controlled drugs need two different people, and you confirm it is you.** You cannot use your own
   signature, and a witness signature can be used only by the person it names, once, for a short
   time (HZ-116).
 - **The signature must match what you record**: the movement and the quantity. If it does not,
@@ -53,5 +60,6 @@ always needs a witness.
   [How to correct a controlled drugs register entry](correct-a-controlled-drugs-register-entry.md)
   (HZ-115).
 - Only a controlled drug can have a register page. Thapsus Care says if the medicine is not one.
-- Giving a controlled drug to the person is not recorded on the web yet. It is recorded on the
-  phone, with its witness. Each dose given that way appears on the register as **Given**.
+- Giving a controlled drug to the person cannot be recorded on the web. Until both the web and
+  the phone record controlled drugs for your home, every controlled drug record stays in the paper
+  register, with a witness, and the paper MAR (medicines administration record) (H-1517).

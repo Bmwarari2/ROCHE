@@ -15,7 +15,8 @@ owners.
 2. Choose **Homely remedy protocols for this home**, then **Add a protocol**.
 3. Copy the protocol exactly as the GP or pharmacist agreed it:
    - **Product**: the name and strength, for example "Examplomol 500 mg tablets".
-   - **NHS medicines code (dm+d), if known**: optional, but with it Thapsus Care can tell when the
+   - **NHS medicines code (dm+d), if known**: the code from the NHS dictionary of medicines and
+     devices. Optional, but with it Thapsus Care can tell when the
      person has the same product prescribed.
    - **What it is for**, **One dose**, **Unit** and **Most in 24 hours**.
    - **Shortest gap between doses, in hours** and **Days before the GP is asked**.
@@ -26,11 +27,11 @@ owners.
 
 ## Important
 
-- **Thapsus Care checks each dose against the protocol and recommends nothing.** It never compares
-  a remedy with the person's allergies or with the ingredients of their other medicines. Staff do
-  (HZ-007, HZ-120).
-- Without a dm+d code, Thapsus Care cannot check the remedy against the person's MAR at all, and
-  the dose form says so.
+- **Thapsus Care never decides a dose, an interaction or an allergy match.** It checks each dose
+  against the protocol and recommends nothing. It never compares a remedy with the person's
+  allergies or with the ingredients of their other medicines. Staff do (HZ-007, HZ-120).
+- Without a dm+d code, Thapsus Care cannot check the remedy against the person's MAR (medicines
+  administration record) at all, and the dose form says so.
 - Your organisation sets the most days allowed before the GP is asked and how far ahead the review
   may be. Thapsus Care refuses figures outside them, in its own words.
 - A protocol past its review date shows "Review overdue: not to be used until reviewed" and a dose

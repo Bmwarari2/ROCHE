@@ -3,17 +3,14 @@
 Your organisation asks you to read and sign the policies that apply to your role. Signing says you
 have read the version in force and will follow it.
 
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
-
-**Who can do this**: everyone on the staff whose role the policy names, including agency and bank
+**Who can do this**: everyone on the staff whose role the policy names, including agency or bank
 workers. Managers sign their own policies in the same way.
 
 **Register row**: QUAL-008.
 
 ## Steps
 
-1. In the side bar, choose **Policies**.
+1. In the menu, choose **Policies**.
 2. Under **To read and sign** you see each policy asked of you, with its version and "Asked of you
    since" the date. If there is nothing, it says "You have nothing to read and sign."
 3. Choose a policy. The page opens at **Version in force**.
@@ -34,5 +31,5 @@ workers. Managers sign their own policies in the same way.
 - Until you sign, Thapsus Care gives you a task called "Read and sign a policy" and reminds you again
   after a while. Signing completes it.
 - A signature cannot be changed or taken back.
-- The rules: [quality spec section 18, policy library](../../specs/quality.md#18-policy-library-and-read-and-sign-slice-25-qual-008-migration-0087),
-  and the hazard [HZ-128: staff follow a superseded policy or procedure](../../clinical-safety/hazard-log.md#hz-128-staff-follow-a-superseded-policy-or-procedure).
+- The rules are in the [quality specification](../../specs/quality.md#19-policy-library-and-read-and-sign-slice-25-qual-008-migration-0087), and the hazard log has
+  [HZ-128: staff follow a superseded policy or procedure](../../clinical-safety/hazard-log.md#hz-128-staff-follow-a-superseded-policy-or-procedure).

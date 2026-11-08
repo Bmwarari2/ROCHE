@@ -1,6 +1,8 @@
 # User guides: nurse
 
-For nurses and clinical leads. You can do everything a senior carer does, and the tasks below. You manage incidents but cannot record a statutory notification as submitted: the Registered Manager does that.
+For nurses and clinical leads. You can do everything a team leader or senior carer does, and the
+tasks below. You manage incidents but cannot record a statutory notification as submitted: the
+Registered Manager does that.
 
 ## Your guides
 
@@ -10,22 +12,32 @@ For nurses and clinical leads. You can do everything a senior carer does, and th
 - [How to add, review or close a risk assessment](add-a-risk-assessment.md)
 - [How to book and record a medication review](book-and-record-a-medication-review.md)
 - [How to change or withdraw a homely remedy protocol](change-or-withdraw-a-homely-remedy-protocol.md)
+- [How to close a missing person episode](close-a-missing-person-episode.md)
+- [How to close an outbreak](close-an-outbreak.md)
 - [How to correct a controlled drugs register entry](correct-a-controlled-drugs-register-entry.md)
 - [How to count controlled drugs stock](count-controlled-drugs-stock.md)
+- [How to declare an outbreak](declare-an-outbreak.md)
 - [How to dispose of medicines with a witness](dispose-of-medicines-with-a-witness.md)
-- [How to give a controlled drug on the phone](give-a-controlled-drug-on-the-phone.md)
+- [How to fill in the outbreak report](fill-in-the-outbreak-report.md)
+- [How to keep a death record](keep-a-death-record.md)
+- [How to keep an outbreak line list](keep-an-outbreak-line-list.md)
+- [How to log a disclosure request](log-a-disclosure-request.md)
 - [How to order medicines for the next cycle](order-medicines-for-the-next-cycle.md)
 - [How to print a controlled drugs register page](print-a-controlled-drugs-register-page.md)
 - [How to receive, return and count medicines stock](receive-return-and-count-medicines-stock.md)
 - [How to reconcile medicines](reconcile-medicines.md)
 - [How to record a controlled drug received, returned, disposed of or destroyed](record-a-controlled-drug-movement.md)
+- [How to record a coroner's report to prevent future deaths](record-a-coroners-report-to-prevent-future-deaths.md)
+- [How to record a mortality review](record-a-mortality-review.md)
 - [How to record a ReSPECT plan or DNACPR decision](record-a-resuscitation-decision.md)
 - [How to record a review or a change in need](record-a-review.md)
-- [How to review doses recorded twice on the phone](review-doses-recorded-twice-on-the-phone.md)
+- [How to release and hand over a disclosure pack](release-and-hand-over-a-disclosure-pack.md)
+- [How to review the records for a disclosure request](review-records-for-a-disclosure-request.md)
 - [How to run MUST, Waterlow or Braden, or ask the falls questions](run-a-validated-tool.md)
 - [How to second-check a medicine](second-check-a-medicine.md)
 - [How to set food and drink levels and the fluid target](set-food-and-drink-levels.md)
 - [How to stop a medicine](stop-a-medicine.md)
+- [How to write a Herbert Protocol profile](write-a-herbert-protocol-profile.md)
 - [How to write and publish a care plan](write-and-publish-a-care-plan.md)
 
 ## Everyone
@@ -43,30 +55,43 @@ For nurses and clinical leads. You can do everything a senior carer does, and th
 ## From the care worker guides
 
 - [How to add medication error details to an incident](../care-worker/add-medication-error-details-to-an-incident.md)
+- [How to answer a staff survey](../care-worker/answer-a-staff-survey.md)
+- [How to ask for help while lone working on the phone](../care-worker/ask-for-help-while-lone-working-on-the-phone.md)
+- [How to ask for leave](../care-worker/ask-for-leave.md)
 - [How to check a person's safeguarding measures](../care-worker/check-safeguarding-measures.md)
 - [How to check consent, capacity and DoLS](../care-worker/check-consent-capacity-and-dols.md)
+- [How to check in while lone working on the phone](../care-worker/check-in-while-lone-working-on-the-phone.md)
+- [How to check in while working alone on the web](../care-worker/check-in-while-working-alone-on-the-web.md)
 - [How to check the person's details before you give care](../care-worker/check-the-person-before-you-act.md)
-- [How to correct a medicines record on the phone](../care-worker/correct-a-medicines-record-on-the-phone.md)
+- [How to check your pay](../care-worker/check-your-pay.md)
+- [How to check your shifts](../care-worker/check-your-shifts.md)
+- [How to clock in and out on the phone](../care-worker/clock-in-and-out-on-the-phone.md)
+- [How to clock in and out on the web](../care-worker/clock-in-and-out.md)
 - [How to do a round](../care-worker/run-a-round.md)
+- [How to download a training course to the phone](../care-worker/download-a-training-course-to-the-phone.md)
 - [How to enter paper records after an outage](../care-worker/enter-paper-records-after-an-outage.md)
 - [How to give a homely remedy](../care-worker/give-a-homely-remedy.md)
 - [How to give a when-required (PRN) medicine in the browser](../care-worker/give-a-when-required-medicine-in-the-browser.md)
 - [How to give medicines in the browser round](../care-worker/give-medicines-in-the-browser-round.md)
-- [How to give medicines on the phone](../care-worker/give-medicines-on-the-phone.md)
+- [How to keep a missing person's timeline](../care-worker/keep-a-missing-person-timeline.md)
+- [How to keep a wellbeing check-in](../care-worker/keep-a-wellbeing-check-in.md)
 - [How to mark the body map](../care-worker/mark-the-body-map.md)
 - [How to print the MAR chart](../care-worker/print-the-mar-chart.md)
 - [How to raise a safeguarding concern](../care-worker/raise-a-safeguarding-concern.md)
 - [How to read and acknowledge the shift handover](../care-worker/read-and-acknowledge-the-handover.md)
+- [How to read the staff privacy notice and choose how your photo is used](../care-worker/check-your-privacy-choices.md)
 - [How to record a chart entry (fluids, food, repositioning, bowel, weight)](../care-worker/record-a-chart-entry.md)
 - [How to record a medicines fridge or room temperature](../care-worker/record-a-medicines-fridge-or-room-temperature.md)
 - [How to record a missing person](../care-worker/record-a-missing-person.md)
 - [How to record an activity or a visit](../care-worker/record-an-activity-or-visit.md)
 - [How to record an incident](../care-worker/record-an-incident.md)
 - [How to record vital signs and read the NEWS2 result](../care-worker/record-vital-signs.md)
-- [How to scan a medicine pack on the phone](../care-worker/scan-a-medicine-pack-on-the-phone.md)
-- [How to set a medicines PIN on the phone](../care-worker/set-a-medicines-pin-on-the-phone.md)
+- [How to see your shifts on the phone](../care-worker/see-your-shifts-on-the-phone.md)
 - [How to sign as a controlled drugs witness in the browser](../care-worker/sign-as-a-controlled-drugs-witness.md)
-- [How to witness a controlled drug on the phone](../care-worker/witness-a-controlled-drug-on-the-phone.md)
+- [How to start and finish lone working on the phone](../care-worker/start-and-finish-lone-working-on-the-phone.md)
+- [How to take a training course offline on the phone](../care-worker/take-a-training-course-offline-on-the-phone.md)
+- [How to take an e-learning course](../care-worker/take-an-e-learning-course.md)
+- [How to thank a colleague](../care-worker/thank-a-colleague.md)
 - [How to write a daily note](../care-worker/write-a-daily-note.md)
 
 ## From the senior carer guides
@@ -75,7 +100,11 @@ For nurses and clinical leads. You can do everything a senior carer does, and th
 - [How to print the downtime pack](../senior-carer/print-the-downtime-pack.md)
 - [How to publish a family update](../senior-carer/publish-a-family-update.md)
 - [How to record a death](../senior-carer/record-a-death.md)
+- [How to record a dependency category](../senior-carer/record-a-dependency-category.md)
+- [How to respond to a lone-working alarm](../senior-carer/respond-to-a-lone-working-alarm.md)
 - [How to send someone to hospital](../senior-carer/send-someone-to-hospital.md)
+- [How to sign off a competence you observed](../senior-carer/sign-off-a-competence.md)
+- [How to withdraw a competence sign-off](../senior-carer/withdraw-a-competence-sign-off.md)
 
 ## From the Registered Manager guides
 

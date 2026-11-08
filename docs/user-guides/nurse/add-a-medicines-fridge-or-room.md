@@ -24,4 +24,4 @@ owners.
   name.
 - Staff then record readings against it (see
   [How to record a medicines fridge or room temperature](../care-worker/record-a-medicines-fridge-or-room-temperature.md)).
-  An out-of-range reading raises an urgent task for the nurse in charge (HZ-132).
+  An out-of-range reading raises an urgent task for the nurse or senior in charge (whoever your home gives medicines record management) (HZ-132).

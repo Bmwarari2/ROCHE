@@ -5,13 +5,19 @@ the witness signs first, signed in as themselves, for what they saw. The person 
 chooses that signature when they record it.
 
 **Who can do this**: care workers, senior carers, nurses and managers, with current medicines
-competence. Agency and bank workers cannot witness controlled drugs.
+competence. Agency or bank workers cannot witness controlled drugs.
 
 **Register row**: MEDS-005.
 
+> **Until your home's electronic controlled drugs register is turned on**, keep every controlled
+> drug record for your home (receipts, doses given, counts and returns) in the paper controlled
+> drugs register, and do not use these screens. One register is the record, so its balance is
+> never split between paper and Thapsus Care (H-1517).
+
 ## Steps
 
-1. Sign in as yourself. Never sign in someone else's session, or let them use yours.
+1. Sign in as yourself. Never sign while someone else is signed in, and never let anyone else use
+   Thapsus Care while you are signed in.
 2. Open the person's record and choose **Controlled drugs**.
 3. Under **Register pages**, choose the drug.
 4. Watch the movement happen: the drug received, returned to the pharmacy, disposed of or
@@ -35,8 +41,9 @@ competence. Agency and bank workers cannot witness controlled drugs.
   (HZ-116).
 - The signature lasts a short time and can be used once. If it runs out, sign again.
 - If the page says "Nobody else here can record controlled drugs, so there is no one to sign for.",
-  ask the nurse in charge.
-- Giving a controlled drug to a person cannot be recorded on the web yet. It is recorded on the
-  phone, with its witness, or on paper.
+  ask the nurse or senior in charge (whoever your home gives medicines record management).
+- Giving a controlled drug to the person cannot be recorded on the web. Until both the web and
+  the phone record controlled drugs for your home, every controlled drug record stays in the paper
+  register, with a witness, and the paper MAR (medicines administration record) (H-1517).
 - The register is never changed. A mistake is put right with a correction, which you witness the
   same way (HZ-115).

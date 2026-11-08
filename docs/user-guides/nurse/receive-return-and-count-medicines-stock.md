@@ -21,7 +21,7 @@ owners. Staff who give medicines can see the balances but not change them.
 5. To record medicines returned, under **Return to the pharmacy**, fill in the quantity and choose
    **Record return**.
 6. To record a count, under **Count the stock**:
-   - **How many** tablets (or the medicine's unit) **you counted**, nought or more.
+   - **How many** tablets (or the medicine's unit) **you counted**, 0 or more.
    - **Why the count differs from the balance**: needed only when the count is not the balance
      shown.
    - Choose **Record count**.
@@ -29,15 +29,15 @@ owners. Staff who give medicines can see the balances but not change them.
 ## Important
 
 - **The balance is Thapsus Care's count**, never added up on your screen. **Below nought, count
-  needed** means the balance has gone below nought, so the records and the shelf do not agree.
-  Count the stock. Thapsus Care also raises a "Medicines stock count needed" task for the person in
+  needed** means the balance has gone below 0, so the records and the shelf do not agree.
+  Count the stock. Thapsus Care also raises a "Medicines stock count needed" task for the nurse in
   charge (HZ-003).
 - A count that differs from the balance changes the balance to your count, with your reason.
   Nothing else is changed.
 - **Controlled drugs are not counted here.** They are listed under **Controlled drugs** with the
   register's balance and a link to the register page.
 - A dose recorded as "Not available" because it is out of stock raises an urgent task for the
-  person in charge (HZ-003).
+  nurse in charge (HZ-003).
 - A receipt more than the order line asked for is allowed and shown as "more than ordered".
 - Stock has no expiry date in Thapsus Care yet. Check expiry dates on the packs.
 - To dispose of medicines, see
