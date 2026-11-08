@@ -43,6 +43,16 @@ lead asked for: a line manager reads their direct reports and a team lead their 
   ended lead membership, a non-lead member, a self-scoped role, a non-HR reader of version history;
   API concurrency and a line manager reading their own line.
 
+## Clinical re-check
+
+- The task policy is RESTRICTIVE FOR ALL, so its WITH CHECK now uses a new unwidened
+  `app.task_writable_for` (0161's behaviour) while USING keeps the reach: a cross-home line manager
+  sees a report's reminder but cannot change or complete it; HR can.
+- More HZ-119 refusals for a cross-home line manager or team lead: revalidation evidence, a training
+  certificate insert and update, being named or offered as revalidation confirmer, and a withdrawal
+  through training rights. The hazard log rows say reminder tasks are read-only through reporting
+  lines.
+
 ## Not in this PR
 
 - The screens to keep line managers and teams (PR 2, after this merges).

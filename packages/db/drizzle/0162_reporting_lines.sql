@@ -321,3 +321,34 @@ LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
     ELSE app.task_visible_with(p_person_id, p_location_id, p_assignee, p_required_permission)
   END
 $$;
+--> statement-breakpoint
+-- Reminder tasks are read-only through reporting lines (HZ-119; clinical re-check): the task policy
+-- is RESTRICTIVE FOR ALL, so its WITH CHECK, which every update and completion must pass, keeps the
+-- unwidened 0161 check. A line manager at another home sees a report's reminder but never changes
+-- or completes it; HR and holders whose scope covers the member still do.
+CREATE OR REPLACE FUNCTION app.task_writable_for(p_person_id uuid, p_location_id uuid,
+  p_assignee uuid, p_required_permission text, p_source_type text, p_source_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT CASE
+    WHEN p_source_type = 'tenant_user' AND p_source_id IS NOT NULL
+         AND p_person_id IS NULL AND p_location_id IS NULL
+         AND p_required_permission IN ('workforce.training.manage', 'workforce.competence.observe',
+           'workforce.supervision.manage', 'workforce.staff_file.read')
+      THEN app.task_visible(NULL, NULL, p_assignee)
+        OR app.holds_staff_permission_for(p_required_permission, p_source_id)
+    ELSE app.task_visible_with(p_person_id, p_location_id, p_assignee, p_required_permission)
+  END
+$$;
+--> statement-breakpoint
+ALTER POLICY task_scope ON public.task_series
+  USING (app.task_visible_for(person_id, location_id, assignee_tenant_user_id, required_permission,
+    source_type, source_id))
+  WITH CHECK (app.task_writable_for(person_id, location_id, assignee_tenant_user_id,
+    required_permission, source_type, source_id));
+--> statement-breakpoint
+ALTER POLICY task_scope ON public.task
+  USING (app.task_visible_for(person_id, location_id, assignee_tenant_user_id, required_permission,
+    source_type, source_id))
+  WITH CHECK (app.task_writable_for(person_id, location_id, assignee_tenant_user_id,
+    required_permission, source_type, source_id));

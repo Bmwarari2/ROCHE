@@ -22,7 +22,14 @@ const asSystem = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_A, null, "tenant"), fn);
 
 const id = (n: number) => `0199f400-0000-7000-8000-${String(n).padStart(12, "0")}`;
-const ROLE = { hr: id(501), home: id(502), staff: id(503), keyworker: id(504), selfie: id(505) };
+const ROLE = {
+  hr: id(501),
+  home: id(502),
+  staff: id(503),
+  keyworker: id(504),
+  selfie: id(505),
+  trainer: id(506),
+};
 const HR = id(601);
 const HOME = id(602);
 const LINE = id(603);
@@ -31,6 +38,7 @@ const LEAD = id(605);
 const BARE = id(606);
 const MGR_A = id(607);
 const SELFIE = id(608);
+const TRAINER = id(609);
 const W_NORTH = id(611);
 const W_SOUTH = id(612);
 const W_TEAM = id(613);
@@ -40,6 +48,7 @@ const WORKERS: readonly string[] = [W_NORTH, W_SOUTH, W_TEAM, W_OTHER, W_B];
 const TEAM = id(701);
 const OLD_TEAM = id(702);
 const DAY_TEAM = id(703);
+const TRAINERS = id(704);
 const B_HR = id(801);
 
 const READERS = {
@@ -51,6 +60,7 @@ const READERS = {
   bare: () => ctx(TENANT_A, BARE, "locations", [a.locationSouth]),
   mgrA: () => ctx(TENANT_A, MGR_A, "locations", [a.locationNorth]),
   selfie: () => ctx(TENANT_A, SELFIE, "assigned"),
+  trainer: () => ctx(TENANT_A, TRAINER, "locations", [a.locationNorth]),
   other: () => ctx(TENANT_B, B_HR, "none"),
 };
 type Who = keyof typeof READERS;
@@ -81,12 +91,13 @@ beforeAll(async () => {
     await c.query(
       `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
          ($1, 'hr_lines', 'HR', 'none',
-          '{workforce.training.manage,workforce.staff_file.manage,workforce.competence.observe}'),
+          '{workforce.training.manage,workforce.staff_file.manage,workforce.competence.observe,workforce.supervision.manage}'),
          ($2, 'home_lines', 'Home manager', 'location', $5),
          ($3, 'staff_lines', 'Staff', 'location', '{workforce.self.read}'),
          ($4, 'keyworker_lines', 'Senior carer', 'assigned', $5),
-         ($6, 'self_lines', 'Self only', 'self', $5)`,
-      [ROLE.hr, ROLE.home, ROLE.staff, ROLE.keyworker, DEV, ROLE.selfie],
+         ($6, 'self_lines', 'Self only', 'self', $5),
+         ($7, 'trainer_lines', 'Trainer', 'location', '{workforce.training.manage}')`,
+      [ROLE.hr, ROLE.home, ROLE.staff, ROLE.keyworker, DEV, ROLE.selfie, ROLE.trainer],
     );
     const people: [string, string][] = [
       [HR, "hana.lines"],
@@ -97,6 +108,7 @@ beforeAll(async () => {
       [BARE, "ben.bare"],
       [MGR_A, "mae.mgr"],
       [SELFIE, "sol.self"],
+      [TRAINER, "tess.trainer"],
       [W_B, "bea.b"],
       [W_NORTH, "nell.north"],
       [W_SOUTH, "sid.south"],
@@ -127,6 +139,7 @@ beforeAll(async () => {
     await assign(MGR_A, ROLE.home, a.locationNorth);
     await assign(SELFIE, ROLE.selfie, a.locationNorth);
     await assign(W_B, ROLE.staff, a.locationSouth);
+    await assign(TRAINER, ROLE.trainer, a.locationNorth);
   });
   await asOwner(TENANT_B, async (c) => {
     await c.query(
@@ -176,6 +189,13 @@ beforeAll(async () => {
          ($1, $2, true, DATE '2026-01-01', NULL), ($1, $3, false, DATE '2026-01-01', NULL),
          ($4, $5, true, DATE '2026-01-01', ${today}), ($4, $6, false, DATE '2026-01-01', NULL)`,
       [OLD_TEAM, LEAD, W_NORTH, DAY_TEAM, FORMER, W_OTHER],
+    );
+    // Tess trains at North House only, and leads a team with Bea (South House) in it.
+    await c.query("INSERT INTO staff_team (id, name) VALUES ($1, 'Trainers')", [TRAINERS]);
+    await c.query(
+      `INSERT INTO staff_team_member (team_id, member_id, is_lead, valid_from) VALUES
+         ($1, $2, true, DATE '2026-01-01'), ($1, $3, false, DATE '2026-01-01')`,
+      [TRAINERS, TRAINER, W_B],
     );
   });
   await asSystem(async (c) => {
@@ -301,6 +321,85 @@ describe("hazard HZ-119 reporting lines widen reads only, never who signs off or
         [W_NORTH],
       ),
     ).toBe("ok");
+  });
+
+  it("hazard HZ-119 a cross-home line manager cannot add revalidation evidence for their report", async () => {
+    expect(
+      await attempt(
+        "mgrA",
+        "INSERT INTO revalidation_evidence (worker_id, cycle_due_on) VALUES ($1, DATE '2027-03-31') RETURNING id",
+        [W_B],
+      ),
+    ).toBe("42501");
+  });
+
+  it("hazard HZ-119 a cross-home line manager cannot add or change their report's training certificate", async () => {
+    const CERTIFICATE = `INSERT INTO document (category, title, retention_class, storage_key, content_type,
+        size_bytes, sha256, subject_type, subject_id)
+      VALUES ('training_certificate', 'Certificate', 'staff_file', 'k/' || app.uuid_v7(),
+        'application/pdf', 10, $2, 'training_record', $1) RETURNING id`;
+    const { record, certificate } = await asSystem(async (c) => {
+      const r = (
+        await c.query<{ id: string }>(
+          "SELECT id FROM training_record WHERE worker_id = $1 ORDER BY created_at LIMIT 1",
+          [W_B],
+        )
+      ).rows[0]?.id as string;
+      const d = (await c.query<{ id: string }>(CERTIFICATE, [r, "b".repeat(64)])).rows[0]?.id;
+      return { record: r, certificate: d as string };
+    });
+    expect(await attempt("mgrA", CERTIFICATE, [record, "c".repeat(64)])).toBe("42501");
+    const changed = await as("mgrA", (c) =>
+      c.query("UPDATE document SET title = 'Changed' WHERE id = $1", [certificate]),
+    );
+    expect(changed.rowCount).toBe(0);
+  });
+
+  it("hazard HZ-119 a cross-home line manager is never offered or allowed as their report's revalidation confirmer", async () => {
+    const may = (member: string, nurse: string) =>
+      as(
+        "hr",
+        async (c) =>
+          (
+            await c.query<{ ok: boolean }>(
+              "SELECT app.member_may_confirm_revalidation($1::uuid, $2::uuid) AS ok",
+              [member, nurse],
+            )
+          ).rows[0]?.ok,
+      );
+    expect(await may(MGR_A, W_NORTH)).toBe(true);
+    expect(await may(MGR_A, W_B)).toBe(false);
+    const offered = await as("hr", async (c) =>
+      (
+        await c.query<{ id: string }>("SELECT app.revalidation_confirmer_candidates($1) AS id", [
+          W_B,
+        ])
+      ).rows.map((r) => r.id),
+    );
+    expect(offered).not.toContain(MGR_A);
+  });
+
+  it("hazard HZ-119 a cross-home team lead holding only training rights cannot withdraw a member's competence", async () => {
+    expect(await seen("trainer", "SELECT worker_id AS w FROM competence_sign_off")).toContain(W_B);
+    expect(
+      await attempt(
+        "trainer",
+        `INSERT INTO competence_withdrawal (sign_off_id, reason, withdrawn_by)
+         VALUES ($1, 'Observed unsafe practice on a shift', app.current_user_id())`,
+        [signOff],
+      ),
+    ).toBe("42501");
+  });
+
+  it("hazard HZ-119 reminder tasks are read-only through reporting lines: seen, never changed or completed", async () => {
+    const REMINDER =
+      "SELECT source_id AS w FROM task WHERE kind = 'workforce.supervision_due' AND source_type = 'tenant_user'";
+    expect(await seen("mgrA", REMINDER)).toContain(W_B);
+    const UPDATE = `UPDATE task SET due_at = due_at + interval '1 day'
+      WHERE kind = 'workforce.supervision_due' AND source_id = $1`;
+    expect(await attempt("mgrA", UPDATE, [W_B])).toBe("42501");
+    const byHr = await as("hr", (c) => c.query(UPDATE, [W_B]));
+    expect(byHr.rowCount).toBe(1);
   });
 
   it("hazard HZ-119 a team lead cannot sign off a team member's competence", async () => {
