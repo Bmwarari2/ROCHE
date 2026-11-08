@@ -972,7 +972,7 @@ screens are slice 60, the phone's offline queue slice 71.
 
 | Table | Kind | Columns | Retention class |
 | --- | --- | --- | --- |
-| `clock_setting` | mutable, one per location | `location_id`, `evidence` (`none` by default; `at_location` or `nfc` only once the employee-monitoring DPIA is approved, H-527), `nfc_tag_refs` (opaque tag ids) | `rota_and_timesheet` |
+| `clock_setting` | mutable, one per location | `location_id`, `evidence` (`none` by default; `at_location` or `nfc` only while `scheduling.clock.location_evidence` is on at the location and the organisation's signed DPIA covers it, H-527, H-1555), `nfc_tag_refs` (opaque tag ids) | `rota_and_timesheet` |
 | `clock_event` | append-only, client UUID, idempotent | `worker_id`, `kind` (`in`, `out`, `break_start`, `break_end`), `shift_id`, `location_id`, `device_time`, `recorded_at` (server), `device_id` (opaque), `evidence` (`none`, `at_location`, `nfc`), `nfc_tag_ref`, `flags` | `rota_and_timesheet` |
 | `timesheet_entry` | mutable while `draft`; fixed once `approved`; corrected by a new entry with `supersedes_id` | `worker_id`, `location_id`, `shift_id`, `kind` (shift kinds plus `travel`), `started_at`, `ended_at`, `breaks` (`[{ start, end }]`), `travel` (journey kind), `mileage_tenths` (tenths of a mile), `source` (`clock`, `manual`), `clock_in_id`, `clock_out_id`, `status` (`draft`, `approved`), `approved_by`, `approved_at`, `supersedes_id`, `correction_reason` | `rota_and_timesheet` |
 | `sleep_in_awake_period` | append-only | `timesheet_entry_id`, `started_at`, `ended_at` | `rota_and_timesheet` |
@@ -983,7 +983,24 @@ Location evidence is never a position: the phone says only whether it was at the
 read the location's NFC tag); Thapsus Care stores that word and never coordinates or a track. The API
 keeps evidence only as the location's setting asks for it, and an NFC tag only if it is one of the
 location's tags (a short code, never free text); anything else is stored as `none` and flagged
-`evidence_not_matched`. Entries longer than 25 hours (a design limit, not a statutory figure) cannot
+`evidence_not_matched`.
+
+Location or NFC evidence is employee monitoring (H-527, H-1033, H-1555). The catalogue flag
+`scheduling.clock.location_evidence` (off by default, not licensed, never set remotely) is the
+organisation's intention to use it; switching it on, for the organisation or at any location, lists
+it among the DPIA's features, so the signed DPIA is flagged for review (`feature_enabled`) until a
+version listing it is prepared and signed. `PUT /v1/locations/{id}/clock-setting` refuses `at_location`
+or `nfc` with 422 `dpia_monitoring_not_covered` ("Location or NFC evidence is employee monitoring:
+your organisation's signed DPIA must cover it first.") unless the flag is on at the location AND the
+signed DPIA lists it; the refusal is audited. `none` is always accepted. The client's `dpiaApproved`
+is deprecated and ignored; the audit event records `evidence` and the id of the signed DPIA relied
+on (`dpiaId`). `GET` and `PUT` answer with `inUse`, whether the evidence asked for is in effect at the
+location (not `none`, the flag on there and the signed DPIA covering it). Because `feature_flag` rows are set directly, the same check applies at clock-in: evidence
+is kept only while the setting asks for it, the flag is on at the location and the signed DPIA covers
+it, so a setting saved before this check, or a DPIA superseded by one without the flag, keeps
+`none` (flagged `evidence_not_matched`).
+
+Entries longer than 25 hours (a design limit, not a statutory figure) cannot
 come from the clock; a longer live-in stretch is entered by hand.
 
 ### Rules
@@ -1429,7 +1446,15 @@ The server decides only from check-ins it has received, by the time the worker m
 
 ### 19.5 Location evidence (H-527)
 
-Off by default (`scheduling.lone_worker.location`, a location-level flag). When on, the device may
+Off by default (`scheduling.lone_worker.location`, a location-level flag). It is employee
+monitoring (H-1033, H-1555): a point is kept only while the flag is on at the session's location AND
+the organisation's signed DPIA lists the flag among its features; otherwise the point sent is
+ignored. Switching the flag on, for the organisation or at any location, flags the signed DPIA for
+review (`feature_enabled`). `GET` and `PUT /v1/lone-worker/route` report `locationEvidence` as the
+organisation-wide value: the organisation's flag on and covered by its signed DPIA. A location's own
+flag row may switch it on (or off) at that location alone, which this value does not show. The
+`event_recorded` audit event says whether a point sent was kept (`locationKept`), never the point.
+When in use, the device may
 attach one point to the event it sends (check-in, help, duress, finish); nothing is collected
 between events, so there is never a track. A monitor sees the latest point on an alarm. The sweep
 erases each point (coordinates cleared, the row kept as proof of the erasure) after
@@ -1444,7 +1469,7 @@ timekeeping (R22).
 | `PUT /v1/lone-worker/route` | manage | Validated; a named person must be an active member; audited `scheduling.lone_worker.route_set` |
 | `POST /v1/lone-worker/sessions` | check_in | Client id; 201 or 200 on replay; audited `session_started` |
 | `GET /v1/lone-worker/sessions/mine` | check_in | Duress shown as check-in; overdue alarm only |
-| `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in) |
+| `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in), with `locationKept` when a point was sent |
 | `POST /v1/lone-worker/emergency` | check_in | Help or duress without a usable session (H-1317, slice 71): recorded in the worker's open session, else the session of their open help or duress alarm, else a new session finished as it starts, at the named session's location when it is theirs, the location given, their latest session's, or another where they work (by name); alarmed like any help or duress (the route, else the Registered Manager and owner); answers as a session's event (duress as a check-in); client UUID, a replay of the worker's own event answered before a limit of 30 in 10 minutes; audited `session_started` and `event_recorded` with `withoutSession` (duress as check-in) |
 | `GET /v1/lone-worker/board` | monitor | Open sessions with status words; audited |
 | `GET /v1/lone-worker/alarms` | monitor | Open by default; with the latest location point; audited |
@@ -1461,7 +1486,8 @@ Notifications carry no personal data.
 `lone_worker` (3 years from the session's finish) for sessions, events and alarms; location points
 are not retained beyond `lone_worker.location_days`. Records of processing B3; data standards
 "Lone-worker safety". The DPO confirms the employee-monitoring DPIA covers it before it is switched
-on (H-1033).
+on (H-1033); Thapsus Care enforces this by keeping no location unless the signed DPIA covers it
+(section 19.5; H-1555).
 
 ### 19.8 Web screens (slice 61)
 
