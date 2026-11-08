@@ -1208,6 +1208,15 @@ witness, who signs on the same device with their own factor, is slice 70.
 - `POST /v1/controlled-drugs/pages/{pageId}/entries`: a receipt, disposal, transfer out,
   destruction or correction, checked by `checkCdEntry` under the person's lock. The recorder needs
   `medicines.cd.administer` and a fresh step-up.
+- `PUT /v1/locations/{id}/controlled-drugs/recording` (H-1518): turns controlled drug recording on
+  or off at a home, for a member holding `medicines.record.manage` and `platform.location.manage`
+  there, with a fresh step-up. On: the paper register's pages are counted, witnessed and closed now,
+  each balance is carried in as a witnessed receipt before the next dose, and the home's phones are
+  updated, each confirmed. Off: a reason, and the pages printed and the paper register restarted.
+  Audited as `medicines.cd_recording.changed`, refusals included; a request for the state already
+  in force changes nothing. The web's **Controlled drug recording** page (from the home's medicines
+  reports) asks for each in words. The phone reads the switch for the person's home and stops a
+  controlled drug before signing where it is not on; never read counts as off.
 - `POST /v1/controlled-drugs/pages/{pageId}/stock-checks`, with `medicines.cd.administer` or
   `medicines.stock.manage`: a count, witnessed under the same rules.
   `cdStockCheck` compares it with the page. A count that does not balance needs a reason and

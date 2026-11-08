@@ -277,7 +277,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
       60_000,
     ),
-    medicines: createMedicinesPorts(config.medicinesFixtures),
+    medicines: createMedicinesPorts(config.medicinesFixtures, createDatabase(appPool)),
     adapterFor: createAdapterResolver({
       production: config.NODE_ENV === "production",
       mocks,
