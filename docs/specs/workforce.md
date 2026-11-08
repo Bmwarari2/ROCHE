@@ -611,7 +611,9 @@ transaction (`workforce.reminder.raised`, `workforce.reminder.cancelled`; sectio
 task, actor the system, the job (`supervision-reminders`, `development-reminders`) or the cause
 (`meeting_recorded`, `recorded_again`), and the reminder's key (the member's id, the task kind, the
 meeting kind or topic or competence, the due date): opaque ids and codes only. The training and
-competence reminders write the same events.
+competence reminders write the same events, and take their own advisory lock
+(`workforce.development_reminders` and the organisation) around their sweep and around a renewal
+ending their reminders, so two sweeps at once raise each of them once too.
 
 Expiry tasks (rule 1): the `staff-file-expiry-reminders` job runs hourly. For each item with an
 expiry or a re-check date, at `document_expiry.reminder_days.first`, `.second` and `.third` days

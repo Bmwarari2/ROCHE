@@ -413,6 +413,8 @@ export async function raiseDevelopmentReminders(
   now: Date,
 ): Promise<number> {
   const today = ukIsoDate(now);
+  // One sweep at a time per organisation, so the read-first check raises each reminder once.
+  await lockDevelopmentReminders(tx);
   const members = new Set<string>([
     ...(await tx.select({ id: trainingRecord.workerId }).from(trainingRecord)).map((r) => r.id),
     ...(await tx.select({ id: competenceSignOff.workerId }).from(competenceSignOff)).map(
@@ -544,6 +546,7 @@ export function endDevelopmentReminders(
       ? [TRAINING_EXPIRY_TASK, "trainingTopic", subject.trainingTopic]
       : [COMPETENCE_EXPIRY_TASK, "competence", subject.competence];
   return withSystemRights(tx, async () => {
+    await lockDevelopmentReminders(tx);
     const ended = await tx
       .update(task)
       .set({ status: "cancelled", statusReason: "Ended: recorded again" })
@@ -854,6 +857,16 @@ export async function supervisionsDueFor(
 async function lockSupervisionReminders(tx: Transaction): Promise<void> {
   await tx.execute(
     sql`SELECT pg_advisory_xact_lock(hashtext('workforce.supervision_reminders'), hashtext(current_setting('app.tenant_id')))`,
+  );
+}
+
+/**
+ * The same for the training and competence reminders, under their own key: the sweep and a renewal
+ * ending its reminders, one at a time per organisation, so two sweeps at once raise each once.
+ */
+async function lockDevelopmentReminders(tx: Transaction): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('workforce.development_reminders'), hashtext(current_setting('app.tenant_id')))`,
   );
 }
 

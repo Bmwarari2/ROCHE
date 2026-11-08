@@ -29,5 +29,8 @@ Branch `feat/workforce-supervision-reminders`, built on slice 1 (`feat/workforce
   job or the cause, the reminder's key and the task id, opaque ids only), for the supervision
   reminders and for the training and competence reminders alike. Tested: one per task raised,
   none for a run that raises nothing, one per cancellation, none in another organisation.
+- The training and competence reminders take their own per-organisation advisory lock
+  (`workforce.development_reminders`) around their sweep and a renewal ending their reminders;
+  tested with two sweeps at once raising one training reminder (and failing without the lock).
 
 No migration, no new personal data, no web change (the tasks page shows a task's own title).

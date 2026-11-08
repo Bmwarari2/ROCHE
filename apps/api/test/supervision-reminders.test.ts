@@ -2,7 +2,7 @@ import { createDatabase } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { addUkDays, ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { remindSupervisionsDue } from "../src/jobs/tasks";
+import { remindDevelopmentExpiry, remindSupervisionsDue } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { createHarness, type Harness, OTHER } from "./support/harness";
 
@@ -260,5 +260,40 @@ describe("WORK-009 supervision and appraisal reminders (workforce.md rule 7)", (
     await remindSupervisionsDue(deps(), at(day(400)));
     expect(await reminders(NURSE)).toHaveLength(before);
     expect(await reminders(NURSE, "appraisal")).toEqual([]);
+  });
+});
+
+describe("hazard HZ-124 training and competence reminders under their own lock", () => {
+  it("raises each training reminder once when two sweeps run at once", async () => {
+    // A care worker's role requires the topic, so its expiry raises reminders.
+    const required = await as("manager", "/v1/workforce/training-requirements", {
+      method: "PUT",
+      body: {
+        roleKey: "care_worker",
+        topic: "oliver_mcgowan",
+        refreshYears: null,
+        tier: 2,
+        active: true,
+      },
+    });
+    expect(required.status, await required.clone().text()).toBe(200);
+    const response = await as("manager", `${dev(CARER)}/training-records`, {
+      method: "POST",
+      body: {
+        topic: "oliver_mcgowan",
+        tier: 2,
+        completedOn: day(-30),
+        expiresOn: day(10),
+        provider: null,
+      },
+    });
+    expect(response.status, await response.clone().text()).toBe(200);
+    await Promise.all([remindDevelopmentExpiry(deps()), remindDevelopmentExpiry(deps())]);
+    const rows = await sql<{ id: string }>(
+      `SELECT id FROM task WHERE kind = 'workforce.training_expiry' AND source_id = $1
+          AND details->>'trainingTopic' = 'oliver_mcgowan'`,
+      [CARER],
+    );
+    expect(rows).toHaveLength(1);
   });
 });
