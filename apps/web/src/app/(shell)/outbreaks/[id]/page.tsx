@@ -59,6 +59,11 @@ export default async function OutbreakPage({ params }: { params: Promise<{ id: s
   const summaries = listed.data?.items ?? [];
   const people = summaries.map((p) => ({ id: p.id, name: personNames(p).full }));
   const nameOf = new Map(people.map((p) => [p.id, p.name]));
+  /** Whom a line-list row is about, in words (a staff row names no one). */
+  const rowName = (row: { readonly caseType: string; readonly personId: string | null }) =>
+    row.caseType === "staff"
+      ? t("outbreaks.lineList.staff")
+      : (nameOf.get(row.personId ?? "") ?? t("outbreaks.lineList.resident"));
   const personOf = new Map(summaries.map((p) => [p.id, p]));
   const open = data.state === "declared";
   const report = data.report;
@@ -160,6 +165,18 @@ export default async function OutbreakPage({ params }: { params: Promise<{ id: s
                     </span>
                     <SafetyChip chip={caseRowChip(row.current, t)} />
                   </p>
+                  {row.correctionReason ? (
+                    <p className="m-0 text-body-dense">
+                      {t("outbreaks.lineList.correctionReason", {
+                        name: rowName(row),
+                        reason: row.correctionReason,
+                      })}
+                    </p>
+                  ) : row.supersedesId ? (
+                    <p className="m-0 text-body-dense">
+                      {t("outbreaks.lineList.update", { name: rowName(row) })}
+                    </p>
+                  ) : null}
                   <p className="m-0 text-body-dense">
                     {t("outbreaks.lineList.summary", {
                       onset: formatDate(row.onsetOn) ?? "",

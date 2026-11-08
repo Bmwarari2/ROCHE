@@ -18700,7 +18700,7 @@ export interface paths {
     put?: never;
     /**
      * Record a step of the death as done, or not needed with the reason
-     * @description Append-only: the latest for a step counts. A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.
+     * @description Append-only: a step already recorded changes only by a correction that names its standing entry (supersedesId, the step's entryId) and says why (correctionReason, 10 to 500 characters); the superseded entry stays in the history, marked superseded (section 5.5). A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.
      */
     post: {
       parameters: {
@@ -70534,6 +70534,8 @@ export interface components {
         /** @enum {string|null} */
         notificationStatus: "draft" | "ready" | "submitted" | "not_required" | null;
         reason: string | null;
+        /** Format: uuid */
+        entryId: string | null;
       }[];
       history: {
         /** Format: uuid */
@@ -70548,6 +70550,12 @@ export interface components {
         recordedAt: string;
         /** Format: uuid */
         recordedBy: string | null;
+        /** Format: uuid */
+        supersedesId: string | null;
+        correctionReason: string | null;
+        superseded: boolean;
+        /** @enum {string|null} */
+        supersededBy: "correction" | "later_entry" | null;
       }[];
       review: {
         /** Format: date-time */
@@ -70599,6 +70607,9 @@ export interface components {
       at: string;
       note?: string | null;
       reference?: string | null;
+      /** Format: uuid */
+      supersedesId?: string | null;
+      correctionReason?: string | null;
     };
     DeathReview: {
       findings: string;

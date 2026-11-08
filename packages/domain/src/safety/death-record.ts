@@ -136,7 +136,7 @@ export function deathRecordPlan(
 /** The record as it stands: each step's state, what is missing, and what closing needs. */
 export function deathRecordView(input: {
   readonly facts: DeathRecordFacts;
-  /** Steps recorded here, oldest first: the latest for a step counts. */
+  /** The step entries that stand (none a later correction superseded), oldest first. */
   readonly recorded: readonly RecordedDeathStep[];
   /** The notifications counted for this death, by kind. */
   readonly notifications: Readonly<Partial<Record<StatutoryNotificationKind, NotificationStatus>>>;
@@ -247,6 +247,17 @@ export function deathStepProblems(
       "The clinician's judgement is not recorded yet, so this police step cannot be marked not needed. Record the judgement first.",
     );
   }
+  // A death the clinician judged may be unnatural or suspicious keeps its police steps: none is
+  // marked not needed, by a first entry or a correction (slice 83 guides review; H-1575).
+  if (
+    judgement?.possiblyUnnatural === true &&
+    POLICE_DEATH_STEPS.includes(step.step) &&
+    step.outcome === "not_needed"
+  ) {
+    problems.push(
+      "The clinician judged this death may be unnatural or suspicious, so this police step cannot be marked not needed.",
+    );
+  }
   if (step.step === "mortality_review") {
     problems.push("Record the mortality review on its own, with its findings and lessons.");
   } else if (!plan.steps.includes(step.step)) {
@@ -264,6 +275,46 @@ export function deathStepProblems(
   if (step.at > now) problems.push("The time cannot be in the future.");
   if (step.at < diedAt) problems.push("The time cannot be before the death.");
   return problems;
+}
+
+/** The shortest and longest reason for correcting a recorded step (section 5.5). */
+export const DEATH_CORRECTION_REASON_MIN = 10;
+export const DEATH_CORRECTION_REASON_MAX = 500;
+
+/**
+ * A recorded step is never changed: a correction is a new row that names the row it supersedes
+ * (the step's current one) and says why (master prompt section 5.5; HZ-013). A step not yet
+ * recorded takes no correction; a step already recorded takes only one.
+ */
+export function deathStepCorrectionProblems(
+  current: { readonly id: string } | null,
+  input: { readonly supersedesId: string | null; readonly correctionReason: string | null },
+): string[] {
+  const reason = input.correctionReason?.trim() ?? "";
+  if (!current) {
+    return input.supersedesId || reason
+      ? ["This step is not recorded yet, so there is nothing to correct."]
+      : [];
+  }
+  const problems: string[] = [];
+  if (input.supersedesId !== current.id) {
+    problems.push("This step is already recorded: correct the entry that stands, saying why.");
+  }
+  if (reason.length < DEATH_CORRECTION_REASON_MIN || reason.length > DEATH_CORRECTION_REASON_MAX) {
+    problems.push(
+      `Say why it is corrected, in ${DEATH_CORRECTION_REASON_MIN} to ${DEATH_CORRECTION_REASON_MAX} characters.`,
+    );
+  }
+  return problems;
+}
+
+/** The step's entry that stands: the latest recorded that no later entry supersedes. */
+export function currentDeathStepEntry<
+  T extends { readonly id: string; readonly step: string; readonly supersedesId: string | null },
+>(entries: readonly T[], step: string): T | null {
+  const superseded = new Set(entries.map((e) => e.supersedesId).filter((id) => id !== null));
+  const standing = entries.filter((e) => e.step === step && !superseded.has(e.id));
+  return standing.at(-1) ?? null;
 }
 
 /** The mortality review needs its findings and lessons, each at least `DEATH_REASON_MIN` characters. */

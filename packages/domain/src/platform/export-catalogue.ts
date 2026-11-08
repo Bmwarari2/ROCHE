@@ -3382,7 +3382,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.death_step": {
     context: "safety",
     description:
-      "Each step of a death as recorded on its death record (append-only; the latest for a step counts): verification of death, telling the family, telling the police, leaving the room as it is, or a notification step that was not needed, with the reason.",
+      "Each step of a death as recorded on its death record (append-only; a correction is a new entry superseding the step's standing one, with why): verification of death, telling the family, telling the police, leaving the room as it is, or a notification step that was not needed, with the reason.",
     treatment: "tenant_rows",
     retention: "serious_incident",
     personal: true,
@@ -3412,6 +3412,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       at: { description: "When it was done, or decided not needed (instant, UTC)." },
       note: { description: "A note, or the reason it was not needed." },
       reference: { description: "The police reference, for telling the police." },
+      supersedes_id: { description: "The entry this one corrects (death_step.id), if any." },
+      correction_reason: { description: "Why the earlier entry was corrected." },
       recorded_at: "exported",
       recorded_by: { description: "Who recorded it (tenant_user.id)." },
     },

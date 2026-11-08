@@ -148,7 +148,7 @@ export const deathRecord = pgTable(
   ],
 );
 
-/** Each step of a death as recorded (append-only; the latest for a step counts). */
+/** Each step of a death as recorded (append-only; a correction supersedes the standing entry). */
 export const deathStep = pgTable(
   "death_step",
   {
@@ -163,11 +163,25 @@ export const deathStep = pgTable(
     note: text("note"),
     /** The police reference, for telling the police. */
     reference: text("reference"),
+    /**
+     * A correction names the entry it supersedes (the step's standing one) and says why; the
+     * superseded entry is never changed (master prompt section 5.5; HZ-013).
+     */
+    supersedesId: uuid("supersedes_id"),
+    correctionReason: text("correction_reason"),
     recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
     recordedBy: uuid("recorded_by").default(sql`app.current_user_id()`),
   },
   (t) => [
     unique("death_step_tenant_id_id_key").on(t.tenantId, t.id),
+    uniqueIndex("death_step_superseded_once")
+      .on(t.tenantId, t.supersedesId)
+      .where(sql`supersedes_id IS NOT NULL`),
+    foreignKey({
+      name: "death_step_supersedes_fk",
+      columns: [t.tenantId, t.supersedesId],
+      foreignColumns: [t.tenantId, t.id],
+    }),
     index("death_step_record_idx").on(t.tenantId, t.deathRecordId, t.recordedAt),
     foreignKey({
       name: "death_step_record_fk",
@@ -191,6 +205,11 @@ export const deathStep = pgTable(
       sql`(note IS NULL OR char_length(btrim(note)) BETWEEN 1 AND 2000)
         AND (reference IS NULL OR char_length(btrim(reference)) BETWEEN 1 AND 100)
         AND (outcome = 'done' OR coalesce(char_length(btrim(note)), 0) >= 20)`,
+    ),
+    check(
+      "death_step_correction",
+      sql`(supersedes_id IS NULL) = (correction_reason IS NULL)
+        AND (correction_reason IS NULL OR char_length(btrim(correction_reason)) BETWEEN 10 AND 500)`,
     ),
   ],
 );

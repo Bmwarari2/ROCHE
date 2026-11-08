@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { addUkDays } from "../shared/time";
 import {
+  currentDeathStepEntry,
+  DEATH_CORRECTION_REASON_MAX,
+  DEATH_CORRECTION_REASON_MIN,
   DEATH_REASON_MIN,
   type DeathRecordFacts,
   deathRecordPlan,
   deathRecordView,
   deathReviewProblems,
+  deathStepCorrectionProblems,
   deathStepProblems,
   type RecordedDeathStep,
 } from "./death-record";
@@ -282,6 +286,14 @@ describe("hazard HZ-013 the police steps stand until the clinician's judgement (
       { step: "family_informed", outcome: "not_needed", at: NOW, note: enough },
       [],
     ],
+    [
+      "police told, not needed, judged may be unnatural",
+      { ...unjudged, expected: false, possiblyUnnatural: true },
+      { step: "police_informed", outcome: "not_needed", at: NOW, note: enough },
+      [
+        "The clinician judged this death may be unnatural or suspicious, so this police step cannot be marked not needed.",
+      ],
+    ],
   ])("%s", (_name, facts, step, problems) => {
     expect(
       deathStepProblems(deathRecordPlan(facts, rates), DIED, step, NOW, {
@@ -289,5 +301,58 @@ describe("hazard HZ-013 the police steps stand until the clinician's judgement (
         possiblyUnnatural: facts.possiblyUnnatural,
       }),
     ).toEqual(problems);
+  });
+});
+
+describe("hazard HZ-013 a recorded step is corrected by a new entry, never changed (section 5.5)", () => {
+  const A = "0199f000-0000-7000-8000-00000000d001";
+  const B = "0199f000-0000-7000-8000-00000000d002";
+  const reason = "Recorded against the wrong time.";
+
+  it.each([
+    ["a first entry", null, { supersedesId: null, correctionReason: null }, []],
+    [
+      "a correction of nothing",
+      null,
+      { supersedesId: A, correctionReason: reason },
+      ["This step is not recorded yet, so there is nothing to correct."],
+    ],
+    [
+      "a second entry without naming the first",
+      { id: A },
+      { supersedesId: null, correctionReason: null },
+      [
+        "This step is already recorded: correct the entry that stands, saying why.",
+        `Say why it is corrected, in ${DEATH_CORRECTION_REASON_MIN} to ${DEATH_CORRECTION_REASON_MAX} characters.`,
+      ],
+    ],
+    [
+      "a correction of an entry that no longer stands",
+      { id: B },
+      { supersedesId: A, correctionReason: reason },
+      ["This step is already recorded: correct the entry that stands, saying why."],
+    ],
+    [
+      "a correction without a reason",
+      { id: A },
+      { supersedesId: A, correctionReason: "Wrong." },
+      [
+        `Say why it is corrected, in ${DEATH_CORRECTION_REASON_MIN} to ${DEATH_CORRECTION_REASON_MAX} characters.`,
+      ],
+    ],
+    ["a correction with its reason", { id: A }, { supersedesId: A, correctionReason: reason }, []],
+  ] as const)("%s", (_, current, input, problems) => {
+    expect(deathStepCorrectionProblems(current, input)).toEqual(problems);
+  });
+
+  it("finds the entry that stands for a step", () => {
+    const entries = [
+      { id: A, step: "police_informed", supersedesId: null },
+      { id: B, step: "police_informed", supersedesId: A },
+      { id: "c", step: "family_informed", supersedesId: null },
+    ];
+    expect(currentDeathStepEntry(entries, "police_informed")?.id).toBe(B);
+    expect(currentDeathStepEntry(entries, "family_informed")?.id).toBe("c");
+    expect(currentDeathStepEntry(entries, "preserve_room_and_equipment")).toBeNull();
   });
 });
