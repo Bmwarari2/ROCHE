@@ -96,6 +96,7 @@ Items Brian may want to confirm (each ADR says how to change it):
 | [0133](0133-definer-functions-owned-by-nologin-roles.md) | Security-definer functions are owned by NOLOGIN roles, one per bounded context | accepted | 2026-11-07 | Phase 2 |
 | [0135](0135-retention-row-destruction.md) | Destroying database rows when their retention class ends (number to be confirmed at merge) | proposed | 2026-11-08 | Phase 2 |
 | [0136](0136-development-reads-follow-attribute-scope.md) | Development reads follow attribute scope (number to be confirmed at merge) | proposed | 2026-11-08 | Phase 2 |
+| [0137](0137-reporting-lines-widen-development-scope.md) | Reporting lines widen development scope (number to be confirmed at merge) | proposed | 2026-11-08 | Phase 2 |
 
 ## Open items carried by these ADRs
 

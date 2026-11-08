@@ -70,6 +70,7 @@ export const NO_PERSONAL_DATA: readonly NoPersonalDataTable[] = [
     "shift_template",
     "sso_connection",
     "sso_domain",
+    "staff_team",
     "tenant_group",
     "training_requirement",
     "welcome_checklist_template",

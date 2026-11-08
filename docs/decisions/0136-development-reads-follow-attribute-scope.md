@@ -87,8 +87,9 @@ new data.
   director or the Nominated Individual) is in every home's scope, as `app.works_at` counts them.
 - Neutral: a home's manager no longer runs LMS imports; HR or the owner does.
 - Bad: there is no team or line-manager scope for staff (scope kinds are tenant, location, assigned,
-  self and none), so a team lead's scope is their home. Option 3 needs a line-manager field first;
-  it stays a known gap in workforce.md.
+  self and none), so a team lead's scope is their home. Option 3 needs a line-manager field first.
+  Closed by [ADR-0137](0137-reporting-lines-widen-development-scope.md): reporting lines (line
+  managers and staff teams) now widen a holder's scope.
 - Bad, accepted by the CSO as a residual risk (H-1641): a revalidation confirmer must hold training
   or supervision rights in a scope that covers the nurse, since the confirmation is a write in the
   nurse's scope. Naming a manager from another home is refused when they are named (422

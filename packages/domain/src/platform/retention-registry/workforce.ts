@@ -51,6 +51,9 @@ export const WORKFORCE_REGISTRY: RegistryContext = {
     ...BY_MEMBER.map((table) => staffFileRecord(table, "tenant_user_id", "tenant_user")),
     staffFileRecord("supervision_record", "worker_id", "tenant_user"),
     childOf("supervision_note", "supervision_record", "supervision_id", staff("worker_id")),
+    // Reporting lines (ADR-0137): kept as the staff file of the member they are about.
+    staffFileRecord("staff_line_manager", "worker_id", "tenant_user"),
+    staffFileRecord("staff_team_member", "member_id", "tenant_user"),
     entry(
       "employee_case",
       rowClass("retention_class", "staff_file", "casework_no_sanction"),

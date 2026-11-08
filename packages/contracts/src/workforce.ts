@@ -649,3 +649,101 @@ export const DevelopmentRecord = z
   })
   .meta({ id: "DevelopmentRecord" });
 export type DevelopmentRecord = z.infer<typeof DevelopmentRecord>;
+
+/**
+ * Reporting lines (ADR-0137): a member's line manager over time, and staff teams with their leads.
+ * Maintained by organisation-wide holders of workforce.staff_file.manage (HR). A line manager's
+ * current direct reports and a team lead's current team widen the development scope they hold.
+ */
+export const LineManagerItem = z
+  .object({
+    id: uuid,
+    managerId: uuid,
+    managerName: z.string(),
+    validFrom: isoDate,
+    /** The day the line ended (exclusive); null while it is current. */
+    validTo: isoDate.nullable(),
+    version: z.number().int(),
+  })
+  .meta({ id: "LineManagerItem" });
+
+export const LineManagement = z
+  .object({
+    memberId: uuid,
+    /** The current line, or null when the member has no line manager today. */
+    current: LineManagerItem.nullable(),
+    /** Earlier lines, newest first. */
+    history: z.array(LineManagerItem),
+  })
+  .meta({ id: "LineManagement" });
+export type LineManagement = z.infer<typeof LineManagement>;
+
+export const SetLineManager = z
+  .object({
+    /** The new line manager, or null to end the current line with no successor. */
+    managerId: uuid.nullable(),
+    /** The day the change takes effect (UK date): the current line ends and any new one starts. */
+    from: isoDate,
+    /** The current line's version, when there is one. */
+    expectedVersion: z.number().int().nullable(),
+  })
+  .meta({ id: "SetLineManager" });
+
+export const StaffTeamItem = z
+  .object({
+    id: uuid,
+    name: z.string(),
+    locationId: uuid.nullable(),
+    archived: z.boolean(),
+    version: z.number().int(),
+  })
+  .meta({ id: "StaffTeam" });
+
+export const StaffTeamList = z
+  .object({ teams: z.array(StaffTeamItem) })
+  .meta({ id: "StaffTeamList" });
+
+export const CreateStaffTeam = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    locationId: uuid.nullable(),
+  })
+  .meta({ id: "CreateStaffTeam" });
+
+export const ChangeStaffTeam = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    locationId: uuid.nullable(),
+    archived: z.boolean(),
+    expectedVersion: z.number().int(),
+  })
+  .meta({ id: "ChangeStaffTeam" });
+
+export const StaffTeamMemberItem = z
+  .object({
+    id: uuid,
+    memberId: uuid,
+    name: z.string(),
+    isLead: z.boolean(),
+    validFrom: isoDate,
+    validTo: isoDate.nullable(),
+    version: z.number().int(),
+  })
+  .meta({ id: "StaffTeamMember" });
+
+export const StaffTeamMemberList = z
+  .object({ teamId: uuid, members: z.array(StaffTeamMemberItem) })
+  .meta({ id: "StaffTeamMemberList" });
+
+export const AddStaffTeamMember = z
+  .object({ memberId: uuid, isLead: z.boolean(), from: isoDate })
+  .meta({ id: "AddStaffTeamMember" });
+
+export const ChangeStaffTeamMember = z
+  .object({
+    isLead: z.boolean(),
+    /** End the membership on this day (exclusive); null keeps it current. */
+    endsOn: isoDate.nullable(),
+    expectedVersion: z.number().int(),
+  })
+  .meta({ id: "ChangeStaffTeamMember" });

@@ -43,6 +43,7 @@ export * from "./quality-audits";
 export * from "./quality-framework";
 export * from "./records";
 export * from "./recruitment";
+export * from "./reporting-lines";
 export * from "./rota";
 export * from "./safeguarding";
 export * from "./safety";
