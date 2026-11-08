@@ -30,6 +30,9 @@ env:
   # Trivy is pinned by digest, and the same digest runs the filesystem scan, the image scan and the
   # release gate in terraform.yml (update all three together).
   TRIVY_IMAGE: aquasec/trivy:0.67.2@sha256:e2b22eac59c02003d8749f5b8d9bd073b62e30fefaef5b7c8371204e0a4b0c08
+  # Syft from Docker Hub, pinned by digest: the sbom-action downloads it from GitHub releases, which answered 504 for
+  # hours on 2026-11-08 and failed every run.
+  SYFT_IMAGE: anchore/syft:v1.42.3@sha256:5999d209a342e55e9edf70bf8930fb5b86d8f2a783fa401178372c50e21b1d36
 
 jobs:
   changes:
@@ -98,11 +101,18 @@ jobs:
             --exit-code 1 --no-progress .
       - name: Software bill of materials (Syft)
         if: env.CODE == 'true'
-        uses: anchore/sbom-action@v0
+        run: |
+          docker run --rm -e SYFT_CHECK_FOR_APP_UPDATE=false -v "$PWD:/src" -w /src "$SYFT_IMAGE" scan dir:/src \
+            --exclude './node_modules/**' --exclude './**/node_modules/**' \
+            -o spdx-json=/src/harbour-sbom.spdx.json
+          test -s harbour-sbom.spdx.json
+      - name: Keep the bill of materials
+        if: env.CODE == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          path: .
-          format: spdx-json
-          artifact-name: harbour-sbom.spdx.json
+          name: harbour-sbom.spdx.json
+          path: harbour-sbom.spdx.json
+          if-no-files-found: error
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
