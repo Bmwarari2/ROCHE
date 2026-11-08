@@ -163,6 +163,7 @@ import {
   VaultResetError,
 } from "./held-work";
 import { usePreferences } from "./preferences";
+import { resetNoticeWords } from "./reset-notice";
 import { useSession } from "./session";
 import {
   type DiscardKind,
@@ -216,6 +217,8 @@ interface VaultValue {
    * device authentication, and is put on record before anything is deleted (S4, M1, M2).
    */
   signOutDiscarding(choice: DiscardReason, count: number | null): Promise<void>;
+  /** Signs out keeping unsent entries held for the member (guides review, HZ-006). */
+  signOutKeeping(): Promise<void>;
   /**
    * Deletes held entries from the sign-in screen (M2): `signerToken` is a session just signed in
    * for the purpose, by the entries' owner or a manager, never the device passcode alone. Then
@@ -241,9 +244,6 @@ const VaultContext = createContext<VaultValue | null>(null);
 
 export const REMOTE_WIPE_NOTICE =
   "You were signed out of Thapsus Care on this device, so the care records stored on it have been removed. Sign in again to continue.";
-
-const RESET_NOTICE =
-  "This device's security settings changed, so the data stored on it was reset. It will download again when you are online.";
 
 const SIGN_OUT_TIMEOUT_MS = 5_000;
 
@@ -635,7 +635,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       }
       if (created && previousId) {
         deleteDatabaseFile(databaseFilename(previousId, appEnv.demoMode));
-        setResetNotice(RESET_NOTICE);
+        // The hold marker, kept in the keystore apart from the database, is the only count left.
+        setResetNotice(resetNoticeWords(heldRef.current?.entries));
       }
 
       const filename = databaseFilename(key.id, appEnv.demoMode);
@@ -852,10 +853,14 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
    * hold's report and notifications start here.
    */
   const sessionEnded = useCallback(
-    async (revoked = false, careModeOff = false) => {
+    async (revoked = false, careModeOff = false, keptByMember = false) => {
       if (wipingRef.current || holdingRef.current) return;
-      // Care mode switched off for the organisation is said as such (H-381).
-      const notices = sessionEndNotices({ revoked, careModeOff, wipeNotice: REMOTE_WIPE_NOTICE });
+      // Care mode switched off for the organisation is said as such (H-381); a member who chose to
+      // keep their entries is told so in their own words (guides review, HZ-006).
+      const ended = sessionEndNotices({ revoked, careModeOff, wipeNotice: REMOTE_WIPE_NOTICE });
+      const notices = keptByMember
+        ? { wipe: t("mobile.signOut.done"), held: t("mobile.held.keptAtSignOut") }
+        : ended;
       holdingRef.current = true;
       try {
         const current = dbRef.current;
@@ -900,7 +905,12 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
             // The server hears of the hold at once when it can, and again while the app runs; then
             // the ended session is ended on the server too (security review round 5, S-L3).
             const sent = await reportHold(held, report, token);
-            if (token && !sent && held.tenantId) {
+            if (token && keptByMember) {
+              // A sign-out the member chose ends the server session at once, whether or not the
+              // hold report went: an unsent report is kept for the next session (security review
+              // M1).
+              revokeSession(token);
+            } else if (token && !sent && held.tenantId) {
               holdReportRef.current = { token, held, until: Date.now() + HOLD_REPORT_RETRY_MS };
             } else if (token) {
               revokeSession(token);
@@ -914,6 +924,15 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
     [closeKeepingData, idle, session.holdSession, signOutAndWipe],
   );
   sessionEndedRef.current = sessionEnded;
+
+  // Signing out with unsent entries, keeping them for the member (guides review, HZ-006, HZ-040):
+  // the same hold as when the server ends the session, so nobody else opens the phone's records
+  // until the member signs in again and they are sent, or a manager releases them.
+  const signOutKeeping = useCallback(async () => {
+    // Never a hold with no owner: the member's details must be known (security review L2).
+    if (!meRef.current) throw new Error(t("mobile.signOut.keepNotReady"));
+    await sessionEnded(false, false, true);
+  }, [sessionEnded]);
 
   const countUnsent = useCallback(async (): Promise<number | null> => {
     const current = dbRef.current;
@@ -1360,6 +1379,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       signOutAndWipe,
       countUnsent,
       signOutDiscarding,
+      signOutKeeping,
       discardHeld,
       handOverHeld,
       removeRefused,
@@ -1384,6 +1404,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       signOutAndWipe,
       countUnsent,
       signOutDiscarding,
+      signOutKeeping,
       discardHeld,
       handOverHeld,
       removeRefused,
