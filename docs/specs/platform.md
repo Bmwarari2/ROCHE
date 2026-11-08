@@ -968,9 +968,10 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   alone gives `off` (`sweepModeOf`; one step at a time). Proposals destroy nothing, so propose mode
   covers every class; a mode per class comes with `destroy` (slices 10 and 11). There is no in-app
   switch: Thapsus sets the flag on the organisation's written request (provisional, H-1620). In
-  propose mode the nightly sweep writes the report (`retention_report.mode` `propose`), then, under
-  the organisation's retention lock, reads the rows of each table the report found due, one by
-  one with the same facts, and decides each with `proposalOutcome`
+  propose mode the nightly sweep writes the report (`retention_report.mode` `propose`), then scans,
+  without the retention lock, each table the report found due a page at a time in id order (held
+  rows, rows with an open case and rows already in a proposed batch left out in SQL), keeping per
+  class only the oldest due a batch could take, and decides each row with `proposalOutcome`
   (`packages/domain/src/platform/retention-batches.ts`). Only `due` records are proposed: never a
   held record, a table the report does not decide (`never_offered`, `not_evaluated`; H-1613), a
   `tenant_policy` class (H-1585), a table without an `id`, a record about a member of staff (its
@@ -980,17 +981,23 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   skipped as if held, until slice 12 reads open cases as holds (provisional, H-1612 and H-1621).
   Records are grouped into one `destruction_batch` per resolved class, at most
   `retention.batch.max_records` items (rate table), oldest due first; a class with a proposed batch
-  gets no new one, and a record already in a proposed batch is skipped. Each batch is audited as
+  gets no new one, and a record already in a proposed batch is skipped. Only then does it take the
+  organisation's retention lock, re-read the proposed batches and re-check holds and open cases for
+  the chosen ids alone, so a hold placed during the scan is respected and the lock is held briefly.
+  Each batch is audited as
   `platform.retention.batch_proposed` (batch id, class, counts per table; no record or subject id).
 - `destruction_batch` is a mutable aggregate: `status` `proposed`, then `cancelled` (approval,
   soft delete and purge add states in slices 9 and 10); a guard trigger allows only that move and
   never a change to what was proposed; `touch_mutable` and `capture_version` keep its versions; it
-  is never deleted. Its class, rule, item count and counts per table hold no personal data
-  (`no-personal-data.ts`). `destruction_batch_item` is append-only: table, record id, class,
-  trigger and due dates, and the kind and ids of whom the record is about (a person or an
-  applicant), so it is personal data by opaque id (registry: `permanent`, provisional H-1622).
+  is never deleted. It names the member of staff who cancelled it (registry subject staff,
+  `cancelled_by`). `destruction_batch_item` is append-only: table, record id, class, trigger and
+  due dates, and the kind and ids of whom the record is about (a person or an applicant; registry
+  subject `subject_ids`, as an incident's `person_ids`). Both are personal data by opaque id
+  (registry: `permanent`, provisional H-1622; `subject_ids` cleared at destruction, provisional
+  H-1623).
   Both have forced RLS, the tenant policy and a tenant-wide-only restrictive policy for
-  `harbour_app`; only the system (`app.is_system()`) inserts, and only as `proposed`; a cancel is a
+  `harbour_app`, `harbour_owner` and the context definers (ADR-0002, ADR-0133; migration 0161 gives
+  `retention_report`'s policy the same roles); only the system (`app.is_system()`) inserts, and only as `proposed`; a cancel is a
   holder of `platform.retention.manage`'s own (`cancelled_by`), with UPDATE granted on the cancel
   columns only (migration 0161).
 - `GET /v1/retention/batches` (newest first, optional `status`, `cursor` and `limit`),
@@ -999,7 +1006,8 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   `records_still_needed`, `rule_under_review`, `proposed_in_error`, `other`; 409 when stale or
   already decided), for tenant-wide holders of `platform.retention.manage` with step-up. Audited as
   `platform.retention.batches_listed`, `platform.retention.batch_viewed` (batch id) and
-  `platform.retention.batch_cancelled` (batch id, reason code, class, count). A cancelled batch's
+  `platform.retention.batch_cancelled` (batch id, reason code, class, count); a holder whose scope is
+  not tenant-wide is refused and the refusal audited (`scope_not_tenant_wide`). A cancelled batch's
   records stay as they were and may be proposed again by a later sweep. Tests:
   `packages/domain/src/platform/retention-batches.test.ts`,
   `packages/db/test/retention-batches.test.ts`, `apps/api/test/retention-batches.test.ts` (off

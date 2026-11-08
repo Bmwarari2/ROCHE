@@ -49,6 +49,13 @@ describe("retention_report", () => {
     expect(await count(ctx(TENANT_A, ids.a.northManager, "locations", [ids.a.locationNorth]))).toBe(
       0,
     );
+    // The owner too is held to tenant-wide scope (ADR-0002; migration 0161).
+    const asOwner = await inContext(
+      db.pool("harbour_owner"),
+      ctx(TENANT_A, ids.a.northManager, "locations", [ids.a.locationNorth]),
+      (c) => c.query<{ n: number }>("SELECT count(*)::int AS n FROM retention_report"),
+    );
+    expect(asOwner.rows[0]?.n).toBe(0);
   });
 
   it("refuses a report written for another organisation", async () => {

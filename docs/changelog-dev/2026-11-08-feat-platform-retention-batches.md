@@ -20,11 +20,13 @@ Branch `feat/platform-retention-batches`, from `main` at 89d118d0 (the report-on
   (a new rate table row, 5000, to verify), skipping a class with a proposed batch and a record
   already in one; a limit that is not a whole number above zero proposes nothing.
 - **The sweep** (`apps/api/src/services/retention-batches.ts`). After the report, in the same
-  transaction and under the organisation's retention lock, it reads, for each table the report
-  found due, its rows one by one with the report's facts (`factColumns`, shared with the report),
-  whether a person they name has an open DSAR case (about them or a contact of theirs), complaint
-  or safeguarding concern, and the subject's ids; it writes each batch, its items and the audit
-  event `platform.retention.batch_proposed` (batch id, class, counts per table; no record or
+  transaction, it scans each table the report found due a page at a time in id order, without the
+  retention lock, with held rows, rows naming a person with an open DSAR case (about them or a
+  contact of theirs), complaint or safeguarding concern, and rows already in a proposed batch left
+  out in SQL; it keeps per class only the oldest due a batch could take (`trimToLimit`). Then it
+  takes the organisation's retention lock, re-reads the proposed batches, plans, re-checks holds
+  and open cases for the chosen ids only (`recheckedBatch`), and writes each batch, its items and
+  the audit event `platform.retention.batch_proposed` (batch id, class, counts per table; no record or
   subject id). The report row's mode is now `report` or `propose`.
 - **`destruction_batch`** (migration 0161): a mutable aggregate (`version`, `touch_mutable`,
   `capture_version`), `proposed` then `cancelled` with who, when and a reason code; a guard
@@ -69,10 +71,40 @@ Branch `feat/platform-retention-batches`, from `main` at 89d118d0 (the report-on
   without step-up, with free text or a stale version is refused, then succeeds once; the class is
   proposed again afterwards.
 
+## Security review (08/11/2026)
+
+The security review found nothing blocking. Fixed in the same branch:
+
+- **M1, the lock.** The first version took the retention lock first and read every row of every
+  due table into memory under it, blocking legal holds, document destruction and the shred for the
+  whole run. The scan now runs without the lock, a page at a time, bounded per class by the batch
+  size; the lock covers only the re-check of the chosen ids and the insert. A test places a hold
+  between the scan and the insert (`afterScan`) and finds the record not proposed.
+- **L1, restrictive policies.** Every restrictive policy on `destruction_batch` and
+  `destruction_batch_item` (tenant-wide only, propose, decide) now holds `harbour_app`,
+  `harbour_owner` and the five context definers (ADR-0002, ADR-0133), so only the system ever
+  proposes; migration 0161 also gives `retention_report`'s tenant-wide policy (0160) the same
+  roles, with a test that the owner in location scope reads no report.
+- **L2, tests.** Database: another organisation's holder cancelling a batch updates nothing; an
+  item naming another organisation's batch fails the foreign key; the owner with the system's
+  context reaches no batch and never proposes. API: another organisation's holder of
+  `platform.retention.manage` gets 404 on the items and the cancel and the batch is unchanged;
+  both lists refuse a stale step-up; open DSAR cases (about the person and about their contact)
+  and an open safeguarding concern join the hold and the complaint as exclusions.
+- **L3, classification.** `destruction_batch` names the member who cancelled it, so it is now a
+  registry entry (staff subject `cancelled_by`, permanent) and `personal: true` in the catalogue,
+  no longer in `no-personal-data.ts`; `destruction_batch_item`'s subject is the person or
+  applicant ids in `subject_ids`, as an incident's `person_ids`. DSAR collection still reads only
+  the catalogue's `person_id`-named columns, so array columns (this one and `person_ids`) are
+  listed as not searched, as before. H-1623 (provisional): `subject_ids` are cleared when the
+  record is destroyed (slice 10).
+- Also: a holder whose scope is not tenant-wide is refused with an audited denial
+  (`scope_not_tenant_wide`).
+
 ## Data protection and clinical safety
 
 - `data-standards.md` and `records-of-processing.md` gain the two tables (items hold record and
-  subject ids). `retention.md` lists them as kept permanently and states the open-case rule.
+  subject ids; the batch names who cancelled it). `retention.md` lists them as kept permanently and states the open-case rule.
 - Not clinical: no hazard log change. The sweep reads and proposes; nothing reaches care or
   medicines, and no record is hidden or changed.
 
@@ -82,6 +114,7 @@ Branch `feat/platform-retention-batches`, from `main` at 89d118d0 (the report-on
   people, H-1581) and soft-deletes it; it re-checks holds and adds item state rows.
 - Provisional DPO decisions, logged in `docs/plans/human-actions.md`: one organisation-wide
   propose setting with no in-app switch yet (H-1620), how batches honour H-1612 before slice 12
-  (H-1621) and batches kept permanently (H-1622).
-- Performance: propose mode reads each due table's rows one by one in Node; fine for the demo and a
-  pilot, to measure on a large organisation before slice 11.
+  (H-1621), batches kept permanently (H-1622) and subject ids cleared at destruction (H-1623).
+- Performance: the scan still reads every not-yet-due row of a due table, a page at a time
+  (memory and the lock stay bounded); to measure on a large organisation before slice 11. Within a
+  table, the batch takes the oldest due among the rows scanned in id (creation) order.

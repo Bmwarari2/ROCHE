@@ -115,11 +115,6 @@ export const NO_PERSONAL_DATA: readonly NoPersonalDataTable[] = [
     reason: "Answers held until the survey closes, then released without the person (plan 3.1)",
   },
   {
-    table: "destruction_batch",
-    reason:
-      "A proposed destruction batch: class, rule, counts per table and a cancel code; its records are its items (plan 5.4)",
-  },
-  {
     table: "retention_report",
     reason: "The retention sweep's report: counts per table and class, no record id or subject",
   },

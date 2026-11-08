@@ -98,6 +98,27 @@ const LIVE = sql.join(
 );
 
 /**
+ * An unreleased legal hold on the row `t` or on the person it names, as a boolean expression
+ * (today's holds: a record or a person; slice 12 adds the wider scopes).
+ */
+export function heldCondition(
+  entry: RetentionTableEntry,
+  plan: Extract<ReportPlan, { kind: "read" }>,
+): SQL {
+  const hasId = "id" in (EXPORT_TABLES[`public.${entry.table}`]?.columns ?? {});
+  const holdTargets: SQL[] = [];
+  if (hasId)
+    holdTargets.push(sql`(h.subject_type = ${entry.table} AND h.subject_id::text = t.id::text)`);
+  // The person column may be one id or a list of them (an incident's `person_ids`).
+  if (plan.personColumn)
+    holdTargets.push(sql`to_jsonb(${ref(plan.personColumn)}) @> to_jsonb(h.person_id)`);
+  return holdTargets.length === 0
+    ? sql`false`
+    : sql`EXISTS (SELECT 1 FROM legal_hold h WHERE h.released_at IS NULL
+                  AND (${sql.join(holdTargets, sql` OR `)}))`;
+}
+
+/**
  * The facts of one table's rows under a read plan, as the select list of a query over `t`: the
  * class, the hold, whether the person is in care and each trigger date (the report groups by
  * them; propose mode reads them per row).
@@ -107,18 +128,7 @@ export function factColumns(
   plan: Extract<ReportPlan, { kind: "read" }>,
 ): SQL {
   const f = plan.facts;
-  const hasId = "id" in (EXPORT_TABLES[`public.${entry.table}`]?.columns ?? {});
-  const holdTargets: SQL[] = [];
-  if (hasId)
-    holdTargets.push(sql`(h.subject_type = ${entry.table} AND h.subject_id::text = t.id::text)`);
-  // The person column may be one id or a list of them (an incident's `person_ids`).
-  if (plan.personColumn)
-    holdTargets.push(sql`to_jsonb(${ref(plan.personColumn)}) @> to_jsonb(h.person_id)`);
-  const held =
-    holdTargets.length === 0
-      ? sql`false`
-      : sql`EXISTS (SELECT 1 FROM legal_hold h WHERE h.released_at IS NULL
-                    AND (${sql.join(holdTargets, sql` OR `)}))`;
+  const held = heldCondition(entry, plan);
   const care = f.careEnded?.from === "person_care_ended" ? f.careEnded.column : null;
   const receiving = care
     ? sql`COALESCE((SELECT p.status::text IN (${LIVE}) FROM person p WHERE p.id = ${ref(care)}), false)`

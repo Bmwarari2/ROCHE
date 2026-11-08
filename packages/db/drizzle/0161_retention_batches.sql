@@ -70,24 +70,33 @@ CREATE POLICY tenant_isolation ON public.destruction_batch_item AS PERMISSIVE FO
   USING (tenant_id = app.current_tenant_id())
   WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
-CREATE POLICY tenant_wide_only ON public.destruction_batch AS RESTRICTIVE FOR ALL TO harbour_app
+CREATE POLICY tenant_wide_only ON public.destruction_batch AS RESTRICTIVE FOR ALL
+  TO harbour_app, harbour_owner, harbour_platform_definer, harbour_care_definer,
+    harbour_workforce_definer, harbour_scheduling_definer, harbour_finance_definer
   USING (app.current_scope() = 'tenant') WITH CHECK (app.current_scope() = 'tenant');
 --> statement-breakpoint
-CREATE POLICY tenant_wide_only ON public.destruction_batch_item AS RESTRICTIVE FOR ALL TO harbour_app
+CREATE POLICY tenant_wide_only ON public.destruction_batch_item AS RESTRICTIVE FOR ALL
+  TO harbour_app, harbour_owner, harbour_platform_definer, harbour_care_definer,
+    harbour_workforce_definer, harbour_scheduling_definer, harbour_finance_definer
   USING (app.current_scope() = 'tenant') WITH CHECK (app.current_scope() = 'tenant');
 --> statement-breakpoint
--- Proposed by the system only, never by a person, and only as proposed.
+-- Proposed by the system only, never by a person (nor by the migrator acting as one), and only as
+-- proposed. Restrictive policies hold harbour_app and harbour_owner (ADR-0002), and with
+-- harbour_owner every context definer (ADR-0133).
 CREATE POLICY destruction_batch_propose ON public.destruction_batch AS RESTRICTIVE FOR INSERT
-  TO harbour_app
+  TO harbour_app, harbour_owner, harbour_platform_definer, harbour_care_definer,
+    harbour_workforce_definer, harbour_scheduling_definer, harbour_finance_definer
   WITH CHECK (app.is_system() AND status = 'proposed');
 --> statement-breakpoint
 CREATE POLICY destruction_batch_item_propose ON public.destruction_batch_item AS RESTRICTIVE
-  FOR INSERT TO harbour_app
+  FOR INSERT TO harbour_app, harbour_owner, harbour_platform_definer, harbour_care_definer,
+    harbour_workforce_definer, harbour_scheduling_definer, harbour_finance_definer
   WITH CHECK (app.is_system());
 --> statement-breakpoint
 -- Cancelled by a holder of platform.retention.manage, in their own name.
 CREATE POLICY destruction_batch_decide ON public.destruction_batch AS RESTRICTIVE FOR UPDATE
-  TO harbour_app
+  TO harbour_app, harbour_owner, harbour_platform_definer, harbour_care_definer,
+    harbour_workforce_definer, harbour_scheduling_definer, harbour_finance_definer
   USING (app.holds_permission_at('platform.retention.manage', NULL))
   WITH CHECK (app.holds_permission_at('platform.retention.manage', NULL)
     AND cancelled_by = app.current_user_id());
@@ -138,3 +147,10 @@ GRANT UPDATE (status, cancelled_at, cancelled_by, cancel_reason) ON public.destr
 REVOKE UPDATE, DELETE, TRUNCATE ON public.destruction_batch_item FROM harbour_app;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON public.destruction_batch_item TO harbour_app;
+--> statement-breakpoint
+-- Migration 0160 gave retention_report's tenant-wide-only policy to harbour_app alone; ADR-0002
+-- has restrictive policies hold harbour_owner too (as legal_hold and destruction_certificate do,
+-- migration 0010), and ADR-0133 every context definer with it. Security review of slice 6, L1.
+ALTER POLICY tenant_wide_only ON public.retention_report
+  TO harbour_app, harbour_owner, harbour_platform_definer, harbour_care_definer,
+    harbour_workforce_definer, harbour_scheduling_definer, harbour_finance_definer;

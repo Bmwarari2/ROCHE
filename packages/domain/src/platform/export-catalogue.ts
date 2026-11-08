@@ -3441,10 +3441,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.destruction_batch": {
     context: "platform",
     description:
-      "Destruction batches the nightly retention sweep proposed (retention sweeps plan 5.4): class, rule, counts per table and whether a reviewer cancelled it; no record ids.",
+      "Destruction batches the nightly retention sweep proposed (retention sweeps plan 5.4): class, rule, counts per table and who cancelled it; no record ids.",
     treatment: "tenant_rows",
     retention: "permanent",
-    personal: false,
+    personal: true,
     columns: {
       id: "exported",
       tenant_id: "exported",

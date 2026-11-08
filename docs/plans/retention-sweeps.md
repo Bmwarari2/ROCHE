@@ -510,7 +510,9 @@ bounded context, so each PR stays small.
     employee relations cases are readable only by their members and cannot be checked; a record
     whose subject is found only through its parent is never proposed (provisional, H-1621).
   - **Batches.** One `destruction_batch` per organisation and resolved class, holding at most
-    `retention.batch.max_records` items (rate table), oldest due first. While a class has a batch
+    `retention.batch.max_records` items (rate table), oldest due first among the rows scanned. The
+    scan runs without the retention lock, a page at a time; the lock is taken only to re-check
+    holds and open cases for the chosen records and write the batch (security review, M1). While a class has a batch
     `proposed`, no new batch is proposed for it; a record already in a proposed batch is skipped.
     The batch is a mutable aggregate (`version`, `expected_version` on every change, `touch_mutable`
     and `capture_version`): `proposed`, then `cancelled` in this slice (approval, soft delete and
@@ -521,7 +523,8 @@ bounded context, so each PR stays small.
     and `POST /v1/retention/batches/{id}/cancel` (`expectedVersion`, reason code), each for
     tenant-wide holders of `platform.retention.manage` with step-up, audited.
   - **Keeping.** Batches and items are kept permanently, as proof of records management, like
-    destruction certificates (provisional, H-1622).
+    destruction certificates (provisional, H-1622); an item's subject ids are cleared when its
+    record is destroyed (provisional, H-1623, slice 10).
 - **Destroy mode** adds the purge of batches whose grace period has ended (5.6).
 - Each batch is processed in its own transaction under the organisation's retention lock (the same
   advisory lock key the documents route and the hold routes take), so a hold placed meanwhile waits and
@@ -622,7 +625,7 @@ tenant's data.
 | 3 | Registry, parts 2 to 4 | Workforce and scheduling; medicines; safety, quality and comms. Fix the catalogue's medicines, audit and payroll classes. The allow-list ends empty. **Built 08/11/2026** (`feat/platform-retention-registry`): 238 entries (the 135 Phase 2 tables, 96 Phase 0 and 1 tables and 6 sign-in tables) and 76 tables listed as holding no personal data; no allow-list was needed; 45 catalogue `retention` values corrected | No |
 | 4 | Report-only sweep (`feat/platform-retention-report`) | `retention-sweep` queue in report mode, `retention_report` table (counts only, forced RLS), `GET /v1/retention/due`, audit event, tests with a clock. **Built 08/11/2026**: flag `platform.retention.sweep_report` (off by default; off and report only), migration 0160, `packages/domain/src/platform/retention-report.ts`, `apps/api/src/services/retention-report.ts`; tables whose class or dates follow a parent, a linked record, a value or a derived rule (and the four the application role cannot read) are counted as `not_evaluated` with the reason until a later slice reads them; holds are those of today (a person or a record), the wider scopes and implicit holds wait for slice 12 | No (writes reports only) |
 | 5 | Report screen | `/settings/retention` "Due for destruction" counts per class, with axe tests | No |
-| 6 | Batches (`feat/platform-retention-batches`) | `destruction_batch`, `destruction_batch_item` (append-only), propose mode, list and cancel routes, step-up; no soft delete yet. **Built 08/11/2026**: flag `platform.retention.sweep_propose` (on top of report), migration 0161, `packages/domain/src/platform/retention-batches.ts`, `apps/api/src/services/retention-batches.ts`, `apps/api/src/routes/retention-batches.ts`; see 5.4 for what is never proposed (H-1620 to H-1622) | No (proposals only) |
+| 6 | Batches (`feat/platform-retention-batches`) | `destruction_batch`, `destruction_batch_item` (append-only), propose mode, list and cancel routes, step-up; no soft delete yet. **Built 08/11/2026**: flag `platform.retention.sweep_propose` (on top of report), migration 0161, `packages/domain/src/platform/retention-batches.ts`, `apps/api/src/services/retention-batches.ts`, `apps/api/src/routes/retention-batches.ts`; see 5.4 for what is never proposed (H-1620 to H-1623) | No (proposals only) |
 | 7 | Retention role and exception | Bootstrap role `harbour_retention_owner`; `app.retention_tables()`; `forbid_mutation` exception; grants; definer ACL tests; bootstrap before migration in every environment | No (capability only) |
 | 8 | Retention column, by context (3 or 4 PRs) | `retention_deleted_at` expand migrations, the restrictive SELECT policy, sync stream filters | No |
 | 9 | Soft delete and restore | `app.retention_soft_delete`, `app.retention_restore`, approve route with step-up, hold-on-grace restores, screen | Yes: hides rows |

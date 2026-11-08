@@ -174,18 +174,55 @@ export function planBatches(
   limits: BatchLimits,
 ): ProposedBatch[] {
   if (!Number.isInteger(limits.maxRecords) || limits.maxRecords < 1) return [];
-  const byClass = new Map<string, BatchCandidate[]>();
-  for (const c of candidates) {
-    if (limits.openClasses.has(c.recordClass)) continue;
-    if (limits.inOpenBatch.has(recordKey(c.table, c.recordId))) continue;
-    byClass.set(c.recordClass, [...(byClass.get(c.recordClass) ?? []), c]);
-  }
+  const byClass = groupByClass(
+    candidates.filter(
+      (c) =>
+        !limits.openClasses.has(c.recordClass) &&
+        !limits.inOpenBatch.has(recordKey(c.table, c.recordId)),
+    ),
+  );
   return [...byClass.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([recordClass, items]) => {
       const sorted = [...items].sort(byDueThenRecord).slice(0, limits.maxRecords);
       return { recordClass, rule: sorted[0]?.rule as ResolvedRule, items: sorted };
     });
+}
+
+function groupByClass(candidates: readonly BatchCandidate[]): Map<string, BatchCandidate[]> {
+  const byClass = new Map<string, BatchCandidate[]>();
+  for (const c of candidates) {
+    const list = byClass.get(c.recordClass);
+    if (list) list.push(c);
+    else byClass.set(c.recordClass, [c]);
+  }
+  return byClass;
+}
+
+/**
+ * Keeps, per class, only the `maxRecords` oldest due candidates: what a batch could take. The scan
+ * calls it after each table so memory stays bounded by the batch size, whatever a table holds.
+ */
+export function trimToLimit(
+  candidates: readonly BatchCandidate[],
+  maxRecords: number,
+): BatchCandidate[] {
+  if (!Number.isInteger(maxRecords) || maxRecords < 1) return [];
+  return [...groupByClass(candidates).values()].flatMap((items) =>
+    items.sort(byDueThenRecord).slice(0, maxRecords),
+  );
+}
+
+/**
+ * A planned batch with only the records still proposable when re-checked under the retention
+ * lock (`stillProposable`, `recordKey`s), or null when none is left.
+ */
+export function recheckedBatch(
+  batch: ProposedBatch,
+  stillProposable: ReadonlySet<string>,
+): ProposedBatch | null {
+  const items = batch.items.filter((i) => stillProposable.has(recordKey(i.table, i.recordId)));
+  return items.length === 0 ? null : { ...batch, items };
 }
 
 /** Items per table, for the audit event and the list: counts only, never an id. */

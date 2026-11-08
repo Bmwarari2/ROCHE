@@ -10,7 +10,7 @@ import { cancelProblem, scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
 import type { Context } from "hono";
-import { auditInTx } from "../http/audit";
+import { auditInTx, writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
@@ -28,9 +28,18 @@ export const BATCHES_LISTED_ACTION = "platform.retention.batches_listed";
 export const BATCH_VIEWED_ACTION = "platform.retention.batch_viewed";
 export const BATCH_CANCELLED_ACTION = "platform.retention.batch_cancelled";
 
-async function reviewer(c: Context<AppEnv>) {
+/** A tenant-wide holder of the permission; a narrower scope is refused and audited. */
+async function reviewer(c: Context<AppEnv>, action: string) {
   const access = await requirePermission(c, PERMISSION);
-  if (scopeFor(access.effective, PERMISSION).scope !== "tenant") throw problems.forbidden();
+  if (scopeFor(access.effective, PERMISSION).scope !== "tenant") {
+    await writeAudit(c.get("services").appPool, access, {
+      action,
+      outcome: "denied",
+      reason: "scope_not_tenant_wide",
+      requestId: c.get("requestId"),
+    });
+    throw problems.forbidden();
+  }
   return access;
 }
 
@@ -77,7 +86,7 @@ export const retentionBatchesRouter = createRouter()
       responses: { 200: jsonBody(DestructionBatchList, "Batches"), ...errorResponses },
     }),
     async (c) => {
-      const access = await reviewer(c);
+      const access = await reviewer(c, BATCHES_LISTED_ACTION);
       const { status, cursor, limit } = c.req.valid("query");
       const body = await withTenant(c, async (tx) => {
         const rows = await tx
@@ -122,7 +131,7 @@ export const retentionBatchesRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await reviewer(c);
+      const access = await reviewer(c, BATCH_VIEWED_ACTION);
       const { id } = c.req.valid("param");
       const { cursor, limit } = c.req.valid("query");
       const body = await withTenant(c, async (tx) => {
@@ -181,7 +190,7 @@ export const retentionBatchesRouter = createRouter()
       responses: { 200: jsonBody(DestructionBatch, "Cancelled"), ...errorResponses },
     }),
     async (c) => {
-      const access = await reviewer(c);
+      const access = await reviewer(c, BATCH_CANCELLED_ACTION);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const saved = await withTenant(c, async (tx) => {

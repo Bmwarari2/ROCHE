@@ -54,7 +54,8 @@ with an open DSAR case, complaint or safeguarding concern, a record about a memb
 `GET /v1/retention/batches`, `GET /v1/retention/batches/{id}/items` and
 `POST /v1/retention/batches/{id}/cancel` (`platform.retention.manage`, step-up, `expectedVersion`,
 reason code), audited. Nothing is hidden or destroyed. Migration 0161 (renumber at merge if
-needed). Provisional decisions H-1620 to H-1622. See
+needed). Provisional decisions H-1620 to H-1623. After the security review the scan runs
+without the retention lock, which covers only the re-check and insert. See
 `docs/changelog-dev/2026-11-08-feat-platform-retention-batches.md`.
 
 ## Retention report (08/11/2026)

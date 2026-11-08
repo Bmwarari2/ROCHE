@@ -8,7 +8,9 @@ import {
   planBatches,
   proposalOutcome,
   proposalPlan,
+  recheckedBatch,
   recordKey,
+  trimToLimit,
 } from "./retention-batches";
 import {
   AS_PARENT,
@@ -288,6 +290,20 @@ describe("planBatches", () => {
 
   it.each([0, -1, 1.5, Number.NaN])("proposes nothing when the limit is %s", (maxRecords) => {
     expect(planBatches(all, { maxRecords, openClasses: none, inOpenBatch: none })).toEqual([]);
+  });
+
+  it("keeps per class only the oldest due a batch could take, so the scan stays bounded", () => {
+    const kept = trimToLimit(all, 2);
+    expect(kept.map((c) => c.recordId).sort()).toEqual(["a1", "b0", "c3"]);
+    expect(trimToLimit(all, 0)).toEqual([]);
+  });
+
+  it("drops records no longer proposable under the lock, and an emptied batch", () => {
+    const [batch] = planBatches(all, { maxRecords: 10, openClasses: none, inOpenBatch: none });
+    if (!batch) throw new Error("expected a batch");
+    const kept = recheckedBatch(batch, new Set([recordKey("t", "a2"), recordKey("z_table", "b0")]));
+    expect(kept?.items.map((i) => i.recordId)).toEqual(["b0", "a2"]);
+    expect(recheckedBatch(batch, new Set())).toBeNull();
   });
 
   it("counts items per table, never naming a record", () => {

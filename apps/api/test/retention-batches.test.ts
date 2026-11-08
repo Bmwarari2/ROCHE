@@ -4,13 +4,15 @@ import type {
   DestructionBatchList,
   ProblemDetails,
 } from "@harbour/contracts";
+import { withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
-import { proposalPlan, RETENTION_REGISTRY } from "@harbour/domain";
+import { emptyCounts, proposalPlan, RETENTION_REGISTRY } from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sweepRetentionReports } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { ageSession, createHarness, type Harness, OTHER } from "./support/harness";
+import { proposeBatches } from "../src/services/retention-batches";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * The retention sweep in propose mode (retention sweeps plan 5.4, 5.5 and 5.8, slice 6;
@@ -25,8 +27,10 @@ import { ageSession, createHarness, type Harness, OTHER } from "./support/harnes
 const json = async <T>(response: Response) => (await response.json()) as T;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const TABLES = RETENTION_REGISTRY.map((e) => e.table).filter((t) => !t.includes("."));
-/** Every registry table but the audit trail and the batch items, which the sweep adds to. */
-const RECORD_TABLES = TABLES.filter((t) => t !== "audit_event" && t !== "destruction_batch_item");
+/** Every registry table but the audit trail and the batches, which the sweep adds to. */
+const RECORD_TABLES = TABLES.filter(
+  (t) => !["audit_event", "destruction_batch", "destruction_batch_item"].includes(t),
+);
 const NEVER_PROPOSED = new Set(
   RETENTION_REGISTRY.filter((e) => proposalPlan(e).kind === "skip").map((e) => e.table),
 );
@@ -36,6 +40,9 @@ describe("destruction batches", () => {
   let h: Harness;
   let held: string;
   let complained: string;
+  let dsarPerson: string;
+  let dsarContact: string;
+  let safeguarded: string;
   let free: string;
 
   const as = (
@@ -50,13 +57,15 @@ describe("destruction batches", () => {
     tenantId: string,
     text: string,
     params: unknown[] = [],
+    userId = "",
   ): Promise<T[]> {
     const client = await h.db.pool("harbour_owner").connect();
     try {
       await client.query("BEGIN");
       await client.query(
-        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
-        [tenantId],
+        `SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true),
+                set_config('app.user_id', $2, true)`,
+        [tenantId, userId],
       );
       const { rows } = await client.query<T>(text, params);
       await client.query("COMMIT");
@@ -117,18 +126,36 @@ describe("destruction batches", () => {
 
   beforeAll(async () => {
     h = await createHarness();
-    // Three residents with allergies leave care, so their records fall due far ahead: one is
-    // held, one has an open complaint about them, the third has neither.
+    // Every resident has an allergy record and leaves care, so their records fall due far
+    // ahead. One is held; one has an open complaint; one an open DSAR case about them; one an open
+    // DSAR case about their contact; one an open safeguarding concern; the last has none.
     const people = await asOwner<{ id: string; location_id: string }>(
       DEMO.tenantId,
-      `SELECT DISTINCT p.id, p.location_id FROM person p JOIN allergy a ON a.person_id = p.id
-       ORDER BY p.id LIMIT 3`,
+      "SELECT id, location_id FROM person WHERE id <> $1 ORDER BY id LIMIT 6",
+      [LODGE.personId],
     );
-    [held, complained, free] = people.map((p) => p.id) as [string, string, string];
+    expect(people).toHaveLength(6);
+    [held, complained, dsarPerson, dsarContact, safeguarded, free] = people.map((p) => p.id) as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+    const location = (personId: string) => people.find((p) => p.id === personId)?.location_id;
+    const all = people.map((p) => p.id);
+    await asOwner(
+      DEMO.tenantId,
+      `INSERT INTO allergy (person_id, substance, severity)
+       SELECT p, 'Latex', 'mild' FROM unnest($1::uuid[]) p
+       WHERE NOT EXISTS (SELECT 1 FROM allergy a WHERE a.person_id = p)`,
+      [all],
+    );
     await asOwner(
       DEMO.tenantId,
       "UPDATE person SET status = 'discharged', discharged_at = '2026-10-01T10:00:00Z' WHERE id = ANY($1)",
-      [[held, complained, free]],
+      [all],
     );
     await asOwner(
       DEMO.tenantId,
@@ -141,12 +168,86 @@ describe("destruction batches", () => {
          channel, received_at, knew_of_matter_on, summary, recorded_by)
        VALUES ($1, $2, 'Eve Example', 'family_or_friend', 'email', now(), current_date,
          'About the laundry service', $3)`,
-      [people[1]?.location_id, complained, DEMO.users.owner.id],
+      [location(complained), complained, DEMO.users.owner.id],
     );
+    const owner = DEMO.users.owner.id;
+    await asOwner(
+      DEMO.tenantId,
+      `INSERT INTO dsar_case (request_kind, subject_kind, subject_person_id, requester_kind, channel, received_on)
+       VALUES ('access', 'person', $1, 'subject', 'email', current_date)`,
+      [dsarPerson],
+      owner,
+    );
+    await asOwner(
+      DEMO.tenantId,
+      `INSERT INTO dsar_case (request_kind, subject_kind, subject_person_id, subject_contact_id,
+         requester_kind, channel, received_on)
+       SELECT 'access', 'contact', c.person_id, c.id, 'subject', 'email', current_date
+       FROM contact c WHERE c.person_id = $1 LIMIT 1`,
+      [dsarContact],
+      owner,
+    );
+    await asOwner(
+      DEMO.tenantId,
+      `INSERT INTO safeguarding_concern (location_id, person_id, abuse_types, description, raised_at,
+         referral_due_at)
+       VALUES ($1, $2, '{neglect}', 'Fixture concern', now(), now() + interval '24 hours')`,
+      [location(safeguarded), safeguarded],
+      owner,
+    );
+    const cases = await asOwner<{ n: number }>(
+      DEMO.tenantId,
+      "SELECT count(*)::int AS n FROM dsar_case WHERE status = 'open'",
+      [],
+      owner,
+    );
+    expect(cases[0]?.n).toBe(2);
   }, 120_000);
 
   afterAll(async () => {
     await h?.close();
+  });
+
+  it("respects a hold placed between the scan and the insert", async () => {
+    const lines = [
+      {
+        table: "allergy",
+        recordClass: "care_record",
+        reason: null,
+        counts: { ...emptyCounts(), due: 1 },
+      },
+    ];
+    const context = {
+      tenantId: DEMO.tenantId,
+      userId: null,
+      scope: "tenant" as const,
+      locationIds: [],
+    };
+    let scanned = 0;
+    const result = await withRequestContext(h.handle.services.db, context, (tx) =>
+      proposeBatches(tx, DEMO.tenantId, FAR, lines, {
+        afterScan: async (candidates) => {
+          scanned = candidates;
+          // Committed on its own connection while the sweep has not yet taken the lock.
+          await asOwner(
+            DEMO.tenantId,
+            "INSERT INTO legal_hold (person_id, reason) VALUES ($1, 'Inquest opened')",
+            [free],
+          );
+        },
+      }),
+    );
+    // The scan found the free resident's allergy record, and the re-check under the lock dropped it.
+    expect(scanned).toBe(1);
+    expect(result.batches).toEqual([]);
+    expect(await items()).toEqual([]);
+    await asOwner(
+      DEMO.tenantId,
+      `UPDATE legal_hold SET released_at = now(), released_by = $2, release_reason = 'Inquest closed'
+       WHERE person_id = $1 AND released_at IS NULL`,
+      [free, DEMO.users.owner.id],
+      DEMO.users.owner.id,
+    );
   });
 
   it("is off unless both flags are on: propose alone proposes nothing", async () => {
@@ -167,10 +268,12 @@ describe("destruction batches", () => {
     const proposed = await items();
     expect(proposed.length).toBeGreaterThan(0);
     const subjects = new Set(proposed.flatMap((i) => i.subject_ids));
-    // The free resident's records are proposed; the held one's and the complained-of one's never.
+    // The free resident's records are proposed; never those of someone held, or with an open
+    // complaint, DSAR case (about them or their contact) or safeguarding concern.
     expect(subjects.has(free)).toBe(true);
-    expect(subjects.has(held)).toBe(false);
-    expect(subjects.has(complained)).toBe(false);
+    for (const excluded of [held, complained, dsarPerson, dsarContact, safeguarded]) {
+      expect(subjects.has(excluded)).toBe(false);
+    }
     // Never a table the report does not decide, or a record about a member of staff.
     for (const item of proposed) expect(NEVER_PROPOSED.has(item.table_name)).toBe(false);
 
@@ -245,6 +348,56 @@ describe("destruction batches", () => {
     }
     expect((await as("owner", "/v1/retention/batches", {}, OTHER.tenantId)).status).toBe(403);
     expect((await as("rae", "/v1/retention/batches", {}, DEMO.tenantId)).status).toBe(403);
+  });
+
+  it("refuses both lists without a fresh step-up", async () => {
+    const [batch] = await asOwner<{ id: string }>(
+      DEMO.tenantId,
+      "SELECT id FROM destruction_batch LIMIT 1",
+    );
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.owner?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      for (const path of ["/v1/retention/batches", `/v1/retention/batches/${batch?.id}/items`]) {
+        const refused = await as("owner", path);
+        expect(refused.status).toBe(403);
+        expect((await json<ProblemDetails>(refused)).code).toBe("step_up_required");
+      }
+    } finally {
+      await ageSession(auth, session, 0);
+    }
+  });
+
+  it("never shows or cancels one organisation's batch for another's holder", async () => {
+    // Rae manages the other organisation and is given platform.retention.manage there.
+    await asOwner(
+      OTHER.tenantId,
+      `WITH r AS (INSERT INTO role (key, name, scope_kind, permissions)
+         VALUES ('records', 'Records', 'tenant', '{platform.retention.manage}') RETURNING id)
+       INSERT INTO role_assignment (tenant_user_id, role_id, location_id) SELECT $1, r.id, NULL FROM r`,
+      [OTHER.managerId],
+    );
+    expect((await as("rae", "/v1/retention/batches", {}, OTHER.tenantId)).status).toBe(200);
+    const [batch] = await asOwner<{ id: string; version: number; status: string }>(
+      DEMO.tenantId,
+      "SELECT id, version, status FROM destruction_batch WHERE status = 'proposed' LIMIT 1",
+    );
+    const path = `/v1/retention/batches/${batch?.id}`;
+    expect((await as("rae", `${path}/items`, {}, OTHER.tenantId)).status).toBe(404);
+    const cancel = await as(
+      "rae",
+      `${path}/cancel`,
+      { method: "POST", body: { expectedVersion: batch?.version, reason: "other" } },
+      OTHER.tenantId,
+    );
+    expect(cancel.status).toBe(404);
+    const [after] = await asOwner<{ version: number; status: string }>(
+      DEMO.tenantId,
+      "SELECT version, status FROM destruction_batch WHERE id = $1",
+      [batch?.id],
+    );
+    expect(after).toEqual({ version: batch?.version, status: batch?.status });
   });
 
   it("cancels a proposed batch with step-up, its version and a reason code, once", async () => {

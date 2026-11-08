@@ -13,6 +13,7 @@ let db: TestDatabase;
 const app = () => db.pool("harbour_app");
 const owner = () => db.pool("harbour_owner");
 const ROLE = "0193a000-0000-7000-8000-0000000006a1";
+const ROLE_B = "0193b000-0000-7000-8000-0000000006b1";
 const system = (tenantId: string) => ctx(tenantId, null, "tenant");
 
 async function propose(tenantId: string, recordClass: string): Promise<string> {
@@ -48,6 +49,7 @@ const cancel = (batchId: string, by: string, reason = "rule_under_review") =>
   );
 
 let batchA: string;
+let batchB: string;
 
 beforeAll(async () => {
   db = await createTestDatabase();
@@ -63,8 +65,19 @@ beforeAll(async () => {
       [ids.a.manager, ROLE],
     );
   });
+  await inContext(owner(), system(TENANT_B), async (c) => {
+    await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ($1, 'records', 'Records', 'tenant', '{platform.retention.manage}')`,
+      [ROLE_B],
+    );
+    await c.query(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, NULL)",
+      [ids.b.manager, ROLE_B],
+    );
+  });
   batchA = await propose(TENANT_A, "care_record");
-  await propose(TENANT_B, "care_record");
+  batchB = await propose(TENANT_B, "care_record");
 }, 120_000);
 
 afterAll(async () => {
@@ -121,6 +134,34 @@ describe("destruction_batch and destruction_batch_item", () => {
         ),
       ),
     ).rejects.toThrow(/row-level security/);
+  });
+
+  it("never lets another organisation cancel a batch or hang an item on it", async () => {
+    // Organisation B's holder of platform.retention.manage reaches none of A's batches.
+    const crossed = await inContext(app(), ctx(TENANT_B, ids.b.manager, "tenant"), (c) =>
+      c.query(
+        `UPDATE destruction_batch SET status = 'cancelled', cancelled_at = now(), cancelled_by = $2,
+           cancel_reason = 'other' WHERE id = $1`,
+        [batchA, ids.b.manager],
+      ),
+    );
+    expect(crossed.rowCount).toBe(0);
+    const [state] = (
+      await inContext(owner(), system(TENANT_A), (c) =>
+        c.query<{ status: string }>("SELECT status FROM destruction_batch WHERE id = $1", [batchA]),
+      )
+    ).rows;
+    expect(state?.status).toBe("proposed");
+    // An item of A's naming B's batch fails the composite foreign key.
+    await expect(
+      inContext(app(), system(TENANT_A), (c) =>
+        c.query(
+          `INSERT INTO destruction_batch_item (batch_id, table_name, record_id, record_class, due_on, subject_kind)
+           VALUES ($1, 'care_note', app.uuid_v7(), 'care_record', '2020-01-01', 'none')`,
+          [batchB],
+        ),
+      ),
+    ).rejects.toThrow(/destruction_batch_item_batch_fk/);
   });
 
   it("holds one proposed batch per class at a time", async () => {
@@ -181,8 +222,23 @@ describe("destruction_batch and destruction_batch_item", () => {
   });
 
   it("never changes the proposal itself, even as the owner", async () => {
+    // The owner is held by the same restrictive policies (ADR-0002): as the system, it reaches
+    // no batch to change, and it never proposes one.
+    const asSystem = await inContext(owner(), system(TENANT_B), (c) =>
+      c.query("UPDATE destruction_batch SET item_count = 2"),
+    );
+    expect(asSystem.rowCount).toBe(0);
     await expect(
-      inContext(owner(), system(TENANT_B), (c) =>
+      inContext(owner(), ctx(TENANT_B, ids.b.manager, "tenant"), (c) =>
+        c.query(
+          `INSERT INTO destruction_batch (record_class, rule, item_count, tables, proposed_at)
+           VALUES ('complaint', '{}', 1, '{}', now())`,
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    // With a holder's context, the guard still refuses a change to what was proposed.
+    await expect(
+      inContext(owner(), ctx(TENANT_B, ids.b.manager, "tenant"), (c) =>
         c.query("UPDATE destruction_batch SET item_count = 2"),
       ),
     ).rejects.toThrow(/proposal never changes/);
