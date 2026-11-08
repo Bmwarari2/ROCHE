@@ -10937,6 +10937,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/retention/due": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The latest retention report: counts of records due, held and kept
+     * @description Counts per table and record class from the nightly retention sweep in report mode; null until a report has run. Nothing is destroyed. Tenant-wide holders of platform.retention.manage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The latest report */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RetentionDue"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/documents/{id}/signature-requests": {
     parameters: {
       query?: never;
@@ -67789,6 +67855,37 @@ export interface components {
       signature: string | null;
       signatureKey: string | null;
       signatureAlgorithm: string | null;
+    };
+    /** @description The latest retention report: counts per table and class, no record ids */
+    RetentionDue: {
+      /** @enum {string} */
+      mode: "off" | "report";
+      report: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        asOf: string;
+        durationMs: number;
+        tablesRead: number;
+        tablesSkipped: number;
+        totals: components["schemas"]["RetentionReportCounts"];
+        lines: components["schemas"]["RetentionReportLine"][];
+      } | null;
+    };
+    RetentionReportCounts: {
+      due: number;
+      held: number;
+      retain: number;
+      no_trigger_yet: number;
+      tenant_policy: number;
+      never_offered: number;
+      not_evaluated: number;
+    };
+    RetentionReportLine: {
+      table: string;
+      recordClass: string | null;
+      reason: string | null;
+      counts: components["schemas"]["RetentionReportCounts"];
     };
     SignatureRequestItem: {
       /** Format: uuid */

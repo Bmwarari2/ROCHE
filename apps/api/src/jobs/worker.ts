@@ -34,6 +34,7 @@ import {
   outboxHandlers,
   processDeliveries,
   promptMedicineOrders,
+  RETENTION_SWEEP_QUEUE,
   raiseCandourBlocked,
   raiseCareReviews,
   raiseHerbertProfileReviews,
@@ -52,6 +53,7 @@ import {
   sweepEvidenceBundlesJob,
   sweepLeaverAccess,
   sweepLoneWorkersJob,
+  sweepRetentionReports,
   syncHrLinks,
 } from "./tasks";
 
@@ -137,6 +139,7 @@ const QUEUES = {
   loneWorkers: "lone-worker-sweep",
   pulseSurveyClose: "pulse-survey-close",
   dmdFreshness: "dmd-freshness",
+  retentionSweep: RETENTION_SWEEP_QUEUE,
 } as const;
 
 for (const name of Object.values(QUEUES)) {
@@ -302,6 +305,11 @@ await work(QUEUES.loneWorkers, async () => {
 await work(QUEUES.pulseSurveyClose, async () => {
   await closeEndedSurveysJob(deps);
 });
+// The retention sweep (retention sweeps plan 5.4): report mode only, counts only, for each
+// organisation whose flag is on; it destroys nothing.
+await work(QUEUES.retentionSweep, async () => {
+  await sweepRetentionReports(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -374,6 +382,8 @@ await boss.schedule(QUEUES.dmdFreshness, "23 6 * * *");
 
 // Hourly: a survey closes, and its answers are released, within the hour after its last day.
 await boss.schedule(QUEUES.pulseSurveyClose, "17 * * * *");
+// Nightly, outside the busy hours: the retention report (plan 5.4).
+await boss.schedule(QUEUES.retentionSweep, "29 2 * * *");
 
 logger.info("Thapsus Care worker started");
 
