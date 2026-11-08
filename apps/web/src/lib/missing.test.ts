@@ -87,6 +87,20 @@ describe("missing persons", () => {
     });
   });
 
+  it.each([
+    ["open, called on time", { status: "open", policeCallDueAt: null, policeCallLate: false }],
+    ["open, called late", { status: "open", policeCallDueAt: null, policeCallLate: true }],
+    ["found after a call", { status: "found", policeCallDueAt: null, policeCallLate: true }],
+    ["closed after a call", { status: "closed", policeCallDueAt: null, policeCallLate: false }],
+  ] as const)(
+    "hazard HZ-127 says a police call was made when the reader cannot see its reference: %s",
+    (_name, episode) => {
+      const hidden = { ...episode, policeCalled: true, policeReference: null };
+      expect(policeCallState(hidden)).toBe("called");
+      expect(policeCallState(hidden, new Date("2030-01-01T00:00:00Z"))).toBe("called");
+    },
+  );
+
   it("hazard HZ-127 turns the police call overdue on the device clock, without waiting for the API", () => {
     const episode = {
       status: "open",

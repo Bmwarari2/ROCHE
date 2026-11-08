@@ -290,8 +290,8 @@ export async function readEpisode(tx: Transaction, tenantId: string, row: Episod
 export function episodeItem(
   row: EpisodeRow,
   read: Awaited<ReturnType<typeof readEpisode>>,
-  /** Whether the reader may see police references (safety.death_detail.read where they are). */
-  policeVisible = true,
+  /** Whether the reader sees police references (the route's `policeVisible`; H-1578). */
+  policeVisible: boolean,
 ) {
   const { view, events, notifications } = read;
   return {
@@ -314,6 +314,8 @@ export function episodeItem(
     })),
     policeCallDueAt: view.policeCallDueAt ? view.policeCallDueAt.toISOString() : null,
     policeCallLate: view.policeCallLate,
+    // Never inferred from the reference, which a reader may not see (HZ-127).
+    policeCalled: events.some((e) => e.kind === "police_called"),
     policeReference: policeVisible ? view.policeReference : null,
     policeReferenceHidden: !policeVisible && view.policeReference !== null,
     cqcNotificationPrompt: view.cqcNotificationPrompt,

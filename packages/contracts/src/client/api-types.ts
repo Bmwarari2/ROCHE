@@ -70627,6 +70627,7 @@ export interface components {
       /** Format: date-time */
       policeCallDueAt: string | null;
       policeCallLate: boolean;
+      policeCalled: boolean;
       version: number;
     };
     /** @enum {string} */
@@ -70660,6 +70661,7 @@ export interface components {
       /** Format: date-time */
       policeCallDueAt: string | null;
       policeCallLate: boolean;
+      policeCalled: boolean;
       policeReference: string | null;
       policeReferenceHidden: boolean;
       cqcNotificationPrompt: boolean;

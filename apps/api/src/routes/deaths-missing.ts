@@ -41,6 +41,7 @@ import {
   type MissingTimelineKind,
   type PersonStatus,
   scopeFor,
+  scopeReachesLocation,
   timelineEntryProblems,
   ukIsoDate,
 } from "@harbour/domain";
@@ -94,12 +95,19 @@ const REPORT = "safety.incident.report";
 const FUTURE_TOLERANCE_MS = 60_000;
 const LIST_LIMIT = 200;
 
-/** The reader holds safety.death_detail.read across the organisation or where the person is. */
-function policeVisible(access: TenantAccess, row: { readonly locationId: string }): boolean {
-  const scope = scopeFor(access.effective, DETAIL);
+/**
+ * Whether the reader sees a missing person episode's police references (HZ-127, HZ-011; H-1578).
+ * While the person is missing or just found, everyone running the search sees the reference: staff
+ * on a night shift must be able to quote it when the person is found or the police call back. Once
+ * the episode is closed, only a holder of safety.death_detail.read where the person is sees it.
+ */
+function policeVisible(
+  access: TenantAccess,
+  row: { readonly locationId: string; readonly status: string },
+): boolean {
   return (
-    scope.scope === "tenant" ||
-    (scope.scope === "locations" && scope.locationIds.includes(row.locationId))
+    row.status !== "closed" ||
+    scopeReachesLocation(scopeFor(access.effective, DETAIL), row.locationId)
   );
 }
 
@@ -215,6 +223,9 @@ export const deathsMissingRouter = createRouter()
       },
     }),
     async (c) => {
+      // The record is hidden by row-level security without the detail permission (migration 0159),
+      // so both are needed and the scope is where both reach.
+      await requirePermission(c, DETAIL);
       const access = await requirePermission(c, MANAGE);
       const { exitRecordId } = c.req.valid("json");
       const now = new Date();
@@ -285,6 +296,9 @@ export const deathsMissingRouter = createRouter()
       },
     }),
     async (c) => {
+      // The record is hidden by row-level security without the detail permission (migration 0159),
+      // so both are needed and the scope is where both reach.
+      await requirePermission(c, DETAIL);
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
@@ -307,7 +321,8 @@ export const deathsMissingRouter = createRouter()
           action: "safety.death.judgement",
           resourceType: "death_record",
           resourceId: id,
-          scope: { expected: body.expected, possiblyUnnatural: body.possiblyUnnatural },
+          // Which fields, never the judgement itself: the audit log is read more widely (#security review M3).
+          scope: { fields: ["expected", "possiblyUnnatural", "judgedBy"] },
         });
         return deathItem(saved, await readDeath(tx, access.tenantId, saved, now), now);
       });
@@ -335,6 +350,9 @@ export const deathsMissingRouter = createRouter()
       },
     }),
     async (c) => {
+      // The record is hidden by row-level security without the detail permission (migration 0159),
+      // so both are needed and the scope is where both reach.
+      await requirePermission(c, DETAIL);
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
@@ -415,6 +433,9 @@ export const deathsMissingRouter = createRouter()
       },
     }),
     async (c) => {
+      // The record is hidden by row-level security without the detail permission (migration 0159),
+      // so both are needed and the scope is where both reach.
+      await requirePermission(c, DETAIL);
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
@@ -466,6 +487,9 @@ export const deathsMissingRouter = createRouter()
       },
     }),
     async (c) => {
+      // The record is hidden by row-level security without the detail permission (migration 0159),
+      // so both are needed and the scope is where both reach.
+      await requirePermission(c, DETAIL);
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
@@ -537,6 +561,7 @@ export const deathsMissingRouter = createRouter()
             ),
             policeCallDueAt: iso(view.policeCallDueAt),
             policeCallLate: view.policeCallLate,
+            policeCalled: view.timeline.some((e) => e.kind === "police_called"),
             version: row.version,
           });
         }

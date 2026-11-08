@@ -2,6 +2,7 @@ import type {
   DeathView,
   HerbertProfileView,
   IncidentDetail,
+  MissingEpisodeList,
   MissingEpisodeView,
   ProblemDetails,
   StatutoryNotificationList,
@@ -382,18 +383,14 @@ describe("hazard HZ-127 the missing person episode (slice 37)", () => {
     const called = await add({ kind: "police_called", reference: "CAD 1234" });
     expect(called.status, await called.clone().text()).toBe(200);
     const view = await json<MissingEpisodeView>(called);
-    // A care worker records the call but does not read the police reference (migration 0159):
-    // the call stands, the reference is kept for those with safety.death_detail.read.
+    // While the person is missing, everyone running the search sees the reference (H-1578).
     expect(view).toMatchObject({
-      policeReference: null,
-      policeReferenceHidden: true,
+      policeCalled: true,
+      policeReference: "CAD 1234",
+      policeReferenceHidden: false,
       cqcNotificationPrompt: true,
     });
-    expect(view.timeline.find((e) => e.kind === "police_called")?.reference).toBeNull();
-    const managed = await json<MissingEpisodeView>(
-      await as("manager", `/v1/missing-episodes/${episodeId}`),
-    );
-    expect(managed).toMatchObject({ policeReference: "CAD 1234", policeReferenceHidden: false });
+    expect(view.timeline.find((e) => e.kind === "police_called")?.reference).toBe("CAD 1234");
     expect(view.notifications.map((n) => n.kind)).toContain("cqc_reg18_police");
     const status = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ status: string }>(
@@ -442,6 +439,25 @@ describe("hazard HZ-127 the missing person episode (slice 37)", () => {
     });
     expect(closed.status, await closed.clone().text()).toBe(200);
     expect((await add({ kind: "note", note: "A note after closing." })).status).toBe(422);
+    // Once closed, the police reference is for holders of safety.death_detail.read only
+    // (migration 0159; H-1578), and the call still reads as made (HZ-127).
+    const carer = await json<MissingEpisodeView>(
+      await as("carer", `/v1/missing-episodes/${episodeId}`),
+    );
+    expect(carer).toMatchObject({
+      policeCalled: true,
+      policeReference: null,
+      policeReferenceHidden: true,
+    });
+    expect(carer.timeline.find((e) => e.kind === "police_called")?.reference).toBeNull();
+    const manager = await json<MissingEpisodeView>(
+      await as("manager", `/v1/missing-episodes/${episodeId}`),
+    );
+    expect(manager).toMatchObject({ policeReference: "CAD 1234", policeReferenceHidden: false });
+    const list = await json<MissingEpisodeList>(
+      await as("carer", "/v1/missing-episodes?status=closed"),
+    );
+    expect(list.items.find((i) => i.id === episodeId)?.policeCalled).toBe(true);
   });
 });
 

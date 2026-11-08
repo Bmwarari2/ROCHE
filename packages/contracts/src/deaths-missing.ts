@@ -169,6 +169,8 @@ export const MissingEpisodeSummary = z
     noticedMissingAt: isoDateTime.nullable(),
     policeCallDueAt: isoDateTime.nullable(),
     policeCallLate: z.boolean(),
+    /** Whether the police have been called, whoever may see the reference (HZ-127). */
+    policeCalled: z.boolean(),
     version,
   })
   .meta({ id: "MissingEpisodeSummary" });
@@ -201,8 +203,10 @@ export const MissingEpisodeView = z
     ),
     policeCallDueAt: isoDateTime.nullable(),
     policeCallLate: z.boolean(),
+    /** Whether the police have been called, whoever may see the reference (HZ-127). */
+    policeCalled: z.boolean(),
     policeReference: z.string().nullable(),
-    /** A police reference is recorded but the reader may not see it (safety.death_detail.read). */
+    /** A police reference is recorded but the reader may not see it: a closed episode (H-1578). */
     policeReferenceHidden: z.boolean(),
     /** Police involved, or the person is under DoLS or the Mental Health Act (regulation 18(2)(f)). */
     cqcNotificationPrompt: z.boolean(),

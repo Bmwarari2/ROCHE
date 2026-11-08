@@ -102,6 +102,23 @@ type ItemRow = typeof disclosureItem.$inferSelect;
 
 const MANAGE: Permission = "safety.incident.manage";
 const APPROVE: Permission = "safety.disclosure.approve";
+/** A death record and its steps are read only with this where the person is (migration 0159). */
+const DEATH_DETAIL: Permission = "safety.death_detail.read";
+const DEATH_DETAIL_TABLES: readonly string[] = ["death_record", "death_step"];
+
+/** Reading or releasing a death record's detail needs the detail permission too (HZ-011). */
+function requireDeathDetail(access: TenantAccess, tables: readonly string[], locationId: string) {
+  if (
+    tables.some((t) => DEATH_DETAIL_TABLES.includes(t)) &&
+    !reaches(access, DEATH_DETAIL, locationId)
+  ) {
+    throw new HttpProblem(
+      403,
+      "missing_permission",
+      "A death record is read only by those who may read its detail (safety.death_detail.read).",
+    );
+  }
+}
 const LOG_LIMIT = 1000;
 const OWN_TABLES = new Set(["disclosure_request", "disclosure_item"]);
 const tags = ["safety"];
@@ -684,6 +701,7 @@ export const disclosuresRouter = createRouter()
           .from(disclosureItem)
           .where(and(eq(disclosureItem.id, itemId), eq(disclosureItem.requestId, id)));
         if (!i) throw problems.notFound();
+        requireDeathDetail(access, [i.tableName], r.locationId);
         await audit(c, tx, access, "item_viewed", id, {
           itemId,
           table: i.tableName,
@@ -932,7 +950,13 @@ export const disclosuresRouter = createRouter()
         if (r.state !== "approved") {
           throw new HttpProblem(409, "disclosure_wrong_state", `This request is ${r.state}.`);
         }
-        return { row: r, items: await itemsOf(tx, id) };
+        const found = await itemsOf(tx, id);
+        requireDeathDetail(
+          access,
+          found.filter((i) => i.decision !== "withhold").map((i) => i.tableName),
+          r.locationId,
+        );
+        return { row: r, items: found };
       });
       // Read each record as the organisation and check it is what was reviewed.
       const records: {

@@ -460,12 +460,14 @@ Permissions: `safety.incident.read` (read an episode), `safety.incident.report` 
 add to its timeline), `safety.incident.manage` (the death record, the welfare check, the debrief,
 closing, the profile), each where it reaches the person (row-level security, ADR-0071). The death
 record (the clinician's judgement on whether the death may be unnatural or suspicious, its steps
-with the police reference, the mortality review) and the police references on an episode are read
-only with `safety.death_detail.read` where the person is: the owner, the Registered Manager, the
+with the police reference, the mortality review) and the police references on a closed episode
+are read only with `safety.death_detail.read` where the person is: the owner, the Registered Manager, the
 deputy, the clinical lead, the team leader and the quality lead by default, never agency workers,
 care coordinators or care workers (slice 83 guides review; migration 0159). Row-level security
-keeps the death record and its steps from anyone else; an episode's police call still shows,
-its reference hidden in words, since the police call's lateness is worked from it (H-1578). Every
+keeps the death record and its steps from anyone else. An episode's police reference shows to
+everyone who reads the episode while the person is missing or just found, so staff on shift can
+quote it; once the episode is closed it is kept to holders, hidden in words, and the police call
+always shows as made (`policeCalled`; HZ-127; H-1578). Every
 read and write is audited by record id, never content.
 
 ## 5. API and events

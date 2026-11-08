@@ -16,9 +16,19 @@ CREATE POLICY death_detail_read ON public.death_step AS RESTRICTIVE FOR SELECT
   USING (app.is_system() OR EXISTS (SELECT 1 FROM public.death_record r
     WHERE r.tenant_id = death_step.tenant_id AND r.id = death_step.death_record_id));
 --> statement-breakpoint
+-- A death record's earlier versions (capture_version) hold the same detail: read only where the
+-- record itself is (its own policies decide, through the subquery), or by the system.
+CREATE POLICY record_version_death_detail_read ON public.record_version AS RESTRICTIVE FOR SELECT
+  TO harbour_app, harbour_owner, harbour_platform_definer, harbour_care_definer,
+     harbour_workforce_definer, harbour_scheduling_definer, harbour_finance_definer
+  USING (table_name <> 'death_record' OR app.is_system()
+    OR EXISTS (SELECT 1 FROM public.death_record r WHERE r.id = record_version.record_id));
+--> statement-breakpoint
 -- Data migration: existing tenants' copies of the built-in roles gain safety.death_detail.read, as
 -- the built-in definitions (packages/domain/src/platform/roles.ts) now give it: the owner, the
--- Registered Manager, the deputy, the clinical lead, the team leader and the quality lead. Each
+-- Registered Manager, the deputy, the clinical lead, the team leader and the quality lead, and a
+-- tenant's own roles cloned from one of them (based_on_key), so a renamed manager role keeps the
+-- death record workflow. Each
 -- change is audited in the same transaction (platform.role.permissions_migrated), as migration
 -- 0143 does. Idempotent.
 ALTER TABLE public.role NO FORCE ROW LEVEL SECURITY;
@@ -26,7 +36,7 @@ ALTER TABLE public.role NO FORCE ROW LEVEL SECURITY;
 DO $$
 DECLARE t uuid;
 BEGIN
-  FOR t IN SELECT DISTINCT tenant_id FROM public.role WHERE is_builtin ORDER BY tenant_id LOOP
+  FOR t IN SELECT DISTINCT tenant_id FROM public.role ORDER BY tenant_id LOOP
     PERFORM set_config('app.tenant_id', t::text, true);
     PERFORM set_config('app.scope', 'tenant', true);
     WITH grants(key, add) AS (VALUES
@@ -41,8 +51,9 @@ BEGIN
         SELECT r.id, r.tenant_id, r.key,
           ARRAY(SELECT p FROM unnest(g.add) WITH ORDINALITY AS a(p, n)
                 WHERE p <> ALL (r.permissions) ORDER BY n) AS missing
-        FROM public.role r JOIN grants g ON g.key = r.key
-        WHERE r.tenant_id = t AND r.is_builtin AND NOT (r.permissions @> g.add)
+        FROM public.role r
+          JOIN grants g ON g.key = CASE WHEN r.is_builtin THEN r.key ELSE r.based_on_key END
+        WHERE r.tenant_id = t AND NOT (r.permissions @> g.add)
       ),
       changed AS (
         UPDATE public.role r SET permissions = r.permissions || x.missing
@@ -55,7 +66,7 @@ BEGIN
         'success', 'role', x.id::text,
         jsonb_build_object('migration', '0159_death_detail_read', 'roleKey', x.key,
           'added', to_jsonb(x.missing)),
-        'Existing tenants'' built-in role copies gained the death record detail permission their built-in definitions added (migration 0159)'
+        'Existing tenants'' built-in role copies, and roles cloned from them, gained the death record detail permission their built-in definitions added (migration 0159)'
       FROM targets x JOIN changed c ON c.id = x.id;
   END LOOP;
   PERFORM set_config('app.tenant_id', '', true);

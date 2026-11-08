@@ -127,6 +127,8 @@ export interface PoliceCall {
   readonly policeCallDueAt: string | null;
   readonly policeCallLate: boolean;
   readonly policeReference?: string | null;
+  /** Whether the police were called, which never depends on seeing the reference (HZ-127). */
+  readonly policeCalled?: boolean;
   readonly immediateRisk?: boolean;
 }
 
@@ -134,13 +136,13 @@ export type PoliceCallState = "called" | "overdue" | "now" | "due" | "missed" | 
 
 /**
  * The police call as the screens put it first: overdue, call now (immediate risk), due by the
- * target, called (a reference recorded), missed (found or closed after the target with no call:
+ * target, called (a police call recorded, seen or not), missed (found or closed after the target with no call:
  * said as late, never "not needed", HZ-127), or no longer needed (found before the target).
  * Lateness is also worked out from the device clock, so a page left open turns overdue at the
  * target without waiting for the API.
  */
 export function policeCallState(episode: PoliceCall, now: Date = new Date()): PoliceCallState {
-  if (episode.policeReference) return "called";
+  if (episode.policeCalled || episode.policeReference) return "called";
   const late =
     episode.policeCallLate ||
     (episode.policeCallDueAt !== null && Date.parse(episode.policeCallDueAt) <= now.getTime());

@@ -22299,6 +22299,9 @@
           "policeCallLate": {
             "type": "boolean"
           },
+          "policeCalled": {
+            "type": "boolean"
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -22313,6 +22316,7 @@
           "noticedMissingAt",
           "policeCallDueAt",
           "policeCallLate",
+          "policeCalled",
           "version"
         ]
       },
@@ -22420,6 +22424,9 @@
           "policeCallLate": {
             "type": "boolean"
           },
+          "policeCalled": {
+            "type": "boolean"
+          },
           "policeReference": {
             "type": [
               "string",
@@ -22502,6 +22509,7 @@
           "timeline",
           "policeCallDueAt",
           "policeCallLate",
+          "policeCalled",
           "policeReference",
           "policeReferenceHidden",
           "cqcNotificationPrompt",

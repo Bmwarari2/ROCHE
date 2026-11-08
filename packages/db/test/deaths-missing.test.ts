@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   DEATH_RECORD_STATUSES,
   DEATH_STEP_OUTCOMES,
@@ -202,6 +203,59 @@ describe("hazard HZ-013 the death record (migration 0099)", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("hazard HZ-011 keeps a death record from a holder at another home, from changes by a non-holder and from its history (migration 0159)", async () => {
+    const LOCAL = "0199f000-0000-7000-8000-0000000037b2";
+    await ownerDb(async (c) => {
+      await c.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+           ($1, 'death_detail_here', 'Death detail here', 'location', '{safety.death_detail.read}')`,
+        [LOCAL],
+      );
+      await c.query(
+        "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+        [a.northManager, LOCAL, a.locationSouth],
+      );
+    });
+    const northManager = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      inContext(app(), ctx(TENANT_A, a.northManager, "tenant"), fn);
+    // Held at South only: the record is at North.
+    expect(
+      await northManager(async (c) => (await c.query("SELECT id FROM death_record")).rows.length),
+    ).toBe(0);
+    expect(
+      await northManager(
+        async (c) =>
+          (await c.query("UPDATE death_record SET judged_by = 'Changed' WHERE id = $1", [deathId]))
+            .rowCount,
+      ),
+    ).toBe(0);
+    // The earlier versions hold the same detail.
+    const versions = (as: typeof asManager) =>
+      as(
+        async (c) =>
+          (
+            await c.query(
+              "SELECT id FROM record_version WHERE table_name = 'death_record' AND record_id = $1",
+              [deathId],
+            )
+          ).rows.length,
+      );
+    expect(await versions(asManager)).toBeGreaterThan(0);
+    expect(await versions(northManager)).toBe(0);
+    expect(await versions(ownerDb)).toBeGreaterThan(0);
+    // Held at North: the record shows.
+    await ownerDb((c) =>
+      c.query(
+        "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+        [a.northManager, LOCAL, a.locationNorth],
+      ),
+    );
+    expect(
+      await northManager(async (c) => (await c.query("SELECT id FROM death_record")).rows.length),
+    ).toBe(1);
+    await ownerDb((c) => c.query("DELETE FROM role_assignment WHERE role_id = $1", [LOCAL]));
+  });
+
   it("hazard HZ-011 shows a death record to no one outside the person's scope or organisation", async () => {
     const seen = (as: typeof asManager) =>
       as(async (c) => (await c.query("SELECT id FROM death_record")).rows.length);
@@ -329,5 +383,59 @@ describe("hazard HZ-127 the missing person episode and the Herbert Protocol prof
     expect(
       await asCarer(async (c) => (await c.query("SELECT id FROM death_step")).rows.length),
     ).toBe(0);
+  });
+});
+
+describe("existing tenants' roles gain safety.death_detail.read (migration 0159)", () => {
+  it("adds it to the built-in copies and to roles cloned from them, once, audited", async () => {
+    const sql = readFileSync(
+      new URL("../drizzle/0159_death_detail_read.sql", import.meta.url),
+      "utf8",
+    );
+    const block = sql
+      .slice(sql.indexOf("ALTER TABLE public.role NO FORCE ROW LEVEL SECURITY;"))
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    await ownerDb((c) =>
+      c.query(
+        `INSERT INTO role (key, name, scope_kind, permissions, is_builtin, based_on_key) VALUES
+           ('night_manager', 'Night manager', 'location', '{safety.incident.manage}', false, 'registered_manager'),
+           ('night_carer', 'Night carer', 'location', '{safety.incident.read}', false, 'care_worker')`,
+      ),
+    );
+    const run = async () => {
+      const client = await db.pool("harbour_owner").connect();
+      try {
+        await client.query("BEGIN");
+        for (const statement of block) await client.query(statement);
+        await client.query("COMMIT");
+      } finally {
+        client.release();
+      }
+    };
+    await run();
+    await run();
+    const { roles, audits } = await ownerDb(async (c) => ({
+      roles: (
+        await c.query<{ key: string; permissions: string[] }>(
+          "SELECT key, permissions FROM role WHERE key IN ('night_manager', 'night_carer') ORDER BY key",
+        )
+      ).rows,
+      audits: (
+        await c.query(
+          `SELECT id FROM audit_event WHERE action = 'platform.role.permissions_migrated'
+             AND scope ->> 'migration' = '0159_death_detail_read' AND scope ->> 'roleKey' = 'night_manager'`,
+        )
+      ).rows.length,
+    }));
+    expect(roles.find((r) => r.key === "night_manager")?.permissions).toEqual([
+      "safety.incident.manage",
+      "safety.death_detail.read",
+    ]);
+    expect(roles.find((r) => r.key === "night_carer")?.permissions).toEqual([
+      "safety.incident.read",
+    ]);
+    expect(audits).toBe(1);
   });
 });
