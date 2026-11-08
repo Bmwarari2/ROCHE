@@ -8,6 +8,7 @@ import { RecordFrame } from "@/components/care/RecordFrame";
 import { OpenItemForm } from "@/components/medicines/stock/PersonStockForms";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { tabHref } from "@/lib/care-record";
+import { cdRecordingAt } from "@/lib/cd-recording";
 import { cdPageHref } from "@/lib/controlled-drugs";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -54,9 +55,11 @@ async function PersonStockTab({
   if (!stockShown(reaching)) return <NoAccess />;
   const manage = stockManaged(reaching);
   const api = await tenantApi();
-  const [read, record] = await Promise.all([
+  const [read, record, recordingOn] = await Promise.all([
     api.GET("/v1/people/{id}/medicine-stock", { params: { path: { id } } }),
     manage ? api.GET("/v1/people/{id}/medicines", { params: { path: { id } } }) : null,
+    // Which register holds controlled drug stock at the person's home (H-1517).
+    cdRecordingAt(person.locationId),
   ]);
   const data = readOrFail(read, tabHref(id, "medicines"));
   if (!data) return <NoAccess />;
@@ -137,7 +140,13 @@ async function PersonStockTab({
                     {t("medicines.stock.balance", { balance: cd.balance, unit: cd.unitName })}
                   </span>
                 </p>
-                <p className="m-0">{t("medicines.stock.fromRegister")}</p>
+                <p className="m-0">
+                  {t(
+                    recordingOn
+                      ? "medicines.stock.fromRegister"
+                      : "medicines.stock.fromRegisterNotTurnedOn",
+                  )}
+                </p>
                 <p className="m-0">
                   <Link
                     href={cdPageHref(id, cd.pageId)}

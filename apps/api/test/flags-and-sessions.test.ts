@@ -117,6 +117,37 @@ describe("flags through the OpenFeature provider (PLAT-003)", () => {
   });
 });
 
+describe("hazard HZ-115 hazard HZ-008 controlled drug recording is released location by location (H-1517)", () => {
+  type Flags = { locationId: string; flags: Record<string, boolean> };
+  const flagsAt = (who: Member, locationId: string) =>
+    h.request(`/v1/me/locations/${locationId}/flags`, {
+      tenant: DEMO.tenantId,
+      token: h.tokens[who] ?? "",
+    });
+
+  it("is off at a home without its own row, and on only where that row turns it on", async () => {
+    // The harness releases recording at the demo home only, as the demo seed does.
+    const lodge = await flagsAt("owner", LODGE.locationId);
+    expect(lodge.status, await lodge.clone().text()).toBe(200);
+    expect(((await lodge.json()) as Flags).flags["medicines.cd_recording"]).toBe(false);
+    const demo = (await (await flagsAt("carer", DEMO.locationId)).json()) as Flags;
+    expect(demo).toMatchObject({ locationId: DEMO.locationId });
+    expect(demo.flags["medicines.cd_recording"]).toBe(true);
+    // The organisation-wide answer in /v1/me stays off: it is set per location.
+    const whole = (await (await me({ token: h.tokens.owner ?? "" })).json()) as {
+      flags: Record<string, boolean>;
+    };
+    expect(whole.flags["medicines.cd_recording"]).toBe(false);
+  });
+
+  it("answers only for a location the member works at", async () => {
+    // Another organisation's home (row-level security) and a home of the same organisation the
+    // member does not work at (the work-location check) answer alike.
+    expect((await flagsAt("owner", OTHER.locationId)).status).toBe(404);
+    expect((await flagsAt("carer", LODGE.locationId)).status).toBe(404);
+  });
+});
+
 describe("hazard HZ-111 the idle timeout is off unless the environment turns it on", () => {
   it("never signs out an idle browser session with the default configuration", async () => {
     const off = createApp(
