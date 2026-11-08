@@ -163,6 +163,7 @@ import {
   VaultResetError,
 } from "./held-work";
 import { usePreferences } from "./preferences";
+import { resetNoticeWords } from "./reset-notice";
 import { useSession } from "./session";
 import {
   type DiscardKind,
@@ -241,9 +242,6 @@ const VaultContext = createContext<VaultValue | null>(null);
 
 export const REMOTE_WIPE_NOTICE =
   "You were signed out of Thapsus Care on this device, so the care records stored on it have been removed. Sign in again to continue.";
-
-const RESET_NOTICE =
-  "This device's security settings changed, so the data stored on it was reset. It will download again when you are online.";
 
 const SIGN_OUT_TIMEOUT_MS = 5_000;
 
@@ -635,7 +633,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       }
       if (created && previousId) {
         deleteDatabaseFile(databaseFilename(previousId, appEnv.demoMode));
-        setResetNotice(RESET_NOTICE);
+        // The hold marker, kept in the keystore apart from the database, is the only count left.
+        setResetNotice(resetNoticeWords(heldRef.current?.entries));
       }
 
       const filename = databaseFilename(key.id, appEnv.demoMode);

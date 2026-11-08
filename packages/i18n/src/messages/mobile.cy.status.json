@@ -562,6 +562,7 @@
     "mobile.upload.unreadable",
     "mobile.vault.deviceRevoked",
     "mobile.vault.resetFailed",
+    "mobile.vault.resetNotice",
     "mobile.vault.restoreBlockedFailed",
     "mobile.vault.restoreFailed",
     "mobile.vault.restoreIncomplete",
