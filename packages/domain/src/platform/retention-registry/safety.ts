@@ -87,7 +87,7 @@ export const SAFETY_REGISTRY: RegistryContext = {
       { closedAt: col("received_at") },
       person("person_id"),
       {
-        provisional: ["H-1558", "H-NEW-4"],
+        provisional: ["H-1558", "H-1584"],
         note: "A compliment never closes: counted from receipt",
       },
     ),
@@ -110,7 +110,7 @@ export const SAFETY_REGISTRY: RegistryContext = {
       { closedAt: firstOf("handed_over_at", "released_at") },
       person("person_id"),
       {
-        provisional: ["H-525", "H-NEW-4"],
+        provisional: ["H-525", "H-1584"],
         note: "data_rights_case unless it belongs to a serious incident; built as serious_incident until the table has a per-row class",
       },
     ),

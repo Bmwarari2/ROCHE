@@ -21,7 +21,7 @@ pending DPO review at the testing phase (ADR-0132).
 
 - `docs/plans/human-actions.md`: new section "Phase 2: retention sweeps (plan and slice 0)" with the
   plan's 12 DPO questions and their provisional answers: H-1556 to H-1560 (questions 1 to 5) and
-  H-NEW-1 to H-NEW-7 (questions 6 to 12, numbered at merge after H-1580).
+  H-1581 to H-1587 (questions 6 to 12, numbered at merge after H-1580).
 - `docs/decisions/0135-retention-row-destruction.md` (proposed; number confirmed at merge): row
   destruction through a retention-only column (`retention_deleted_at`), a grace period, then deletion
   or column clearing with a certificate per batch, class and table; one NOLOGIN

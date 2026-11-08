@@ -5,6 +5,7 @@ import ClipboardList from "lucide-react-native/icons/clipboard-list";
 import Clock from "lucide-react-native/icons/clock";
 import GraduationCap from "lucide-react-native/icons/graduation-cap";
 import ListChecks from "lucide-react-native/icons/list-checks";
+import Pill from "lucide-react-native/icons/pill";
 import Settings from "lucide-react-native/icons/settings";
 import Users from "lucide-react-native/icons/users";
 import { useSession } from "../../app-state/session";
@@ -14,6 +15,9 @@ import { TRAINING_SELF } from "../../training/hooks";
 
 /** Who takes part in the handover, as the API and the handover streams decide (care.md rule 14). */
 const HANDOVER_PERMISSION = "care.handover.manage";
+
+/** Who has a Medicines tab: those the medicines streams reach (slice 69; ADR-0130). */
+const MEDICINES_PERMISSION = "medicines.emar.administer";
 
 /** Who has a Shifts tab: those who clock their own time or work alone (scheduling.md section 18). */
 const SHIFTS_PERMISSIONS = ["scheduling.timesheet.self", "scheduling.lone_worker.check_in"];
@@ -32,6 +36,7 @@ export default function CareLayout() {
   const { me } = useSession();
   const handover = (me?.permissions ?? []).includes(HANDOVER_PERMISSION);
   const shifts = SHIFTS_PERMISSIONS.some((p) => (me?.permissions ?? []).includes(p));
+  const medicines = (me?.permissions ?? []).includes(MEDICINES_PERMISSION);
   const training = (me?.permissions ?? []).includes(TRAINING_SELF);
   return (
     <Tabs
@@ -69,6 +74,17 @@ export default function CareLayout() {
           tabBarIcon: ({ color, size }) => (
             <ListChecks color={color} size={size} strokeWidth={1.5} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="medicines"
+        options={{
+          title: t("mobile.meds.title"),
+          headerShown: false,
+          tabBarButtonTestID: "tab-medicines",
+          tabBarAccessibilityLabel: t("mobile.meds.title"),
+          href: medicines ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Pill color={color} size={size} strokeWidth={1.5} />,
         }}
       />
       <Tabs.Screen

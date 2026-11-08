@@ -80,7 +80,7 @@ export type DateSource =
   | { readonly from: "children"; readonly table: string; readonly foreignKey: string }
   /**
    * No column holds it: worked out from `columns` by the rule stated, an answer that is
-   * provisional until confirmed (H-NEW-4).
+   * provisional until confirmed (H-1584).
    */
   | { readonly from: "derived"; readonly columns: readonly string[]; readonly rule: string }
   /** The latest `column` of the rows of `table` whose `foreignKey` is this row's id. */
@@ -103,7 +103,7 @@ export type DateSource =
     }
   /**
    * The end of the pay reference period holding the date. No table stores it; it is worked out
-   * from `pay_run.period_end` or the pay frequency (provisional, H-NEW-4).
+   * from `pay_run.period_end` or the pay frequency (provisional, H-1584).
    */
   | { readonly from: "pay_period_end"; readonly of: DateSource };
 

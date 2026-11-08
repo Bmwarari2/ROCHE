@@ -21,13 +21,13 @@ overrides below); every override is versioned, audited and needs a recorded reas
   longest period wins. A legal hold suspends destruction until it is lifted; place one whenever a DSAR,
   complaint, safeguarding enquiry, investigation, claim or inquest concerns the record. An open DSAR
   case, complaint, safeguarding enquiry or employee relations case is to hold its subject's records
-  automatically while it is open (provisional, H-NEW-6; built in slice 12 of
+  automatically while it is open (provisional, H-1586; built in slice 12 of
   [the retention sweeps plan](../plans/retention-sweeps.md); until then a hold is placed by hand).
 - **No period, no destruction**: records of a `tenant_policy` class are never offered for destruction
-  until the organisation sets a period (provisional, H-NEW-5).
+  until the organisation sets a period (provisional, H-1585).
 - **Staff files**: the organisation's `staff_file_option`, chosen at onboarding, picks the staff file
   row; the keep-until date is worked out again whenever the period or the date of birth changes
-  (provisional, H-NEW-3).
+  (provisional, H-1583).
 - **Mechanism**: review of destruction batches, soft delete, grace period, cryptographic shredding and
   destruction certificates are specified in `docs/compliance/retention-and-deletion.md`. This file holds
   only the periods.
@@ -212,7 +212,7 @@ record is deleted (provisional, H-1560).
 | `evidence_link` (evidence linked to the quality framework) | the class of the record it links, as `document_signature` (provisional, H-1558) |
 | `shift_cover_need` | rota_and_timesheet, counted from the end of the pay reference period (provisional, H-1558) |
 | `complaint` ([safety.md](safety.md)) | complaint (provisional, H-1558) |
-| `compliment` | complaint, counted from receipt, as a compliment never closes (provisional, H-1558, H-NEW-4) |
+| `compliment` | complaint, counted from receipt, as a compliment never closes (provisional, H-1558, H-1584) |
 | `audit_record`, `audit_action` (audits, slice 19) | quality_audit, counted from the audit's completion (provisional, H-1558) |
 | `absence`, `fit_note`, `return_to_work` ([scheduling.md](scheduling.md) section 17, slice 40) | sickness_absence, counted from the end of the absence (provisional, H-1558) |
 | `wellbeing_check_in`, `recognition` ([scheduling.md](scheduling.md) section 20) | staff_wellbeing (provisional, H-1557) |

@@ -40,10 +40,10 @@ const rotaRecord = (
       ? { createdAt: PARENT, periodEndsAt: PARENT }
       : { createdAt: date, periodEndsAt: payPeriodEnd(date) },
     subject,
-    { provisional: ["H-NEW-4"], ...extra },
+    { provisional: ["H-1584"], ...extra },
   );
 
-const H1560 = ["H-1560", "H-NEW-4"];
+const H1560 = ["H-1560", "H-1584"];
 
 export const SCHEDULING_REGISTRY: RegistryContext = {
   context: "scheduling",
@@ -69,7 +69,7 @@ export const SCHEDULING_REGISTRY: RegistryContext = {
     }),
     rotaRecord("shift_cover_need", col("resolved_at"), staff(null), {
       parent: parentIs("shift_assignment", "assignment_id"),
-      provisional: ["H-1558", "H-NEW-4"],
+      provisional: ["H-1558", "H-1584"],
     }),
     rotaRecord("agency_booking", lookup("shift", "shift_id", "ends_at"), staff("worker_id"), {
       parent: parentIs("shift_assignment", "assignment_id"),
@@ -79,7 +79,7 @@ export const SCHEDULING_REGISTRY: RegistryContext = {
       derived("the latest of the worker's bookings (agency_booking.worker_id)", "tenant_user_id"),
       staff("tenant_user_id"),
       {
-        note: "An agency worker has no end date: kept from the last booking (provisional, H-NEW-4)",
+        note: "An agency worker has no end date: kept from the last booking (provisional, H-1584)",
       },
     ),
     rotaRecord("agency_awr_record", col("to_on"), staff("worker_id")),

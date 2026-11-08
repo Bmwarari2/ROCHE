@@ -157,6 +157,7 @@ describe("hazard HZ-006 refused entries stay readable", () => {
       content: "What was recorded: Invented note",
       when: "11/10/2026 at 10:00",
       copy: null,
+      advice: null,
     });
   });
 
@@ -277,5 +278,37 @@ describe("hazard HZ-006 refused entries stay readable", () => {
     expect(item.title).toBe("Chart entry for Not recorded");
     expect(item.reason).toBe("Reason: The server did not say why.");
     expect(item.content).toBe("What was recorded: 60 kg, Bed scales");
+  });
+});
+
+describe("hazard HZ-115 a refused dose names its medicine in needs attention (slice 70)", () => {
+  it("says the medicine, what was recorded and the dose it was for", () => {
+    const item = issueItem({
+      id: "a9",
+      person_id: "p1",
+      record_table: "medication_administration",
+      http_status: 422,
+      code: "administration_witness_key_replaced",
+      message: "A signature was made with a PIN that had been replaced on this phone.",
+      payload: JSON.stringify({
+        outcome: "given",
+        due_at: "2026-10-11T07:00:00.000Z",
+        given_at: "2026-10-11T07:05:00.000Z",
+        supersedes_id: null,
+      }),
+      rejected_at: "2026-10-11T12:00:00.000Z",
+      preferred_name: "Bea",
+      given_name: "Beatrice",
+      family_name: "Sample",
+      medicine_name: "Invented tablets 10mg",
+    });
+    expect(item.title).toBe("Medicine record for Bea Sample");
+    expect(item.content).toContain(
+      "Invented tablets 10mg: given, for the dose due 11/10/2026 at 08:00",
+    );
+    expect(item.when).toBe("11/10/2026 at 08:05");
+    expect(item.advice).toBe(
+      "Ask the nurse in charge what happened at this dose. If Thapsus Care does not have it, record it on the web.",
+    );
   });
 });

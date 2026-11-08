@@ -120,7 +120,7 @@ export const WORKFORCE_REGISTRY: RegistryContext = {
         ),
       },
       staff("worker_id"),
-      { provisional: ["H-1558", "H-NEW-4"] },
+      { provisional: ["H-1558", "H-1584"] },
     ),
 
     entry(

@@ -90,8 +90,8 @@ export const PLATFORM_REGISTRY: RegistryContext = {
       person("person_id"),
       {
         otherSubjects: [staff("subject_id")],
-        note: "Stored versions deleted object by object (ADR-0109). Right to work copies close with the employment, fit notes with their absence (provisional, H-NEW-4)",
-        provisional: ["H-NEW-4"],
+        note: "Stored versions deleted object by object (ADR-0109). Right to work copies close with the employment, fit notes with their absence (provisional, H-1584)",
+        provisional: ["H-1584"],
       },
     ),
     childOf("document_signature", "document", "document_id", person("person_id"), {
@@ -109,7 +109,7 @@ export const PLATFORM_REGISTRY: RegistryContext = {
       classes("data_rights_case"),
       {
         closedAt: derived(
-          "responded_on; a withdrawn case, the time of its withdrawal's audit event (provisional, H-NEW-4)",
+          "responded_on; a withdrawn case, the time of its withdrawal's audit event (provisional, H-1584)",
           "responded_on",
           "status",
         ),
@@ -117,7 +117,7 @@ export const PLATFORM_REGISTRY: RegistryContext = {
       person("subject_person_id"),
       {
         otherSubjects: [staff("subject_staff_id")],
-        provisional: ["H-NEW-4"],
+        provisional: ["H-1584"],
         note: "The bundle under dsar/ in the exports bucket is destroyed with the case",
       },
     ),

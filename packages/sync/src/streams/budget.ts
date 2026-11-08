@@ -42,11 +42,13 @@ export interface BucketEstimateInput {
   readonly medsAssignedPeople?: number;
   /** People receiving care at the homes the medicines family reaches whole. */
   readonly medsPeople?: number;
+  /** Homes in the token's `location_ids`: a bucket each for the home and for its services. */
+  readonly locations?: number;
 }
 
 export function estimateBuckets(input: BucketEstimateInput): number {
   const { days, blocks } = input;
-  const fixed = 4 + input.shiftDays;
+  const fixed = 4 + input.shiftDays + 2 * (input.locations ?? 0);
   const wholeHomes =
     days * (input.entriesHomes + input.careHomes + input.handoverHomes) +
     blocks * (input.handoverHomes + 1) +

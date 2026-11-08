@@ -38,7 +38,7 @@ export const INTEGRATIONS_REGISTRY: RegistryContext = {
         periodEndsAt: payPeriodEnd(col("effective_from")),
       },
       staff("staff_profile_id"),
-      { provisional: ["H-1558", "H-NEW-4"] },
+      { provisional: ["H-1558", "H-1584"] },
     ),
     entry(
       "hr_pay_unit",
