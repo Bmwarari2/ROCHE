@@ -32,6 +32,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Retention registry (08/11/2026)
+
+`feat/platform-retention-registry` (retention sweeps plan slices 2 and 3, on #193 and slice 1): the
+retention registry in `packages/domain/src/platform/retention-registry/`, one entry for each of the
+238 tables with personal data (Phase 0 to 2 and the sign-in schema) and 76 listed as holding none;
+a `packages/db` test that fails for a table with neither, or an entry naming a missing table,
+column or retention.md class; and the export catalogue's `retention` field checked against it
+(45 values corrected). No migration, data change or route. DPO decisions found are in plan section
+3.2. See `docs/changelog-dev/2026-11-08-feat-platform-retention-registry.md`.
+
 ## H-1555: clock and lone-worker location evidence under a signed DPIA (07/11/2026)
 
 `fix/scheduling-clock-evidence-dpia`: location or NFC clock-in evidence and the lone-worker

@@ -11,10 +11,10 @@ Branch `feat/platform-retention-rules`, from `main` at `ea6fc04d`.
   `staffFileRetainUntil`, which are unchanged; existing types gain nothing that alters behaviour.
 - **Semantics** follow section 5.2 of the retention sweeps plan on #193 (`docs/retention-sweeps-spec`)
   and its provisional answers, pending DPO review at the testing phase: the organisation's
-  `staff_file_option` picks the staff file row (H-NEW-3); trigger dates with no column are inputs
-  (H-NEW-4); a `tenant_policy` class, an unknown class and an unreadable row are never destroyed
-  (H-NEW-5); an open DSAR case, complaint, safeguarding enquiry or employee relations case about the
-  subject holds the record (H-NEW-6). Holds may name a member of staff, an applicant, a record
+  `staff_file_option` picks the staff file row (H-1583); trigger dates with no column are inputs
+  (H-1584); a `tenant_policy` class, an unknown class and an unreadable row are never destroyed
+  (H-1585); an open DSAR case, complaint, safeguarding enquiry or employee relations case about the
+  subject holds the record (H-1586). Holds may name a member of staff, an applicant, a record
   class, a location and a date range, ahead of the `legal_hold` columns in slice 12.
 - **Tests**: `retention-sweep.test.ts`, table-driven, one case per class row of the revised
   retention.md (48 rows: period, unit and trigger, with the day before and the day of the due date),

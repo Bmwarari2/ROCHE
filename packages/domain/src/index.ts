@@ -108,6 +108,7 @@ export * from "./platform/permissions";
 export * from "./platform/processing-register";
 export * from "./platform/rates";
 export * from "./platform/retention";
+export * from "./platform/retention-registry/index";
 export * from "./platform/retention-sweep";
 export * from "./platform/roles";
 export * from "./platform/sample-data";

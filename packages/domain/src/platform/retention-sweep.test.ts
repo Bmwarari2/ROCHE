@@ -305,24 +305,21 @@ describe("resolveRule", () => {
       [{ tenantId: TENANT_A, recordClass: "x", period: 1.5, unit: "years", trigger: "created" }],
       "invalid_row",
     ],
-  ] as const)(
-    "%s is never destroyed (provisional, H-NEW-5)",
-    (_name, recordClass, rows, origin) => {
-      const rule = resolveRule(recordClass, rows, tenant);
-      expect(rule).toEqual({
-        recordClass,
-        requestedClass: recordClass,
-        period: 0,
-        unit: "years",
-        trigger: "tenant_policy",
-        origin,
-      });
-      const r = record([recordClass], { facts: { createdAt: d("2000-01-01") } });
-      expect(sweepDecision(r, { ...rules, rows }, noHolds, d("2099-01-01")).status).toBe(
-        "tenant_policy",
-      );
-    },
-  );
+  ] as const)("%s is never destroyed (provisional, H-1585)", (_name, recordClass, rows, origin) => {
+    const rule = resolveRule(recordClass, rows, tenant);
+    expect(rule).toEqual({
+      recordClass,
+      requestedClass: recordClass,
+      period: 0,
+      unit: "years",
+      trigger: "tenant_policy",
+      origin,
+    });
+    const r = record([recordClass], { facts: { createdAt: d("2000-01-01") } });
+    expect(sweepDecision(r, { ...rules, rows }, noHolds, d("2099-01-01")).status).toBe(
+      "tenant_policy",
+    );
+  });
 
   it("falls back to the schedule when the organisation's row cannot be read", () => {
     const rows = withTenantRow({ unit: "weeks" });
@@ -333,7 +330,7 @@ describe("resolveRule", () => {
     [null, "staff_file.to_75th_birthday"],
     ["staff_file.to_75th_birthday", "staff_file.to_75th_birthday"],
     ["staff_file.after_leaving", "staff_file.after_leaving"],
-  ] as const)("staff_file with option %s resolves to %s (provisional, H-NEW-3)", (option, row) => {
+  ] as const)("staff_file with option %s resolves to %s (provisional, H-1583)", (option, row) => {
     expect(resolveRule("staff_file", ROWS, { ...tenant, staffFileOption: option })).toMatchObject({
       recordClass: row,
       requestedClass: "staff_file",
@@ -639,7 +636,7 @@ describe("holdCovers", () => {
           [kind, "closed", openCase(kind, { personId: "person-1", closedAt: T }), false],
         ] as const,
     ),
-  )("an open %s %s holds: %s (provisional, H-NEW-6)", (_kind, _about, c, expected) => {
+  )("an open %s %s holds: %s (provisional, H-1586)", (_kind, _about, c, expected) => {
     expect(holdCovers(rec, [], [c])).toBe(expected);
   });
 
