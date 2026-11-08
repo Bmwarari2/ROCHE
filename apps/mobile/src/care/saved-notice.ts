@@ -1,3 +1,4 @@
+import { formatUkTime } from "@harbour/domain";
 import type { OfflineWindowTable } from "@harbour/sync/client";
 import { useSyncExternalStore } from "react";
 import type { MessageKey } from "../i18n/t";
@@ -33,9 +34,14 @@ export function clearSavedNotice(): void {
   emit();
 }
 
-/** The notice for this person's record, or null (another person's is never shown here). */
-export function savedNoticeFor(personId: string): SavedNotice | null {
-  return current && current.personId === personId ? current : null;
+/** The notice for this person's record, or null (another person's, or a stale one, never). */
+export function savedNoticeFor(personId: string, now = Date.now()): SavedNotice | null {
+  return current ? noticeIfFor(current, personId, now) : null;
+}
+
+/** Drops a notice that names someone else: called when a person's record opens. */
+export function clearNoticeForOthers(personId: string): void {
+  if (current && current.personId !== personId) clearSavedNotice();
 }
 
 export function useSavedNotice(personId: string): SavedNotice | null {
@@ -47,31 +53,51 @@ export function useSavedNotice(personId: string): SavedNotice | null {
     () => current,
     () => current,
   );
-  return notice && notice.personId === personId ? notice : null;
+  return notice ? noticeIfFor(notice, personId, Date.now()) : null;
 }
 
-const SAVED_WHAT = {
-  care_note: ["mobile.form.savedWhat.note", "mobile.form.savedWhat.noteCorrected"],
-  observation: ["mobile.form.savedWhat.chart", "mobile.form.savedWhat.chartCorrected"],
-  body_map_mark: ["mobile.form.savedWhat.bodyMap", "mobile.form.savedWhat.bodyMapCorrected"],
-} as const satisfies Partial<Record<OfflineWindowTable, readonly [MessageKey, MessageKey]>>;
-
-/** The words for what was saved: a note, a chart entry or a body map mark, or its correction. */
-export function savedWhatKey(table: OfflineWindowTable, corrected: boolean): MessageKey {
-  const keys = table in SAVED_WHAT ? SAVED_WHAT[table as keyof typeof SAVED_WHAT] : null;
-  if (!keys)
-    return corrected ? "mobile.form.savedWhat.entryCorrected" : "mobile.form.savedWhat.entry";
-  return corrected ? keys[1] : keys[0];
+/** The one filter the record and the tests share: this person's notice, while current. */
+export function noticeIfFor(
+  notice: SavedNotice,
+  personId: string,
+  now: number,
+): SavedNotice | null {
+  return notice.personId === personId && noticeCurrent(notice, now) ? notice : null;
 }
 
-/** The confirmation in words, naming the person and what was saved (HZ-001). */
+/**
+ * How long a notice stays: a convenience for the screen, not a care rule. Past it the notice is
+ * gone, so a record opened much later never says a save just happened (accessibility review M3).
+ */
+export const SAVED_NOTICE_MS = 15 * 60_000;
+
+/** The kind of entry, for the one whole sentence the catalogue holds per kind (CONTENT.md). */
+export function savedKind(table: OfflineWindowTable, corrected: boolean): string {
+  const what =
+    table === "care_note"
+      ? "note"
+      : table === "body_map_mark"
+        ? "bodyMap"
+        : table === "observation"
+          ? "chart"
+          : "entry";
+  return corrected ? `${what}Corrected` : what;
+}
+
+/** Whether the notice is still current at `now`. */
+export function noticeCurrent(notice: Pick<SavedNotice, "at">, now: number): boolean {
+  return now - notice.at >= 0 && now - notice.at < SAVED_NOTICE_MS;
+}
+
+/** The confirmation in words, naming the person, what was saved and when (HZ-001). */
 export function savedNoticeWords(
-  notice: Pick<SavedNotice, "personName" | "table" | "corrected">,
+  notice: Pick<SavedNotice, "personName" | "table" | "corrected" | "at">,
   translate: (key: MessageKey, values?: Record<string, string>) => string,
   demo: boolean,
 ): string {
   return translate(demo ? "mobile.form.savedForDemo" : "mobile.form.savedFor", {
-    what: translate(savedWhatKey(notice.table, notice.corrected)),
+    kind: savedKind(notice.table, notice.corrected),
     name: notice.personName,
+    time: formatUkTime(new Date(notice.at)),
   });
 }

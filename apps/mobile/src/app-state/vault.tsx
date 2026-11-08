@@ -42,6 +42,7 @@ import type { Me } from "../auth/auth-client";
 import { authClient, platformFetch } from "../auth/clients";
 import { FORGET_ANSWER_FOR_ENTRY_SQL } from "../care/answered-tasks";
 import { DELETE_UPLOAD_ISSUE_SQL } from "../care/queries";
+import { clearSavedNotice } from "../care/saved-notice";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
 import { refreshMedicinesRates } from "../medicines/rates";
@@ -398,6 +399,11 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const [demoSeededAt, setDemoSeededAt] = useState<Date | null>(null);
   const [integrity, setIntegrity] = useState<DeviceIntegrityResult | null>(null);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
+  // A save confirmation names a person: it never outlives the unlocked session, so the next
+  // person to unlock a shared phone never sees it (save confirmation clinical review, H1).
+  useEffect(() => {
+    if (status !== "unlocked") clearSavedNotice();
+  }, [status]);
   const [offlineWindowDays, setOfflineWindowDays] = useState<number | null>(null);
   const [clockToleranceMinutes, setClockToleranceMinutes] = useState(FAIL_SAFE_TOLERANCE_MINUTES);
   /** When the window the device connected with stops being current (the next UTC midnight). */

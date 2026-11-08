@@ -1,8 +1,8 @@
 import { Button, Text, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo } from "react";
-import { FlatList, View } from "react-native";
+import { useCallback, useMemo, useRef } from "react";
+import { AccessibilityInfo, FlatList, findNodeHandle, View } from "react-native";
 import { useVault } from "../app-state/vault";
 import type { EntryItem } from "../care/entry-view";
 import { recentEntries } from "../care/entry-view";
@@ -113,6 +113,14 @@ export function PersonRecord({ personId, task, onOpenScreen }: PersonRecordProps
     },
     [router, id, forTask, onOpenScreen],
   );
+  // After the save confirmation is hidden, screen reader focus goes to the first action.
+  const firstActionRef = useRef<View>(null);
+  const focusFirstAction = useCallback(() => {
+    setTimeout(() => {
+      const node = firstActionRef.current ? findNodeHandle(firstActionRef.current) : null;
+      if (node) AccessibilityInfo.setAccessibilityFocus(node);
+    }, 100);
+  }, []);
   const correct = useCallback(
     (item: EntryItem) => {
       if (item.table === "care_note") go("note", { correct: item.id });
@@ -138,7 +146,7 @@ export function PersonRecord({ personId, task, onOpenScreen }: PersonRecordProps
       ListHeaderComponent={
         <View style={{ padding: theme.space[2], gap: theme.space[2] }}>
           <CarePersonHeader personId={id} />
-          <SavedNoticeLine personId={id} />
+          <SavedNoticeLine personId={id} onHidden={focusFirstAction} />
           {person ? (
             <>
               <Card title={t("mobile.person.actions")}>
@@ -161,6 +169,7 @@ export function PersonRecord({ personId, task, onOpenScreen }: PersonRecordProps
                     <Button
                       label={t("mobile.person.writeNote")}
                       onPress={() => go("note")}
+                      focusRef={firstActionRef}
                       testID="action-note"
                     />
                     <Button

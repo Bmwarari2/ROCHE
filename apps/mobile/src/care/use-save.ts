@@ -1,7 +1,7 @@
 import type { OfflineWindowTable } from "@harbour/sync/client";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, InteractionManager } from "react-native";
 import { useCarePerson } from "../components/CarePersonHeader";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
@@ -30,16 +30,20 @@ export function useSaveAndReturn(personId: string) {
       try {
         await save(table, row);
         const corrected = typeof row.supersedes_id === "string" && row.supersedes_id !== "";
+        // The form shows Save only once the person has loaded, so the name is known; if sync
+        // removed them meanwhile, the save is still confirmed, without a name.
+        let words = t(appEnv.demoMode ? "mobile.form.savedDemo" : "mobile.form.saved");
         if (personName) {
           const notice = { personId, personName, table, corrected, at: Date.now() };
           setSavedNotice(notice);
-          AccessibilityInfo.announceForAccessibility(savedNoticeWords(notice, t, appEnv.demoMode));
-        } else {
-          AccessibilityInfo.announceForAccessibility(
-            t(appEnv.demoMode ? "mobile.form.savedDemo" : "mobile.form.saved"),
-          );
+          words = savedNoticeWords(notice, t, appEnv.demoMode);
         }
         router.back();
+        // Said once the record is on screen, so the screen change does not cut it off
+        // (accessibility review M1); the line itself is not a live region, so it is heard once.
+        InteractionManager.runAfterInteractions(() => {
+          AccessibilityInfo.announceForAccessibility(words);
+        });
       } catch {
         setSaveFailed(true);
       } finally {

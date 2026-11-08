@@ -75,7 +75,7 @@ env:
 - assertVisible:
     id: "saved-notice"
 - assertVisible:
-    text: "Note saved for .*, on this device.*"
+    text: "Note saved for .* at [0-9]{2}:[0-9]{2}, on this device.*"
 - tapOn:
     id: "saved-notice-dismiss"
 - assertNotVisible:
