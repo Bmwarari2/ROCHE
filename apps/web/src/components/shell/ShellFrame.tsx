@@ -53,6 +53,7 @@ import {
   Scale,
   ScrollText,
   Search,
+  Settings2,
   ShieldAlert,
   ShieldCheck,
   ShieldEllipsis,
@@ -93,6 +94,7 @@ export interface ShellFrameLabels {
   readonly round?: string | undefined;
   readonly medicinesRound?: string | undefined;
   readonly medicinesStock?: string | undefined;
+  readonly medicinesSettings?: string | undefined;
   readonly medicinesReports?: string | undefined;
   /** Shown only to people who take part in the shift handover (care.handover.manage). */
   readonly handover?: string | undefined;
@@ -233,6 +235,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/medicines-round")) return "medicines-round";
   if (pathname.startsWith("/medicines-stock")) return "medicines-stock";
   if (pathname.startsWith("/medicines-reports")) return "medicines-reports";
+  if (pathname.startsWith("/medicines-settings")) return "medicines-settings";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
@@ -394,6 +397,16 @@ export function ShellFrame({
             label: labels.medicinesReports,
             href: "/medicines-reports",
             icon: <ChartColumn {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.medicinesSettings
+      ? [
+          {
+            id: "medicines-settings",
+            label: labels.medicinesSettings,
+            href: "/medicines-settings",
+            icon: <Settings2 {...icon} />,
           },
         ]
       : []),

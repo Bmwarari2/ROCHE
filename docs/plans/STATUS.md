@@ -143,9 +143,10 @@ episode, and the DPIA section 7B for Phase 2).
 and slices S.1 to S.6 for Care are on branch `claude/thapsus-systems-dev-plan-2rkfaj`, with no
 pull request. Nothing is scheduled until the owner approves the plans.
 
-**Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
-phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
-and 1 once #193 has its numbers.
+**Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
+handling of a 409) in #205; its web journey and a navigation entry for the page in
+`feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
+tab); retention slices 0 and 1 once #193 has its numbers.
 
 ## Doses recorded twice and corrections on the web (08/11/2026)
 
