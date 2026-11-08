@@ -742,5 +742,17 @@
   "mobile.meds.cdNotPermitted": "You cannot give or record controlled drugs. Do not give this dose: ask someone who can record controlled drugs. If it has already been given, tell the nurse in charge now. You can still record that it was refused or not given.",
   "mobile.meds.cdWitnessRequired": "A second member of staff must witness this dose. This home does not allow a controlled drug to be recorded without a witness.",
   "mobile.meds.cdWitnessRulesUnknown": "This phone does not know this home's witness rules yet, so a second member of staff must witness. If no one can, do not give it alone: contact the nurse in charge or the person on call.",
-  "mobile.meds.conflictCdOnWeb": "{reason, select, cd {This is a controlled drug.} other {This medicine is not on this phone.}} Decide which record is right in Thapsus Care on the web, where you will be asked to confirm it is you."
+  "mobile.meds.conflictCdOnWeb": "{reason, select, cd {This is a controlled drug.} other {This medicine is not on this phone.}} Decide which record is right in Thapsus Care on the web, where you will be asked to confirm it is you.",
+  "mobile.form.savedFor": "{what} saved for {name}, on this device. It uploads when you are online.",
+  "mobile.form.savedForDemo": "{what} saved for {name}, on this device (demo mode).",
+  "mobile.form.savedWhat.note": "Note",
+  "mobile.form.savedWhat.noteCorrected": "Corrected note",
+  "mobile.form.savedWhat.chart": "Chart entry",
+  "mobile.form.savedWhat.chartCorrected": "Corrected chart entry",
+  "mobile.form.savedWhat.bodyMap": "Body map mark",
+  "mobile.form.savedWhat.bodyMapCorrected": "Corrected body map mark",
+  "mobile.form.savedWhat.entry": "Entry",
+  "mobile.form.savedWhat.entryCorrected": "Corrected entry",
+  "mobile.form.savedDismiss": "Dismiss",
+  "mobile.form.savedDismissHint": "Hides this message"
 }

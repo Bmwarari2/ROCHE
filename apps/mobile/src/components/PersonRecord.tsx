@@ -25,6 +25,7 @@ import { useWriteScope } from "../sync/write-scope-store";
 import { Card } from "./Card";
 import { CarePersonHeader, useCarePerson } from "./CarePersonHeader";
 import { EntryRow } from "./EntryRow";
+import { SavedNoticeLine } from "./SavedNoticeLine";
 import { UploadIssues } from "./UploadIssues";
 
 /** A Care mode screen reached from a person's record. */
@@ -137,6 +138,7 @@ export function PersonRecord({ personId, task, onOpenScreen }: PersonRecordProps
       ListHeaderComponent={
         <View style={{ padding: theme.space[2], gap: theme.space[2] }}>
           <CarePersonHeader personId={id} />
+          <SavedNoticeLine personId={id} />
           {person ? (
             <>
               <Card title={t("mobile.person.actions")}>

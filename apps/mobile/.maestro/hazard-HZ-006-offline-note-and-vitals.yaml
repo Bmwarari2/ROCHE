@@ -71,6 +71,15 @@ env:
     visible:
       id: "person-screen"
     timeout: 10000
+# HZ-001: back on the same person's record, the save is confirmed naming them; nothing advances.
+- assertVisible:
+    id: "saved-notice"
+- assertVisible:
+    text: "Note saved for .*, on this device.*"
+- tapOn:
+    id: "saved-notice-dismiss"
+- assertNotVisible:
+    id: "saved-notice"
 - scrollUntilVisible:
     element:
       text: ".*${HARBOUR_NOTE}.*"
