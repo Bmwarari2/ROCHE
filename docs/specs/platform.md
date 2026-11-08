@@ -962,6 +962,22 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   default writes nothing; refused without the permission; with the flag on and an injected clock,
   nothing due before records exist and some due far ahead, a held person's records counted as held,
   every record table's rows and content unchanged, no id in the report or its audit event).
+- Retention report screen (retention sweeps plan slice 5): **Records due for destruction** on
+  `/settings/retention`, between the legal hold form and the documents due, reads
+  `GET /v1/retention/due` and says first "This report only counts. Nothing has been destroyed."
+  Off: "Report off", what the report does, and to ask Thapsus Care support to turn it on (the flag
+  has no screen). On with no report: it runs every night. With a report: when it counted (dd/mm/yyyy
+  24-hour UK time), the totals and a table per kind of record (the report's lines added up across
+  tables; the class named in words, its code where the catalogue has no name; tables not read by
+  kind in one last row) with the columns due for destruction, held, not yet due (`retain` and
+  `no_trigger_yet`), never offered (`tenant_policy` and `never_offered`), not evaluated and total,
+  most due first; then the tables read and counted without their dates. A report kept from an
+  earlier run is not shown once the report is off. A holder of `platform.retention.manage` whose
+  scope is narrower than the organisation (the route answers `missing_permission`) is told the
+  report covers the whole organisation; the rest of the page still shows. Status is words with an
+  icon, never colour. Tests: `apps/web/src/lib/retention-report.test.ts`,
+  `apps/web/src/components/retention/RetentionReport.test.tsx` (each state in words, axe-core),
+  `apps/web/e2e/retention.spec.ts` (the database's state, axe in light and dark).
 - Later: retention of structured care records (not only documents) and crypto-shredding with
   per-tenant data keys.
 - Later: the API's upload routes take the title and file name in the query string

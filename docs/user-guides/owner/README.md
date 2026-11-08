@@ -93,6 +93,7 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 - [How to handle a request to erase, correct or move information](../data-protection-lead/handle-an-erasure-correction-or-portability-request.md)
 - [How to place or release a legal hold](../data-protection-lead/place-or-release-a-legal-hold.md)
 - [How to prepare and sign the DPIA](../data-protection-lead/prepare-and-sign-the-dpia.md)
+- [How to read the retention report](../data-protection-lead/read-the-retention-report.md)
 - [How to record a Cyber Essentials certificate or ICO registration](../data-protection-lead/record-a-certificate-or-registration.md)
 - [How to record a DSPT submission](../data-protection-lead/record-a-dspt-submission.md)
 - [How to send the response to a data rights request](../data-protection-lead/send-the-response-to-a-data-rights-request.md)

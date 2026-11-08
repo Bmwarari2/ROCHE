@@ -12,6 +12,7 @@ For the quality and compliance lead, and the person named as data protection lea
 - [How to handle a request to erase, correct or move information](handle-an-erasure-correction-or-portability-request.md)
 - [How to place or release a legal hold](place-or-release-a-legal-hold.md)
 - [How to prepare and sign the DPIA](prepare-and-sign-the-dpia.md)
+- [How to read the retention report](read-the-retention-report.md)
 - [How to record a Cyber Essentials certificate or ICO registration](record-a-certificate-or-registration.md)
 - [How to record a DSPT submission](record-a-dspt-submission.md)
 - [How to record and handle a data breach](record-a-data-breach.md)

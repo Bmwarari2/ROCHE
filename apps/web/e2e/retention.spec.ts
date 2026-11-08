@@ -9,7 +9,8 @@ import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
  * Rhys Example (seed-users.ts) left care nine years ago, past the care-record period, so a document
  * about him uploaded by this run is due for destruction. A legal hold on him takes it off the list;
  * released, it comes back; destroyed after the acknowledgement and the confirmation, it leaves a
- * certificate. The manager is offered none of it. Each state is checked with axe in light and dark.
+ * certificate. The retention report says it only counts, off or on. The manager is offered none of
+ * it. Each state is checked with axe in light and dark.
  */
 
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
@@ -79,6 +80,35 @@ test("a password sign-in is sent to confirm it is them first", async ({ page }) 
   const url = new URL(page.url());
   expect(url.searchParams.get("reason")).toBe("step-up");
   expect(url.searchParams.get("next")).toBe(PAGE);
+});
+
+test("the retention report says it only counts, and whether it is on", async ({ page }) => {
+  await signInWithDemoPasskey(page, "owner");
+  // The demo organisation leaves the report off (the flag has no screen); a database where the
+  // nightly sweep has run in report mode shows its counts instead. Both are read and checked.
+  const due = await page.request.get(`${API_URL}/v1/retention/due`, { headers });
+  expect(due.ok()).toBe(true);
+  const { mode, report } = (await due.json()) as { mode: string; report: unknown };
+  await page.goto(PAGE);
+  const section = main(page).getByRole("region", {
+    name: "Records due for destruction",
+    exact: true,
+  });
+  await expect(section).toContainText("This report only counts. Nothing has been destroyed.");
+  if (mode === "off") {
+    await expect(section).toContainText("Report off");
+    await expect(section).toContainText("Ask Thapsus Care support to turn it on.");
+    await expect(section.getByRole("table")).toHaveCount(0);
+  } else if (report === null) {
+    await expect(section).toContainText("Report on");
+    await expect(section).toContainText("The report runs every night");
+  } else {
+    await expect(section).toContainText(/Counted on \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
+    const table = section.getByRole("table", { name: "Records by kind and retention status" });
+    await expect(table.getByRole("columnheader", { name: /Due for destruction/ })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: /Not evaluated/ })).toBeVisible();
+  }
+  await bothThemes(page, `retention report (${mode}${report ? ", with a report" : ""})`);
 });
 
 test("a legal hold keeps a document from destruction; released, it is destroyed after confirming and certified", async ({
