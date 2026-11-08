@@ -5,7 +5,7 @@ the lead assigned on 08/11/2026.
 
 ## What changed
 
-- ADR-0136 (proposed; the owner confirms, H-1609): development reads follow attribute scope.
+- ADR-0136 (proposed; the owner confirms, H-1614): development reads follow attribute scope.
   Organisation-wide holders (HR's role with no person scope, a tenant-scoped role, a role or grant
   held organisation-wide) read every member; a holder at a home reads the members who work there,
   as `app.works_at` counts them; a member reads their own.
@@ -24,7 +24,7 @@ the lead assigned on 08/11/2026.
   refused by the database as an audited 403.
 - Web: the "Show staff at" hint now says the list shows the staff the reader may see.
 - Docs: workforce.md (rule 7, the API notes, the screens table, known gaps), records of processing
-  (access narrowed), data standards, STATUS, the feature register, human actions (H-1609).
+  (access narrowed), data standards, STATUS, the feature register, human actions (H-1614).
 
 ## Security review round 1 (applied in one commit)
 
@@ -37,7 +37,7 @@ the lead assigned on 08/11/2026.
   withdrawals through a definer, `app.competence_withdrawn_after` (owned by
   `harbour_workforce_definer`, which now reads `competence_sign_off` and `competence_withdrawal`).
   The hazard log's HZ-119 verification names the new test.
-- ADR-0136 and H-1609 say that members with an organisation-wide role (the HR director, the
+- ADR-0136 and H-1614 say that members with an organisation-wide role (the HR director, the
   Nominated Individual) are in every home's scope.
 - Performance: one set-based definer, `app.development_scope_members(permissions, members)`, finds
   the reader's homes once; `holds_staff_permission_for` and `reads_development_of` wrap it; the
@@ -60,7 +60,7 @@ the lead assigned on 08/11/2026.
   reader (`app.development_scope_members_for`, executable by no one directly); the revalidation
   guard and the API use them; naming an out-of-scope confirmer is a 422 `confirmer_not_permitted`.
   0157's one-argument versions stay for the previous release.
-- CSO rows H-1610 (the confirmer restriction as a residual risk) and H-1611 (managers see their own
+- CSO rows H-1615 (the confirmer restriction as a residual risk) and H-1616 (managers see their own
   scope's training; the competence port is unaffected), with the ADR's consequences.
 
 ## Checks

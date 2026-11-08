@@ -125,6 +125,7 @@ import { qualityDashboardRouter } from "./routes/quality-dashboard";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { recruitmentRouter } from "./routes/recruitment";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
+import { retentionReportRouter } from "./routes/retention-report";
 import { rotaRouter } from "./routes/rota";
 import { roundsRouter } from "./routes/rounds";
 import { safeguardingRouter } from "./routes/safeguarding";
@@ -484,6 +485,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", shredRouter);
+  app.route("/", retentionReportRouter);
   app.route("/", esignOcrRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);

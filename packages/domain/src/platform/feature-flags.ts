@@ -137,6 +137,14 @@ export const FLAGS = {
     defaultEnabled: false,
     licensed: false,
   },
+  // The retention sweep's mode (retention sweeps plan 5.4; ADR-0135): off, or report, which reads
+  // and counts only. Propose and destroy come with their own slices. Organisation-wide only.
+  "platform.retention.sweep_report": {
+    description:
+      "Nightly retention report: counts records due, held and kept per class (reads only; destroys nothing)",
+    defaultEnabled: false,
+    licensed: false,
+  },
 } as const satisfies Record<string, FlagDefinition>;
 
 /** The organisation-wide flag that lets phones use Care mode (H-381). */

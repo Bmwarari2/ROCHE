@@ -160,7 +160,7 @@ describe("hazard HZ-011 disclosure requests (migration 0103)", () => {
         [id],
       ),
     );
-    // And the coroner's extension of the response (migration 0158), never on or before the report.
+    // And the coroner's extension of the response (migration 0160), never on or before the report.
     await asHome((c) =>
       c.query(
         "UPDATE disclosure_request SET prevention_extended_to = current_date + 90 WHERE id = $1",

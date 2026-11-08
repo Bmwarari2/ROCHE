@@ -42,6 +42,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Retention report (08/11/2026)
+
+`feat/platform-retention-report` (retention sweeps plan slice 4), from `main` at 8d9b4cc8: the
+nightly `retention-sweep` queue in report mode, behind the flag `platform.retention.sweep_report`
+(off by default). It reads every registry table and writes one `retention_report` row per
+organisation (counts per table and class: due, held, kept, waiting, by policy, never offered, not
+evaluated; no record ids) and the audit event `platform.retention.sweep_reported`; it changes no
+record. `GET /v1/retention/due` shows the latest report (`platform.retention.manage`, audited).
+Migration 0160 (renumber at merge if needed). See
+`docs/changelog-dev/2026-11-08-feat-platform-retention-report.md`.
+
 ## User guides: Care mode on the phone (08/11/2026)
 
 `docs/guides-mobile-care-mode`, from `main` at ea6fc04d: 19 guides for the phone's Care mode
@@ -153,7 +164,7 @@ rate key `supervision.due_window_days`; WORK-005, 008, 009 and 012 corrected fro
 merges): one reminder task for HR's role per supervision or appraisal due or overdue, once for
 each due date, closed when one is held, on the hourly `development-expiry-reminders` job; no
 migration (#216). **Attribute scope (08/11/2026, `feat/workforce-development-attribute-scope`):**
-done. ADR-0136 (proposed; the owner confirms, H-1609) and migration 0161: development records,
+done. ADR-0136 (proposed; the owner confirms, H-1614) and migration 0161: development records,
 the training matrix, the supervisions list and the reminder tasks about a member follow the
 reader's scope (organisation-wide for HR and the owner, otherwise the members who work at the
 reader's homes), in the API and in row-level security. Open: no team or line-manager scope for

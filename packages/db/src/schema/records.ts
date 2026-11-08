@@ -205,3 +205,36 @@ export const tenantShredRequest = pgTable(
       .where(sql`status IN ('pending', 'shredding')`),
   ],
 );
+
+/**
+ * The retention sweep's report (retention sweeps plan 5.4 report mode, 5.9; ADR-0135): one row
+ * per run per organisation, counts only. `lines` holds, per table and class, how many records are
+ * due, held, kept, waiting for their trigger, kept by policy, never offered or not yet evaluated;
+ * never a record id, subject or date. Append-only; nothing is destroyed by writing it.
+ */
+export const retentionReport = pgTable(
+  "retention_report",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    /** The sweep's mode for the run: `report` only, until propose mode lands (plan slice 6). */
+    mode: text("mode").notNull(),
+    /** The clock the run decided against. */
+    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    /** Registry tables read and decided, and those counted without deciding. */
+    tablesRead: integer("tables_read").notNull(),
+    tablesSkipped: integer("tables_skipped").notNull(),
+    lines: jsonb("lines").notNull(),
+    totals: jsonb("totals").notNull(),
+    ...createdColumns(),
+  },
+  (t) => [
+    index("retention_report_latest_idx").on(t.tenantId, t.asOf),
+    check("retention_report_mode", sql`${t.mode} IN ('report')`),
+    check(
+      "retention_report_counts",
+      sql`${t.durationMs} >= 0 AND ${t.tablesRead} >= 0 AND ${t.tablesSkipped} >= 0`,
+    ),
+  ],
+);

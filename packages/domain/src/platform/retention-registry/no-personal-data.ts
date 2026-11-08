@@ -115,6 +115,10 @@ export const NO_PERSONAL_DATA: readonly NoPersonalDataTable[] = [
     reason: "Answers held until the survey closes, then released without the person (plan 3.1)",
   },
   {
+    table: "retention_report",
+    reason: "The retention sweep's report: counts per table and class, no record id or subject",
+  },
+  {
     table: "speak_up_intake",
     reason: "Rate-limit windows of the public speak-up form: counts only, swept hourly",
   },

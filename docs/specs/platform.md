@@ -936,6 +936,32 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   everyone else is told they do not have access. Tests: `apps/web/src/lib/retention.test.ts`,
   `apps/web/e2e/retention.spec.ts` (a hold keeps a document off the list; release; destroy after
   confirming; the certificate is listed; refused for the manager; axe in light and dark).
+- Retention report (retention sweeps plan slice 4, 5.4 and 5.9; ADR-0135): the `retention-sweep`
+  worker queue (nightly, `29 2 * * *`) runs through `eachTenant` as the system in each
+  organisation's context. Its mode is the flag `platform.retention.sweep_report` (off by default,
+  organisation-wide; `off` or `report`, propose and destroy come with later slices). In report
+  mode it reads every table of the retention registry once, grouping rows by the facts the decision
+  needs (class, trigger dates to the day in UTC, an unreleased legal hold on the record or the
+  person, whether the person is receiving care, a member of staff's date of birth), decides each
+  group with `sweepDecision` (`groupStatus`) and writes one append-only `retention_report` row:
+  per table and class, the counts `due`, `held`, `retain`, `no_trigger_yet`, `tenant_policy`,
+  `never_offered` (configuration, proof, rows another sweep removes) and `not_evaluated` (with a
+  reason code: the class or dates follow a parent, a linked record, a value or a derived rule; a
+  sign-in table; or a table the application role cannot read), the totals, the run's clock and
+  duration. No record id, subject or date is stored. It changes no record: its only writes are the
+  report row and the audit event `platform.retention.sweep_reported` (report id, counts per class
+  and status). A failed organisation is audited as `platform.job.tenant_failed` (job
+  `retention-sweep`) and logged as `worker.job.failed`. `retention_report` has forced RLS, the
+  tenant policy, a tenant-wide-only restrictive policy for `harbour_app`, SELECT and INSERT only,
+  and append-only triggers (migration 0160). It holds no personal data (listed in
+  `no-personal-data.ts`; the export catalogue keeps it as `permanent`).
+- `GET /v1/retention/due` (`platform.retention.manage`, step-up, tenant-wide only): the mode and
+  the latest report (null until one has run). Audited as `platform.retention.report_viewed` with
+  the report's id. Tests: `packages/domain/src/platform/retention-report.test.ts`,
+  `packages/db/test/retention-report.test.ts`, `apps/api/test/retention-report.test.ts` (off by
+  default writes nothing; refused without the permission; with the flag on and an injected clock,
+  nothing due before records exist and some due far ahead, a held person's records counted as held,
+  every record table's rows and content unchanged, no id in the report or its audit event).
 - Later: retention of structured care records (not only documents) and crypto-shredding with
   per-tenant data keys.
 - Later: the API's upload routes take the title and file name in the query string
