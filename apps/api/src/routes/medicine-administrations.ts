@@ -172,10 +172,12 @@ async function competenceOf(
   tenantId: string,
   memberId: string,
   at: Date,
+  /** The request's own transaction, when called inside one, so no second connection opens. */
+  tx?: Transaction,
 ): Promise<Competence> {
   const port = c.get("services").medicines.competence;
   return {
-    competence: await port.forMember(tenantId, memberId, at),
+    competence: await port.forMember(tenantId, memberId, at, tx),
     override: await port.overrideFor(tenantId, memberId, at),
   };
 }
@@ -652,7 +654,7 @@ export const medicineAdministrationsRouter = createRouter()
           const giver = {
             id: giverId,
             ...(at.getTime() !== now.getTime()
-              ? await competenceOf(c, access.tenantId, giverId, at)
+              ? await competenceOf(c, access.tenantId, giverId, at, tx)
               : me),
           };
           const { input, versionIds } = inputFor({
@@ -668,7 +670,7 @@ export const medicineAdministrationsRouter = createRouter()
                 ? me.competence
                 : await c
                     .get("services")
-                    .medicines.competence.forMember(access.tenantId, giverId, now),
+                    .medicines.competence.forMember(access.tenantId, giverId, now, tx),
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,
@@ -883,7 +885,7 @@ export const medicineAdministrationsRouter = createRouter()
           const giverId = body.givenBy ?? original.administeredBy;
           const giver = {
             id: giverId,
-            ...(await competenceOf(c, access.tenantId, giverId, at)),
+            ...(await competenceOf(c, access.tenantId, giverId, at, tx)),
           };
           const { input, versionIds } = inputFor({
             personId,
@@ -895,7 +897,7 @@ export const medicineAdministrationsRouter = createRouter()
             administrator: giver,
             competenceAtRecording: await c
               .get("services")
-              .medicines.competence.forMember(access.tenantId, giverId, now),
+              .medicines.competence.forMember(access.tenantId, giverId, now, tx),
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,
@@ -1613,7 +1615,7 @@ async function writeRegisterEntry(
         apartMs: minutes * 60_000,
         windowMs: windowDays * 86_400_000,
         witnessCompetent: async (at) =>
-          (await port.forMember(access.tenantId, witnessId, at)) === "current",
+          (await port.forMember(access.tenantId, witnessId, at, tx)) === "current",
       },
     );
     if (!e.deviceGivenAt) {

@@ -1,4 +1,4 @@
-import { type Database, withRequestContext } from "@harbour/db";
+import { type Database, type Transaction, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import type {
   CompetenceOverride,
@@ -6,7 +6,8 @@ import type {
   DmdProductRef,
   MedicinesCompetence,
 } from "@harbour/domain";
-import { competencePort } from "../services/competence-port";
+import { competenceDecision, ukIsoDate } from "@harbour/domain";
+import { memberSignOffs } from "../services/competence-port";
 
 /**
  * The two inputs the medicines rules take from outside the medicines module (medicines.md
@@ -25,7 +26,16 @@ import { competencePort } from "../services/competence-port";
  */
 
 export interface MedicinesCompetencePort {
-  forMember(tenantId: string, tenantUserId: string, at: Date): Promise<MedicinesCompetence>;
+  /**
+   * The member's medicines competence at `at`. Inside a request's transaction pass it as `tx`, so
+   * the read runs on that connection and snapshot, never a second one while a lock is held.
+   */
+  forMember(
+    tenantId: string,
+    tenantUserId: string,
+    at: Date,
+    tx?: Transaction,
+  ): Promise<MedicinesCompetence>;
   /**
    * The competence override in force for the member at `at`, recorded in workforce by a holder of
    * `medicines.override.approve` (rule 22; ADR-0085), or null. Never taken from the request.
@@ -69,21 +79,33 @@ export const unavailableCompetence: MedicinesCompetencePort = {
 /**
  * Medicines competence from the workforce sign-offs (H-1532; ADR-0085; HZ-119): the member's
  * `medicines_administration` sign-offs and withdrawals, judged by `competenceDecision` through the
- * workforce competence port, the same rule the phone applies to the same synced rows, so the two
- * never disagree. The server's clock decides; the time the action claims can only block. A
- * withdrawal leaves `not_held`, which no override clears. Overrides have no workforce record yet,
+ * workforce competence port's reader, the same rule the phone applies to the same synced rows. A
+ * record is judged on the day of the event it records, never later than the server's today, so a
+ * dose given offline while competent is not refused because the competence lapsed before it
+ * synced; callers ask for the member acting now with the server's now. A withdrawal leaves
+ * `not_held`, which no override clears. Inside a request's transaction the caller passes it. Overrides have no workforce record yet,
  * so none is in force.
  */
 export function workforceCompetence(db: Database): MedicinesCompetencePort {
+  const judge = async (tx: Transaction, tenantUserId: string, at: Date) => {
+    const signOffs = await memberSignOffs(tx, tenantUserId, "medicines_administration");
+    // A record of what happened at `at` is judged on that day, never later than the server's
+    // now: a dose given offline while competent, synced after a lapse, is not refused (clinical
+    // review of H-1532, H1); a time in the future is held to today.
+    const now = new Date();
+    const day = ukIsoDate(at.getTime() <= now.getTime() ? at : now);
+    const decision = competenceDecision(signOffs, day);
+    if (decision.allowed) return "current" as const;
+    return decision.reason === "expired" ? ("expired" as const) : ("not_held" as const);
+  };
   return {
-    async forMember(tenantId, tenantUserId, at) {
-      const decision = await withRequestContext(
+    async forMember(tenantId, tenantUserId, at, tx) {
+      if (tx) return judge(tx, tenantUserId, at);
+      return withRequestContext(
         db,
         { tenantId, userId: null, scope: "tenant", locationIds: [] },
-        (tx) => competencePort(tx, tenantUserId, "medicines_administration", at, new Date()),
+        (own) => judge(own, tenantUserId, at),
       );
-      if (decision.allowed) return "current";
-      return decision.reason === "expired" ? "expired" : "not_held";
     },
     overrideFor: async () => null,
   };

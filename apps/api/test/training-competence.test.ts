@@ -718,10 +718,14 @@ describe("hazard HZ-119 medicines reads competence from the workforce sign-offs 
     expect(await medicines().overrideFor(DEMO.tenantId, MANAGER, new Date())).toBeNull();
   });
 
-  it("lets the time an action claims only block, never allow", async () => {
-    // The owner's sign-off is past its date today; claiming a time when it was still in date
-    // changes nothing, because the server's clock decides.
-    const claimed = addUkMonths(new Date(), -12);
-    expect(await medicines().forMember(DEMO.tenantId, OWNER, claimed)).toBe("expired");
+  it("judges a record on the day of the event it records, never later than today (clinical review H1)", async () => {
+    // The owner's sign-off, 13 months old, was in date a year ago: a dose given then and synced
+    // now is not refused because it lapsed since.
+    const aYearAgo = addUkMonths(new Date(), -12);
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, aYearAgo)).toBe("current");
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, new Date())).toBe("expired");
+    // A time in the future is held to today, so it can never stretch a sign-off.
+    const later = addUkMonths(new Date(), 6);
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, later)).toBe("expired");
   });
 });
