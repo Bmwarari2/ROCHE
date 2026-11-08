@@ -123,9 +123,27 @@ describe("hazard HZ-006 signing out with unsent entries (C2)", () => {
     // Deletion is not open until asked for; keeping is the first choice.
     expect(view.find("sign-out-discard-form")).toBeNull();
     await view.press("sign-out-keep");
+    // One more step names the count before colleagues are locked out (security review L1).
+    expect(alerts[0]?.title).toBe(t("mobile.signOut.keepTitle"));
+    await answer(0, t("mobile.signOut.keep"));
     expect(calls.kept).toBe(1);
     expect(calls.discarded).toEqual([]);
     expect(calls.wiped).toBe(0);
+  });
+
+  it("hazard HZ-006 offers a way back at every step: Stay signed in (accessibility review H1)", async () => {
+    const { value, calls } = actions(2);
+    const view = await render(
+      createElement(SignOutControlView, {
+        actions: value,
+        variant: "secondary",
+        testID: "sign-out",
+      }),
+    );
+    await view.press("sign-out");
+    await view.press("sign-out-stay");
+    expect(view.find("sign-out-unsent")).toBeNull();
+    expect(calls.kept + calls.wiped + calls.discarded.length).toBe(0);
   });
 
   it("says when the count cannot be known while the database is closed", async () => {

@@ -1402,7 +1402,7 @@ describe("deleting held entries (S4, S5, M1, M2, L4; clinical review round 4, H1
     expect(t("mobile.signOut.unsent", { count: 2 })).toBe(
       "2 entries have not reached Thapsus Care yet.",
     );
-    expect(t("mobile.signOut.keep")).toBe("End my session and keep my entries");
+    expect(t("mobile.signOut.keep")).toBe("Sign out and keep my entries");
   });
 
   it("hazard HZ-040 says whose entries are waiting, in whole sentences (C8)", () => {

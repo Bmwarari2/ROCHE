@@ -41,10 +41,10 @@ Choose **Your account** at the top of the page, then **Sign out**. Always sign o
 computer.
 
 On the phone, choose **Settings**, then **Sign out**. If entries have not reached Thapsus Care
-yet, the phone says how many and offers **End my session and keep my entries**: choose it. Your
-entries stay on the phone, encrypted, for you, and nobody else can use its care records until you
-sign in again and they are sent, or a manager deals with them. Delete them only if they are
-recorded somewhere else or were entered in error.
+yet, the phone says how many. Choose **Sign out and keep my entries**. They stay on the phone,
+encrypted, for you. Nobody else can use the care records on this phone until you sign in again and
+they are sent, or a manager deals with them. Delete them only if they are recorded somewhere else
+or were entered in error. To go back, choose **Stay signed in**.
 
 ## Good to know
 

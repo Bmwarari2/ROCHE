@@ -1,5 +1,10 @@
 {
   "untranslated": [
+    "mobile.signOut.keepTitle",
+    "mobile.signOut.keepConfirm",
+    "mobile.signOut.keepConfirmUnknown",
+    "mobile.signOut.keepNotReady",
+    "mobile.signOut.stay",
     "mobile.settings.deviceIs",
     "mobile.settings.deviceMode",
     "mobile.settings.sharedLockAfter",

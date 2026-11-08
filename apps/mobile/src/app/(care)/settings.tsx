@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { Alert, Pressable, ScrollView, Switch, View } from "react-native";
 import { usePreferences } from "../../app-state/preferences";
-import { mayChangeDeviceMode } from "../../app-state/preferences-model";
+import { mayChangeDeviceMode, mayChangeLockTime } from "../../app-state/preferences-model";
 import { useSession } from "../../app-state/session";
 import { useVault } from "../../app-state/vault";
 import { platformFetch } from "../../auth/clients";
@@ -222,43 +222,58 @@ export default function SettingsScreen() {
           </Text>
           {/* Personal or shared, and how soon a shared device locks, are set by a manager who may
               withdraw devices, never by any signed-in member (guides review; HZ-001, H-1530). */}
-          {mayChangeDeviceMode(session.me?.permissions) ? (
-            <>
-              <Text emphasis>{t("mobile.settings.deviceIs")}</Text>
+          {/* Any member may make the phone safer (shared, or a shorter lock); only a manager who
+              may withdraw devices makes it less safe (security review M2; HZ-001, H-1530). The
+              choices are a labelled group (accessibility review). */}
+          <Text emphasis accessibilityRole="header">
+            {t("mobile.settings.deviceIs")}
+          </Text>
+          <View accessibilityRole="radiogroup" accessibilityLabel={t("mobile.settings.deviceIs")}>
+            {preferences.deviceMode === "personal" ||
+            mayChangeDeviceMode(session.me?.permissions) ? (
               <Choice
                 label={t("mobile.settings.deviceMode", { mode: "personal" })}
                 selected={preferences.deviceMode === "personal"}
                 onSelect={() => update({ deviceMode: "personal" })}
                 testID="device-mode-personal"
               />
-              <Choice
-                label={t("mobile.settings.deviceMode", { mode: "shared" })}
-                selected={preferences.deviceMode === "shared"}
-                onSelect={() => update({ deviceMode: "shared" })}
-                testID="device-mode-shared"
-              />
-              {preferences.deviceMode === "shared" ? (
-                <>
-                  <Text emphasis>{t("mobile.settings.sharedLockAfter")}</Text>
-                  {SHARED_AUTO_LOCK_CHOICES_MS.map((ms) => (
-                    <Choice
-                      key={ms}
-                      label={describeTimeout(ms)}
-                      selected={preferences.sharedAutoLockMs === ms}
-                      onSelect={() => update({ sharedAutoLockMs: ms })}
-                      testID={`auto-lock-${ms}`}
-                    />
-                  ))}
-                </>
-              ) : null}
-            </>
-          ) : (
-            <Text testID="device-mode-fixed">
-              {t("mobile.settings.deviceModeFixed", {
-                mode: preferences.deviceMode === "personal" ? "personal" : "shared",
-              })}
+            ) : null}
+            <Choice
+              label={t("mobile.settings.deviceMode", { mode: "shared" })}
+              selected={preferences.deviceMode === "shared"}
+              onSelect={() => update({ deviceMode: "shared" })}
+              testID="device-mode-shared"
+            />
+          </View>
+          {preferences.deviceMode !== "personal" &&
+          !mayChangeDeviceMode(session.me?.permissions) ? (
+            <Text tone="secondary" testID="device-mode-fixed">
+              {t("mobile.settings.deviceModeFixed", { mode: "shared" })}
             </Text>
-          )}
+          ) : null}
+          {preferences.deviceMode === "shared" ? (
+            <>
+              <Text emphasis accessibilityRole="header">
+                {t("mobile.settings.sharedLockAfter")}
+              </Text>
+              <View
+                accessibilityRole="radiogroup"
+                accessibilityLabel={t("mobile.settings.sharedLockAfter")}
+              >
+                {SHARED_AUTO_LOCK_CHOICES_MS.filter((ms) =>
+                  mayChangeLockTime(session.me?.permissions, preferences.sharedAutoLockMs, ms),
+                ).map((ms) => (
+                  <Choice
+                    key={ms}
+                    label={describeTimeout(ms)}
+                    selected={preferences.sharedAutoLockMs === ms}
+                    onSelect={() => update({ sharedAutoLockMs: ms })}
+                    testID={`auto-lock-${ms}`}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
           <Button label="Lock now" variant="secondary" onPress={vault.lock} testID="lock-now" />
         </Section>
 

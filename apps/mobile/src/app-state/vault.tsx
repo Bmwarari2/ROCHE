@@ -905,7 +905,12 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
             // The server hears of the hold at once when it can, and again while the app runs; then
             // the ended session is ended on the server too (security review round 5, S-L3).
             const sent = await reportHold(held, report, token);
-            if (token && !sent && held.tenantId) {
+            if (token && keptByMember) {
+              // A sign-out the member chose ends the server session at once, whether or not the
+              // hold report went: an unsent report is kept for the next session (security review
+              // M1).
+              revokeSession(token);
+            } else if (token && !sent && held.tenantId) {
               holdReportRef.current = { token, held, until: Date.now() + HOLD_REPORT_RETRY_MS };
             } else if (token) {
               revokeSession(token);
@@ -923,7 +928,11 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   // Signing out with unsent entries, keeping them for the member (guides review, HZ-006, HZ-040):
   // the same hold as when the server ends the session, so nobody else opens the phone's records
   // until the member signs in again and they are sent, or a manager releases them.
-  const signOutKeeping = useCallback(() => sessionEnded(false, false, true), [sessionEnded]);
+  const signOutKeeping = useCallback(async () => {
+    // Never a hold with no owner: the member's details must be known (security review L2).
+    if (!meRef.current) throw new Error(t("mobile.signOut.keepNotReady"));
+    await sessionEnded(false, false, true);
+  }, [sessionEnded]);
 
   const countUnsent = useCallback(async (): Promise<number | null> => {
     const current = dbRef.current;

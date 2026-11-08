@@ -63,3 +63,15 @@ export const DEVICE_MODE_PERMISSION = "platform.device.revoke";
 export function mayChangeDeviceMode(permissions: readonly string[] | undefined): boolean {
   return (permissions ?? []).includes(DEVICE_MODE_PERMISSION);
 }
+
+/**
+ * Whether a member may pick this shared-device lock time: a shorter (or the same) one always, a
+ * longer one only with `platform.device.revoke` (security review M2).
+ */
+export function mayChangeLockTime(
+  permissions: readonly string[] | undefined,
+  currentMs: number,
+  choiceMs: number,
+): boolean {
+  return choiceMs <= currentMs || mayChangeDeviceMode(permissions);
+}
