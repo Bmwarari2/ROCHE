@@ -2,7 +2,7 @@
 status: "proposed"
 date: 2026-11-08
 decision-makers: lead engineer (Claude Code lead session), for the owner
-consulted: security reviewer and clinical safety reviewer (agents); owner to confirm (H-1614); CSO to accept H-1615 and H-1616
+consulted: security reviewer and clinical safety reviewer (agents); owner to confirm (H-1640); CSO to accept H-1641 and H-1642
 informed: engineering
 ---
 
@@ -41,7 +41,7 @@ own: should development reads follow the attribute scope of the constraints dige
 ## Decision outcome
 
 Chosen option: **2, development reads follow attribute scope**, provisional until the owner confirms
-(H-1614), because it is the least-privilege default the constraints digest asks for and it needs no
+(H-1640), because it is the least-privilege default the constraints digest asks for and it needs no
 new data.
 
 - **Organisation-wide holders keep the whole organisation.** A role with no person scope (HR's), a
@@ -53,7 +53,7 @@ new data.
 - **Members with an organisation-wide role are in every home's scope.** For example, the HR director
   or the Nominated Individual hold organisation-wide roles, so every home's manager reads their
   training, competence and supervision records, as `app.works_at` counts them. The owner confirms
-  this under H-1614.
+  this under H-1640.
 - **Writes follow the same scope in the policies themselves** (training records, supervisions,
   competence sign-offs and withdrawals, revalidation evidence, training certificates), not only
   through the read policy. The HZ-119 sign-off guard looks up withdrawals with definer rights
@@ -89,13 +89,13 @@ new data.
 - Bad: there is no team or line-manager scope for staff (scope kinds are tenant, location, assigned,
   self and none), so a team lead's scope is their home. Option 3 needs a line-manager field first;
   it stays a known gap in workforce.md.
-- Bad, accepted by the CSO as a residual risk (H-1615): a revalidation confirmer must hold training
+- Bad, accepted by the CSO as a residual risk (H-1641): a revalidation confirmer must hold training
   or supervision rights in a scope that covers the nurse, since the confirmation is a write in the
   nurse's scope. Naming a manager from another home is refused when they are named (422
   `confirmer_not_permitted`), never discovered at confirmation, and the confirmer list offers only
   those who may confirm (`app.revalidation_confirmer_candidates(nurse)`); this could delay a
   confirmation, mitigated by HR, who may always confirm.
-- Neutral, accepted by the CSO (H-1616): a home's manager sees the training, competence and
+- Neutral, accepted by the CSO (H-1642): a home's manager sees the training, competence and
   supervision of the staff in their scope only. Point-of-care gating is unaffected: the competence
   port reads every worker's sign-offs with the system's rights (ADR-0085, HZ-119).
 - Neutral: the HZ-119 withdrawal lookup (`app.competence_withdrawn_after`) answers only inside the

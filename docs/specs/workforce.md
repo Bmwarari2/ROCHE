@@ -222,7 +222,7 @@ or that home on their staff profile; an access grant at a home counts as a role 
 with an organisation-wide role (the HR director, the Nominated Individual) are therefore in every
 home's scope. Writes follow the same scope in the policies themselves, so a revalidation confirmer
 must hold training or supervision rights in a scope that covers the nurse (only such members are
-offered or may be named; H-1615). The member reads their own
+offered or may be named; H-1641). The member reads their own
 (`workforce.self.read`); written as section 2b says, never
 by the member about themselves. None of them is special category data, so they need MFA only where
 the role does. Medicines and scheduling never read these tables: they ask the competence port
@@ -1048,7 +1048,7 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Gap | Effect now | To close |
 | --- | --- | --- |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
-| Development reads (the training matrix and the supervisions list) were organisation-wide for their readers (migration 0073), and reminders about a member were seen at every home (migration 0079) | Closed by ADR-0136 (provisional, H-1614) and migration 0161: records, lists and reminder tasks about a member follow the reader's attribute scope | - |
+| Development reads (the training matrix and the supervisions list) were organisation-wide for their readers (migration 0073), and reminders about a member were seen at every home (migration 0079) | Closed by ADR-0136 (provisional, H-1640) and migration 0161: records, lists and reminder tasks about a member follow the reader's attribute scope | - |
 | No team or line-manager scope for staff | Scope kinds are tenant, location, assigned, self and none, so a team lead's scope for development reads is their home (ADR-0136) | A line-manager field on the staff file, then a scope that uses it |
 | LMS import is for organisation-wide holders only | A home's manager is refused (403 `lms_import_organisation_wide`, audited; ADR-0136): its learner links and rows name members at every home | Scope each row by its worker, if homes need to import their own staff |
 | Supervision and appraisal reminders go to HR's role, not the member's line manager | Shown on the training record (slice 57), across staff on `/training/supervisions` and raised as reminder tasks for holders of `workforce.supervision.manage` (WORK-009, 08/11/2026) | Address the reminder to the member's line manager once the staff file records one |
