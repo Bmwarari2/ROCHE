@@ -1535,6 +1535,13 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   id>`. `elearning_outbox` (insert-only) holds what is waiting to send: `action` `start` (the
   course id and package hash), `commit` (SCORM elements and `finished`) or `statements` (xAPI
   statements, each with an id), `attempt_id`, `body` as the API's contract JSON and `queued_at`.
+- Incidents reported on the phone (MOB-006; safety.md section 3): `incident_outbox` (insert-only)
+  holds a report until it is sent: `tenant_id`, `person_id` (the person it was raised from, on the
+  report as affected), `body` as the API's `CreateIncident` JSON (its `id` is the row's, the
+  idempotency key; the description and immediate actions are free text about the person) and
+  `queued_at`. It lives only in the upload queue (or `held_entry` if the session ended first) and
+  never syncs down; a refused report goes to `upload_issue` under the person with its body. Retention
+  on the device as other unsent entries; on the server, the incident's own class.
 - Medicines (Phase 2 slice 68; medicines.md section 13.8; ADR-0130): `medication`,
   `medication_schedule`, `medication_dosing_record`, `covert_medication_record` and
   `medication_administration` hold, with the database column names, the rows the medicines streams

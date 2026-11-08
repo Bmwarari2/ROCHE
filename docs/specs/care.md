@@ -1368,7 +1368,9 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   results. Lists show each entry's state in words (waiting to upload, saved, late entry, device
   clock wrong), and a chart says how many days the device keeps even when it has no entries (C9).
 - **Not yet on the device**: tasks, rounds and handover; writing assessments, activities and visits
-  (the upload path takes activities and visits already); photos; incidents; the conflict review.
+  (the upload path takes activities and visits already); photos; the conflict review. Incidents
+  are reported from a person's record (MOB-006, HZ-141; `incident_outbox`, sent to
+  `POST /v1/incidents`), but incidents are not synced down to the phone.
   Body-map marks and chart history older than the window are not on the device (HZ-028).
 - **The round and the handover: streams (slice 10 part 2, first PR).** Six tables sync read-only,
   scoped as the API's views are (HZ-011; `packages/sync/test/task-handover-streams.test.ts`).

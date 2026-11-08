@@ -39,6 +39,7 @@ describe("schema bridge", () => {
       upload_issue: true,
       held_entry: true,
       elearning_outbox: false,
+      incident_outbox: false,
       medication: false,
       medication_schedule: false,
       medication_dosing_record: false,

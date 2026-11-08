@@ -9,10 +9,13 @@ import type { MessageKey } from "../i18n/t";
  * record shows it until it is dismissed or another person's record is opened. Held in memory
  * only: it names a person, so it never reaches storage or a log.
  */
+/** What a notice can be about: an entry, or an incident report (`incidents.ts`). */
+export type NoticeTable = OfflineWindowTable | "incident_outbox";
+
 export interface SavedNotice {
   readonly personId: string;
   readonly personName: string;
-  readonly table: OfflineWindowTable;
+  readonly table: NoticeTable;
   readonly corrected: boolean;
   readonly at: number;
 }
@@ -72,7 +75,8 @@ export function noticeIfFor(
 export const SAVED_NOTICE_MS = 15 * 60_000;
 
 /** The kind of entry, for the one whole sentence the catalogue holds per kind (CONTENT.md). */
-export function savedKind(table: OfflineWindowTable, corrected: boolean): string {
+export function savedKind(table: NoticeTable, corrected: boolean): string {
+  if (table === "incident_outbox") return "incident";
   const what =
     table === "care_note"
       ? "note"

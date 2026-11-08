@@ -255,6 +255,17 @@ export function issueItem(row: UploadIssueRow): IssueItem {
       mark_type: typeof payload.mark_type === "string" ? payload.mark_type : null,
     });
   }
+  // An incident reported on this phone: its type and the words written, so it can be reported
+  // again on the web (HZ-006).
+  let incidentAt: string | null = null;
+  if (row.record_table === "incident_outbox") {
+    const body = parseObject(typeof payload.body === "string" ? payload.body : null);
+    incidentAt = typeof body.occurredAt === "string" ? body.occurredAt : null;
+    content = t("mobile.incident.issueContent", {
+      type: typeof body.type === "string" ? body.type : "other",
+      description: typeof body.description === "string" ? body.description : "",
+    });
+  }
   // A dose recorded on this phone: the medicine, what was recorded and the dose it was for, so a
   // refused dose is never only "an entry" (slice 70; HZ-115).
   let doseAt: string | null = null;
@@ -296,6 +307,7 @@ export function issueItem(row: UploadIssueRow): IssueItem {
   const at =
     move?.at ??
     shiftAt ??
+    incidentAt ??
     doseAt ??
     (typeof payload.acknowledged_at === "string" ? payload.acknowledged_at : null) ??
     (typeof payload.occurred_at === "string" ? payload.occurred_at : null);
@@ -326,6 +338,11 @@ export function issueItem(row: UploadIssueRow): IssueItem {
         : row.server_copy === "refused"
           ? t("mobile.issues.copyRefused")
           : null,
-    advice: table === "medication_administration" ? t("mobile.meds.issueAdvice") : null,
+    advice:
+      table === "medication_administration"
+        ? t("mobile.meds.issueAdvice")
+        : table === "incident_outbox"
+          ? t("mobile.incident.issueAdvice")
+          : null,
   };
 }

@@ -89,6 +89,7 @@
 | [HZ-134](#hz-134-a-medication-error-not-followed-up-or-a-medication-review-missed) | A medication error not followed up, or a medication review missed | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1291) | Open | None (Phase 2) | Phase 2 (slice 45; web screens, H-1299) |
 | [HZ-138](#hz-138-a-persons-recent-record-missing-from-their-new-homes-phones-or-a-phone-refused-sync-for-holding-too-much) | A person's recent record missing from their new home's phones, or a phone refused sync for holding too much | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-1429) | Open | None (Phase 2) | Phase 2 (ADR-0134, batch 4) |
 | [HZ-140](#hz-140-pay-sent-through-the-hr-platform-missing-wrong-or-paid-twice-or-the-minimum-wage-checked-against-the-wrong-rate) | Pay sent through the HR platform missing, wrong or paid twice, or the minimum wage checked against the wrong rate | Significant / Medium / 2 (engineering proposal) | Significant / Very low / 1 (engineering proposal; the CSO rates it, H-1441) | Open | None (Phase 2) | Phase 2 (slice 89) |
+| [HZ-141](#hz-141-an-incident-reported-on-a-phone-offline-not-reaching-the-person-in-charge-in-time) | An incident reported on a phone offline not reaching the person in charge in time | Major / Medium / 3 (engineering proposal) | Major / Low / 3 (engineering proposal; the CSO rates it, H-1630) | Open | None (Phase 2) | Phase 2 (MOB-006) |
 
 Twenty-eight hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-117, HZ-120, HZ-121, HZ-125, HZ-130, HZ-132, HZ-133, HZ-134, HZ-138, HZ-112 until its mobile control is built, HZ-113 until the download alert (slice 75) and the device subset land, HZ-119 until its override report is built, HZ-123 until the CSO confirms the move now the rota shows the comparison (H-960), HZ-124 until the CSO re-rates it now the rota and clock-in apply the rule, and HZ-126 once the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. HZ-126 is rated Catastrophic and stays at 4 until H-599 is settled (H-595), which is not acceptable for a live tenant. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -4476,6 +4477,49 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | `packages/db/test/hr-link-pay.test.ts`: `hazard HZ-140 Thapsus-HR's pay periods and rates are the sync's copies (rule 11)`, `hazard HZ-140 a pay run's route to payroll is fixed, and a correction takes its original's (rule 12)`, `hazard HZ-140 units are kept once, for a locked pay run only, and never change (rules 11 and 12)` | Passing (Phase 2 slice 89) |
 | `apps/api/src/integrations/thapsus-hr.test.ts`: `hazard HZ-140 the mock serves Phase 19 pay only when asked, as planned (K4, K5)` | Passing (Phase 2 slice 89) |
 | `apps/api/test/hr-link-pay.test.ts`: `hazard HZ-140 a period before the route changes pays through Thapsus Care's export (rule 12)`, `hazard HZ-140 the route moves to Thapsus-HR only when it can take pay (rules 11 and 12)`, `hazard HZ-140 a period paid through Thapsus-HR uses its pay period and its rate (rule 11)` (pay codes by a pay approver; an unmatched member refused; the checked calculation's units and the pay codes kept at lock), `hazard HZ-140 a correction pays the way its original did, and replaces the period (rule 12)` (with the flag off, refused rather than exported), `hazard HZ-140 the minimum wage check never runs on a missing or stale rate (rule 11)` (stale rates refused; no rate never overridden; a changed pay period raised), `hazard HZ-140 a refusal of locked pay goes to pay approvers (rule 11)`, `hazard HZ-140 disconnecting tells pay approvers when locked pay has not reached Thapsus-HR` (including a correction locked after an earlier send), `hazard HZ-140 pay is changed only with a fresh step-up (rule 12)`, `hazard HZ-140 what Thapsus-HR stops listing stops being used (slice 90)` (a past period's rate kept), `hazard HZ-140 the link down never sends a period to the export without a person (slice 90)` (a pay drafter refused, a stale step-up refused, the intended route audited); `apps/api/test/hr-link.test.ts`: `hazard HZ-140 reads a changed employee's rate at once, once Thapsus-HR offers the pay read`; `apps/api/test/hr-link-rota.test.ts`: `hazard HZ-133 takes a cancellation Thapsus-HR answers not found as done, never retried every run`, `hazard HZ-133 raises a not-found cancellation for review when Thapsus-HR never acknowledged the shift`, `hazard HZ-133 lists the held copies only after a fresh step-up, a few times a minute, audited`; `apps/web/e2e/hr-link.spec.ts` (axe, light and dark: refused, not turned on, absences unchanged) | Passing (Phase 2 slices 89 and 90) |
+
+---
+
+## HZ-141 An incident reported on a phone offline not reaching the person in charge in time
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-141 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `apps/mobile` (lead engineer) |
+| Source | Phone incidents (MOB-006, 08/11/2026); related to HZ-006 (silent sync failure), HZ-013 and HZ-027 (notification clocks), HZ-090 ("Not known yet") |
+
+**Description**: a carer reports an incident on a phone with no connection and believes the person in charge, the family or a regulator has been told, when the report is still on the phone; or the report is refused on upload and nobody notices.
+
+**Causes**: no signal in the home; a phone left offline, locked or signed out with the report unsent; an upload refused (scope, a person who left, a home not on the phone); a carer reading "saved" as "reported".
+
+**Effects**: first aid, a GP visit, a search for a missing person or a safeguarding referral delayed; a statutory notification late (its clock runs from when it happened, HZ-013, so it shows as overdue once it arrives, but nobody is prompted before then).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The form opens with a warning, in words with an icon, that nobody is alerted until the phone is online and the report has been sent, and to tell the person in charge or call 999 first if someone is in danger or needs help now | Built |
+| Design | After saving, the record says "Incident report saved ... on this device. Nobody is told until it is sent" and lists every report waiting to send about the person under "Incidents waiting to send", in words with an icon, until the upload takes it; the sync banner counts it with the other unsent changes (HZ-006) | Built |
+| Design | Each report is sent to `POST /v1/incidents` under its device id (a resend records once), with when it happened and the device time, so the server's classifier and clocks start from the event, never the sync (HZ-013, HZ-027); "Not known yet" is sent as unknown, never a guess (HZ-090) | Built |
+| Design | A refused report moves to "needs attention" on the person's record with the API's reason, its type and words, and advice that it has not been reported and to tell the person in charge and report it on the web; a report the phone cannot read is refused in words and never dropped | Built |
+| Design | A report about a person whose home is not on the phone cannot be saved there; the form says to tell the person in charge or report it on the web | Built |
+| Design | Unsent reports are kept for their owner at sign-out and on a withdrawn phone as other unsent entries are (HZ-006, `held-work.ts`: the whole upload queue) | Built (existing) |
+| Process | Whether some types (missing person, absconding, safeguarding, a death) should be refused offline, or need a call before saving; whether falls questions should be asked on the phone; the warning's wording: owner-accepted recommendation, pending CSO review at the testing phase (H-1630) | Testing phase |
+| Test | See Verification | Built |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-1630).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/mobile/src/care/incidents.test.ts`: `reporting an incident on the phone` (the API's body under the device id with the person as affected, checked against `CreateIncident`; "Not known yet" sent as null; table-driven refusals; a time ahead of now refused; no home, no save; an unreadable report refused in words; the waiting list keeps to the person and tenant) | Passing |
+| `apps/mobile/src/sync/connector.test.ts`: `an incident reported on the phone` (posted to the incidents route keyed by its id, never the sync upload; a refusal kept as needs attention on the person's record with what was written) | Passing |
+| Maestro: none yet; no emulator here | Not written |
 
 ---
 

@@ -34,6 +34,7 @@ describe("Care mode screens", () => {
       "body-map.tsx",
       "care-plan.tsx",
       "chart.tsx",
+      "incident.tsx",
       "index.tsx",
       "note.tsx",
       "risks.tsx",

@@ -7,6 +7,7 @@ import {
   NEVER_EVICT_TABLES,
   OFFLINE_WINDOW_TABLES,
   ROUND_AND_HANDOVER_TABLES,
+  SAFETY_WRITABLE_TABLES,
   SHIFT_TABLES,
   SHIFT_WRITABLE_TABLES,
   TRAINING_WRITABLE_TABLES,
@@ -98,7 +99,11 @@ describe("client schema covers every stream", () => {
   // Scheduling.md section 18: the lone-worker queue is sent, never synced down (HZ-125).
   it("sends the lone-worker queue up and never syncs it down", () => {
     const upOnly = AppSchema.tables.filter((t) => t.insertOnly).map((t) => t.name);
-    expect(upOnly).toEqual(["lone_worker_outbox", ...TRAINING_WRITABLE_TABLES]);
+    expect(upOnly).toEqual([
+      "lone_worker_outbox",
+      ...TRAINING_WRITABLE_TABLES,
+      ...SAFETY_WRITABLE_TABLES,
+    ]);
     expect(SHIFT_WRITABLE_TABLES).toEqual(["clock_event", "lone_worker_outbox"]);
   });
 

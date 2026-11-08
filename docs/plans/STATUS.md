@@ -42,6 +42,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Phone incidents (08/11/2026)
+
+`feat/mobile-incidents`, from `main` at 9cfb4c4c (no migration; HZ-141; H-1630): a carer reports an
+incident from a person's record on the phone, offline. The report waits in `incident_outbox` and is
+sent to `POST /v1/incidents` under its device id. The form warns that nobody is alerted until it is
+sent. The record lists reports waiting to send, and a refused one shows under needs attention with
+its words. Not yet: incidents synced down, falls questions on the phone, other people or staff on the
+report, linking body map marks. Maestro not run. See
+`docs/changelog-dev/2026-11-08-feat-mobile-incidents.md`.
+
 ## Retention report (08/11/2026)
 
 `feat/platform-retention-report` (retention sweeps plan slice 4), from `main` at 8d9b4cc8: the

@@ -25,11 +25,12 @@ import { useWriteScope } from "../sync/write-scope-store";
 import { Card } from "./Card";
 import { CarePersonHeader, useCarePerson } from "./CarePersonHeader";
 import { EntryRow } from "./EntryRow";
+import { QueuedIncidents } from "./QueuedIncidents";
 import { SavedNoticeLine } from "./SavedNoticeLine";
 import { UploadIssues } from "./UploadIssues";
 
 /** A Care mode screen reached from a person's record. */
-export type PersonRecordScreen = "note" | "chart" | "body-map" | "care-plan" | "risks";
+export type PersonRecordScreen = "note" | "chart" | "body-map" | "incident" | "care-plan" | "risks";
 
 /**
  * Opens a Care mode screen for the person. The record's own route pushes it on the People stack;
@@ -183,6 +184,12 @@ export function PersonRecord({ personId, task, onOpenScreen }: PersonRecordProps
                       onPress={() => go("body-map")}
                       testID="action-body-map"
                     />
+                    <Button
+                      label={t("mobile.person.reportIncident")}
+                      variant="secondary"
+                      onPress={() => go("incident")}
+                      testID="action-incident"
+                    />
                   </>
                 ) : (
                   <Text tone="secondary" testID="person-read-only">
@@ -204,6 +211,7 @@ export function PersonRecord({ personId, task, onOpenScreen }: PersonRecordProps
                   testID="action-risks"
                 />
               </Card>
+              <QueuedIncidents personId={id} />
               <UploadIssues personId={id} />
               {allergies.length > 0 ? (
                 <Card title={t("mobile.person.allergies")} testID="allergy-list">

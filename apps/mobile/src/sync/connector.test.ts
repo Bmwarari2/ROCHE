@@ -1754,3 +1754,59 @@ describe("uploadData: a course taken offline goes to the e-learning routes (slic
     expect(queue.state.completed).toBe(1);
   });
 });
+
+describe("an incident reported on the phone", () => {
+  const INCIDENT = "0199d000-0000-7000-8000-000000000e11";
+  const PERSON = "00000000-0000-4000-8000-0000000000b1";
+  const report = (): CrudEntryLike => ({
+    op: "PUT",
+    table: "incident_outbox",
+    id: INCIDENT,
+    opData: {
+      tenant_id: TENANT,
+      person_id: PERSON,
+      body: JSON.stringify({
+        id: INCIDENT,
+        locationId: "00000000-0000-4000-8000-0000000000c1",
+        type: "fall",
+        occurredAt: "2026-11-08T09:40:00.000Z",
+        deviceTime: "2026-11-08T09:45:00.000Z",
+        description: "Found Ada Example on the floor by her bed.",
+        emergencyServicesCalled: false,
+        gpContacted: null,
+        people: [{ kind: "service_user", role: "affected", personId: PERSON }],
+        answers: [],
+      }),
+      queued_at: "2026-11-08T09:45:00.000Z",
+    },
+  });
+  it("posts it to the incidents route, keyed by its own id, never the sync upload", async () => {
+    const { fetch, calls } = fakeFetch([json({}, 201)]);
+    const queue = fakeQueue([report()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe(`${API}/v1/incidents`);
+    expect(calls[0]?.init?.method).toBe("POST");
+    expect(new Headers(calls[0]?.init?.headers).get("idempotency-key")).toBe(INCIDENT);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({ id: INCIDENT, type: "fall" });
+    expect(queue.issues()).toEqual([]);
+    expect(queue.state.completed).toBe(1);
+  });
+  it("keeps a refusal as needs attention on the person's record, with what was written", async () => {
+    const { fetch } = fakeFetch([
+      problem(403, "out_of_scope", "You cannot report about this person."),
+    ]);
+    const queue = fakeQueue([report()]);
+    await connector(fetch).instance.uploadData(queue.source);
+    expect(queue.issues()).toEqual([
+      expect.objectContaining({
+        id: INCIDENT,
+        personId: PERSON,
+        table: "incident_outbox",
+        code: "out_of_scope",
+        payload: expect.objectContaining({ body: expect.stringContaining("on the floor") }),
+      }),
+    ]);
+    expect(queue.state.completed).toBe(1);
+  });
+});

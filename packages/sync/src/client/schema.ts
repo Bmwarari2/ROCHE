@@ -618,6 +618,21 @@ const elearning_outbox = new Table(
 );
 
 /**
+ * Insert-only: an incident reported on the phone (safety.md section 3; MOB-006). `body` is the
+ * API's `CreateIncident` JSON, carrying the row's id, so a resend records once. Never synced down:
+ * the row lives only in the upload queue until `POST /v1/incidents` takes it.
+ */
+const incident_outbox = new Table(
+  {
+    tenant_id: column.text,
+    person_id: column.text,
+    body: column.text,
+    queued_at: column.text,
+  },
+  { insertOnly: true },
+);
+
+/**
  * Medicines on the phone (medicines.md section 13.8; Phase 2 slice 68; ADR-0130): every MAR entry
  * version not withdrawn (a stopped or replaced one too: the phone judges the time) for the people in
  * the member's `medicines.emar.administer` scope, with their schedule times, dosing records and
@@ -813,6 +828,7 @@ export const AppSchema = new Schema({
   clock_event,
   lone_worker_outbox,
   elearning_outbox,
+  incident_outbox,
   medication,
   location_service,
   medication_schedule,
@@ -918,6 +934,10 @@ export type MedicinesWritableTable = (typeof MEDICINES_WRITABLE_TABLES)[number];
 /** What the phone sends for a course taken offline (slice 72): to the e-learning routes. */
 export const TRAINING_WRITABLE_TABLES = ["elearning_outbox"] as const;
 export type TrainingWritableTable = (typeof TRAINING_WRITABLE_TABLES)[number];
+
+/** What the phone sends for an incident reported on it: to `POST /v1/incidents`. */
+export const SAFETY_WRITABLE_TABLES = ["incident_outbox"] as const;
+export type SafetyWritableTable = (typeof SAFETY_WRITABLE_TABLES)[number];
 
 /** Medicines on the phone (slice 68): the round's reference and recent administrations. */
 export const MEDICINES_TABLES = [
