@@ -2,6 +2,7 @@ import { createDatabase, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { addUkDays, addUkMonths, ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { workforceCompetence } from "../src/integrations/medicines-ports";
 import { remindDevelopmentExpiry } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { competencePort } from "../src/services/competence-port";
@@ -672,5 +673,55 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
       [NURSE, cycle],
     );
     expect(stored).toEqual({ confirmed_by: DEMO.users.manager.id, confirmation: true });
+  });
+});
+
+describe("hazard HZ-119 medicines reads competence from the workforce sign-offs (H-1532)", () => {
+  const medicines = () => workforceCompetence(createDatabase(h.db.pool("harbour_app")));
+  const OWNER = DEMO.users.owner.id;
+  const MANAGER = DEMO.users.manager.id;
+
+  it("answers not held for a member with no sign-off", async () => {
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, new Date())).toBe("not_held");
+  });
+
+  it("answers current for a sign-off in date, and expired for one past it", async () => {
+    const signed = await as("nurse", `${dev(MANAGER)}/competences`, {
+      method: "POST",
+      body: { competence: "medicines_administration", observedOn: today() },
+    });
+    expect(signed.status, await signed.clone().text()).toBe(200);
+    expect(await medicines().forMember(DEMO.tenantId, MANAGER, new Date())).toBe("current");
+    const old = await as("manager", `${dev(OWNER)}/competences`, {
+      method: "POST",
+      body: {
+        competence: "medicines_administration",
+        observedOn: ukIsoDate(addUkMonths(new Date(), -13)),
+      },
+    });
+    expect(old.status, await old.clone().text()).toBe(200);
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, new Date())).toBe("expired");
+  });
+
+  it("answers not held once withdrawn, which no override clears, and has no override yet", async () => {
+    const record = (await (await as("owner", `${dev(MANAGER)}/development`)).json()) as Development;
+    const withdrawn = await as(
+      "owner",
+      `${dev(MANAGER)}/competences/${record.signOffs[0]?.id}/withdraw`,
+      {
+        method: "POST",
+        body: { reason: "Observed an error at the medicines round" },
+      },
+    );
+    expect(withdrawn.status, await withdrawn.clone().text()).toBe(200);
+    expect(await medicines().forMember(DEMO.tenantId, MANAGER, new Date())).toBe("not_held");
+    expect(await medicines().overrideFor(DEMO.tenantId, MANAGER, new Date())).toBeNull();
+  });
+
+  it("lets the time an action claims only block, never allow", async () => {
+    // The owner's sign-off is past its date today; claiming a time when it was still in date
+    // changes nothing, because the server's clock decides.
+    const claimed = addUkMonths(new Date(), -12);
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, claimed)).toBe("expired");
   });
 });
