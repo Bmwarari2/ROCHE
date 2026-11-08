@@ -32,6 +32,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Retention registry (08/11/2026)
+
+`feat/platform-retention-registry` (retention sweeps plan slices 2 and 3, on #193 and slice 1): the
+retention registry in `packages/domain/src/platform/retention-registry/`, one entry for each of the
+238 tables with personal data (Phase 0 to 2 and the sign-in schema) and 76 listed as holding none;
+a `packages/db` test that fails for a table with neither, or an entry naming a missing table,
+column or retention.md class; and the export catalogue's `retention` field checked against it
+(45 values corrected). No migration, data change or route. DPO decisions found are in plan section
+3.2. See `docs/changelog-dev/2026-11-08-feat-platform-retention-registry.md`.
+
 ## H-1555: clock and lone-worker location evidence under a signed DPIA (07/11/2026)
 
 `fix/scheduling-clock-evidence-dpia`: location or NFC clock-in evidence and the lone-worker
@@ -106,6 +116,14 @@ pull request. Nothing is scheduled until the owner approves the plans.
 handling of a 409) in #205; its web journey and a navigation entry for the page in
 `feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
 tab); retention slices 0 and 1 once #193 has its numbers.
+
+## Doses recorded twice and corrections on the web (08/11/2026)
+
+`feat/meds-web-cd-conflicts-corrections`: the three web screens the phone sends staff to (HZ-004;
+medicines.md 15.4): deciding a dose recorded twice (a controlled drug's included, with step-up and
+someone who took no part), correcting the record that stands, and correcting a controlled drug's
+record with a witness who signs, in their own session, for exactly that correction. H-1605's
+stop-gap stays until this merges. Additive API fields only; no migration.
 
 ## Retention sweeps: plan (07/11/2026)
 
@@ -697,6 +715,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
 - slice 72 leftovers, `feat/mobile-training-placement`: Training tab beside Shifts (H-1365 done); Welsh strings H-1526; tab bar H-1527; Android Maestro run not done (no emulator here);
+- phone safety from the guides review, `feat/mobile-device-safety` (no migration; H-1530, H-1531; H-1604 stop-gap): PRN 24-hour maximum against the amount, Correct only where allowed, offline competence, keep-my-entries sign-out, honest key-reset notice, round-card allergies and Show record, device-mode gate; still open: shared-device PIN sign-in (ADR-0025, H-1530), the key-reset record at the server (H-1531), save confirmation, a device-withdraw screen, phone incidents and passkeys, hard-coded sign-in and lock strings; Maestro not run;
 - slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0147; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
 - slice 69 the medicines round on the phone, `feat/mobile-meds-round` (no migration; ADR-0081; H-1432 to H-1438; on slice 68): the round shared with the API, GS1 pack scan and photo confirmation, offline records judged at the phone's time, integrity gate, reminders; MOB-007, MEDS-002 partial; Maestro flow written, not run;
 - slice 70 controlled drugs, corrections and conflicts on the phone, `feat/mobile-meds-cd-offline` (0153 for now, the integrator renumbers; ADR-0084; H-1439, H-1440, H-1521 to H-1525; on slice 69): PIN keys per member and phone, two signatures verified on upload, referenced corrections, conflict review; MOB-007, MEDS-005 partial; Maestro flows written, not run;

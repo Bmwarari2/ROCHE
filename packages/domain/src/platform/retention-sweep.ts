@@ -50,7 +50,7 @@ export interface RetentionClassRow {
 /** What the sweep needs to know about the organisation. */
 export interface RetentionTenant {
   readonly tenantId: string;
-  /** The staff file option chosen at onboarding (provisional, H-NEW-3); null until chosen. */
+  /** The staff file option chosen at onboarding (provisional, H-1583); null until chosen. */
   readonly staffFileOption: StaffFileOption | null;
 }
 
@@ -59,7 +59,7 @@ export interface ResolvedRule extends RetentionRule {
   readonly requestedClass: string;
   /**
    * `tenant`: the organisation's row; `global`: the schedule's row; `unknown_class`: no row, so
-   * the record is never destroyed (provisional, H-NEW-5); `invalid_row`: the row's unit, trigger
+   * the record is never destroyed (provisional, H-1585); `invalid_row`: the row's unit, trigger
    * or period cannot be read, so the record is never destroyed either.
    */
   readonly origin: "tenant" | "global" | "unknown_class" | "invalid_row";
@@ -89,9 +89,9 @@ function toRule(row: RetentionClassRow): RetentionRule | null {
 
 /**
  * The rule for a record class: the organisation's row, else the global row. `staff_file` resolves
- * to the row the organisation's `staff_file_option` names (provisional, H-NEW-3), the default
+ * to the row the organisation's `staff_file_option` names (provisional, H-1583), the default
  * option until one is chosen. An unknown class resolves to `tenant_policy`, never destroyed
- * (provisional, H-NEW-5). An organisation's row shorter than the schedule's is ignored: overrides
+ * (provisional, H-1585). An organisation's row shorter than the schedule's is ignored: overrides
  * may only lengthen a period (validateTenantOverride).
  */
 export function resolveRule(
@@ -125,7 +125,7 @@ export function resolveRule(
 
 /**
  * The facts a trigger is worked out from. The registry (plan section 5.3) reads them from the
- * record's own columns, or works them out where the record has none (provisional, H-NEW-4), so
+ * record's own columns, or works them out where the record has none (provisional, H-1584), so
  * these are inputs, never table rows.
  */
 export interface TriggerFacts {
@@ -269,7 +269,7 @@ export type OpenCaseKind = (typeof OPEN_CASE_KINDS)[number];
 
 /**
  * A case about someone. While open it holds its subject's records without anyone placing a hold
- * (provisional, H-NEW-6).
+ * (provisional, H-1586).
  */
 export interface OpenCaseView {
   readonly kind: OpenCaseKind;

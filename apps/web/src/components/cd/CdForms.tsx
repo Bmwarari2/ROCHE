@@ -14,6 +14,8 @@ import { useFieldIds } from "@/components/care/form-state";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import {
   cdPageHref,
+  DOSE_WITNESSED,
+  type doseWitnessFrom,
   RECORDED_MOVEMENTS,
   type Read,
   readCdEntry,
@@ -131,13 +133,17 @@ export function WitnessForm({
   pageId,
   recorders,
   unit,
+  dose = null,
 }: {
   readonly personId: string;
   readonly pageId: string;
   readonly recorders: readonly { readonly id: string; readonly name: string }[];
   readonly unit: string;
+  /** From the recorder's link: a dose record's correction to sign for, prefilled (HZ-004). */
+  readonly dose?: ReturnType<typeof doseWitnessFrom>;
 }) {
   const ids = useFieldIds(["movement", "quantity", "recorderId"]);
+  const movements: readonly string[] = dose ? DOSE_WITNESSED : WITNESSED;
   const offered = new Set(recorders.map((r) => r.id));
   const { result, pending, submit, feedback } = useCdSubmit(
     cdPageHref(personId, pageId),
@@ -148,13 +154,19 @@ export function WitnessForm({
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <p className="m-0 max-w-prose">{t("cd.witness.intro")}</p>
+      {dose ? (
+        <>
+          <p className="m-0 max-w-prose font-semibold">{t("cd.witness.doseIntro")}</p>
+          <input type="hidden" name="administrationId" value={dose.administrationId} />
+        </>
+      ) : null}
       <SelectField
         id={ids.movement}
         name="movement"
         label={t("cd.witness.movement")}
-        defaultValue=""
+        defaultValue={dose?.movement ?? ""}
         emptyOption={t("cd.form.choose")}
-        options={WITNESSED.map((m) => ({ value: m, label: t("cd.witnessed", { movement: m }) }))}
+        options={movements.map((m) => ({ value: m, label: t("cd.witnessed", { movement: m }) }))}
         error={errorFor(result, "movement")}
       />
       <TextField
@@ -164,6 +176,7 @@ export function WitnessForm({
         hint={t("cd.witness.quantityHint")}
         inputMode="text"
         autoComplete="off"
+        defaultValue={dose?.quantity ?? ""}
         error={errorFor(result, "quantity")}
       />
       <SelectField
@@ -171,7 +184,7 @@ export function WitnessForm({
         name="recorderId"
         label={t("cd.witness.recorder")}
         hint={t("cd.witness.recorderHint")}
-        defaultValue=""
+        defaultValue={dose && offered.has(dose.recorderId) ? dose.recorderId : ""}
         emptyOption={t("cd.form.choose")}
         options={recorders.map((r) => ({ value: r.id, label: r.name }))}
         error={errorFor(result, "recorderId")}

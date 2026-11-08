@@ -100,6 +100,7 @@ export function localCorrectionRow(input: CorrectionInput): Record<string, strin
     unit_code: input.amount?.unitCode ?? null,
     given_at: input.original.givenAt,
     administered_by: input.memberId,
+    recorded_by: input.memberId,
     recorded_at: input.at.toISOString(),
     supersedes_id: input.original.id,
     request: JSON.stringify({
@@ -109,4 +110,20 @@ export function localCorrectionRow(input: CorrectionInput): Record<string, strin
       body,
     }),
   };
+}
+
+/** Who may correct records anyone made, as the API decides (`medicines.record.manage`). */
+export const CORRECT_ANYONE = "medicines.record.manage";
+
+/**
+ * Whether the member may correct this record on the phone: their own, or anyone's with
+ * `medicines.record.manage`, as the API checks on upload (guides review of the phone, HZ-004). A
+ * record whose recorder the phone does not know is treated as someone else's.
+ */
+export function mayCorrectOnPhone(
+  record: { readonly recorded_by?: string | null },
+  member: { readonly tenantUserId?: string | null; readonly permissions?: readonly string[] },
+): boolean {
+  if ((member.permissions ?? []).includes(CORRECT_ANYONE)) return true;
+  return Boolean(record.recorded_by) && record.recorded_by === member.tenantUserId;
 }

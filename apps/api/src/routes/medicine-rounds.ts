@@ -24,6 +24,7 @@ import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
   type AdministrationRow,
+  isControlledDrug,
   medicinesRates,
   personAdministrations,
   supersededBy,
@@ -42,7 +43,6 @@ import {
 } from "../services/medicine-rounds";
 import { guardConcurrent, lockPerson, personEntries } from "../services/medicines";
 import { loadPerson } from "../services/people";
-import { isControlledDrug } from "./medicine-administrations";
 import {
   conflictResponse,
   createRouter,

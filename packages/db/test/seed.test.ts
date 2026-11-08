@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DEMO, seedDemoTenant, seedReferenceData } from "../src/seed/demo";
+import { DEMO, seedDemoCompetence, seedDemoTenant, seedReferenceData } from "../src/seed/demo";
 import { parseBankHolidays, parseRates, parseRetention } from "../src/seed/reference-data";
 import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, inContext } from "./support/fixtures";
@@ -114,5 +114,25 @@ describe("seed", () => {
       },
     );
     expect(names).toEqual(["Ada", "Ben", "Cara"]);
+  });
+
+  it("hazard HZ-119 gives the demo owner, manager and nurse a current medicines competence, idempotently", async () => {
+    await seedDemoCompetence(db.pool("harbour_owner"));
+    await seedDemoCompetence(db.pool("harbour_owner"));
+    const rows = await inContext(
+      db.pool("harbour_owner"),
+      ctx(DEMO.tenantId, DEMO.users.manager.id, "tenant", []),
+      async (c) =>
+        (
+          await c.query<{ worker_id: string; current: boolean }>(
+            `SELECT worker_id, (observed_on <= CURRENT_DATE AND valid_until > CURRENT_DATE) AS current
+               FROM competence_sign_off WHERE competence = 'medicines_administration'`,
+          )
+        ).rows,
+    );
+    expect(rows.map((r) => r.worker_id).sort()).toEqual(
+      [DEMO.users.owner.id, DEMO.users.manager.id, DEMO.users.nurse.id].sort(),
+    );
+    expect(rows.every((r) => r.current)).toBe(true);
   });
 });

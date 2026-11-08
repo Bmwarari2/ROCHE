@@ -16,6 +16,7 @@ Registered Manager does that.
 - [How to close an outbreak](close-an-outbreak.md)
 - [How to correct a controlled drugs register entry](correct-a-controlled-drugs-register-entry.md)
 - [How to count controlled drugs stock](count-controlled-drugs-stock.md)
+- [How to decide a dose recorded twice](decide-a-dose-recorded-twice.md)
 - [How to declare an outbreak](declare-an-outbreak.md)
 - [How to dispose of medicines with a witness](dispose-of-medicines-with-a-witness.md)
 - [How to fill in the outbreak report](fill-in-the-outbreak-report.md)

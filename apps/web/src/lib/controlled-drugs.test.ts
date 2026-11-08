@@ -7,6 +7,8 @@ import {
   cdRecordingSettingsShown,
   cdShown,
   countOverdue,
+  doseWitnessFrom,
+  doseWitnessHref,
   movementChip,
   readCdEntry,
   readCdQuantity,
@@ -245,5 +247,40 @@ describe("who is offered the controlled drug recording page (H-1518)", () => {
     expect(cdRecordingSettingsHref("0194d000-0000-7000-8000-000000000101")).toBe(
       "/medicines-settings/0194d000-0000-7000-8000-000000000101",
     );
+  });
+});
+
+describe("a witness's link for a dose record's correction (HZ-004)", () => {
+  const dose = {
+    administrationId: SIG,
+    movement: "correction" as const,
+    quantity: -0.5,
+    recorderId: B,
+  };
+  it("hazard HZ-115 carries exactly what the witness signs for, and reads back", () => {
+    const href = doseWitnessHref(A, B, dose);
+    const query = Object.fromEntries(new URL(href, "https://x.invalid").searchParams);
+    expect(doseWitnessFrom(query)).toEqual({ ...dose, quantity: "-0.5" });
+  });
+
+  it.each([
+    ["no record", { movement: "correction", quantity: "1", recorder: B }],
+    ["a register movement", { dose: SIG, movement: "receipt", quantity: "1", recorder: B }],
+    ["no quantity", { dose: SIG, movement: "administration", quantity: "x", recorder: B }],
+  ])("ignores a link with %s", (_name, query) => {
+    expect(doseWitnessFrom(query)).toBeNull();
+  });
+
+  it("hazard HZ-115 signs for the record named, and only a dose's movements", () => {
+    const recorders = new Set([B]);
+    const sign = { movement: "administration", quantity: "1", recorderId: B };
+    expect(readWitness(form({ ...sign, administrationId: SIG }), t, recorders)).toMatchObject({
+      ok: true,
+      body: { movement: "administration", administrationId: SIG },
+    });
+    expect(readWitness(form(sign), t, recorders).ok).toBe(false);
+    expect(
+      readWitness(form({ ...sign, movement: "receipt", administrationId: SIG }), t, recorders).ok,
+    ).toBe(false);
   });
 });

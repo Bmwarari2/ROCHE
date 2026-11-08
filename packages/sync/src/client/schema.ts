@@ -726,6 +726,7 @@ const medication_administration = new Table(
     unit_code: column.text,
     given_at: column.text,
     administered_by: column.text,
+    recorded_by: column.text,
     recorded_at: column.text,
     supersedes_id: column.text,
     covert: column.integer,
@@ -750,6 +751,8 @@ const competence_sign_off = new Table({
 const competence_withdrawal = new Table({
   tenant_id: column.text,
   sign_off_id: column.text,
+  /** When it was withdrawn: a withdrawal is about the member from that UK day (competenceDecision). */
+  created_at: column.text,
 });
 
 /**
