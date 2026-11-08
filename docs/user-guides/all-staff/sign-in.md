@@ -40,6 +40,12 @@ switch later from **Organisation** in the bar at the top of the page.
 Choose **Your account** at the top of the page, then **Sign out**. Always sign out of a shared
 computer.
 
+On the phone, choose **Settings**, then **Sign out**. If entries have not reached Thapsus Care
+yet, the phone says how many. Choose **Sign out and keep my entries**. They stay on the phone,
+encrypted, for you. Nobody else can use the care records on this phone until you sign in again and
+they are sent, or a manager deals with them. Delete them only if they are recorded somewhere else
+or were entered in error. To go back, choose **Stay signed in**.
+
 ## Good to know
 
 - After several attempts, Thapsus Care asks you to wait a minute. It never locks you out.

@@ -22,6 +22,7 @@ import {
   saveWrappedKey,
 } from "../medicines/device-key-store";
 import { useRecordDose } from "../medicines/hooks";
+import { type CompetenceRow, MY_COMPETENCE_SQL, phoneCompetence } from "../medicines/my-competence";
 import { DEVICE_GTINS_SQL, DEVICE_PRODUCTS_SQL } from "../medicines/queries";
 import {
   type CdDeviceSignatures,
@@ -61,6 +62,10 @@ export interface DoseChoice {
   /** A when-required dose's next allowed time (HZ-004). */
   readonly nextAllowedAt: Date | null;
   readonly lastDoseNotOnDevice: boolean;
+  /** What is left of a when-required dose's 24-hour maximum, in its unit (HZ-004). */
+  readonly prnRemaining?: number | null;
+  /** The prescribed amount or range, in the dose's unit (HZ-004). */
+  readonly prescribedRange?: { readonly from: number; readonly to: number } | null;
 }
 
 function announce(words: string) {
@@ -126,6 +131,12 @@ export function DoseRecordPanel({
   const [lone, setLone] = useState(false);
   // Whether this member may record a controlled drug: checked before the dose, never after.
   const mayRecordCd = (me?.permissions ?? []).includes("medicines.cd.administer");
+  // The member's own medicines competence, from their synced sign-offs (HZ-119).
+  const { data: competenceRows } = useQuery<CompetenceRow>(MY_COMPETENCE_SQL, [
+    tenantId ?? "",
+    me?.tenantUserId ?? "",
+  ]);
+  const competence = phoneCompetence(competenceRows ?? [], new Date());
   // Where the paper register is the record (H-1517; HZ-115), a controlled drug is not recorded on
   // the phone at all; not read counts as off. Said before the permission, which it overrides.
   const {
@@ -370,6 +381,9 @@ export function DoseRecordPanel({
       mayGive: dose.mayGive,
       controlledDrug: dose.controlledDrug,
       nextAllowedAt: dose.nextAllowedAt,
+      prnRemaining: dose.prnRemaining ?? null,
+      prescribedRange: dose.prescribedRange ?? null,
+      competence,
       lastDoseNotOnDevice: dose.lastDoseNotOnDevice,
       packRefused,
       cdSignatures,

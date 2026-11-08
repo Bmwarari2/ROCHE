@@ -7,10 +7,13 @@ deputy managers, Registered Managers and owners, with a witness.
 
 **Register row**: MEDS-005.
 
-> **Until your home's electronic controlled drugs register is turned on**, keep every controlled
-> drug record for your home (receipts, doses given, counts and returns) in the paper controlled
-> drugs register, and do not use these screens. One register is the record, so its balance is
-> never split between paper and Thapsus Care (H-1517).
+> **If the page says "Controlled drug recording is not turned on for this home"**, the paper
+> controlled drugs register is the record at your home. The page still shows what Thapsus Care
+> holds, which may be incomplete. It does not show the forms in these steps, and Thapsus Care will
+> not accept a controlled drug entry for this home. Record every receipt, dose given, transfer,
+> disposal and stock count in the paper register, with a witness, as your home's policy says. One
+> register is the record, so its balance is never split between paper and Thapsus Care (HZ-115;
+> decision H-1517).
 
 ## Steps
 

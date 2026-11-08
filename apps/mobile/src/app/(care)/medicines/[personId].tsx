@@ -3,6 +3,7 @@ import { useQuery } from "@powersync/react";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
+import { useSession } from "../../../app-state/session";
 import { useTenantId } from "../../../care/hooks";
 import { CarePersonHeader } from "../../../components/CarePersonHeader";
 import { CorrectionPanel } from "../../../components/CorrectionPanel";
@@ -10,6 +11,7 @@ import { type DoseChoice, DoseRecordPanel } from "../../../components/DoseRecord
 import { Screen } from "../../../components/Screen";
 import { StatusLine } from "../../../components/StatusLine";
 import { t } from "../../../i18n/t";
+import { mayCorrectOnPhone } from "../../../medicines/correction";
 import { DMD_SUBSET_FAILED_META_ID, DMD_SUBSET_META_ID } from "../../../medicines/dmd-subset";
 import { useMedicinesRound } from "../../../medicines/hooks";
 import { ROUND_MEDICATION_SQL, ROUND_SCHEDULE_SQL } from "../../../medicines/queries";
@@ -30,24 +32,44 @@ import {
 } from "../../../people/queries";
 import { useRecordScreenProtection } from "../../../security/use-record-protection";
 
+/** The prescribed amount or range, as the API's `amountMatches` reads it; null for a variable dose. */
+function rangeOf(
+  kind: string | null,
+  quantity: unknown,
+  from: unknown,
+  to: unknown,
+): { from: number; to: number } | null {
+  const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN);
+  if (kind === "amount" && Number.isFinite(n(quantity)))
+    return { from: n(quantity), to: n(quantity) };
+  if (kind === "range" && Number.isFinite(n(from)) && Number.isFinite(n(to))) {
+    return { from: n(from), to: n(to) };
+  }
+  return null;
+}
+
 function prnUnit(row: MedicationLocalRow | undefined): {
   unitCode: string | null;
   unitName: string | null;
   quantity: number | null;
+  prescribedRange: { from: number; to: number } | null;
 } {
   try {
     const dose = JSON.parse(row?.prn_dose ?? "null") as {
       kind?: string;
       quantity?: number;
+      from?: number;
+      to?: number;
       unit?: { code?: string; name?: string };
     } | null;
     return {
       unitCode: dose?.unit?.code ?? null,
       unitName: dose?.unit?.name ?? null,
       quantity: dose?.kind === "amount" ? (dose.quantity ?? null) : null,
+      prescribedRange: rangeOf(dose?.kind ?? null, dose?.quantity, dose?.from, dose?.to),
     };
   } catch {
-    return { unitCode: null, unitName: null, quantity: null };
+    return { unitCode: null, unitName: null, quantity: null, prescribedRange: null };
   }
 }
 
@@ -62,6 +84,7 @@ export default function PersonMedicinesScreen() {
   const theme = useTheme();
   const { personId } = useLocalSearchParams<{ personId: string }>();
   const tenantId = useTenantId();
+  const { me } = useSession();
   const { gate, rounds, people, administrations } = useMedicinesRound();
   const params = useMemo(() => [tenantId], [tenantId]);
   const { data: meds } = useQuery<MedicationLocalRow>(ROUND_MEDICATION_SQL, params);
@@ -110,7 +133,11 @@ export default function PersonMedicinesScreen() {
     dueAt: string | null,
     mayGive: boolean,
     time: string | null,
-    prn: { nextAllowedAt: string | null; lastDoseNotOnDevice: boolean } | null = null,
+    prn: {
+      nextAllowedAt: string | null;
+      lastDoseNotOnDevice: boolean;
+      remaining: number | null;
+    } | null = null,
   ) => {
     const row = meds.find((m) => m.id === entryId);
     const slot = time
@@ -121,6 +148,12 @@ export default function PersonMedicinesScreen() {
           unitCode: slot.unit_code,
           unitName: slot.unit_name,
           quantity: slot.dose_kind === "amount" ? Number(slot.quantity) : null,
+          prescribedRange: rangeOf(
+            slot.dose_kind,
+            slot.quantity,
+            slot.from_quantity,
+            slot.to_quantity,
+          ),
         }
       : prnUnit(row);
     setSaved(false);
@@ -140,6 +173,7 @@ export default function PersonMedicinesScreen() {
       allergyWords: allergy.words,
       nextAllowedAt: prn?.nextAllowedAt ? new Date(prn.nextAllowedAt) : null,
       lastDoseNotOnDevice: prn?.lastDoseNotOnDevice ?? false,
+      prnRemaining: prn?.remaining ?? null,
     });
   };
 
@@ -283,6 +317,7 @@ export default function PersonMedicinesScreen() {
                   choose(w.entryId, w.productName, "", null, w.remaining !== 0, null, {
                     nextAllowedAt: w.nextAllowedAt,
                     lastDoseNotOnDevice: w.lastDoseNotOnDevice,
+                    remaining: w.remaining,
                   })
                 }
                 testID={`person-prn-${w.entryId}`}
@@ -301,7 +336,9 @@ export default function PersonMedicinesScreen() {
                   ? t("mobile.meds.correctionProblem", { problem: "not_synced" })
                   : med?.cd_schedule
                     ? t("mobile.meds.correctionProblem", { problem: "controlled_drug_on_web" })
-                    : null;
+                    : !mayCorrectOnPhone(r, me ?? {})
+                      ? t("mobile.meds.correctionProblem", { problem: "not_yours" })
+                      : null;
               return (
                 <ListItem
                   key={r.id}

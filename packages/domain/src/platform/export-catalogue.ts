@@ -39,8 +39,11 @@ export type ExportTreatment = "tenant_rows" | "tenant_overrides_only" | "not_exp
 
 /**
  * A record class from retention.md, or `tenant_configuration` (kept while the tenant is a
- * customer), `as_subject` (the class of the record it concerns), `by_category` (documents),
- * `permanent` (proof of records management) or `operational`.
+ * customer), `as_subject` (the class of the record it concerns), `by_category` (the class depends
+ * on the row, its category, kind or own `retention_class`, or more than one class applies and the
+ * longest wins), `permanent` (proof of records management) or `operational` (staged or transient
+ * data, never kept as a record). Checked against the retention registry
+ * (`retention-registry/`, `catalogueRetentionFor`), which says how each table is destroyed.
  */
 export type ExportRetention =
   | "care_record"
@@ -60,14 +63,19 @@ export type ExportRetention =
   | "sickness_absence"
   | "working_time_record"
   | "working_time_opt_out"
-  | "sickness_absence"
   | "staff_file"
   | "sponsor_record"
   | "applicant.unsuccessful"
   | "data_rights_case"
   | "mar_chart"
   | "lone_worker"
-  | "lone_worker_location"
+  | "audit_event.care_record"
+  | "medicines_stock_log"
+  | "medicines_disposal_log"
+  | "temperature_log"
+  | "quality_audit"
+  | "payroll_export"
+  | "staff_survey_response"
   | "speak_up_concern"
   | "dp_breach"
   | "tenant_configuration"
@@ -464,7 +472,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     context: "people",
     description: "Conditions on a decision to admit, and who confirmed each one met.",
     treatment: "tenant_rows",
-    retention: "care_record",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -491,7 +499,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Decisions to admit, with reasons (append-only; a correction supersedes the original).",
     treatment: "tenant_rows",
-    retention: "care_record",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -768,7 +776,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Actions raised on a completed audit for answers that fell short (quality.md rule 10): the question, what is to be done, the owner and the due date. Append-only.",
     treatment: "tenant_rows",
-    retention: "organisation_document",
+    retention: "quality_audit",
     personal: false,
     columns: {
       id: "exported",
@@ -788,7 +796,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Audits and mock inspections carried out at a location (quality.md rules 8 to 14): the questions and framework version they were scored against, the answers, the score with its points, the self-rating given by a person and who completed it.",
     treatment: "tenant_rows",
-    retention: "organisation_document",
+    retention: "quality_audit",
     personal: false,
     columns: {
       id: "exported",
@@ -1291,7 +1299,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Requests for a member to sign an organisation document, in Thapsus Care or through DocuSign (ADR-0095), with the evidence of how it was signed.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -1351,7 +1359,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "One staged import of completions from a learning platform, by file or pull, with its latest dry run (workforce.md section 13 rules 2 and 4). Holds counts and hashes, never a file.",
     treatment: "tenant_rows",
-    retention: "training_record",
+    retention: "audit_event",
     personal: false,
     columns: {
       id: "exported",
@@ -1383,7 +1391,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "One completion of a learning platform import, as checked: the platform's ids and dates, never a name, its class at the latest dry run and what became of it (workforce.md section 13).",
     treatment: "tenant_rows",
-    retention: "training_record",
+    retention: "operational",
     personal: true,
     columns: {
       id: "exported",
@@ -1533,7 +1541,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "The duty of candour for an incident (regulation 20 of the 2014 Regulations): threshold, notification in person, written notification and contact attempts.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -1818,7 +1826,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Medication errors and near misses on medication incidents (MEDS-012; medicines.md section 14.1): what went wrong (NRLS categories), the stage, the medicine and dose record, the triage answers and what was done.",
     treatment: "tenant_rows",
-    retention: "serious_incident",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -2398,7 +2406,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "A controlled drugs register entry (rules 24 to 27): append-only, with the balance after it; a mistake is a correction entry naming the entry it puts right.",
     treatment: "tenant_rows",
-    retention: "controlled_drugs_register",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -2501,7 +2509,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "A disposal of a person's medicine (medicines.md section 15 rule 5), witnessed by a second member per the organisation's policy.",
     treatment: "tenant_rows",
-    retention: "mar_chart",
+    retention: "medicines_disposal_log",
     personal: true,
     columns: {
       id: "exported",
@@ -2539,7 +2547,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     context: "medicines",
     description: "A home's medicines order for a cycle (medicines.md section 15 rule 7).",
     treatment: "tenant_rows",
-    retention: "mar_chart",
+    retention: "medicines_stock_log",
     personal: false,
     columns: {
       id: "exported",
@@ -2584,7 +2592,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "One medicine asked for in an order, for one person (medicines.md section 15 rule 7).",
     treatment: "tenant_rows",
-    retention: "mar_chart",
+    retention: "medicines_stock_log",
     personal: true,
     columns: {
       id: "exported",
@@ -2609,7 +2617,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "A person's stock of one dm+d product (MEDS-008; medicines.md section 15 rule 1), opened from a MAR entry in its dose unit; never a controlled drug.",
     treatment: "tenant_rows",
-    retention: "mar_chart",
+    retention: "medicines_stock_log",
     personal: true,
     columns: {
       id: "exported",
@@ -2629,7 +2637,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "A change to a person's stock of a medicine (medicines.md section 15 rules 2 to 5): append-only, in sequence, with the balance after it.",
     treatment: "tenant_rows",
-    retention: "mar_chart",
+    retention: "medicines_stock_log",
     personal: true,
     columns: {
       id: "exported",
@@ -2687,7 +2695,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "A medicines storage temperature reading (medicines.md section 15 rule 8): append-only, with the range that applied from the rate table.",
     treatment: "tenant_rows",
-    retention: "mar_chart",
+    retention: "temperature_log",
     personal: false,
     columns: {
       id: "exported",
@@ -3098,7 +3106,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Answers to the notification classifier's questions about an incident. Append-only; the latest answer to each question counts.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -3269,7 +3277,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     context: "people",
     description: "Family, representatives and legal authorities for each person.",
     treatment: "tenant_rows",
-    retention: "care_record",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -3334,7 +3342,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "One record per death recorded on a person's exit (safety.md slice 37; SAFE-014): the clinician's judgement (expected or not, whether the cause may be unnatural), the steps the death needs and the mortality review. The notification steps are the notification centre's (statutory_notification). Thapsus Care never decides the cause.",
     treatment: "tenant_rows",
-    retention: "serious_incident",
+    retention: "care_record",
     personal: true,
     columns: {
       id: "exported",
@@ -3398,7 +3406,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Each step of a death as recorded on its death record (append-only; the latest for a step counts): verification of death, telling the family, telling the police, leaving the room as it is, or a notification step that was not needed, with the reason.",
     treatment: "tenant_rows",
-    retention: "serious_incident",
+    retention: "care_record",
     personal: true,
     columns: {
       id: "exported",
@@ -4071,7 +4079,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     context: "platform",
     description: "Typed-name signatures bound to the SHA-256 of the version signed.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -4499,7 +4507,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Employee relations cases (workforce.md section 2d; special category and allegations of criminal conduct): type, the member of staff, stage, outcome, appeal, suspension and the DBS and regulator referral decisions.",
     treatment: "not_exported",
-    retention: "staff_file",
+    retention: "by_category",
     personal: true,
     reasonNotExported:
       "A restricted silo (ADR-0089): only the members named on a case may read it, so the organisation-wide export, which the owner requests, never carries it. The case members export their cases separately (H-805).",
@@ -4510,7 +4518,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "The timeline of each employee relations case (workforce.md rule 15): stage changes, members, hearings, suspension, referrals and members' notes.",
     treatment: "not_exported",
-    retention: "staff_file",
+    retention: "by_category",
     personal: true,
     reasonNotExported:
       "A restricted silo (ADR-0089): only the members named on a case may read it, so the organisation-wide export, which the owner requests, never carries it. The case members export their cases separately (H-805).",
@@ -4521,7 +4529,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Investigation meetings, hearings and appeal hearings of employee relations cases (workforce.md rule 18): invitation, lead, date and whether the employee was accompanied.",
     treatment: "not_exported",
-    retention: "staff_file",
+    retention: "by_category",
     personal: true,
     reasonNotExported:
       "A restricted silo (ADR-0089): only the members named on a case may read it, so the organisation-wide export, which the owner requests, never carries it. The case members export their cases separately (H-805).",
@@ -4532,7 +4540,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Who is named on each employee relations case, in which part (workforce.md rule 16); membership is what lets them read it.",
     treatment: "not_exported",
-    retention: "staff_file",
+    retention: "by_category",
     personal: true,
     reasonNotExported:
       "A restricted silo (ADR-0089): only the members named on a case may read it, so the organisation-wide export, which the owner requests, never carries it. The case members export their cases separately (H-805).",
@@ -4595,7 +4603,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Records tagged as evidence against quality statements of one framework version (quality.md rule 6): the record's type and id only, never its content.",
     treatment: "tenant_rows",
-    retention: "tenant_configuration",
+    retention: "as_subject",
     personal: true,
     columns: {
       id: "exported",
@@ -5115,7 +5123,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Each time a family member saw an update (comms.md rule 4; append-only): the decision that allowed it and the section, status and capacity finding then.",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "audit_event.care_record",
     personal: true,
     columns: {
       id: "exported",
@@ -5733,7 +5741,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "A staff member's hourly rate from Thapsus-HR, read only for the minimum wage check (integrations.md section 11.5 rule 11; slice 89; HZ-140). Pay holders only.",
     treatment: "tenant_rows",
-    retention: "rota_and_timesheet",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -5755,7 +5763,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "The units by kind worked out when a pay run was locked, as sent to Thapsus-HR's payroll (integrations.md section 11.5 rule 11; slice 89; append-only). Units, never money.",
     treatment: "tenant_rows",
-    retention: "rota_and_timesheet",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -5836,7 +5844,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Incidents and near misses. Every statutory clock starts at occurred_at; each row's retention is in retention_class.",
     treatment: "tenant_rows",
-    retention: "serious_incident",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -5931,7 +5939,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Everyone on an incident: people using the service, workers and others, with their part and injuries.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -6044,7 +6052,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     context: "integrations",
     description: "Data received from partners, with validation problems and resolutions.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "operational",
     personal: true,
     columns: {
       id: "exported",
@@ -6141,7 +6149,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     context: "safety",
     description: "The investigation of an incident: method, findings, actions and lessons.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -6269,7 +6277,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Letters and emails made from approved templates (comms.md rules 24 and 25; append-only): the template version, the person, the recipient, the channel, the personal-data fields used and whether special category data was present. Never an email's content; a letter's rendered PDF is a document about the person. Each row's retention is in retention_class.",
     treatment: "tenant_rows",
-    retention: "serious_incident",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -6641,7 +6649,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Each export of a locked pay run to payroll (scheduling.md section 19): the format, the line count, the payroll references used and the SHA-256 of what was produced, which the locked run reproduces. Append-only; the file itself is never kept.",
     treatment: "tenant_rows",
-    retention: "rota_and_timesheet",
+    retention: "payroll_export",
     personal: true,
     columns: {
       id: "exported",
@@ -6676,7 +6684,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "The payroll provider's result for an API export (scheduling.md section 19 rule 8), recorded after the call. Append-only, one per export.",
     treatment: "tenant_rows",
-    retention: "rota_and_timesheet",
+    retention: "payroll_export",
     personal: false,
     columns: {
       id: "exported",
@@ -7176,7 +7184,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "That a member took part in a survey (no time and no link to what they answered; scheduling.md section 20 rule 3).",
     treatment: "tenant_rows",
-    retention: "staff_wellbeing",
+    retention: "staff_survey_response",
     personal: true,
     columns: {
       id: "exported",
@@ -7199,7 +7207,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     context: "scheduling",
     description: "Anonymous survey responses.",
     treatment: "not_exported",
-    retention: "staff_wellbeing",
+    retention: "staff_survey_response",
     personal: false,
     reasonNotExported:
       "Anonymous answers leave Thapsus Care only as a closed survey's results above the minimum group size (scheduling.md section 20 rule 4), so no small group can be picked out of an export.",
@@ -7355,7 +7363,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "A missing person episode on its missing person (or absconding) incident (safety.md slice 37; SAFE-015): whether to call the police at once, whether the person was under DoLS or the Mental Health Act, and closure once found, checked and debriefed. The timeline is missing_event.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "care_record",
     personal: true,
     columns: {
       id: "exported",
@@ -7398,7 +7406,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "A missing person episode's timeline and search log (append-only): last seen, noticed missing, search started, each area searched, sightings, the police called with their reference, found, the welfare check, the debrief and notes.",
     treatment: "tenant_rows",
-    retention: "as_subject",
+    retention: "care_record",
     personal: true,
     columns: {
       id: "exported",
@@ -7679,7 +7687,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     context: "platform",
     description: "Thapsus support staff.",
     treatment: "not_exported",
-    retention: "operational",
+    retention: "tenant_configuration",
     personal: true,
     reasonNotExported:
       "Thapsus's own staff records (Thapsus is their controller), not organisation data.",
@@ -7847,7 +7855,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "People receiving care: MODS-aligned demographics, NHS number, status, communication needs, national data opt-out.",
     treatment: "tenant_rows",
-    retention: "care_record",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -8160,7 +8168,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Pre-admission assessments, section by section, with the information sources and how the person took part.",
     treatment: "tenant_rows",
-    retention: "care_record",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
@@ -8753,8 +8761,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       ends_on: { description: "The last UK date; empty while a sickness is open." },
       state: { description: "requested, approved, declined, postponed, cancelled or recorded." },
       decided_by: { description: "Who approved, declined or postponed it (tenant_user.id)." },
-      decided_at: { description: "When it was approved or declined (UTC)." },
-      decision_reason: { description: "Why it was declined or cancelled, in words." },
+      decided_at: { description: "When it was approved, declined or postponed (UTC)." },
+      decision_reason: {
+        description: "Why it was declined, postponed or cancelled, in words.",
+      },
       self_certified_at: {
         description: "When the member's own statement for a sickness's first days was taken (UTC).",
       },
@@ -8763,6 +8773,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       source: { description: "Where it came from: harbour, or thapsus_hr for a read-only copy." },
       hr_id: { description: "Thapsus-HR's identifier for the absence it copies." },
+      postponed_from_id: {
+        description:
+          "For carer's or parental leave given on new dates when a request was postponed: that request (absence.id).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -9256,7 +9270,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Location evidence: one point attached to one lone-worker event while the organisation's flag was on, never a track, erased at its date (H-527).",
     treatment: "tenant_rows",
-    retention: "lone_worker_location",
+    retention: "operational",
     personal: true,
     columns: {
       id: "exported",
@@ -9956,7 +9970,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Notifications owed to regulators and agencies (CQC, HSE, the local authority and others): drafts, deadlines and submissions.",
     treatment: "tenant_rows",
-    retention: "serious_incident",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",

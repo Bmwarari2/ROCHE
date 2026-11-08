@@ -60360,7 +60360,7 @@ export interface paths {
     put?: never;
     /**
      * Approve, decline or postpone a leave request
-     * @description scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.
+     * @description scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable). Carer's and unpaid parental leave may be postponed, never declined (H-970): with the new first and last days, the same number of days as asked for, starting after the first day asked for and no later than the rate table's months after it, given within the rate table's days of the request (and, for carer's leave, before it was due to start); parental leave also needs confirmsPostponable (422 absence_postpone_*). The request becomes postponed and the new dates become approved leave pointing back at it. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved, .declined or .postponed, and .approved for the new dates), never the reason.
      */
     post: {
       parameters: {
@@ -76938,6 +76938,7 @@ export interface components {
         mayGive: boolean;
         notice: string | null;
       };
+      controlledDrug: boolean;
     };
     DmdProductRef: {
       vmpId: string;
@@ -77429,6 +77430,7 @@ export interface components {
         /** @enum {string} */
         method: "step_up" | "device_factor";
       } | null;
+      inCdRegister: boolean;
     };
     AdministrationConflictRaised: {
       /** Format: uuid */
@@ -77679,6 +77681,8 @@ export interface components {
         id: string;
         movement: components["schemas"]["CdMovement"] | "stock_check";
         quantity: number;
+        /** Format: uuid */
+        administrationId: string | null;
         witnessName: string;
         /** Format: date-time */
         expiresAt: string;
@@ -77848,6 +77852,8 @@ export interface components {
       /** Format: date-time */
       dueAt: string;
       standing: components["schemas"]["Administration"];
+      current: components["schemas"]["Administration"];
+      controlledDrug: boolean;
       uploaded: components["schemas"]["UploadedAdministration"];
       joined: components["schemas"]["UploadedAdministration"][];
       problems: string[];
@@ -80433,6 +80439,22 @@ export interface components {
       fitNoteUncoveredDays: string[] | null;
       /** @enum {string} */
       source: "harbour" | "thapsus_hr";
+      /** Format: uuid */
+      postponedFromId: string | null;
+      postponedTo: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string;
+      } | null;
+      postponement: {
+        /** Format: date */
+        latestStartsOn: string;
+        /** Format: date */
+        noticeBy: string;
+      } | null;
     };
     /** @enum {string} */
     AbsenceKind:
@@ -80491,6 +80513,22 @@ export interface components {
       fitNoteUncoveredDays: string[] | null;
       /** @enum {string} */
       source: "harbour" | "thapsus_hr";
+      /** Format: uuid */
+      postponedFromId: string | null;
+      postponedTo: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string;
+      } | null;
+      postponement: {
+        /** Format: date */
+        latestStartsOn: string;
+        /** Format: date */
+        noticeBy: string;
+      } | null;
       carersLeave: {
         takenDays: number;
         allowanceDays: number | null;
@@ -80545,6 +80583,11 @@ export interface components {
       /** @enum {string} */
       decision: "approve" | "decline" | "postpone";
       reason?: string;
+      /** Format: date */
+      startsOn?: string;
+      /** Format: date */
+      endsOn?: string;
+      confirmsPostponable?: boolean;
     };
     CancelAbsence: {
       version: number;

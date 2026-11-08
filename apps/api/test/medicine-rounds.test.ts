@@ -469,6 +469,21 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       },
     );
     expect(corrected.status, await corrected.clone().text()).toBe(201);
+    // The conflict now shows the correction as the record in force, through the chain, beside
+    // the record that stood; the medicine is not a controlled drug (HZ-004, web screens).
+    const shownNow = await json<{
+      standing: { id: string; supersededById: string | null; inCdRegister: boolean };
+      current: { id: string; supersedesId: string | null; outcome: string };
+      controlledDrug: boolean;
+    }>(await send("manager", `/v1/medicine-administration-conflicts/${conflictId}`));
+    expect(shownNow.standing).toMatchObject({ id: standingOf, supersededById: correctionId });
+    expect(shownNow.current).toMatchObject({
+      id: correctionId,
+      supersedesId: standingOf,
+      outcome: "given",
+    });
+    expect(shownNow.controlledDrug).toBe(false);
+    expect(shownNow.standing.inCdRegister).toBe(false);
     // The uploader decides (a self-review); the correction's author did not decide.
     const done = await send(
       "manager",

@@ -16,6 +16,7 @@ import { publish } from "../outbox";
 import {
   type AdministrationRow,
   administrationOut,
+  isControlledDrug,
   personAdministrations,
   supersededBy,
   witnessesFor,
@@ -300,16 +301,21 @@ export async function conflictOut(
 ) {
   const standing = rows.find((r) => r.id === row.standingId) as AdministrationRow;
   const first = uploadedOut(row);
+  // The latest record for the dose, through any corrections, so the reader corrects that one.
+  const later = supersededBy(rows);
+  let current = standing;
+  for (let i = 0; later.has(current.id) && i < rows.length; i++) {
+    current = rows.find((r) => r.id === later.get(current.id)) ?? current;
+  }
+  const witnesses = await witnessesFor(tx, [...new Set([standing.id, current.id])]);
   return {
     id: row.id,
     personId: row.personId,
     entryId: row.medicationId,
     dueAt: row.dueAt.toISOString(),
-    standing: administrationOut(
-      standing,
-      supersededBy(rows),
-      await witnessesFor(tx, [standing.id]),
-    ),
+    standing: administrationOut(standing, later, witnesses),
+    current: administrationOut(current, later, witnesses),
+    controlledDrug: await isControlledDrug(tx, row.medicationId),
     uploaded: first,
     joined: (await joinedTo(tx, row.id)).map(uploadedOut),
     problems: first.problems,

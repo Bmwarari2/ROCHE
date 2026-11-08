@@ -36,7 +36,8 @@ order**. It cannot be undone.
 ## Important
 
 - **Controlled drugs are never ordered here.** Thapsus Care refuses a controlled drug on an order.
-  Their stock is kept in the controlled drugs register.
+  Their stock is kept in the controlled drugs register: the paper register until controlled drug
+  recording is turned on for your home.
 - Each line must be the person's own medicine at this home.
 - Thapsus Care raises a "Medicines order due" task before each cycle starts, unless the home
   already has an order for it.

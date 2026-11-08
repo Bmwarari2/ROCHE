@@ -44943,6 +44943,9 @@
               "mayGive",
               "notice"
             ]
+          },
+          "controlledDrug": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -44973,7 +44976,8 @@
           "replacedFrom",
           "reanchor",
           "withdrawn",
-          "status"
+          "status",
+          "controlledDrug"
         ]
       },
       "DmdProductRef": {
@@ -46827,6 +46831,9 @@
               "at",
               "method"
             ]
+          },
+          "inCdRegister": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -46850,7 +46857,8 @@
           "supersedesId",
           "correctionReason",
           "supersededById",
-          "witness"
+          "witness",
+          "inCdRegister"
         ]
       },
       "AdministrationConflictRaised": {
@@ -47810,6 +47818,13 @@
                 "quantity": {
                   "type": "number"
                 },
+                "administrationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
                 "witnessName": {
                   "type": "string"
                 },
@@ -47822,6 +47837,7 @@
                 "id",
                 "movement",
                 "quantity",
+                "administrationId",
                 "witnessName",
                 "expiresAt"
               ]
@@ -48429,6 +48445,12 @@
           "standing": {
             "$ref": "#/components/schemas/Administration"
           },
+          "current": {
+            "$ref": "#/components/schemas/Administration"
+          },
+          "controlledDrug": {
+            "type": "boolean"
+          },
           "uploaded": {
             "$ref": "#/components/schemas/UploadedAdministration"
           },
@@ -48507,6 +48529,8 @@
           "entryId",
           "dueAt",
           "standing",
+          "current",
+          "controlledDrug",
           "uploaded",
           "joined",
           "problems",
@@ -58621,6 +58645,58 @@
               "harbour",
               "thapsus_hr"
             ]
+          },
+          "postponedFromId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "postponedTo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "startsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "endsOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "id",
+              "startsOn",
+              "endsOn"
+            ]
+          },
+          "postponement": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "latestStartsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "noticeBy": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "latestStartsOn",
+              "noticeBy"
+            ]
           }
         },
         "required": [
@@ -58639,7 +58715,10 @@
           "bradfordExcluded",
           "coverNeeded",
           "fitNoteUncoveredDays",
-          "source"
+          "source",
+          "postponedFromId",
+          "postponedTo",
+          "postponement"
         ]
       },
       "AbsenceKind": {
@@ -58805,6 +58884,58 @@
               "thapsus_hr"
             ]
           },
+          "postponedFromId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "postponedTo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "startsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "endsOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "id",
+              "startsOn",
+              "endsOn"
+            ]
+          },
+          "postponement": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "latestStartsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "noticeBy": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "latestStartsOn",
+              "noticeBy"
+            ]
+          },
           "carersLeave": {
             "type": [
               "object",
@@ -58866,6 +58997,9 @@
           "coverNeeded",
           "fitNoteUncoveredDays",
           "source",
+          "postponedFromId",
+          "postponedTo",
+          "postponement",
           "carersLeave",
           "fitNotes",
           "returnToWork",
@@ -59019,6 +59153,17 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 500
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "confirmsPostponable": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -131185,7 +131330,7 @@
           "scheduling"
         ],
         "summary": "Approve, decline or postpone a leave request",
-        "description": "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
+        "description": "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable). Carer's and unpaid parental leave may be postponed, never declined (H-970): with the new first and last days, the same number of days as asked for, starting after the first day asked for and no later than the rate table's months after it, given within the rate table's days of the request (and, for carer's leave, before it was due to start); parental leave also needs confirmsPostponable (422 absence_postpone_*). The request becomes postponed and the new dates become approved leave pointing back at it. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved, .declined or .postponed, and .approved for the new dates), never the reason.",
         "security": [
           {
             "bearerAuth": []

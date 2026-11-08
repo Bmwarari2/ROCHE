@@ -174,6 +174,11 @@ export const AdministrationOut = z
     /** Set when a later record corrects this one: shown struck through beside it. */
     supersededById: uuid.nullable(),
     witness: Actor.extend({ method: z.enum(["step_up", "device_factor"]) }).nullable(),
+    /**
+     * A controlled drug's record that wrote an entry in the register: a correction then corrects
+     * that entry, so the web can say what the witness signs for (medicines.md 14.4).
+     */
+    inCdRegister: z.boolean(),
   })
   .meta({ id: "Administration" });
 export type AdministrationOut = z.infer<typeof AdministrationOut>;
@@ -341,6 +346,10 @@ export const AdministrationConflictOut = z
     dueAt: isoDateTime,
     /** The record that stands, as stored. */
     standing: AdministrationOut,
+    /** The latest record for the dose: the standing one, or the correction now in force. */
+    current: AdministrationOut,
+    /** The medicine is a controlled drug: deciding needs medicines.cd.administer and step-up. */
+    controlledDrug: z.boolean(),
     /** The uploaded record as the device sent it. */
     uploaded: UploadedAdministration,
     /** Further uploads of the same dose by the same person, resolved with this one. */
