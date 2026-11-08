@@ -62,6 +62,25 @@ export type StandardChangeProblem =
   | "date_before_start"
   | "observed_before_knowledge";
 
+/** The permission meant for observing competence (workforce.md section 3, rule 20). */
+export const COMPETENCE_OBSERVE = "workforce.competence.observe";
+/** Assessing a standard's knowledge is also the staff file's (`.manage`). */
+const STAFF_FILE_MANAGE = "workforce.staff_file.manage";
+
+/**
+ * Who may record a Care Certificate step (rule 20): the knowledge assessment by a holder of
+ * `workforce.staff_file.manage` or `workforce.competence.observe`; the observation in practice
+ * only by a holder of `workforce.competence.observe`, which needs no staff file permission (team
+ * leaders and clinical leads observe). Never on one's own file: `checkStandardChange` refuses it.
+ */
+export function mayRecordStandardStep(
+  permissions: readonly string[],
+  step: "knowledge" | "observation",
+): boolean {
+  if (permissions.includes(COMPETENCE_OBSERVE)) return true;
+  return step === "knowledge" && permissions.includes(STAFF_FILE_MANAGE);
+}
+
 /**
  * Rule 20: a standard's knowledge is assessed, then the worker is observed competent in
  * practice, each by someone other than the worker; the observation only by someone who holds

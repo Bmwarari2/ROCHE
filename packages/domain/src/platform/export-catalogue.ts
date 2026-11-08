@@ -3743,8 +3743,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       pack_storage_key: { class: "internal", description: "Where the issued pack is stored." },
       not_searched: { description: "Tables the collector could not search, with reasons." },
       collected_at: "exported",
-      prevention_report_on: { description: "When a Regulation 28 report was received." },
+      prevention_report_on: { description: "The date a Regulation 28 report was sent." },
       prevention_responded_on: { description: "When the response to it was sent." },
+      prevention_extended_to: {
+        description: "A later date the coroner allowed for the response, if any.",
+      },
       pack_downloaded_at: { description: "When the issued pack was downloaded, once, as a PDF." },
       pack_downloaded_by: "exported",
       handed_over_at: { description: "When the pack was handed over to the recipient." },
@@ -9638,6 +9641,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       reviewed_by: { description: "Who reviewed it in HR (tenant_user.id)." },
       reviewed_at: { description: "When it was reviewed (UTC)." },
+      confirmer_id: {
+        description:
+          "Who is to confirm this cycle, named by HR; only they record the confirmation (tenant_user.id).",
+      },
       confirmed_by: {
         description: "The confirmer, in their own name and never the nurse (tenant_user.id).",
       },

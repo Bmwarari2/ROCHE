@@ -17,6 +17,13 @@ adds the Terraform for that job (H-1241): the Cloud Run job `harbour-<env>-dmd`,
 Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job is applied
 (H-1501 to H-1505).
 
+**Committed on 07/11/2026, not pushed:** `fix/workforce-certificate-revalidation-permissions`
+(WORK-004 stays `partial`, WORK-012 `todo`). Two findings from the workforce guides' review: a Care
+Certificate observation needs only `workforce.competence.observe` (API, row-level security and a
+Care Certificate section on the training record, so team leaders and clinical leads can record
+it); and the NMC revalidation confirmation is recorded only by the confirmer HR names, never by HR
+unless named (API, database and web). Migrations 0156 and 0157.
+
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
@@ -31,6 +38,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
+
+## User guides: Care mode on the phone (08/11/2026)
+
+`docs/guides-mobile-care-mode`, from `main` at ea6fc04d: 19 guides for the phone's Care mode
+(sign-in, lock, shared devices, Today and People, checking the person, notes, charts, vital signs,
+the body map, corrections, the round, the handover, the sync banner, entries not saved, unsent
+entries, sign-out, device safety, a lost phone, and a manager's hand-over of held entries), linked
+from the role indexes, the guides README and the user docs column of MOB-001, 002, 005, 006, 009 and
+010. Kiosk sign-in, phone incidents, the conflict review, root detection and device withdrawal have
+no screen yet. Gaps, hard-coded strings and what the guides found on screen (shared devices unlock
+with device biometrics; switching user offline deletes unsent entries): see
+`docs/changelog-dev/2026-11-08-docs-guides-mobile-care-mode.md`.
 
 ## User guides: Phase 2 gaps (08/11/2026)
 
@@ -136,9 +155,10 @@ task visibility (workforce reminders about no person and no location reach holde
 migration 0079) follow attribute scope (location, team) rather than organisation-wide HR
 (migration 0073); a
 least-privilege question the lead kept out of WORK-009 (08/11/2026).
-**Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
-phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
-and 1 once #193 has its numbers.
+**Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
+handling of a 409) in #205; its web journey and a navigation entry for the page in
+`feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
+tab); retention slices 0 and 1 once #193 has its numbers.
 
 ## Doses recorded twice and corrections on the web (08/11/2026)
 

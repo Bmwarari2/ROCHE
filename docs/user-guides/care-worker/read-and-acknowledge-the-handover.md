@@ -6,7 +6,8 @@ alerts, body map marks, overdue or missed tasks, refused care and notes for hand
 **Who can do this**: care and support workers, agency or bank workers, team leaders or senior
 carers, nurses and managers. You see only the items about the people you may see.
 
-**Register rows**: CARE-013, COMMS-006. On the web only for now.
+**Register rows**: CARE-013, COMMS-006. These steps are for the web. On the phone, see
+[How to read and acknowledge the shift handover on the phone](read-and-acknowledge-the-handover-on-the-phone.md).
 
 ## Read and acknowledge it
 

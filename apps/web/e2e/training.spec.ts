@@ -10,12 +10,23 @@ import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
  * evidence; on their own record they are offered nothing. The carer is offered none of it and is
  * refused in words. Hazard verified: HZ-119 (a competence is signed off in the observer's name and
  * a withdrawal stops it at once, said in words). Every state is checked with axe.
+ *
+ * Permission findings (07/11/2026): the demo nurse, a clinical lead holding
+ * workforce.competence.observe and no staff file permission (the demo seed has no team leader),
+ * records a Care Certificate observation from the carer's training record, announced and focused
+ * on arrival. HR (the manager) names the owner as the nurse's revalidation confirmer; only the
+ * owner is offered the confirmation, and the manager, who could confirm but was not named, is not.
  */
 
 /** The demo carer and nurse (packages/db/src/seed/demo.ts). */
 const CARER = "0194d000-0000-7000-8000-000000000304";
 const NURSE = "0194d000-0000-7000-8000-000000000303";
 const MANAGER = "0194d000-0000-7000-8000-000000000302";
+const API_URL = process.env.API_URL ?? "http://localhost:4000";
+const TENANT = "0194d000-0000-7000-8000-000000000001";
+/** Harbour House, where the workforce journey makes the carer's staff file too. */
+const DEMO_LOCATION = "0194d000-0000-7000-8000-000000000101";
+const OWNER_NAME = "Olive Owner";
 const RUN = Date.now().toString(36);
 
 test.describe.configure({ mode: "serial" });
@@ -24,10 +35,10 @@ const sessions: Record<string, Awaited<ReturnType<BrowserContext["cookies"]>>> =
 
 test.beforeAll(async ({ browser }, testInfo) => {
   test.setTimeout(180_000);
-  for (const user of ["manager", "carer"]) {
+  for (const user of ["manager", "carer", "nurse", "owner"]) {
     const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
     const page = await context.newPage();
-    if (user === "manager") await signInWithDemoPasskey(page, "manager");
+    if (user === "manager" || user === "owner") await signInWithDemoPasskey(page, user);
     else await signIn(page, `${user}@example.invalid`);
     sessions[user] = await context.cookies();
     await context.close();
@@ -333,4 +344,174 @@ test("on their own record the manager is offered nothing to record", async ({ pa
   await expect(main(page)).toContainText("This is your own record");
   await expect(main(page).getByRole("form")).toHaveCount(0);
   await expectAccessible(page, "own record");
+});
+
+/** A UK date as the API takes it (yyyy-mm-dd), so many days from today. */
+function isoDay(offsetDays = 0) {
+  const { year, month, day } = ukDay(offsetDays);
+  return `${year}-${month}-${day}`;
+}
+
+const api = (page: Page) => ({
+  get: (path: string) =>
+    page.request.get(`${API_URL}${path}`, { headers: { "x-harbour-tenant": TENANT } }),
+  send: (method: "POST" | "PUT", path: string, data: unknown) =>
+    page.request.fetch(`${API_URL}${path}`, {
+      method,
+      headers: { "x-harbour-tenant": TENANT },
+      data,
+    }),
+});
+
+/** The h1 takes focus on arrival, described by the status that says what was done. */
+async function expectArrival(page: Page, words: string) {
+  await expect(status(page, words)).toBeVisible();
+  const heading = page.getByRole("heading", { level: 1 });
+  await expect(heading).toBeFocused();
+  await expect(heading).toHaveAccessibleDescription(words);
+}
+
+test("a clinical lead without the staff file records a Care Certificate observation", async ({
+  page,
+}) => {
+  await as(page, "manager");
+  // The carer's staff file, made once (409 when an earlier run or the workforce journey made it).
+  const made = await api(page).send("POST", "/v1/workforce/staff-files", {
+    tenantUserId: CARER,
+    locationId: DEMO_LOCATION,
+    jobTitle: "Care worker",
+    pathwayCategory: "care_worker",
+    registrationBody: null,
+    previousCareWork: false,
+    dateOfBirth: null,
+    startsOn: null,
+    leftOn: null,
+  });
+  expect([201, 409], await made.text()).toContain(made.status());
+  // A standard at "Knowledge assessed": one from an earlier run, or the next one assessed now.
+  const read = await api(page).get(`/v1/workforce/members/${CARER}/care-certificate`);
+  expect(read.status(), await read.text()).toBe(200);
+  const view = (await read.json()) as {
+    staffProfileId: string;
+    careCertificate: { standards: { id: string; title: string; status: string }[] };
+  };
+  let standard = view.careCertificate.standards.find((s) => s.status === "knowledge_assessed");
+  if (!standard) {
+    standard = view.careCertificate.standards.find((s) => s.status === "not_started");
+    test.skip(!standard, "Every Care Certificate standard is already competent on this database");
+    if (!standard) return;
+    const assessed = await api(page).send(
+      "PUT",
+      `/v1/workforce/staff-files/${view.staffProfileId}/care-certificate/${standard.id}`,
+      { step: "knowledge", on: isoDay(0) },
+    );
+    expect(assessed.status(), await assessed.text()).toBe(200);
+  }
+
+  await as(page, "nurse");
+  await page.goto(`/training/${CARER}`);
+  const section = main(page).locator("section[aria-labelledby='care-certificate']");
+  await expect(section.getByRole("heading", { name: "Care Certificate" })).toBeVisible();
+  const card = section
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("heading", { name: standard.title, exact: true }) });
+  await expect(card).toContainText("Knowledge assessed");
+  await expectAccessible(page, "care certificate for an observer");
+  const observe = card.getByRole("form", { name: `Record observed competent: ${standard.title}` });
+  await fillDate(observe.getByRole("group", { name: "Date observed" }), 0);
+  await observe
+    .getByRole("button", { name: `Record observed competent: ${standard.title}` })
+    .click();
+  await expectArrival(page, "The observation has been recorded");
+  await expect(card).toContainText("Competent");
+  await expect(card.getByRole("form")).toHaveCount(0);
+  await expectAccessible(page, "care certificate observed");
+});
+
+test("HR names the revalidation confirmer; only the named confirmer records the confirmation", async ({
+  page,
+}) => {
+  await as(page, "manager");
+  // A cycle of this run's own, later than any earlier run's, so the planner shows it.
+  const hours = Math.floor((Date.now() - Date.UTC(2026, 10, 1)) / 3_600_000);
+  let cycle = "";
+  let version = 0;
+  for (let i = 0; i < 50 && !cycle; i += 1) {
+    const when = isoDay(400 + hours + i);
+    const saved = await api(page).send("PUT", `/v1/workforce/members/${NURSE}/revalidation`, {
+      cycleDueOn: when,
+      practiceHours: 100,
+      cpdHours: 10,
+      participatoryCpdHours: 5,
+      feedbackPieces: 1,
+      reflectiveAccounts: 1,
+      reflectiveDiscussion: false,
+      healthAndCharacter: true,
+      professionalIndemnity: true,
+    });
+    if (saved.status() === 409) continue;
+    expect(saved.status(), await saved.text()).toBe(200);
+    const plan = ((await saved.json()) as { revalidation: { cycleDueOn: string; version: number } })
+      .revalidation;
+    expect(plan.cycleDueOn).toBe(when);
+    cycle = when;
+    version = plan.version;
+  }
+  expect(cycle).not.toBe("");
+  // HR (the manager) reviews it; the reviewer is never the confirmer.
+  const reviewed = await api(page).send(
+    "POST",
+    `/v1/workforce/members/${NURSE}/revalidation/review`,
+    { expectedVersion: version, cycleDueOn: cycle },
+  );
+  expect(reviewed.status(), await reviewed.text()).toBe(200);
+
+  await page.goto(`/training/${NURSE}`);
+  const planner = main(page).locator("section[aria-labelledby='revalidation']");
+  await expect(planner.getByText("No confirmer named yet")).toBeVisible();
+  // HR's evidence form has no confirmation tick, and HR is not offered the confirmation.
+  await expect(
+    form(page, "Record revalidation evidence").getByRole("checkbox", {
+      name: "A confirmer has signed the NMC confirmation",
+    }),
+  ).toHaveCount(0);
+  await expect(form(page, "Record your confirmation")).toHaveCount(0);
+  const naming = form(page, "Name the confirmer");
+  await naming.getByRole("button", { name: "Save confirmer" }).click();
+  await expect(naming).toContainText("Choose a confirmer");
+  await expectAccessible(page, "confirmer not chosen");
+  await naming.getByLabel("Confirmer", { exact: true }).selectOption({ label: OWNER_NAME });
+  await naming.getByRole("button", { name: "Save confirmer" }).click();
+  await expectArrival(page, "Confirmer saved");
+  await expect(planner.getByText(`Confirmer: ${OWNER_NAME}`)).toBeVisible();
+  // The manager could confirm (they hold supervision.manage) but was not named.
+  await expect(form(page, "Record your confirmation")).toHaveCount(0);
+  await expectAccessible(page, "confirmer named");
+
+  await as(page, "owner");
+  await page.goto(`/training/${NURSE}`);
+  const confirm = form(page, "Record your confirmation");
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Record confirmation" }).click();
+  await expect(confirm).toContainText(
+    "Date of the confirmation discussion must include a day, month and year",
+  );
+  await expect(confirm).toContainText("Tick the box to confirm");
+  await expectAccessible(page, "confirmation errors");
+  await fillDate(confirm.getByRole("group", { name: "Date of the confirmation discussion" }), 0);
+  await confirm
+    .getByRole("checkbox", {
+      name: "I held the confirmation discussion with Nell Nurse and saw their evidence",
+    })
+    .check();
+  await confirm.getByRole("button", { name: "Record confirmation" }).click();
+  await expectArrival(page, "Confirmation recorded");
+  const { day, month, year } = ukDay(0);
+  await expect(
+    main(page)
+      .locator("section[aria-labelledby='revalidation']")
+      .getByText(`Confirmed by ${OWNER_NAME} on ${day}/${month}/${year}`),
+  ).toBeVisible();
+  await expect(form(page, "Record your confirmation")).toHaveCount(0);
+  await expectAccessible(page, "confirmation recorded");
 });

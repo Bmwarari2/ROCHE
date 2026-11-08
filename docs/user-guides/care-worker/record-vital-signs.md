@@ -34,3 +34,4 @@ senior carers, nurses and managers.
 - A reading copied from a paper form is from the time written on it. Check it was escalated on
   paper, and check the person now.
 - If the result "cannot be shown", tell the nurse in charge.
+- On the phone, see [How to record vital signs and read the NEWS2 result on the phone](record-vital-signs-on-the-phone.md).

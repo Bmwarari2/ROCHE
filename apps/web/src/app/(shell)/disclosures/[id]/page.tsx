@@ -300,7 +300,7 @@ export default async function DisclosurePage({
                 <SafetyChip chip={preventionChip(data.prevention, t, formatDate)} />
               </p>
             ) : null}
-            <PreventionReportForm id={data.id} version={data.version} />
+            <PreventionReportForm id={data.id} version={data.version} recorded={data.prevention} />
           </div>
         </Card>
       ) : null}

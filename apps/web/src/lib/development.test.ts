@@ -8,6 +8,7 @@ import {
   codeOptions,
   competenceChip,
   developmentActions,
+  developmentArrivalKey,
   developmentShown,
   listOf,
   matchesName,
@@ -19,6 +20,7 @@ import {
   present,
   REVALIDATION_REQUIREMENTS,
   requirementChip,
+  revalidationConfirmActions,
   STAFF_FILE_READ,
   SUPERVISION,
   SUPERVISION_KINDS,
@@ -49,7 +51,6 @@ describe("every code the screens show has words", () => {
         "reflectiveDiscussion",
         "healthAndCharacter",
         "professionalIndemnity",
-        "confirmation",
       ],
     ],
     ["development.tier", ["1", "2"]],
@@ -101,6 +102,96 @@ describe("who is offered what", () => {
       false,
       false,
     ]);
+  });
+});
+
+describe("the revalidation confirmation is offered only to the named confirmer (rule 8)", () => {
+  const NURSE = "u-nurse";
+  const HR = "u-hr";
+  const MANAGER = "u-manager";
+  const reviewed = {
+    confirmerId: MANAGER,
+    reviewedById: "u-other-hr",
+    reviewState: "reviewed",
+    confirmation: false,
+  } as const;
+  it.each([
+    [
+      "HR, not named",
+      HR,
+      [TRAINING, SUPERVISION],
+      reviewed,
+      { nameConfirmer: true, confirm: false },
+    ],
+    [
+      "the named line manager",
+      MANAGER,
+      [SUPERVISION],
+      reviewed,
+      { nameConfirmer: false, confirm: true },
+    ],
+    [
+      "HR, named by someone else",
+      HR,
+      [TRAINING],
+      { ...reviewed, confirmerId: HR },
+      { nameConfirmer: true, confirm: true },
+    ],
+    [
+      "the nurse",
+      NURSE,
+      [TRAINING, SUPERVISION],
+      reviewed,
+      { nameConfirmer: false, confirm: false },
+    ],
+    [
+      "the named confirmer before HR's review",
+      MANAGER,
+      [SUPERVISION],
+      { ...reviewed, reviewState: "submitted" },
+      { nameConfirmer: false, confirm: false },
+    ],
+    [
+      "anyone once confirmed",
+      MANAGER,
+      [TRAINING, SUPERVISION],
+      { ...reviewed, confirmation: true },
+      { nameConfirmer: false, confirm: false },
+    ],
+    ["HR with no evidence yet", HR, [TRAINING], null, { nameConfirmer: false, confirm: false }],
+    [
+      "the named confirmer who also reviewed it (separate duties)",
+      MANAGER,
+      [TRAINING, SUPERVISION],
+      { ...reviewed, reviewedById: MANAGER },
+      { nameConfirmer: true, confirm: false },
+    ],
+    [
+      "the named confirmer without a confirming permission",
+      MANAGER,
+      [OBSERVE],
+      reviewed,
+      { nameConfirmer: false, confirm: false },
+    ],
+  ] as const)("%s", (_name, me, permissions, plan, expected) => {
+    expect(revalidationConfirmActions({ permissions, me, memberId: NURSE, plan })).toEqual(
+      expected,
+    );
+  });
+});
+
+describe("what the training pages announce on arrival", () => {
+  it.each([
+    ["development.revalidation.confirmedSaved", true],
+    ["development.competence.signedOff", true],
+    // The Care Certificate's section is on the training record too.
+    ["workforce.careCertificate.assessed", true],
+    ["workforce.careCertificate.observed", true],
+    ["workforce.careCertificate.nothing", false],
+    ["workforce.leaving.recorded", false],
+    ["Anything typed into the address", false],
+  ])("%s: %s", (key, said) => {
+    expect(developmentArrivalKey(key)).toBe(said);
   });
 });
 
