@@ -34,3 +34,24 @@ if (broken.length > 0) {
   process.exit(1);
 }
 console.log(`Markdown links: ${files.length} files checked.`);
+
+// Numbers that must be unique: a merge of two branches can otherwise give two rows or two
+// decisions the same number (two H-1605 rows did, 08/11/2026).
+function duplicates(values) {
+  const seen = new Set();
+  return [...new Set(values.filter((v) => seen.has(v) || !seen.add(v)))];
+}
+const humanActions = readFileSync("docs/plans/human-actions.md", "utf8");
+const actionIds = [...humanActions.matchAll(/^\| (H-\d+) \|/gm)].map((m) => m[1]);
+const adrNumbers = readdirSync("docs/decisions")
+  .map((name) => /^(\d{4})-/.exec(name)?.[1])
+  .filter(Boolean);
+const repeated = [
+  ...duplicates(actionIds).map((id) => `docs/plans/human-actions.md: ${id} is used more than once`),
+  ...duplicates(adrNumbers).map((n) => `docs/decisions: ADR-${n} is used more than once`),
+];
+if (repeated.length > 0) {
+  console.error(`Duplicate numbers:\n${repeated.map((r) => `  ${r}`).join("\n")}`);
+  process.exit(1);
+}
+console.log(`Unique numbers: ${actionIds.length} human actions, ${adrNumbers.length} ADRs.`);
