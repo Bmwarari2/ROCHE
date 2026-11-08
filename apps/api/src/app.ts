@@ -125,6 +125,7 @@ import { qualityDashboardRouter } from "./routes/quality-dashboard";
 import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { recruitmentRouter } from "./routes/recruitment";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
+import { reportingLinesRouter } from "./routes/reporting-lines";
 import { retentionReportRouter } from "./routes/retention-report";
 import { rotaRouter } from "./routes/rota";
 import { roundsRouter } from "./routes/rounds";
@@ -518,6 +519,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", colleaguesRouter);
   app.route("/", developmentRouter);
   app.route("/", lmsImportRouter);
+  app.route("/", reportingLinesRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", elearningRouter);
   app.route("/", elearningLaunchRouter);

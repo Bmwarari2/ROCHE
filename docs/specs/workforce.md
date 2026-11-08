@@ -220,7 +220,17 @@ tenant-scoped role or one held organisation-wide; otherwise only the members who
 holder's homes, as `app.works_at` counts them (a role in force there or across the organisation,
 or that home on their staff profile; an access grant at a home counts as a role there). Members
 with an organisation-wide role (the HR director, the Nominated Individual) are therefore in every
-home's scope. Writes follow the same scope in the policies themselves, so a revalidation confirmer
+home's scope. Reporting lines widen reads only (ADR-0137, migration 0162; HZ-119): a holder of one
+of these permissions in a tenant, location, no-person or assigned role in force (an assigned-scope
+senior carer's included, never a self-scoped role), or an access grant, also reads the records of
+their current direct reports (`staff_line_manager`) and of the current members of the teams they
+currently lead (`staff_team_member`, team not archived), wherever those members work, with the
+lists and reminder tasks about them; a line manager or team lead who holds none of them reads
+nothing more, since a relationship grants no permission by itself. Writes (training records,
+supervisions, revalidation evidence, certificates, competence sign-offs and withdrawals) and
+revalidation confirmer naming never widen: they follow the scope in the policies themselves, so
+nobody signs off or withdraws a report's competence at another home through a reporting line, and a
+revalidation confirmer
 must hold training or supervision rights in a scope that covers the nurse (only such members are
 offered or may be named; H-1641). The member reads their own
 (`workforce.self.read`); written as section 2b says, never
@@ -589,6 +599,10 @@ Slice 17 (training, competence, supervision, revalidation; members by `tenant_us
 | `POST /v1/workforce/members/{memberId}/competences` | `workforce.competence.observe` | Sign off an observed competence in the caller's name; publishes `workforce.competence.changed` |
 | `POST /v1/workforce/members/{memberId}/competences/{signOffId}/withdraw` | `workforce.competence.observe` or `workforce.training.manage` | Withdraw a sign-off with a reason; publishes `workforce.competence.changed` |
 | `POST /v1/workforce/members/{memberId}/supervisions` | `workforce.supervision.manage` | Record a supervision, appraisal or spot check held by the caller |
+| `GET /v1/workforce/members/{memberId}/line-manager` | HR, the member, or a development reader whose scope covers them | The member's current line manager and earlier ones, with dates; audited (ADR-0137) |
+| `PUT /v1/workforce/members/{memberId}/line-manager` | organisation-wide `workforce.staff_file.manage` (HR); else 403 `reporting_lines_organisation_wide`, audited | From a day, ends the current line (against its version) and, when a manager is named, starts a new one; never oneself (422 `line_manager_is_member`), only current staff (422 `not_current_staff`), after the current line started (422 `starts_too_early`); audited (ADR-0137) |
+| `GET /v1/workforce/teams`, `POST /v1/workforce/teams`, `PUT /v1/workforce/teams/{teamId}` | read: any development reader or HR; write: organisation-wide HR | Staff teams: name, home, archived; names unique among teams in use (409 `team_name_taken`); audited (ADR-0137) |
+| `GET /v1/workforce/teams/{teamId}/members`, `POST .../members`, `PUT .../members/{membershipId}` | read: development readers, listing members in their scope; write: organisation-wide HR | Memberships with a lead flag and dates; once at a time per team (409 `already_a_member`), never in an archived team (422 `team_archived`), ended after they start (422 `ends_too_early`); audited (ADR-0137) |
 | `GET /v1/workforce/supervisions-due` | any of `workforce.training.manage`, `.competence.observe`, `.supervision.manage`, `.staff_file.read` (as the matrix) | Every member of staff's next supervision and appraisal (upcoming, due within `supervision.due_window_days`, overdue, or none recorded) and last spot check; filter by location or attention; at most 2,000 members; audited without names (WORK-009) |
 | `PUT /v1/workforce/members/{memberId}/revalidation` | `workforce.training.manage` | Record revalidation evidence for a cycle (never the confirmation) |
 | `POST /v1/workforce/members/{memberId}/revalidation/review` | `workforce.training.manage` | Mark the evidence reviewed (`expectedVersion`), never on one's own record (403 `own_development_record`) and never by the named confirmer (403 `confirmer_reviews`); audited |
@@ -731,6 +745,7 @@ offer. No form is offered on one's own record.
 | Screen | Path | Offered to | Does |
 | --- | --- | --- | --- |
 | Training matrix | `/training` | any of `workforce.training.manage`, `.competence.observe`, `.supervision.manage`, `.staff_file.read` | Every member of staff whose roles need training, a column per topic, each state an icon and a word (up to date, due soon, lapsed, not done; not needed for their roles). Filter by location, role and those needing attention (a GET form, ids and codes only); find by name in the browser, so no name enters an address |
+| Line manager and teams | on the staff file, and a Teams page under workforce | organisation-wide HR maintains; development readers see them in scope | Next: PR 2 (the API is in place, ADR-0137) |
 | Supervisions and appraisals due | `/training/supervisions` | as the matrix, within the reader's scope (ADR-0136; the home filter narrows the view further) | Each member of staff's next supervision and appraisal as an icon and a word (overdue, due soon, none recorded, not due yet) with when it falls due and when the last was held, and their last spot check; most urgent first; filter by home and to those needing attention; each name opens the training record (WORK-009) |
 | Training requirements | `/training/requirements` | `workforce.training.manage` | Each role's topics, refresh and Oliver McGowan tier; set one role's requirement for a topic |
 | Training record | `/training/{memberId}` | as the matrix | The member's required training today and their records (record, correct); observed competences and sign-offs (sign off in one's own name, withdraw with a reason and a confirmation); supervisions and appraisals with the next due, and their notes where the viewer may read them (add or correct by whoever held it, earlier notes struck through); the Care Certificate's standards, assessed and observed here by observers without the staff file (rule 20); the NMC revalidation planner (H-693's default: HR records the evidence and names the confirmer; the confirmation is offered only to the named confirmer, never to HR unless named, rule 8) |
@@ -1049,7 +1064,7 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | --- | --- | --- |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
 | Development reads (the training matrix and the supervisions list) were organisation-wide for their readers (migration 0073), and reminders about a member were seen at every home (migration 0079) | Closed by ADR-0136 (provisional, H-1640) and migration 0161: records, lists and reminder tasks about a member follow the reader's attribute scope | - |
-| No team or line-manager scope for staff | Scope kinds are tenant, location, assigned, self and none, so a team lead's scope for development reads is their home (ADR-0136) | A line-manager field on the staff file, then a scope that uses it |
+| No team or line-manager scope for staff | Closed by ADR-0137 (provisional, H-1643) and migration 0162: line managers and staff teams, kept by HR, widen a holder's development scope; the screens to keep them follow in PR 2 | Screens for line managers and teams (PR 2) |
 | LMS import is for organisation-wide holders only | A home's manager is refused (403 `lms_import_organisation_wide`, audited; ADR-0136): its learner links and rows name members at every home | Scope each row by its worker, if homes need to import their own staff |
 | Supervision and appraisal reminders go to HR's role, not the member's line manager | Shown on the training record (slice 57), across staff on `/training/supervisions` and raised as reminder tasks for holders of `workforce.supervision.manage` (WORK-009, 08/11/2026) | Address the reminder to the member's line manager once the staff file records one |
 | Supervision notes are not read by tenant-wide roles (owner, group executive) for holding `workforce.supervision.manage` alone (slice 57, ADR-0114) | They see that a supervision happened, not what was said | A separate note permission, if wanted (H-1044) |

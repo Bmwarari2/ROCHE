@@ -1275,6 +1275,10 @@ is exported.
 | `competence_sign_off.observed_on`, `valid_until` | Thapsus Care | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
 | `competence_withdrawal.reason` | Thapsus Care | Plain text, 10 to 500 characters | |
 | `supervision_record.kind` | Thapsus Care | `supervision`, `appraisal`, `spot_check` | |
+| `staff_line_manager.worker_id`, `.manager_id` | Thapsus Care | `tenant_user.id`; never the same member | One current line per member; ADR-0137 |
+| `staff_line_manager.valid_from`, `.valid_to` | Thapsus Care | UK dates; `valid_to` exclusive, empty while current, after `valid_from` | An ended line stays ended |
+| `staff_team.name`, `.location_id` | Thapsus Care | Plain text 2 to 120 characters, unique among teams in use; `location.id` or empty | Archived, never deleted |
+| `staff_team_member.member_id`, `.is_lead`, `.valid_from`, `.valid_to` | Thapsus Care | `tenant_user.id`; boolean; UK dates as for lines | One current membership per team and member |
 | Next meeting state (`GET /v1/workforce/supervisions-due`, `MeetingDueItem.state`; computed, not stored) | Thapsus Care | `upcoming`, `due` (within `supervision.due_window_days`), `overdue`, `none_recorded` | WORK-009: dates and states only, never notes or what a spot check found |
 | Development read scope (`app.reads_development_of`, `app.holds_staff_permission_for`; computed, not stored; ADR-0136, migration 0161) | Thapsus Care | Whether a reader holds a workforce read permission in a scope covering a member: organisation-wide (a role with no person scope, a tenant-scoped role, or one held organisation-wide) or at a home where the member works (`app.works_at`); no new personal data | Governs who reads training, competence, supervision and revalidation records, the lists across staff and the reminder tasks about a member |
 | `supervision_note.discussion`, `.actions` | Thapsus Care | Free text: 10 to 4,000 characters; actions optional, 2 to 2,000 | Likely special category (ADR-0114); read only by the writer, the member and a supervisor for the member; never in audit, outbox, search or sync |

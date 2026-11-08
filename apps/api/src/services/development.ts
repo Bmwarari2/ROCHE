@@ -193,7 +193,8 @@ async function mayReadDevelopment(tx: Transaction, memberId: string): Promise<bo
 /**
  * The members, of those given, whose development records the caller reads (ADR-0136): the lists
  * across staff show only these, as the database's row-level security does. One query: the
- * caller's scope is worked out once (`app.development_scope_members`), not once per member.
+ * caller's reach (scope, widened for reads by reporting lines, ADR-0137) is worked out once
+ * (`app.development_reach`), not once per member.
  */
 async function membersInScope(tx: Transaction, ids: readonly string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
@@ -202,7 +203,7 @@ async function membersInScope(tx: Transaction, ids: readonly string[]): Promise<
     sql`SELECT m.id::text AS id FROM unnest(${members}::uuid[]) AS m(id) WHERE app.is_system()
         UNION
         SELECT s::text AS id
-          FROM app.development_scope_members(
+          FROM app.development_reach(
             ARRAY['workforce.training.manage', 'workforce.competence.observe',
                   'workforce.supervision.manage', 'workforce.staff_file.read']::text[],
             ${members}::uuid[]) AS s`,

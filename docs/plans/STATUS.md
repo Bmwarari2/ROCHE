@@ -167,9 +167,12 @@ migration (#216). **Attribute scope (08/11/2026, `feat/workforce-development-att
 done. ADR-0136 (proposed; the owner confirms, H-1640) and migration 0161: development records,
 the training matrix, the supervisions list and the reminder tasks about a member follow the
 reader's scope (organisation-wide for HR and the owner, otherwise the members who work at the
-reader's homes), in the API and in row-level security. Open: no team or line-manager scope for
-staff yet; the development write policies still check the permission anywhere (refused outside
-scope by the read policy).
+reader's homes), in the API and in row-level security. **Reporting lines (08/11/2026,
+`feat/workforce-team-line-manager-scope`, PR 1 of 2):** ADR-0137 (proposed; the owner confirms,
+H-1643) and migration 0162: HR keeps line managers and staff teams (`staff_line_manager`,
+`staff_team`, `staff_team_member`, dated and versioned), and a line manager's current reports and a
+team lead's current team widen the development scope they already hold; API routes for both. Next:
+PR 2, the screens on the staff file and a Teams page.
 **Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
 handling of a 409) in #205; its web journey and a navigation entry for the page in
 `feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
