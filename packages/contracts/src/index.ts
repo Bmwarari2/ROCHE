@@ -495,10 +495,15 @@ export const SyncKeyLost = z
     ownerTenantUserId: uuid.nullable(),
     /** How many entries the hold counted; null when the device did not know. */
     count: z.number().int().min(0).max(100_000).nullable(),
-    /** The device whose database was lost (its opaque id then); null when it was unreadable. */
-    deviceId: uuid.nullable(),
+    /**
+     * The device whose database was lost (its opaque id then). It must be one this organisation
+     * knows and the sender used; the request comes from the sender's session on the phone now.
+     */
+    deviceId: uuid,
     /** Where the hold's owner worked, as the device knew (at most 50). */
     locationIds: z.array(uuid).max(50),
+    /** When the device last heard from the server, when the hold knew it. */
+    lastSyncedAt: isoDateTime.nullable(),
     lostAt: isoDateTime,
   })
   .strict()

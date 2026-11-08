@@ -75,7 +75,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lte, notExists, or, sql } from
 import { alias } from "drizzle-orm/pg-core";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
-import { PerUserQuota } from "../http/quota";
+import { PerUserQuota, QuotaExceeded } from "../http/quota";
 import { accessRowsOf, accessRowsOfMember } from "./access-rows";
 import { bindDevice, boundToDevice, deviceFirstSeen, deviceRevoked } from "./devices";
 import { rateNumber } from "./rates";
@@ -1397,10 +1397,16 @@ export async function closeDeviceHoldOnDeletion(
   });
 }
 
-/** What `recordKeyLost` did: a new record, a replay, or an id another kind of deletion holds. */
+/**
+ * What `recordKeyLost` did: a new record, a replay, an id another kind of deletion holds, or a
+ * refusal because the sender is not on a device or never used the one named.
+ */
 export type KeyLostOutcome =
   | { readonly outcome: "recorded" | "replay"; readonly tasks: number }
-  | { readonly outcome: "other_deletion" };
+  | { readonly outcome: "other_deletion" | "device_not_bound" };
+
+/** Lost-key records one phone may send in a rolling day, whoever is signed in (the lead's rule). */
+export const KEY_LOST_PER_DEVICE_PER_DAY = 2;
 
 /**
  * Records a device's lost key (H-1531, HZ-006), in one transaction run as the system acting for
@@ -1430,10 +1436,27 @@ export async function recordKeyLost(
     const id = body.id.toLowerCase();
     await lock(tx, access.tenantId, `device_discard:${id}`);
     const sender = access.tenantUserId;
+    const claimedDevice = body.deviceId.toLowerCase();
+    // Bound to a device this organisation knows: the session is signed in on the phone it comes
+    // from, and the sender used the lost database's device (row-level security keeps the binding
+    // inside the tenant). A client-sent id alone is never trusted (the lead's rule).
+    if (!access.deviceId || access.deviceBound !== true) return { outcome: "device_not_bound" };
+    if (!(await boundToDevice(tx, claimedDevice, sender))) return { outcome: "device_not_bound" };
+    await lock(tx, access.tenantId, `device_key_lost:${claimedDevice}`);
+    // One record per lost database: the device id names the database, so a phone that re-keys
+    // and loses it again records anew, and a retry under another id finds this one.
     let [record] = await tx
       .select()
       .from(deviceDiscardRecord)
-      .where(eq(deviceDiscardRecord.discardId, id))
+      .where(
+        or(
+          eq(deviceDiscardRecord.discardId, id),
+          and(
+            eq(deviceDiscardRecord.kind, KEY_INVALIDATED_KIND),
+            eq(deviceDiscardRecord.deviceId, claimedDevice),
+          ),
+        ),
+      )
       .limit(1);
     if (record && record.kind !== KEY_INVALIDATED_KIND) return { outcome: "other_deletion" };
     // Only its sender's replay raises a missing review (security re-review L-b).
@@ -1441,7 +1464,15 @@ export async function recordKeyLost(
     const replay = record !== undefined;
     if (!record) {
       await keyLostQuota.take(tx, sender);
-      const claimedDevice = body.deviceId?.toLowerCase() ?? null;
+      // A few a day from any one phone, whoever is signed in on it.
+      const [fromDevice] = await tx
+        .execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM public.audit_event
+        WHERE action = ${KEY_LOST_ACTIONS.recorded}
+          AND scope ->> 'reportedFromDeviceId' = ${access.deviceId}
+          AND occurred_at > now() - interval '1 day'`)
+        .then((r) => r.rows);
+      if ((fromDevice?.n ?? 0) >= KEY_LOST_PER_DEVICE_PER_DAY) throw new QuotaExceeded(3600);
       const claimedOwner = body.ownerTenantUserId?.toLowerCase() ?? null;
       const onStaff = claimedOwner
         ? (
@@ -1454,14 +1485,9 @@ export async function recordKeyLost(
       const ownerBound =
         claimedOwner !== null &&
         onStaff &&
-        (claimedOwner === sender ||
-          (claimedDevice !== null && (await boundToDevice(tx, claimedDevice, claimedOwner))));
+        (claimedOwner === sender || (await boundToDevice(tx, claimedDevice, claimedOwner)));
       const owner = ownerBound ? claimedOwner : null;
-      const deviceBound =
-        claimedDevice !== null &&
-        ((await boundToDevice(tx, claimedDevice, sender)) ||
-          (owner !== null && (await boundToDevice(tx, claimedDevice, owner))));
-      const deviceId = deviceBound ? claimedDevice : null;
+      const deviceId = claimedDevice;
       // The higher of the device's count and its last report: the phone never lowers what the
       // server last heard (clinical re-review H1, M1).
       let count = body.count;
@@ -1500,8 +1526,9 @@ export async function recordKeyLost(
           cause: "device_key_lost",
           ownerTenantUserId: owner,
           ...(claimedOwner && !ownerBound ? { claimedOwnerTenantUserId: claimedOwner } : {}),
-          ...(deviceId ? { heldOnDeviceId: deviceId } : {}),
-          ...(claimedDevice && !deviceBound ? { claimedDeviceId: claimedDevice } : {}),
+          heldOnDeviceId: deviceId,
+          reportedFromDeviceId: access.deviceId,
+          ...(body.lastSyncedAt ? { lastSyncedAt: body.lastSyncedAt } : {}),
           count,
           countFrom,
           lostAt: lostAt.toISOString(),
@@ -1524,6 +1551,19 @@ export async function recordKeyLost(
       .limit(1);
     if (raised.length > 0) return { outcome: "replay", tasks: 0 };
     const owner = record.ownerTenantUserId;
+    // What the nurse in charge needs to ask the right question (the lead's rule): the owner (or the
+    // name claimed), who sent it and whether that is someone else (a shared phone), the device,
+    // the count and the last sync. No entry content.
+    const claimed = body.ownerTenantUserId?.toLowerCase() ?? null;
+    const reviewDetails = {
+      ownerTenantUserId: owner,
+      ...(owner === null && claimed ? { claimedOwnerTenantUserId: claimed } : {}),
+      senderTenantUserId: record.senderTenantUserId,
+      sharedDevice: (owner ?? claimed) !== null && (owner ?? claimed) !== record.senderTenantUserId,
+      deviceId: record.deviceId,
+      entryCount: record.entryCount,
+      lastSyncedAt: body.lastSyncedAt,
+    };
     const locations = await holdLocations(
       tx,
       { reporter: sender, owner: owner ?? sender },
@@ -1553,8 +1593,7 @@ export async function recordKeyLost(
           dueAt: now,
           priority: "urgent",
           details: {
-            ownerTenantUserId: owner,
-            entryCount: record.entryCount,
+            ...reviewDetails,
             ...(holds.length > 0 ? { holdTaskIds: holds.map((h) => h.id) } : {}),
           },
         })

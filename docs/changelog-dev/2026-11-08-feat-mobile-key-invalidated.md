@@ -12,6 +12,15 @@ confirms it at merge).
 - **One transaction.** The record, its audit event `sync.device.key_lost` and the review
   `sync.device_key_lost` are written together. A replay raises the review if it is missing. The
   review joins the open sync-task index.
+- **Bound to the device.** At the lead's request:
+  - The session must be signed in on the phone the report comes from.
+  - The sender must have used the lost database's device with this organisation. Otherwise the
+    report is refused with an audited problem and no review.
+  - There is one record per lost database, by its device id (index
+    `device_discard_record_key_lost_key`).
+  - At most 2 a day from any one phone.
+  - The review names the owner or the claimed owner, the sender, whether they differ (a shared
+    phone), the device, the count and the last sync.
 - **Who sends it.** Any member of the staff, up to 3 a day. Never a family portal session.
 - **What counts.**
   - The owner counts only when an active member and either the sender or bound to the device.

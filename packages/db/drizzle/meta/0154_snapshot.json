@@ -1,5 +1,5 @@
 {
-  "id": "482535b7-d040-4977-a025-a7ca8b18257d",
+  "id": "7f82e571-1ae8-4432-9591-ab7df3a35bbe",
   "prevId": "de477f26-92c8-4a8c-8afd-c6cb5f4ffe99",
   "version": "7",
   "dialect": "postgresql",
@@ -58737,6 +58737,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "device_discard_record_key_lost_key": {
+          "name": "device_discard_record_key_lost_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "device_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "kind = 'key_invalidated'",
           "concurrently": false,
           "method": "btree",
           "with": {}

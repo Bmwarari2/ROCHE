@@ -108,6 +108,7 @@ export function keyLostBody(tombstone: Tombstone) {
     count: tombstone.count,
     deviceId: tombstone.deviceId ?? null,
     locationIds: [...(tombstone.locationIds ?? [])].filter(isOpaqueId).slice(0, 50),
+    lastSyncedAt: tombstone.lastSyncedAt ?? null,
     lostAt: tombstone.at,
   };
 }

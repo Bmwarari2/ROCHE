@@ -36858,10 +36858,7 @@
             "maximum": 100000
           },
           "deviceId": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
             "format": "uuid"
           },
           "locationIds": {
@@ -36871,6 +36868,13 @@
               "format": "uuid"
             },
             "maxItems": 50
+          },
+          "lastSyncedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "lostAt": {
             "type": "string",
@@ -36883,6 +36887,7 @@
           "count",
           "deviceId",
           "locationIds",
+          "lastSyncedAt",
           "lostAt"
         ],
         "additionalProperties": false,

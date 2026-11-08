@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
@@ -265,6 +266,10 @@ export const deviceDiscardRecord = pgTable(
       foreignColumns: [tenantUser.tenantId, tenantUser.id],
     }),
     index("device_discard_record_device_idx").on(t.tenantId, t.deviceId, t.recordedAt),
+    // One lost-key record per lost database: its device id names it (H-1531).
+    uniqueIndex("device_discard_record_key_lost_key")
+      .on(t.tenantId, t.deviceId)
+      .where(sql`kind = 'key_invalidated'`),
     check("device_discard_record_stage", sql`stage IN (${sqlList(DEVICE_DISCARD_STAGES)})`),
     check("device_discard_record_kind", sql`kind IN (${sqlList(DEVICE_DISCARD_KINDS)})`),
     check("device_discard_record_reason", sql`(reason_code IS NULL) = (kind = 'key_invalidated')`),

@@ -206,7 +206,13 @@ describe("hazard HZ-040 tombstones in the keystore (S4, M1, L4)", () => {
 
 describe("hazard HZ-006 a database its key no longer opens is put on record (H-1531)", () => {
   const at = new Date("2026-11-08T10:00:00.000Z");
-  const held = { tenantId: id(1), tenantUserId: id(2), entries: 4, locationIds: [id(3)] };
+  const held = {
+    tenantId: id(1),
+    tenantUserId: id(2),
+    entries: 4,
+    locationIds: [id(3)],
+    lastServerTime: "2026-11-08T09:15:00.000Z",
+  };
   const signedIn = { tenantId: id(5), tenantUserId: id(6), locationIds: [id(8)] };
   const none = { tenantId: null, tenantUserId: null, locationIds: [] };
 
@@ -234,11 +240,16 @@ describe("hazard HZ-006 a database its key no longer opens is put on record (H-1
   });
 
   it("goes to the key-lost route in the shape the API takes, and survives the keystore", () => {
-    const t = keyLostTombstone({ id: id(9), at, held, signedIn, deviceId: null });
+    const t = keyLostTombstone({ id: id(9), at, held, signedIn, deviceId: id(7) });
     if (!t) throw new Error("expected a record");
     const body = keyLostBody(t);
     expect(SyncKeyLost.safeParse(body).success).toBe(true);
-    expect(body).toMatchObject({ deviceId: null, count: 4, locationIds: [id(3)] });
+    expect(body).toMatchObject({
+      deviceId: id(7),
+      count: 4,
+      locationIds: [id(3)],
+      lastSyncedAt: "2026-11-08T09:15:00.000Z",
+    });
     expect(cleanTombstone(JSON.parse(JSON.stringify(t)))).toEqual(t);
   });
 

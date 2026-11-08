@@ -1816,15 +1816,23 @@ describe("part 7: shared per-user quotas", () => {
 });
 
 describe("hazard HZ-006 a device's lost key is put on record with a review (H-1531)", () => {
-  const lostKey = (who: Who, overrides: Record<string, unknown> = {}) =>
+  /** Invented device ids for these tests. */
+  const dev = (n: number) =>
+    `0199d000-0000-4000-8000-0000000b${(0x1530 + n).toString(16).padStart(4, "0")}`;
+  /** The member used the device: a report from it binds them and their session to it. */
+  const use = async (who: Who, device: string, held = 0) =>
+    expect((await report(who, { held }, device)).status).toBe(204);
+  const lostKey = (who: Who, from: string, overrides: Record<string, unknown> = {}) =>
     call(who, "/v1/sync/key-lost", {
       method: "POST",
+      device: from,
       body: {
         id: crypto.randomUUID(),
         ownerTenantUserId: null,
         count: 3,
-        deviceId: null,
+        deviceId: dev(0),
         locationIds: [],
+        lastSyncedAt: null,
         lostAt: new Date().toISOString(),
         ...overrides,
       },
@@ -1846,20 +1854,22 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
       [discardId],
     );
 
-  it("records the loss, raises one urgent review and supersedes the device's hold task", async () => {
+  it("records the loss with one urgent review, linked to the device's open hold task", async () => {
     const id = crypto.randomUUID();
-    const device = "0199d000-0000-4000-8000-0000000b1531";
-    // The owner used the device (a report binds it) and its hold has a task open.
-    expect((await report("owner", {}, device)).status).toBe(204);
+    const lost = dev(1);
+    const now = dev(2);
+    await use("owner", lost);
+    await use("owner", now);
     await asTenant(
       `INSERT INTO task (kind, title, required_permission, source_type, source_id, due_at, priority)
        VALUES ('sync.device_hold', 'Unsent care entries are waiting on a device', 'safety.incident.manage', 'device_hold', $1, now(), 'routine')`,
-      [device],
+      [lost],
     );
-    const response = await lostKey("owner", {
+    const response = await lostKey("owner", now, {
       id,
       ownerTenantUserId: DEMO.users.owner.id,
-      deviceId: device,
+      deviceId: lost,
+      lastSyncedAt: "2026-11-08T09:15:00.000Z",
     });
     expect(response.status).toBe(200);
     expect(await recordOf(id)).toEqual([
@@ -1868,32 +1878,39 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
         reason_code: null,
         cause: "device_key_lost",
         owner: DEMO.users.owner.id,
-        device_id: device,
+        device_id: lost,
         count: 3,
       },
     ]);
     const tasks = await reviews(id);
     expect(tasks.length).toBeGreaterThan(0);
-    for (const t of tasks) {
-      expect(t).toMatchObject({ priority: "urgent", status: "open" });
-      expect(t.details).toMatchObject({ ownerTenantUserId: DEMO.users.owner.id, entryCount: 3 });
-    }
-    // The hold task is linked to the review and left open for whoever may close it.
     const holds = await asTenant<{ id: string; status: string }>(
       "SELECT id, status FROM task WHERE kind = 'sync.device_hold' AND source_id = $1",
-      [device],
+      [lost],
     );
     expect(holds.map((t) => t.status)).toEqual(["open"]);
-    expect(tasks[0]?.details.holdTaskIds).toEqual(holds.map((t) => t.id));
-    // A replay records nothing more and raises no second review.
-    const again = await lostKey("owner", { id, ownerTenantUserId: DEMO.users.owner.id });
-    expect(await again.json()).toMatchObject({ replay: true });
+    for (const t of tasks) {
+      expect(t).toMatchObject({ priority: "urgent", status: "open" });
+      expect(t.details).toEqual({
+        ownerTenantUserId: DEMO.users.owner.id,
+        senderTenantUserId: DEMO.users.owner.id,
+        sharedDevice: false,
+        deviceId: lost,
+        entryCount: 3,
+        lastSyncedAt: "2026-11-08T09:15:00.000Z",
+        holdTaskIds: holds.map((h) => h.id),
+      });
+    }
+    // A retry, under its id or another, records nothing more and raises no second review.
+    for (const again of [{ id }, {}]) {
+      const r = await lostKey("owner", now, { ...again, deviceId: lost });
+      expect(await r.json()).toMatchObject({ replay: true });
+    }
     expect(await reviews(id)).toHaveLength(tasks.length);
     // The device's later report with nothing waiting leaves the review open.
-    expect((await report("owner", {}, device)).status).toBe(204);
+    await use("owner", lost);
     expect((await reviews(id)).every((t) => t.status === "open")).toBe(true);
 
-    // The sender cannot close it; a reviewer must say what was found.
     const [review] = tasks;
     if (!review) throw new Error("expected a review");
     const transition = (who: Who, reason?: string, to = "done") =>
@@ -1911,19 +1928,21 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     expect((await transition("manager", "re_recorded")).status).toBe(200);
   });
 
-  it("takes an owner who never used the device only as a claim, and never a count below the last report", async () => {
+  it("names a shared phone's claimed owner, and never takes a count below the last report", async () => {
     const id = crypto.randomUUID();
-    const device = "0199d000-0000-4000-8000-0000000b1532";
-    expect((await report("manager", { held: 4 }, device)).status).toBe(204);
-    const response = await lostKey("manager", {
+    const lost = dev(3);
+    const now = dev(4);
+    await use("manager", lost, 4);
+    await use("manager", now);
+    const response = await lostKey("manager", now, {
       id,
       ownerTenantUserId: DEMO.users.owner.id,
-      deviceId: device,
+      deviceId: lost,
       count: 1,
     });
     expect(response.status).toBe(200);
     expect(await recordOf(id)).toEqual([
-      expect.objectContaining({ owner: null, device_id: device, count: 4 }),
+      expect.objectContaining({ owner: null, device_id: lost, count: 4 }),
     ]);
     const [audit] = await asTenant<{ scope: Record<string, unknown> }>(
       "SELECT scope FROM audit_event WHERE action = 'sync.device.key_lost' AND resource_id = $1",
@@ -1931,20 +1950,46 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     );
     expect(audit?.scope).toMatchObject({
       claimedOwnerTenantUserId: DEMO.users.owner.id,
+      reportedFromDeviceId: now,
       countFrom: "last_report",
       count: 4,
     });
-    expect((await reviews(id)).every((t) => t.priority === "urgent")).toBe(true);
+    for (const t of await reviews(id)) {
+      expect(t.priority).toBe("urgent");
+      expect(t.details).toMatchObject({
+        ownerTenantUserId: null,
+        claimedOwnerTenantUserId: DEMO.users.owner.id,
+        senderTenantUserId: DEMO.users.manager.id,
+        sharedDevice: true,
+      });
+    }
   });
 
-  it("takes a device nobody involved used only as a claim", async () => {
-    const id = crypto.randomUUID();
-    const response = await lostKey("manager", {
-      id,
-      deviceId: "0199d000-0000-4000-8000-0000000b1533",
+  it("refuses, with an audited problem and no review, a device the sender never used or a session on no device", async () => {
+    const now = dev(6);
+    await use("manager", now);
+    const unused = dev(5);
+    const refused = await lostKey("manager", now, { deviceId: unused });
+    expect(refused.status).toBe(422);
+    const audits = await asTenant<{ outcome: string; reason: string }>(
+      "SELECT outcome, reason FROM audit_event WHERE action = 'sync.device.key_lost' AND resource_type = 'device' AND resource_id = $1",
+      [unused],
+    );
+    expect(audits).toEqual([{ outcome: "denied", reason: "device_not_bound" }]);
+    // No device header: the session is on no device.
+    const bare = await call("manager", "/v1/sync/key-lost", {
+      method: "POST",
+      body: {
+        id: crypto.randomUUID(),
+        ownerTenantUserId: null,
+        count: 1,
+        deviceId: now,
+        locationIds: [],
+        lastSyncedAt: null,
+        lostAt: new Date().toISOString(),
+      },
     });
-    expect(response.status).toBe(200);
-    expect(await recordOf(id)).toEqual([expect.objectContaining({ device_id: null })]);
+    expect(bare.status).toBe(422);
   });
 
   it("the staff route never takes a lost key", async () => {
@@ -1971,21 +2016,29 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     ["a reason", { reasonCode: "other" }],
     ["person ids", { personIds: [crypto.randomUUID()] }],
     ["entry ids", { entryIds: [crypto.randomUUID()] }],
+    ["no device", { deviceId: null }],
   ])("refuses a lost key's record with %s", async (_label, extra) => {
-    expect((await lostKey("owner", extra)).status).toBe(422);
+    expect((await lostKey("owner", dev(2), extra)).status).toBe(422);
   });
 
-  it("refuses a member past 3 lost keys a day", async () => {
-    for (let n = 0; n < 3; n += 1) expect((await lostKey("carer")).status).toBe(200);
-    expect((await lostKey("carer")).status).toBe(429);
+  it("refuses more than 2 a day from one phone, and 3 a day from one member", async () => {
+    const phones = [dev(7), dev(8)];
+    const lost = [dev(9), dev(10), dev(11), dev(12)];
+    for (const d of [...phones, ...lost]) await use("carer", d);
+    const send = (from: string, deviceId: string) => lostKey("carer", from, { deviceId });
+    expect((await send(dev(7), dev(9))).status).toBe(200);
+    expect((await send(dev(7), dev(10))).status).toBe(200);
+    expect((await send(dev(7), dev(11))).status).toBe(429);
+    expect((await send(dev(8), dev(11))).status).toBe(200);
+    expect((await send(dev(8), dev(12))).status).toBe(429);
   });
 
-  it("the table allows no reason and a cause only for a lost key", async () => {
-    const insert = (kind: string, reason: string | null, cause: string | null) =>
+  it("the table allows no reason, a cause and one record per database only for a lost key", async () => {
+    const insert = (kind: string, reason: string | null, cause: string | null, device?: string) =>
       asTenant(
-        `INSERT INTO device_discard_record (discard_id, stage, kind, reason_code, cause, sender_tenant_user_id, discarded_at)
-         VALUES ($1, 'deleted', $2, $3, $4, $5, now())`,
-        [crypto.randomUUID(), kind, reason, cause, DEMO.users.carer.id],
+        `INSERT INTO device_discard_record (discard_id, stage, kind, reason_code, cause, sender_tenant_user_id, device_id, discarded_at)
+         VALUES ($1, 'deleted', $2, $3, $4, $5, $6, now())`,
+        [crypto.randomUUID(), kind, reason, cause, DEMO.users.carer.id, device ?? null],
       );
     await expect(
       insert("key_invalidated", "recorded_elsewhere", "device_key_lost"),
@@ -1998,6 +2051,10 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     );
     await expect(insert("held_deleted", null, null)).rejects.toThrow(
       /device_discard_record_reason/,
+    );
+    await insert("key_invalidated", null, "device_key_lost", dev(13));
+    await expect(insert("key_invalidated", null, "device_key_lost", dev(13))).rejects.toThrow(
+      /device_discard_record_key_lost_key/,
     );
   });
 });

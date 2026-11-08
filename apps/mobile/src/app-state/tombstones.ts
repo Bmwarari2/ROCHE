@@ -96,6 +96,8 @@ export interface Tombstone {
   readonly deviceId?: string;
   /** For a lost key only: where the hold's owner worked, so its review goes there (H-1531). */
   readonly locationIds?: readonly string[];
+  /** For a lost key only: when the device last heard from the server, when the hold knew it. */
+  readonly lastSyncedAt?: string;
 }
 
 export interface TombstoneStore {
@@ -172,6 +174,12 @@ export function cleanTombstone(value: unknown): Tombstone | null {
   const deviceId = opaqueOrNull(value.deviceId);
   const locationIds =
     kind === "key_invalidated" ? opaqueList(value.locationIds, MAX_TOMBSTONE_PERSON_IDS) : [];
+  const lastSyncedAt =
+    kind === "key_invalidated" &&
+    typeof value.lastSyncedAt === "string" &&
+    ISO_TIME.test(value.lastSyncedAt)
+      ? value.lastSyncedAt
+      : null;
   return {
     id: value.id.toLowerCase(),
     kind,
@@ -189,6 +197,7 @@ export function cleanTombstone(value: unknown): Tombstone | null {
     ...(leftover.length > 0 ? { leftover } : {}),
     ...(deviceId ? { deviceId: deviceId.toLowerCase() } : {}),
     ...(locationIds.length > 0 ? { locationIds: locationIds.map((l) => l.toLowerCase()) } : {}),
+    ...(lastSyncedAt ? { lastSyncedAt } : {}),
   };
 }
 
@@ -352,6 +361,7 @@ export function keyLostTombstone(input: {
     readonly tenantUserId: string | null;
     readonly entries: number | null;
     readonly locationIds?: readonly string[];
+    readonly lastServerTime?: string | null;
   } | null;
   readonly signedIn: {
     readonly tenantId: string | null;
@@ -369,6 +379,9 @@ export function keyLostTombstone(input: {
     MAX_TOMBSTONE_PERSON_IDS,
   );
   const deviceId = opaqueOrNull(input.deviceId);
+  // The hold's last word from the server, as a UTC time the keystore may keep.
+  const synced = held?.lastServerTime ? new Date(held.lastServerTime) : null;
+  const lastSyncedAt = synced && !Number.isNaN(synced.getTime()) ? synced.toISOString() : null;
   return {
     id: input.id.toLowerCase(),
     kind: "key_invalidated",
@@ -385,5 +398,6 @@ export function keyLostTombstone(input: {
     idsMissing: "key_invalid",
     ...(deviceId ? { deviceId: deviceId.toLowerCase() } : {}),
     ...(locations.length > 0 ? { locationIds: locations.map((l) => l.toLowerCase()) } : {}),
+    ...(lastSyncedAt ? { lastSyncedAt } : {}),
   };
 }

@@ -37,7 +37,7 @@ import {
 } from "@harbour/sync/streams";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import { auditInTx } from "../http/audit";
+import { auditInTx, writeAudit } from "../http/audit";
 import { mfaRefusal, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
@@ -891,6 +891,19 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         );
         if (result.outcome === "other_deletion") {
           throw problems.invalid("This deletion was recorded for other entries.");
+        }
+        if (result.outcome === "device_not_bound") {
+          // Audited, with opaque ids only, then refused (the lead's rule: no task).
+          await writeAudit(c.get("services").appPool, access, {
+            action: "sync.device.key_lost",
+            outcome: "denied",
+            resourceType: "device",
+            resourceId: body.deviceId.toLowerCase(),
+            reason: "device_not_bound",
+          });
+          throw problems.invalid(
+            "Send this from your session on the phone, for a phone you have used with this organisation.",
+          );
         }
         return c.json({ id: body.id, recorded: true, replay: result.outcome === "replay" }, 200);
       },

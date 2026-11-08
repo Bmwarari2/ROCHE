@@ -74689,8 +74689,10 @@ export interface components {
       ownerTenantUserId: string | null;
       count: number | null;
       /** Format: uuid */
-      deviceId: string | null;
+      deviceId: string;
       locationIds: string[];
+      /** Format: date-time */
+      lastSyncedAt: string | null;
       /** Format: date-time */
       lostAt: string;
     };
