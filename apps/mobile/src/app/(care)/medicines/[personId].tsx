@@ -32,24 +32,44 @@ import {
 } from "../../../people/queries";
 import { useRecordScreenProtection } from "../../../security/use-record-protection";
 
+/** The prescribed amount or range, as the API's `amountMatches` reads it; null for a variable dose. */
+function rangeOf(
+  kind: string | null,
+  quantity: unknown,
+  from: unknown,
+  to: unknown,
+): { from: number; to: number } | null {
+  const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN);
+  if (kind === "amount" && Number.isFinite(n(quantity)))
+    return { from: n(quantity), to: n(quantity) };
+  if (kind === "range" && Number.isFinite(n(from)) && Number.isFinite(n(to))) {
+    return { from: n(from), to: n(to) };
+  }
+  return null;
+}
+
 function prnUnit(row: MedicationLocalRow | undefined): {
   unitCode: string | null;
   unitName: string | null;
   quantity: number | null;
+  prescribedRange: { from: number; to: number } | null;
 } {
   try {
     const dose = JSON.parse(row?.prn_dose ?? "null") as {
       kind?: string;
       quantity?: number;
+      from?: number;
+      to?: number;
       unit?: { code?: string; name?: string };
     } | null;
     return {
       unitCode: dose?.unit?.code ?? null,
       unitName: dose?.unit?.name ?? null,
       quantity: dose?.kind === "amount" ? (dose.quantity ?? null) : null,
+      prescribedRange: rangeOf(dose?.kind ?? null, dose?.quantity, dose?.from, dose?.to),
     };
   } catch {
-    return { unitCode: null, unitName: null, quantity: null };
+    return { unitCode: null, unitName: null, quantity: null, prescribedRange: null };
   }
 }
 
@@ -128,6 +148,12 @@ export default function PersonMedicinesScreen() {
           unitCode: slot.unit_code,
           unitName: slot.unit_name,
           quantity: slot.dose_kind === "amount" ? Number(slot.quantity) : null,
+          prescribedRange: rangeOf(
+            slot.dose_kind,
+            slot.quantity,
+            slot.from_quantity,
+            slot.to_quantity,
+          ),
         }
       : prnUnit(row);
     setSaved(false);

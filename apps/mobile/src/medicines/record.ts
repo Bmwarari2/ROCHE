@@ -31,8 +31,10 @@ export type RecordProblem =
   | "may_not_give"
   | "inside_interval"
   | "over_24h_maximum"
+  | "amount_not_prescribed"
   | "competence_expired"
   | "competence_not_held"
+  | "competence_withdrawn"
   | "last_dose_unknown"
   | "pack_mismatch";
 
@@ -76,8 +78,13 @@ export interface DoseRecordInput {
    * this phone holds; null when it has none (HZ-004).
    */
   readonly prnRemaining?: number | null;
+  /**
+   * The prescribed amount, or range, in the dose's unit; null when the dose varies (a dosing record
+   * decides) or is not known. The API refuses another amount without a reason (`amountMatches`).
+   */
+  readonly prescribedRange?: { readonly from: number; readonly to: number } | null;
   /** The member's own medicines competence on this phone (`phoneCompetence`; HZ-119). */
-  readonly competence?: "current" | "expired" | "not_held" | "unknown";
+  readonly competence?: "current" | "expired" | "withdrawn" | "not_held" | "unknown";
   /** The last scan was another medicine or an expired pack: no override clears it (HZ-113). */
   readonly packRefused?: boolean;
   /**
@@ -142,10 +149,12 @@ export function recordProblems(input: DoseRecordInput): RecordProblem[] {
     problems.push("inside_interval");
   }
   if (gives && input.lastDoseNotOnDevice) problems.push("last_dose_unknown");
-  // A lapsed or missing competence stops the dose before it is given, as the API would refuse it
-  // on upload; "unknown" (no rate table) is left to the API (guides review, HZ-119).
-  if (gives && input.competence === "expired") problems.push("competence_expired");
-  if (gives && input.competence === "not_held") problems.push("competence_not_held");
+  // Every outcome a member records needs current competence (medicines.md rule 22), as the API
+  // checks on upload: a lapsed, withdrawn or missing competence stops the record before it is made
+  // (guides review; clinical review H2; HZ-119).
+  if (input.competence === "expired") problems.push("competence_expired");
+  if (input.competence === "withdrawn") problems.push("competence_withdrawn");
+  if (input.competence === "not_held") problems.push("competence_not_held");
   // The amount typed is compared with what is left of the 24-hour maximum, before the dose is
   // given, never only "none left" (guides review of the phone, 08/11/2026; HZ-004).
   if (
@@ -155,6 +164,17 @@ export function recordProblems(input: DoseRecordInput): RecordProblem[] {
     input.amount.quantity > input.prnRemaining
   ) {
     problems.push("over_24h_maximum");
+  }
+  // The amount must be the one prescribed, or within the range, as the API checks (clinical review
+  // H3; HZ-004): another amount needs a reason only the web takes, so it never starts here.
+  if (
+    gives &&
+    input.amount &&
+    input.prescribedRange &&
+    (input.amount.quantity < input.prescribedRange.from ||
+      input.amount.quantity > input.prescribedRange.to)
+  ) {
+    problems.push("amount_not_prescribed");
   }
   if (gives && input.packRefused) problems.push("pack_mismatch");
   const codes = OUTCOME_REASONS[input.outcome];

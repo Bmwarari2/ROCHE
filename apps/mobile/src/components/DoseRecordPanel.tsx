@@ -23,13 +23,7 @@ import {
 } from "../medicines/device-key-store";
 import { useRecordDose } from "../medicines/hooks";
 import { type CompetenceRow, MY_COMPETENCE_SQL, phoneCompetence } from "../medicines/my-competence";
-import {
-  DEVICE_GTINS_SQL,
-  DEVICE_PRODUCTS_SQL,
-  MEDICINES_RATES_SQL,
-  medicinesRatesParams,
-} from "../medicines/queries";
-import { parseMedicinesRates } from "../medicines/rates";
+import { DEVICE_GTINS_SQL, DEVICE_PRODUCTS_SQL } from "../medicines/queries";
 import {
   type CdDeviceSignatures,
   type PackEvidence,
@@ -69,6 +63,8 @@ export interface DoseChoice {
   readonly lastDoseNotOnDevice: boolean;
   /** What is left of a when-required dose's 24-hour maximum, in its unit (HZ-004). */
   readonly prnRemaining?: number | null;
+  /** The prescribed amount or range, in the dose's unit (HZ-004). */
+  readonly prescribedRange?: { readonly from: number; readonly to: number } | null;
 }
 
 function announce(words: string) {
@@ -139,9 +135,7 @@ export function DoseRecordPanel({
     tenantId ?? "",
     me?.tenantUserId ?? "",
   ]);
-  const rateRows = useQuery<{ value: string }>(MEDICINES_RATES_SQL, medicinesRatesParams);
-  const rates = useMemo(() => parseMedicinesRates(rateRows.data[0]?.value), [rateRows.data]);
-  const competence = phoneCompetence(competenceRows ?? [], new Date(), rates);
+  const competence = phoneCompetence(competenceRows ?? [], new Date());
   const cdBlocked = dose.controlledDrug && !mayRecordCd;
   // The home's witness policy, as the API applies it: "no one is here to witness" only where it
   // allows that; unknown counts as required (HZ-116; lead's batch 5 review, B4).
@@ -372,6 +366,7 @@ export function DoseRecordPanel({
       controlledDrug: dose.controlledDrug,
       nextAllowedAt: dose.nextAllowedAt,
       prnRemaining: dose.prnRemaining ?? null,
+      prescribedRange: dose.prescribedRange ?? null,
       competence,
       lastDoseNotOnDevice: dose.lastDoseNotOnDevice,
       packRefused,

@@ -1086,7 +1086,7 @@ streams:
             OR competence_sign_off.competence = 'epilepsy_rescue_medication')
       - >-
         SELECT competence_withdrawal.id, competence_withdrawal.tenant_id,
-               competence_withdrawal.sign_off_id
+               competence_withdrawal.sign_off_id, competence_withdrawal.created_at
         FROM competence_withdrawal, competence_sign_off
         WHERE competence_withdrawal.sign_off_id = competence_sign_off.id
           AND competence_withdrawal.tenant_id = auth.parameter('tenant_id')

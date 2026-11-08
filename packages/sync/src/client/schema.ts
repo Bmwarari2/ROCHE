@@ -751,6 +751,8 @@ const competence_sign_off = new Table({
 const competence_withdrawal = new Table({
   tenant_id: column.text,
   sign_off_id: column.text,
+  /** When it was withdrawn: a withdrawal is about the member from that UK day (competenceDecision). */
+  created_at: column.text,
 });
 
 /**
