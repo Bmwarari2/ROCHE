@@ -28,7 +28,7 @@ Branch `feat/platform-retention-report`, from `main` at 8d9b4cc8 (the registry, 
   today 143 of 238 entries are decided. Holds are today's (a person or a record); the wider scopes
   and the implicit holds of open cases wait for slice 12, so the report can show more as due than
   a batch would propose.
-- **`retention_report`** (migration 0156): one append-only row per run per organisation with the
+- **`retention_report`** (migration 0158): one append-only row per run per organisation with the
   mode, the clock it decided against, the duration, the tables read and skipped, the lines (table,
   classes, reason, counts by status) and the totals. Forced RLS, the tenant policy, a
   tenant-wide-only restrictive policy for `harbour_app`, SELECT and INSERT only, append-only

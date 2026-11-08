@@ -8,7 +8,8 @@ act on it.
 
 **Register row**: CARE-013. These steps are for the web. The phone app has the round too, on its
 **Round** tab, with its own buttons. Medicines are not on this round: use the phone's **Medicines** tab,
-if your organisation has switched it on, or **Medicines round** on the web.
+if your organisation has switched it on, or **Medicines round** on the web. For the phone, see
+[How to do a round on the phone](do-a-round-on-the-phone.md).
 
 ## Steps
 

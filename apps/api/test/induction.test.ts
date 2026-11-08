@@ -4,7 +4,7 @@ import { addUkDays, ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sweepLeaverAccess } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, LODGE } from "./support/harness";
 
 /**
  * Induction, the Care Certificate and leavers through the API (workforce.md section 2e, rules 19
@@ -213,6 +213,89 @@ describe("the Care Certificate (rule 20)", () => {
     const view = await json<{ careCertificate: { competent: number } }>(observed);
     expect(view.careCertificate.competent).toBe(1);
     expect((await step("manager", "cc01", { step: "observation", on: today() })).status).toBe(422);
+  });
+});
+
+describe("who records a Care Certificate observation (rule 20; section 3)", () => {
+  const step = (who: string, standard: string, body: unknown) =>
+    as(who, `/v1/workforce/staff-files/${profile}/care-certificate/${standard}`, {
+      method: "PUT",
+      body,
+    });
+
+  beforeAll(async () => {
+    // A staff file clerk: the staff file's permissions, but not the observe permission.
+    await sql(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ('0199f4ff-0000-7000-8000-000000000001', 'staff_file_clerk', 'Staff file clerk',
+         'tenant', '{workforce.staff_file.read,workforce.staff_file.manage}')`,
+    );
+    await sql(
+      "INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, '0199f4ff-0000-7000-8000-000000000001')",
+      [LODGE.qualityLeadId],
+    );
+  });
+
+  // Each row assesses a fresh standard's knowledge as the manager, then tries the observation.
+  // The clinical lead (the nurse) holds workforce.competence.observe and no staff file
+  // permission; the clerk holds the staff file's permissions and not the observe permission.
+  it.each([
+    ["a clinical lead, with the observe permission alone", "nurse", "cc05", 200],
+    ["a Registered Manager", "manager", "cc06", 200],
+    ["a staff file clerk without the observe permission", "quality", "cc07", 403],
+    ["a care worker", "carer", "cc08", 403],
+  ] as const)("observation by %s: %s", async (_name, who, standard, expected) => {
+    expect((await step("manager", standard, { step: "knowledge", on: inDays(-1) })).status).toBe(
+      200,
+    );
+    const observed = await step(who, standard, { step: "observation", on: today() });
+    expect(observed.status).toBe(expected);
+    const [row] = await sql<{ observed_by: string | null }>(
+      "SELECT observed_by FROM care_certificate_progress WHERE staff_profile_id = $1 AND standard_id = $2",
+      [profile, standard],
+    );
+    expect(row?.observed_by ?? null).toBe(
+      expected === 200 ? DEMO.users[who as "nurse" | "manager"].id : null,
+    );
+  });
+
+  it.each([
+    ["a clinical lead, with the observe permission alone", "nurse", "cc09", 200],
+    ["a staff file clerk", "quality", "cc10", 200],
+    ["a care worker", "carer", "cc11", 403],
+  ] as const)("knowledge assessment by %s: %s", async (_name, who, standard, expected) => {
+    expect((await step(who, standard, { step: "knowledge", on: today() })).status).toBe(expected);
+  });
+
+  it("audits a refused observation with an opaque code", async () => {
+    const [denied] = await sql<{ n: number }>(
+      `SELECT count(*)::int AS n FROM audit_event
+        WHERE action = 'workforce.competence.observe' AND outcome = 'denied'`,
+    );
+    expect(denied?.n).toBeGreaterThanOrEqual(1);
+  });
+
+  it.each([
+    ["a clinical lead, with the observe permission alone", "nurse", 200],
+    ["a Registered Manager", "manager", 200],
+    ["a care worker", "carer", 403],
+  ] as const)("shows the Care Certificate by member to %s: %s", async (_name, who, expected) => {
+    const found = await as(who, `/v1/workforce/members/${DEMO.users.carer.id}/care-certificate`);
+    expect(found.status).toBe(expected);
+    if (expected === 200) {
+      const view = await json<{
+        staffProfileId: string;
+        careCertificate: { standards: unknown[] };
+      }>(found);
+      expect(view.staffProfileId).toBe(profile);
+      expect(view.careCertificate.standards).toHaveLength(16);
+    }
+  });
+
+  it("finds no Care Certificate for a member without a staff file", async () => {
+    expect(
+      (await as("nurse", `/v1/workforce/members/${DEMO.users.owner.id}/care-certificate`)).status,
+    ).toBe(404);
   });
 });
 

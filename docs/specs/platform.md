@@ -953,7 +953,7 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   and status). A failed organisation is audited as `platform.job.tenant_failed` (job
   `retention-sweep`) and logged as `worker.job.failed`. `retention_report` has forced RLS, the
   tenant policy, a tenant-wide-only restrictive policy for `harbour_app`, SELECT and INSERT only,
-  and append-only triggers (migration 0156). It holds no personal data (listed in
+  and append-only triggers (migration 0158). It holds no personal data (listed in
   `no-personal-data.ts`; the export catalogue keeps it as `permanent`).
 - `GET /v1/retention/due` (`platform.retention.manage`, step-up, tenant-wide only): the mode and
   the latest report (null until one has run). Audited as `platform.retention.report_viewed` with

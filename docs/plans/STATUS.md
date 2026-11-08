@@ -17,6 +17,13 @@ adds the Terraform for that job (H-1241): the Cloud Run job `harbour-<env>-dmd`,
 Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job is applied
 (H-1501 to H-1505).
 
+**Committed on 07/11/2026, not pushed:** `fix/workforce-certificate-revalidation-permissions`
+(WORK-004 stays `partial`, WORK-012 `todo`). Two findings from the workforce guides' review: a Care
+Certificate observation needs only `workforce.competence.observe` (API, row-level security and a
+Care Certificate section on the training record, so team leaders and clinical leads can record
+it); and the NMC revalidation confirmation is recorded only by the confirmer HR names, never by HR
+unless named (API, database and web). Migrations 0156 and 0157.
+
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
@@ -40,8 +47,20 @@ nightly `retention-sweep` queue in report mode, behind the flag `platform.retent
 organisation (counts per table and class: due, held, kept, waiting, by policy, never offered, not
 evaluated; no record ids) and the audit event `platform.retention.sweep_reported`; it changes no
 record. `GET /v1/retention/due` shows the latest report (`platform.retention.manage`, audited).
-Migration 0156 (renumber at merge if needed). See
+Migration 0158 (renumber at merge if needed). See
 `docs/changelog-dev/2026-11-08-feat-platform-retention-report.md`.
+
+## User guides: Care mode on the phone (08/11/2026)
+
+`docs/guides-mobile-care-mode`, from `main` at ea6fc04d: 19 guides for the phone's Care mode
+(sign-in, lock, shared devices, Today and People, checking the person, notes, charts, vital signs,
+the body map, corrections, the round, the handover, the sync banner, entries not saved, unsent
+entries, sign-out, device safety, a lost phone, and a manager's hand-over of held entries), linked
+from the role indexes, the guides README and the user docs column of MOB-001, 002, 005, 006, 009 and
+010. Kiosk sign-in, phone incidents, the conflict review, root detection and device withdrawal have
+no screen yet. Gaps, hard-coded strings and what the guides found on screen (shared devices unlock
+with device biometrics; switching user offline deletes unsent entries): see
+`docs/changelog-dev/2026-11-08-docs-guides-mobile-care-mode.md`.
 
 ## User guides: Phase 2 gaps (08/11/2026)
 

@@ -5,7 +5,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  confirmRevalidation,
   correctTraining,
+  nameRevalidationConfirmer,
   recordSupervision,
   recordTraining,
   saveRevalidation,
@@ -15,6 +17,7 @@ import {
 } from "@/app/actions/development";
 import { DevelopmentForm } from "@/components/development/DevelopmentForm";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { CareCertificateSection } from "@/components/workforce/CareCertificateSection";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import {
@@ -28,11 +31,14 @@ import {
   present,
   REVALIDATION_REQUIREMENTS,
   requirementChip,
+  revalidationConfirmActions,
+  STAFF_FILE_READ,
   SUPERVISION_KINDS,
   trainingChip,
   ukDate,
 } from "@/lib/development";
 import { t } from "@/lib/i18n";
+import { careCertificateActions } from "@/lib/workforce";
 
 export const metadata: Metadata = { title: t("development.record.title") };
 
@@ -120,6 +126,39 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
   const may = developmentActions(me.permissions, self);
   const name = member.displayName;
   const plan = record.revalidation;
+  // Rule 8: HR names the confirmer; only the named confirmer is offered the confirmation.
+  const confirming = revalidationConfirmActions({
+    permissions: me.permissions,
+    me: me.tenantUserId,
+    memberId,
+    plan: plan
+      ? {
+          confirmerId: plan.confirmer?.id ?? null,
+          reviewedById: plan.reviewedBy?.id ?? null,
+          reviewState: plan.reviewState,
+          confirmation: plan.confirmation,
+        }
+      : null,
+  });
+  // Rule 20: observers (team leaders, clinical leads) record the Care Certificate here, without
+  // the staff file; the API answers 404 when the member has no staff file.
+  const cc = careCertificateActions(me.permissions, self);
+  const [certificate, confirmers] = await Promise.all([
+    cc.assess || cc.observe || me.permissions.includes(STAFF_FILE_READ)
+      ? api.GET("/v1/workforce/members/{memberId}/care-certificate", {
+          params: { path: { memberId } },
+        })
+      : null,
+    // Only members who may confirm, never the nurse, oneself or the reviewer (the API decides).
+    confirming.nameConfirmer && plan
+      ? api.GET("/v1/workforce/members/{memberId}/revalidation/confirmers", {
+          params: { path: { memberId }, query: { cycleDueOn: plan.cycleDueOn } },
+        })
+      : null,
+  ]);
+  const confirmerOptions = present(confirmers?.data?.items)
+    .filter((c) => c.id !== memberId && c.id !== me.tenantUserId)
+    .map((c) => ({ value: c.id, label: c.displayName }));
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-8">
@@ -396,6 +435,15 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
           </Card>
         ) : null}
       </section>
+      {certificate?.data ? (
+        <CareCertificateSection
+          profileId={certificate.data.staffProfileId}
+          careCertificate={certificate.data.careCertificate}
+          assess={cc.assess}
+          observe={cc.observe}
+          path={path}
+        />
+      ) : null}
       <section aria-labelledby="supervision" className="flex flex-col gap-4">
         <h2 id="supervision" className="m-0 text-heading-3 font-semibold">
           {t("development.supervision.title")}
@@ -628,6 +676,18 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
                     </li>
                   ))}
                 </ul>
+                <p className="m-0">
+                  {plan.confirmation && plan.confirmedBy
+                    ? t("development.revalidation.confirmedBy", {
+                        name: plan.confirmedBy.displayName,
+                        date: ukDate(plan.confirmedOn),
+                      })
+                    : plan.confirmer
+                      ? t("development.revalidation.confirmer", {
+                          name: plan.confirmer.displayName,
+                        })
+                      : t("development.revalidation.noConfirmer")}
+                </p>
               </div>
             </Card>
           ) : (
@@ -672,7 +732,6 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
                       ["reflectiveDiscussion", plan?.reflectiveDiscussion],
                       ["healthAndCharacter", plan?.healthAndCharacter],
                       ["professionalIndemnity", plan?.professionalIndemnity],
-                      ["confirmation", plan?.confirmation],
                     ] as const
                   ).map(([field, value]) => ({
                     kind: "checkbox" as const,
@@ -680,6 +739,72 @@ export default async function MemberDevelopmentPage({ params }: { readonly param
                     label: codeLabel("development.revalidation.field", field, t),
                     defaultChecked: value === true,
                   })),
+                ]}
+              />
+            </Card>
+          ) : null}
+          {plan && confirming.nameConfirmer && confirmerOptions.length === 0 ? (
+            <Card>
+              <h3 className="m-0 text-body font-semibold">
+                {t("development.revalidation.nameConfirmer")}
+              </h3>
+              <p className="m-0 mt-2">{t("development.revalidation.noColleagues")}</p>
+            </Card>
+          ) : null}
+          {plan && confirming.nameConfirmer && confirmerOptions.length > 0 ? (
+            <Card>
+              <DevelopmentForm
+                headingLevel={3}
+                title={t("development.revalidation.nameConfirmer")}
+                intro={t("development.revalidation.nameConfirmerIntro")}
+                path={path}
+                submit={t("development.revalidation.saveConfirmer")}
+                done="development.revalidation.confirmerSaved"
+                action={nameRevalidationConfirmer.bind(
+                  null,
+                  memberId,
+                  plan.version,
+                  plan.cycleDueOn,
+                )}
+                fields={[
+                  {
+                    kind: "select",
+                    name: "confirmerId",
+                    label: t("development.revalidation.confirmerField"),
+                    required: true,
+                    requiredMessage: t("development.revalidation.confirmerRequired"),
+                    emptyOption: t("development.form.choose"),
+                    options: confirmerOptions,
+                    ...(plan.confirmer ? { defaultValue: plan.confirmer.id } : {}),
+                  },
+                ]}
+              />
+            </Card>
+          ) : null}
+          {plan && confirming.confirm ? (
+            <Card>
+              <DevelopmentForm
+                headingLevel={3}
+                title={t("development.revalidation.confirm")}
+                intro={t("development.revalidation.confirmIntro", { name })}
+                path={path}
+                submit={t("development.revalidation.confirmSubmit")}
+                done="development.revalidation.confirmedSaved"
+                action={confirmRevalidation.bind(null, memberId, plan.version, plan.cycleDueOn)}
+                fields={[
+                  {
+                    kind: "date",
+                    name: "confirmedOn",
+                    label: t("development.revalidation.confirmedOn"),
+                    required: true,
+                  },
+                  {
+                    kind: "checkbox",
+                    name: "confirm",
+                    label: t("development.revalidation.confirmCheck", { name }),
+                    required: true,
+                    requiredMessage: t("development.revalidation.confirmCheckRequired"),
+                  },
                 ]}
               />
             </Card>

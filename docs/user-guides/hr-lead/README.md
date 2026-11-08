@@ -36,6 +36,7 @@ files, recruitment, training and casework; you do not see care notes.
 ## Everyone
 
 - [How to accept an invitation and set up your sign-in](../all-staff/accept-an-invitation.md)
+- [How to handle a lost or stolen phone](../all-staff/handle-a-lost-or-stolen-phone.md)
 - [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
 - [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)
 - [How to read and sign an organisation document](../all-staff/read-and-sign-an-organisation-document.md)

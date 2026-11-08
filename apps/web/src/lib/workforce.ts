@@ -1,3 +1,4 @@
+import { mayRecordStandardStep } from "@harbour/domain";
 import type { MessageKey, Translator } from "@harbour/i18n";
 import type { SafetyChip } from "@/lib/incidents";
 
@@ -12,6 +13,17 @@ export const STAFF_FILE_READ = "workforce.staff_file.read";
 export const STAFF_FILE_MANAGE = "workforce.staff_file.manage";
 export const COMPETENCE_OBSERVE = "workforce.competence.observe";
 export const CASEWORK = "workforce.casework.manage";
+
+/**
+ * The Care Certificate steps offered (rule 20): the knowledge assessment to holders of
+ * `workforce.staff_file.manage` or `workforce.competence.observe`; the observation in practice to
+ * holders of `workforce.competence.observe` alone, who need no staff file permission. Never on
+ * one's own file.
+ */
+export const careCertificateActions = (permissions: readonly string[], own: boolean) => ({
+  assess: !own && mayRecordStandardStep(permissions, "knowledge"),
+  observe: !own && mayRecordStandardStep(permissions, "observation"),
+});
 
 export const recruitmentShown = (permissions: readonly string[]) =>
   permissions.includes(RECRUITMENT);
