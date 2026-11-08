@@ -523,9 +523,21 @@ export const ReviewRevalidation = z
   .object({ expectedVersion: version, cycleDueOn: isoDate })
   .meta({ id: "ReviewRevalidation" });
 
+/**
+ * Recorded only by the confirmer named on the cycle, acting for themselves, after HR's review
+ * (rule 8, separation of duties).
+ */
 export const ConfirmRevalidation = z
   .object({ expectedVersion: version, cycleDueOn: isoDate, confirmedOn: isoDate })
   .meta({ id: "ConfirmRevalidation" });
+
+/**
+ * HR names who confirms a cycle (`workforce.training.manage`): a colleague other than the nurse
+ * and other than the one naming them; never once confirmed.
+ */
+export const NameRevalidationConfirmer = z
+  .object({ expectedVersion: version, cycleDueOn: isoDate, confirmerId: uuid })
+  .meta({ id: "NameRevalidationConfirmer" });
 export type PutRevalidationEvidence = z.infer<typeof PutRevalidationEvidence>;
 
 export const RevalidationView = z
@@ -536,6 +548,8 @@ export const RevalidationView = z
     confirmation: z.boolean(),
     reviewState: z.enum(["draft", "submitted", "reviewed"]),
     reviewedBy: StaffName.nullable(),
+    /** Who is to confirm this cycle, named by HR; only they record the confirmation. */
+    confirmer: StaffName.nullable(),
     confirmedBy: StaffName.nullable(),
     confirmedOn: isoDate.nullable(),
     daysLeft: z.number().int(),

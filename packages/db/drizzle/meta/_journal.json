@@ -988,6 +988,20 @@
       "when": 1794040822143,
       "tag": "0155_absence_postponed_dates",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1794040823143,
+      "tag": "0156_revalidation_confirmer",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1794040824143,
+      "tag": "0157_certificate_revalidation_security",
+      "breakpoints": true
     }
   ]
 }

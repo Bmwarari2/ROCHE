@@ -34076,6 +34076,9 @@
           "reviewedBy": {
             "$ref": "#/components/schemas/StaffName"
           },
+          "confirmer": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "confirmedBy": {
             "$ref": "#/components/schemas/StaffName"
           },
@@ -34114,6 +34117,7 @@
           "confirmation",
           "reviewState",
           "reviewedBy",
+          "confirmer",
           "confirmedBy",
           "confirmedOn",
           "daysLeft",
@@ -34404,6 +34408,28 @@
         "required": [
           "expectedVersion",
           "cycleDueOn"
+        ]
+      },
+      "NameRevalidationConfirmer": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cycleDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "confirmerId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "cycleDueOn",
+          "confirmerId"
         ]
       },
       "ConfirmRevalidation": {
@@ -98072,13 +98098,93 @@
         }
       }
     },
+    "/v1/workforce/members/{memberId}/care-certificate": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A member's Care Certificate",
+        "description": "workforce.staff_file.read, workforce.staff_file.manage or workforce.competence.observe. The Care Certificate alone, with the staff file's id to record against, so an observer (a team leader or clinical lead) can find and observe it without any staff file permission; 404 when the member has no staff file. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Care Certificate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareCertificateView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workforce/staff-files/{id}/care-certificate/{standardId}": {
       "put": {
         "tags": [
           "workforce"
         ],
         "summary": "Record a Care Certificate standard's assessment or observation",
-        "description": "workforce.staff_file.manage or workforce.competence.observe, never on one's own file, in the caller's own name: the knowledge assessment, then the observation in practice (observers only). Audited.",
+        "description": "Never on one's own file, in the caller's own name: the knowledge assessment (workforce.staff_file.manage or workforce.competence.observe), then the observation in practice (workforce.competence.observe only; no staff file permission needed). Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -100246,13 +100352,201 @@
         }
       }
     },
+    "/v1/workforce/members/{memberId}/revalidation/confirmer": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Name who confirms a nurse's revalidation",
+        "description": "workforce.training.manage, never for oneself, against expectedVersion. A colleague other than the nurse and other than the caller (so nobody makes themselves the confirmer); never once confirmed. Only the named confirmer records the confirmation (rule 8, H-693). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameRevalidationConfirmer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/revalidation/confirmers": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Who may be named a nurse's revalidation confirmer",
+        "description": "workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false,
+            "name": "cycleDueOn",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Who may be named",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColleagueList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workforce/members/{memberId}/revalidation/confirmation": {
       "post": {
         "tags": [
           "workforce"
         ],
         "summary": "Record that you confirmed a nurse's revalidation",
-        "description": "The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.",
+        "description": "Only the confirmer named on the cycle (PUT .../revalidation/confirmer), acting for themselves and in their own name, after HR's review; never the nurse, and never HR unless named (separation of duties). The confirmer holds workforce.training.manage or workforce.supervision.manage, ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out (rule 8, H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.",
         "security": [
           {
             "bearerAuth": []

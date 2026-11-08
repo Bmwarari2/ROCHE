@@ -3,26 +3,25 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   decideProbation,
-  recordCareCertificateStep,
   recordProbationReview,
   recordShadowShift,
   setInductionPlan,
   tickInductionItem,
 } from "@/app/actions/workforce";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { CareCertificateSection } from "@/components/workforce/CareCertificateSection";
 import { WorkforceForm } from "@/components/workforce/WorkforceForm";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
 import {
-  COMPETENCE_OBSERVE,
+  careCertificateActions,
   checklistChip,
   codeLabel,
   codeOptions,
   present,
   STAFF_FILE_MANAGE,
   staffShown,
-  standardChip,
   ukDate,
 } from "@/lib/workforce";
 
@@ -59,7 +58,7 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
   const file = files.data?.items.find((f) => f.id === id);
   const own = file?.member?.id === me.tenantUserId;
   const manages = me.permissions.includes(STAFF_FILE_MANAGE) && !own;
-  const observes = me.permissions.includes(COMPETENCE_OBSERVE) && !own;
+  const may = careCertificateActions(me.permissions, own);
   const path = `/workforce/staff/${id}/induction`;
   const staff = present(colleagues.data?.items)
     .filter((c) => c.id !== file?.member?.id)
@@ -298,70 +297,13 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
           </>
         ) : null}
       </section>
-      <section aria-labelledby="care-certificate" className="flex flex-col gap-3">
-        <h2 id="care-certificate" className="m-0 text-heading-3 font-semibold">
-          {t("workforce.careCertificate.title")}
-        </h2>
-        <p className="m-0 text-body-dense">
-          {induction.careCertificate.complete
-            ? t("workforce.careCertificate.complete", {
-                date: ukDate(induction.careCertificate.completedOn),
-              })
-            : t("workforce.careCertificate.progress", {
-                count: induction.careCertificate.competent,
-              })}
-        </p>
-        <ul className="m-0 flex list-none flex-col gap-3 p-0">
-          {induction.careCertificate.standards.map((s) => (
-            <li key={s.id}>
-              <Card>
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="m-0 text-body font-semibold">{s.title}</h3>
-                    <SafetyChip chip={standardChip(s.status, t)} />
-                  </div>
-                  {(manages || observes) && s.status === "not_started" ? (
-                    <WorkforceForm
-                      headingLevel={4}
-                      title={t("workforce.careCertificate.assess", { standard: s.title })}
-                      path={path}
-                      submit={t("workforce.careCertificate.assess", { standard: s.title })}
-                      done="workforce.careCertificate.assessed"
-                      action={recordCareCertificateStep.bind(null, id, s.id, "knowledge")}
-                      fields={[
-                        {
-                          kind: "date",
-                          name: "on",
-                          label: t("workforce.careCertificate.assessedOn"),
-                          required: true,
-                        },
-                      ]}
-                    />
-                  ) : null}
-                  {observes && s.status === "knowledge_assessed" ? (
-                    <WorkforceForm
-                      headingLevel={4}
-                      title={t("workforce.careCertificate.observe", { standard: s.title })}
-                      path={path}
-                      submit={t("workforce.careCertificate.observe", { standard: s.title })}
-                      done="workforce.careCertificate.observed"
-                      action={recordCareCertificateStep.bind(null, id, s.id, "observation")}
-                      fields={[
-                        {
-                          kind: "date",
-                          name: "on",
-                          label: t("workforce.careCertificate.observedOn"),
-                          required: true,
-                        },
-                      ]}
-                    />
-                  ) : null}
-                </div>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <CareCertificateSection
+        profileId={id}
+        careCertificate={induction.careCertificate}
+        assess={may.assess}
+        observe={may.observe}
+        path={path}
+      />
     </div>
   );
 }

@@ -219,8 +219,47 @@ export async function saveRevalidation(
         reflectiveDiscussion: bool(values, "reflectiveDiscussion"),
         healthAndCharacter: bool(values, "healthAndCharacter"),
         professionalIndemnity: bool(values, "professionalIndemnity"),
-        confirmation: bool(values, "confirmation"),
       },
+    }),
+  );
+}
+
+/** HR names who confirms the cycle (rule 8): never themselves or the nurse; the API checks. */
+export async function nameRevalidationConfirmer(
+  memberId: string,
+  version: number,
+  cycleDueOn: string,
+  values: Values,
+): Promise<ActionResult<unknown>> {
+  const confirmerId = req(values, "confirmerId");
+  if (!isUuid(memberId)) return bad();
+  if (!isUuid(confirmerId)) {
+    return fieldErrors({ confirmerId: t("development.revalidation.confirmerRequired") });
+  }
+  return send((api) =>
+    api.PUT("/v1/workforce/members/{memberId}/revalidation/confirmer", {
+      params: { path: { memberId } },
+      body: { expectedVersion: version, cycleDueOn, confirmerId },
+    }),
+  );
+}
+
+/** The named confirmer records their own confirmation (rule 8, separation of duties). */
+export async function confirmRevalidation(
+  memberId: string,
+  version: number,
+  cycleDueOn: string,
+  values: Values,
+): Promise<ActionResult<unknown>> {
+  if (!isUuid(memberId)) return bad();
+  // The confirmer ticks that they held the discussion; checked here too, not only in the browser.
+  if (!bool(values, "confirm")) {
+    return fieldErrors({ confirm: t("development.revalidation.confirmCheckRequired") });
+  }
+  return send((api) =>
+    api.POST("/v1/workforce/members/{memberId}/revalidation/confirmation", {
+      params: { path: { memberId } },
+      body: { expectedVersion: version, cycleDueOn, confirmedOn: req(values, "confirmedOn") },
     }),
   );
 }

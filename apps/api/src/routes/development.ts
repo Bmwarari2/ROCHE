@@ -1,9 +1,11 @@
 import {
+  ColleagueList,
   ConfirmRevalidation,
   CreateCompetenceSignOff,
   CreateSupervisionRecord,
   CreateTrainingRecord,
   DevelopmentRecord,
+  NameRevalidationConfirmer,
   PutRevalidationEvidence,
   PutTrainingRequirement,
   ReviewRevalidation,
@@ -27,13 +29,22 @@ import {
   trainingRecord,
   trainingRequirement,
 } from "@harbour/db";
-import { competenceRefreshMonths, competenceValidUntil, ukIsoDate } from "@harbour/domain";
+import {
+  type ConfirmerNamingProblem,
+  checkConfirmerNaming,
+  checkRevalidationConfirmation,
+  competenceRefreshMonths,
+  competenceValidUntil,
+  REVALIDATION_CONFIRMING_PERMISSIONS,
+  ukIsoDate,
+} from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
   type AppEnv,
+  refusalOf,
   requireAnyPermission,
   requirePermission,
   type TenantAccess,
@@ -48,6 +59,7 @@ import {
   supervisionsDueFor,
   trainingMatrixFor,
 } from "../services/development";
+import { staffNames } from "../services/staff";
 import { workforceRates } from "../services/staff-files";
 import {
   conflictResponse,
@@ -88,6 +100,8 @@ const A = {
   revalidation: "workforce.revalidation.recorded",
   reviewed: "workforce.revalidation.reviewed",
   confirmed: "workforce.revalidation.confirmed",
+  confirmerNamed: "workforce.revalidation.confirmer_named",
+  confirmersListed: "workforce.revalidation.confirmers_listed",
 } as const;
 
 /**
@@ -100,9 +114,13 @@ async function putRevalidation(
   access: TenantAccess,
   memberId: string,
   input: PutRevalidationEvidence,
+  forSomeoneElse = false,
 ): Promise<void> {
   const { expectedVersion, submit, ...body } = input;
   await change(c, access, A.revalidation, memberId, async (tx) => {
+    // HR's route never writes their own record; refused inside the transaction so it is audited
+    // and answered 403 (the nurse's own route passes false).
+    if (forSomeoneElse && memberId === access.tenantUserId) throw own(A.revalidation, memberId);
     const [existing] = await tx
       .select({
         id: revalidationEvidence.id,
@@ -166,6 +184,7 @@ const MemberParam = z.object({ memberId: z.uuid() });
 const RecordParam = z.object({ memberId: z.uuid(), recordId: z.uuid() });
 const SignOffParam = z.object({ memberId: z.uuid(), signOffId: z.uuid() });
 const SupervisionParam = z.object({ memberId: z.uuid(), supervisionId: z.uuid() });
+const ConfirmerQuery = z.object({ cycleDueOn: z.iso.date().optional() });
 
 const refused = (problem: HttpProblem, action: string, id: string | null, reason: string) =>
   new AuditedRefusal(problem, {
@@ -183,6 +202,31 @@ const own = (action: string, memberId: string) =>
     memberId,
     "own_record",
   );
+
+/** The problem for a refused naming of the confirmer: a plain code each (rule 8). */
+function namingProblem(problem: Exclude<ConfirmerNamingProblem, "own_record">): HttpProblem {
+  switch (problem) {
+    case "already_confirmed":
+      return new HttpProblem(409, "revalidation_confirmed", "This cycle is already confirmed.");
+    case "not_permitted":
+      return problems.forbidden();
+    case "confirmer_not_permitted":
+      return new HttpProblem(
+        422,
+        "confirmer_not_permitted",
+        "Choose someone who manages training or holds supervisions.",
+      );
+    case "names_reviewer":
+      return new HttpProblem(
+        422,
+        "names_reviewer",
+        "Choose someone other than whoever reviewed this revalidation.",
+      );
+    case "names_worker":
+    case "names_self":
+      return new HttpProblem(422, problem, "Choose a colleague other than the nurse and yourself.");
+  }
+}
 
 /** Runs a change; refusals and the database's own (403, 409, 422) are audited. */
 async function change<T>(
@@ -781,8 +825,7 @@ export const developmentRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, TRAINING);
       const { memberId } = c.req.valid("param");
-      if (memberId === access.tenantUserId) throw own(A.revalidation, memberId);
-      await putRevalidation(c, access, memberId, c.req.valid("json"));
+      await putRevalidation(c, access, memberId, c.req.valid("json"), true);
       return c.json(await recordFor(c, access, memberId), 200);
     },
   )
@@ -823,8 +866,31 @@ export const developmentRouter = createRouter()
       const access = await requirePermission(c, TRAINING);
       const { memberId } = c.req.valid("param");
       const body = c.req.valid("json");
-      if (memberId === access.tenantUserId) throw own(A.reviewed, memberId);
       await change(c, access, A.reviewed, memberId, async (tx) => {
+        // Refused inside the transaction, so it is audited and answered 403.
+        if (memberId === access.tenantUserId) throw own(A.reviewed, memberId);
+        // Review and confirmation are separate duties: the named confirmer never reviews.
+        const [named] = await tx
+          .select({ confirmerId: revalidationEvidence.confirmerId })
+          .from(revalidationEvidence)
+          .where(
+            and(
+              eq(revalidationEvidence.workerId, memberId),
+              eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
+            ),
+          );
+        if (named?.confirmerId === access.tenantUserId) {
+          throw refused(
+            new HttpProblem(
+              403,
+              "confirmer_reviews",
+              "The confirmer named for this revalidation cannot also review it.",
+            ),
+            A.reviewed,
+            memberId,
+            "confirmer_reviews",
+          );
+        }
         const [row] = await tx
           .update(revalidationEvidence)
           .set({ reviewState: "reviewed", reviewedBy: access.tenantUserId, reviewedAt: new Date() })
@@ -850,12 +916,143 @@ export const developmentRouter = createRouter()
   )
   .openapi(
     createRoute({
+      method: "put",
+      path: "/v1/workforce/members/{memberId}/revalidation/confirmer",
+      tags: ["workforce"],
+      summary: "Name who confirms a nurse's revalidation",
+      description:
+        "workforce.training.manage, never for oneself, against expectedVersion. A colleague other than the nurse and other than the caller (so nobody makes themselves the confirmer); never once confirmed. Only the named confirmer records the confirmation (rule 8, H-693). Audited.",
+      security,
+      request: {
+        params: MemberParam,
+        body: { content: { "application/json": { schema: NameRevalidationConfirmer } } },
+      },
+      responses: developmentResponses,
+    }),
+    async (c) => {
+      const access = await requirePermission(c, TRAINING);
+      const { memberId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      await change(c, access, A.confirmerNamed, memberId, async (tx) => {
+        const [current] = await tx
+          .select({
+            id: revalidationEvidence.id,
+            confirmation: revalidationEvidence.confirmation,
+            reviewedBy: revalidationEvidence.reviewedBy,
+          })
+          .from(revalidationEvidence)
+          .where(
+            and(
+              eq(revalidationEvidence.workerId, memberId),
+              eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
+            ),
+          );
+        // Whether the person named may confirm (HR or a line manager), as the database counts it.
+        const eligible = await tx.execute<{ ok: boolean }>(
+          sql`SELECT app.member_may_confirm_revalidation(${body.confirmerId}::uuid) AS ok`,
+        );
+        const check = checkConfirmerNaming({
+          actorId: access.tenantUserId,
+          actorPermissions: [TRAINING],
+          workerId: memberId,
+          confirmerId: body.confirmerId,
+          confirmerMayConfirm: eligible.rows[0]?.ok === true,
+          reviewedBy: current?.reviewedBy ?? null,
+          confirmed: current?.confirmation ?? false,
+        });
+        if (!check.ok) {
+          if (check.problem === "own_record") throw own(A.confirmerNamed, memberId);
+          throw refused(namingProblem(check.problem), A.confirmerNamed, memberId, check.problem);
+        }
+        const [row] = await tx
+          .update(revalidationEvidence)
+          .set({ confirmerId: body.confirmerId })
+          .where(
+            and(
+              eq(revalidationEvidence.workerId, memberId),
+              eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
+              eq(revalidationEvidence.version, body.expectedVersion),
+              eq(revalidationEvidence.confirmation, false),
+            ),
+          )
+          .returning({ id: revalidationEvidence.id });
+        if (!row) {
+          throw refused(problems.conflict(), A.confirmerNamed, memberId, "version_conflict");
+        }
+        await audit(c, tx, access, {
+          action: A.confirmerNamed,
+          resourceType: "revalidation_evidence",
+          resourceId: row.id,
+          scopeExtra: { memberId },
+        });
+      });
+      return c.json(await recordFor(c, access, memberId), 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/workforce/members/{memberId}/revalidation/confirmers",
+      tags: ["workforce"],
+      summary: "Who may be named a nurse's revalidation confirmer",
+      description:
+        "workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.",
+      security,
+      request: { params: MemberParam, query: ConfirmerQuery },
+      responses: {
+        200: jsonBody(ColleagueList, "Who may be named"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, TRAINING);
+      const { memberId } = c.req.valid("param");
+      const { cycleDueOn } = c.req.valid("query");
+      const items = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          if (memberId === access.tenantUserId) throw own(A.confirmersListed, memberId);
+          const [cycle] = cycleDueOn
+            ? await tx
+                .select({ reviewedBy: revalidationEvidence.reviewedBy })
+                .from(revalidationEvidence)
+                .where(
+                  and(
+                    eq(revalidationEvidence.workerId, memberId),
+                    eq(revalidationEvidence.cycleDueOn, cycleDueOn),
+                  ),
+                )
+            : [];
+          const found = await tx.execute<{ id: string }>(
+            sql`SELECT id FROM app.revalidation_confirmer_candidates() AS id`,
+          );
+          const left = new Set([memberId, access.tenantUserId, cycle?.reviewedBy ?? null]);
+          const ids = found.rows.map((r) => r.id).filter((id) => !left.has(id));
+          const names = await staffNames(tx, ids);
+          // Audited without names: who read the list, never who was on it.
+          await audit(c, tx, access, {
+            action: A.confirmersListed,
+            resourceType: "revalidation_evidence",
+            resourceId: memberId,
+            scopeExtra: { memberId },
+          });
+          return ids
+            .map((id) => names(id))
+            .filter((n): n is NonNullable<typeof n> => n !== null)
+            .sort((x, y) => x.displayName.localeCompare(y.displayName, "en-GB"));
+        }),
+      );
+      return c.json({ items }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
       method: "post",
       path: "/v1/workforce/members/{memberId}/revalidation/confirmation",
       tags: ["workforce"],
       summary: "Record that you confirmed a nurse's revalidation",
       description:
-        "The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.",
+        "Only the confirmer named on the cycle (PUT .../revalidation/confirmer), acting for themselves and in their own name, after HR's review; never the nurse, and never HR unless named (separation of duties). The confirmer holds workforce.training.manage or workforce.supervision.manage, ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out (rule 8, H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.",
       security,
       request: {
         params: MemberParam,
@@ -867,9 +1064,57 @@ export const developmentRouter = createRouter()
       const access = await requireAnyPermission(c, [TRAINING, SUPERVISION]);
       const { memberId } = c.req.valid("param");
       const body = c.req.valid("json");
-      if (memberId === access.tenantUserId) throw own(A.confirmed, memberId);
-      notFuture(body.confirmedOn, A.confirmed, memberId);
       await change(c, access, A.confirmed, memberId, async (tx) => {
+        // Refusals inside the transaction, so each is audited and answered as a problem.
+        if (memberId === access.tenantUserId) throw own(A.confirmed, memberId);
+        notFuture(body.confirmedOn, A.confirmed, memberId);
+        const [current] = await tx
+          .select({
+            confirmerId: revalidationEvidence.confirmerId,
+            reviewedBy: revalidationEvidence.reviewedBy,
+            reviewState: revalidationEvidence.reviewState,
+            confirmation: revalidationEvidence.confirmation,
+          })
+          .from(revalidationEvidence)
+          .where(
+            and(
+              eq(revalidationEvidence.workerId, memberId),
+              eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
+            ),
+          );
+        if (!current) throw refused(problems.conflict(), A.confirmed, memberId, "version_conflict");
+        const check = checkRevalidationConfirmation({
+          actorId: access.tenantUserId,
+          actorPermissions: REVALIDATION_CONFIRMING_PERMISSIONS.filter(
+            (p) => refusalOf(access, p) === null,
+          ),
+          workerId: memberId,
+          confirmerId: current.confirmerId,
+          reviewedBy: current.reviewedBy,
+          reviewState: current.reviewState as "draft" | "submitted" | "reviewed",
+          confirmed: current.confirmation,
+        });
+        if (!check.ok) {
+          // Only the named confirmer confirms (separation of duties): anyone else is refused.
+          throw refused(
+            check.problem === "not_reviewed" || check.problem === "already_confirmed"
+              ? problems.conflict()
+              : check.problem === "reviewer_confirms"
+                ? new HttpProblem(
+                    403,
+                    "reviewer_confirms",
+                    "Whoever reviewed this revalidation cannot also confirm it.",
+                  )
+                : new HttpProblem(
+                    403,
+                    "not_the_confirmer",
+                    "Only the confirmer named for this revalidation can record the confirmation.",
+                  ),
+            A.confirmed,
+            memberId,
+            check.problem,
+          );
+        }
         const [row] = await tx
           .update(revalidationEvidence)
           .set({
@@ -883,6 +1128,7 @@ export const developmentRouter = createRouter()
               eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
               eq(revalidationEvidence.version, body.expectedVersion),
               eq(revalidationEvidence.confirmation, false),
+              eq(revalidationEvidence.confirmerId, access.tenantUserId),
               // The confirmation follows HR's review (security review, finding 1).
               eq(revalidationEvidence.reviewState, "reviewed"),
             ),
