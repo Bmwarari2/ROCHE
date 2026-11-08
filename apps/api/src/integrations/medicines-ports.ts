@@ -1,3 +1,4 @@
+import { type Database, type Transaction, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import type {
   CompetenceOverride,
@@ -5,15 +6,17 @@ import type {
   DmdProductRef,
   MedicinesCompetence,
 } from "@harbour/domain";
+import { competenceDecision, ukIsoDate } from "@harbour/domain";
+import { memberSignOffs } from "../services/competence-port";
 
 /**
  * The two inputs the medicines rules take from outside the medicines module (medicines.md
  * section 3; slice 16), each behind a port so the module never joins another's tables:
  *
  * - **Competence** (workforce, slice 17; ADR-0085): the signed-in member's medicines competence
- *   at the time of the action, read on the server, never from the request or the device. Until
- *   the workforce port exists, production uses `unavailableCompetence`, which answers `not_held`
- *   for everyone, so a second check or a completion is refused rather than allowed on a guess.
+ *   at the time of the action, read on the server, never from the request or the device.
+ *   Production reads the workforce sign-offs (`workforceCompetence`, H-1532); with no database
+ *   `unavailableCompetence` answers `not_held` for everyone, so nothing is allowed on a guess.
  * - **dm+d facts** (slice 10; ADR-0080): the routes and dose units dm+d permits for a product.
  *   Until the reference data lands, production uses `unavailableDmd`, which knows no product, so
  *   nothing is transcribed without dm+d. Development and tests use the fixture.
@@ -23,7 +26,16 @@ import type {
  */
 
 export interface MedicinesCompetencePort {
-  forMember(tenantId: string, tenantUserId: string, at: Date): Promise<MedicinesCompetence>;
+  /**
+   * The member's medicines competence at `at`. Inside a request's transaction pass it as `tx`, so
+   * the read runs on that connection and snapshot, never a second one while a lock is held.
+   */
+  forMember(
+    tenantId: string,
+    tenantUserId: string,
+    at: Date,
+    tx?: Transaction,
+  ): Promise<MedicinesCompetence>;
   /**
    * The competence override in force for the member at `at`, recorded in workforce by a holder of
    * `medicines.override.approve` (rule 22; ADR-0085), or null. Never taken from the request.
@@ -63,6 +75,41 @@ export const unavailableCompetence: MedicinesCompetencePort = {
   forMember: async () => "not_held",
   overrideFor: async () => null,
 };
+
+/**
+ * Medicines competence from the workforce sign-offs (H-1532; ADR-0085; HZ-119): the member's
+ * `medicines_administration` sign-offs and withdrawals, judged by `competenceDecision` through the
+ * workforce competence port's reader, the same rule the phone applies to the same synced rows. A
+ * record is judged on the day of the event it records, never later than the server's today, so a
+ * dose given offline while competent is not refused because the competence lapsed before it
+ * synced; callers ask for the member acting now with the server's now. A withdrawal leaves
+ * `not_held`, which no override clears. Inside a request's transaction the caller passes it. Overrides have no workforce record yet,
+ * so none is in force.
+ */
+export function workforceCompetence(db: Database): MedicinesCompetencePort {
+  const judge = async (tx: Transaction, tenantUserId: string, at: Date) => {
+    const signOffs = await memberSignOffs(tx, tenantUserId, "medicines_administration");
+    // A record of what happened at `at` is judged on that day, never later than the server's
+    // now: a dose given offline while competent, synced after a lapse, is not refused (clinical
+    // review of H-1532, H1); a time in the future is held to today.
+    const now = new Date();
+    const day = ukIsoDate(at.getTime() <= now.getTime() ? at : now);
+    const decision = competenceDecision(signOffs, day);
+    if (decision.allowed) return "current" as const;
+    return decision.reason === "expired" ? ("expired" as const) : ("not_held" as const);
+  };
+  return {
+    async forMember(tenantId, tenantUserId, at, tx) {
+      if (tx) return judge(tx, tenantUserId, at);
+      return withRequestContext(
+        db,
+        { tenantId, userId: null, scope: "tenant", locationIds: [] },
+        (own) => judge(own, tenantUserId, at),
+      );
+    },
+    overrideFor: async () => null,
+  };
+}
 
 /** No dm+d reference data yet: no product is known, so nothing is transcribed. */
 export const unavailableDmd: DmdFactsPort = {
@@ -173,10 +220,10 @@ export const fixtureDmd: DmdFactsPort = {
  * The fixtures stand in only when `MEDICINES_FIXTURES` is on, which production refuses; otherwise
  * the ports fail closed until the real sources exist.
  */
-export function createMedicinesPorts(fixtures: boolean): MedicinesPorts {
-  return fixtures
-    ? { competence: fixedCompetence(demoCompetence()), dmd: fixtureDmd }
-    : { competence: unavailableCompetence, dmd: unavailableDmd };
+export function createMedicinesPorts(fixtures: boolean, db?: Database): MedicinesPorts {
+  if (fixtures) return { competence: fixedCompetence(demoCompetence()), dmd: fixtureDmd };
+  // Production reads the workforce sign-offs (H-1532); with no database it fails closed.
+  return { competence: db ? workforceCompetence(db) : unavailableCompetence, dmd: unavailableDmd };
 }
 
 /**

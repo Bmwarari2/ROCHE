@@ -741,6 +741,8 @@
     "mobile.meds.issueContent",
     "mobile.meds.issueAdvice",
     "mobile.meds.cdNotPermitted",
+    "mobile.meds.cdRecordingOff",
+    "mobile.meds.cdRecordingUnknown",
     "mobile.meds.cdWitnessRequired",
     "mobile.meds.cdWitnessRulesUnknown",
     "mobile.meds.conflictCdOnWeb"

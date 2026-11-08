@@ -48543,6 +48543,87 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/controlled-drugs/recording": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Turn controlled drug recording on or off at a home
+     * @description Owner or Registered Manager: `medicines.record.manage` and `platform.location.manage` at the home, with a fresh second sign-in step (H-1517, H-1518; HZ-115, HZ-008). One register is the record: turning it on says the paper register is counted, witnessed and closed now, that each balance is carried into Thapsus Care's register before the next dose, and that the home's phones are updated; turning it off needs a reason and says the paper register is restarted with each balance. The reason is kept with the setting, not in the audit trail. Audited either way, and so is every refusal once the request is well formed. Elsewhere 404.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["CdRecordingChange"];
+        };
+      };
+      responses: {
+        /** @description Recording as it now stands at the home */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CdRecordingState"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/locations/{id}/medicine-round": {
     parameters: {
       query?: never;
@@ -77575,6 +77656,30 @@ export interface components {
       reason: string | null;
       witness: components["schemas"]["CdWitness"];
     };
+    CdRecordingState: {
+      /** Format: uuid */
+      locationId: string;
+      enabled: boolean;
+      changed: boolean;
+    };
+    CdRecordingChange:
+      | {
+          /** @enum {boolean} */
+          enabled: true;
+          /** @enum {boolean} */
+          paperRegisterClosed: true;
+          /** @enum {boolean} */
+          balancesToCarryForward: true;
+          /** @enum {boolean} */
+          phonesUpdated: true;
+        }
+      | {
+          /** @enum {boolean} */
+          enabled: false;
+          reason: string;
+          /** @enum {boolean} */
+          paperRegisterRestarted: true;
+        };
     LocationMedicineRound: {
       /** Format: date-time */
       from: string;
