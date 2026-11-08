@@ -218,7 +218,10 @@ holders of `workforce.training.manage`, `workforce.competence.observe`,
 (ADR-0136, migration 0161): organisation-wide for a role with no person scope (HR's), a
 tenant-scoped role or one held organisation-wide; otherwise only the members who work at the
 holder's homes, as `app.works_at` counts them (a role in force there or across the organisation,
-or that home on their staff profile). The member reads their own (`workforce.self.read`); written as section 2b says, never
+or that home on their staff profile; an access grant at a home counts as a role there). Members
+with an organisation-wide role (the HR director, the Nominated Individual) are therefore in every
+home's scope. Writes follow the same scope in the policies themselves. The member reads their own
+(`workforce.self.read`); written as section 2b says, never
 by the member about themselves. None of them is special category data, so they need MFA only where
 the role does. Medicines and scheduling never read these tables: they ask the competence port
 (ADR-0085).
@@ -1045,7 +1048,7 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
 | Development reads (the training matrix and the supervisions list) were organisation-wide for their readers (migration 0073), and reminders about a member were seen at every home (migration 0079) | Closed by ADR-0136 (provisional, H-1609) and migration 0161: records, lists and reminder tasks about a member follow the reader's attribute scope | - |
 | No team or line-manager scope for staff | Scope kinds are tenant, location, assigned, self and none, so a team lead's scope for development reads is their home (ADR-0136) | A line-manager field on the staff file, then a scope that uses it |
-| Development write policies still check the permission anywhere | Every API write returns or first reads the row, so the read policy refuses it outside scope (an audited 403; ADR-0136) | Narrow the write policies to `app.holds_staff_permission_for` in a later migration |
+| LMS import is for organisation-wide holders only | A home's manager is refused (403 `lms_import_organisation_wide`, audited; ADR-0136): its learner links and rows name members at every home | Scope each row by its worker, if homes need to import their own staff |
 | Supervision and appraisal reminders go to HR's role, not the member's line manager | Shown on the training record (slice 57), across staff on `/training/supervisions` and raised as reminder tasks for holders of `workforce.supervision.manage` (WORK-009, 08/11/2026) | Address the reminder to the member's line manager once the staff file records one |
 | Supervision notes are not read by tenant-wide roles (owner, group executive) for holding `workforce.supervision.manage` alone (slice 57, ADR-0114) | They see that a supervision happened, not what was said | A separate note permission, if wanted (H-1044) |
 | The matrix offers the built-in roles as filters; an organisation's own roles show by key on the requirements screen (slice 57) | A custom role's key, not its name, shows | A roles list in the API (with the role design screens) |
@@ -1395,6 +1398,12 @@ records, from a file the platform exports or by a pull through the learning plat
 platform is the organisation's own processor, not a Thapsus sub-processor, unless the DPO decides
 otherwise (H-520; ADR-0102). Nothing here is clinical: an imported completion is a training record
 like any other (workforce.md rule 5), and it never creates a competence sign-off (HZ-119, HZ-124).
+
+LMS import is for organisation-wide holders of `workforce.training.manage` only (HR's role with no
+person scope, the owner, or a role held organisation-wide; ADR-0136, migration 0161): its learner
+links and rows name members at every home. A home's manager is refused with 403
+`lms_import_organisation_wide`, audited as `workforce.lms_import.refused`, and the database holds
+the same rule.
 
 ### 13.1 Records
 

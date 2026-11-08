@@ -26,6 +26,30 @@ the lead assigned on 08/11/2026.
 - Docs: workforce.md (rule 7, the API notes, the screens table, known gaps), records of processing
   (access narrowed), data standards, STATUS, the feature register, human actions (H-1609).
 
+## Security review round 1 (applied in one commit)
+
+- LMS import is for organisation-wide holders of `workforce.training.manage` only, in the API (403
+  `lms_import_organisation_wide`, audited as `workforce.lms_import.refused`) and in row-level
+  security (`app.holds_staff_permission_everywhere`): the simpler of the two options offered. The
+  LMS tests give the Registered Manager HR's role and check a home-only manager is refused.
+- Writes follow the scope in the policies themselves (training records, supervisions, sign-offs,
+  withdrawals, revalidation evidence, training certificates). The HZ-119 sign-off guard looks up
+  withdrawals through a definer, `app.competence_withdrawn_after` (owned by
+  `harbour_workforce_definer`, which now reads `competence_sign_off` and `competence_withdrawal`).
+  The hazard log's HZ-119 verification names the new test.
+- ADR-0136 and H-1609 say that members with an organisation-wide role (the HR director, the
+  Nominated Individual) are in every home's scope.
+- Performance: one set-based definer, `app.development_scope_members(permissions, members)`, finds
+  the reader's homes once; `holds_staff_permission_for` and `reads_development_of` wrap it; the
+  lists ask it once per list; the task policy tests cheap columns before asking it, and reuses
+  `app.task_visible_with` for every other task. Policies change with ALTER POLICY, keeping their
+  roles.
+- Grants: `harbour_care_definer` and `harbour_platform_definer` (the context definers that read or
+  route tasks) may execute the definer; a test runs both against tasks about members.
+- The database scope test now covers sign-offs, withdrawals, revalidation evidence, e-learning
+  attempts, earlier versions and certificates, an acting-up access grant and an assigned-scope
+  role (none); agency workers hold location roles, so the home case covers them.
+
 ## Checks
 
 See the PR's test evidence.

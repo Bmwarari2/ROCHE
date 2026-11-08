@@ -6,7 +6,7 @@ consulted: security reviewer (agent); owner to confirm (H-1609)
 informed: engineering
 ---
 
-# Development reads follow attribute scope
+# Development reads and writes follow attribute scope
 
 ## Context and problem statement
 
@@ -46,19 +46,35 @@ new data.
 
 - **Organisation-wide holders keep the whole organisation.** A role with no person scope (HR's), a
   tenant-scoped role (the owner's), or a role or grant held organisation-wide.
-- **A holder at a home reads the members who work there**, as `app.works_at` (migration 0115) counts
-  it: a role in force at that home or across the organisation, or that home on their staff profile.
-  They read no one else's development records.
+- **A holder at a home reads and writes the records of the members who work there**: a role there, or
+  an access grant there (acting up, for example). "Works there" is as `app.works_at` (migration 0115)
+  counts it: a role in force at that home or across the organisation, or that home on their staff
+  profile. They read and write no one else's development records.
+- **Members with an organisation-wide role are in every home's scope.** For example, the HR director
+  or the Nominated Individual hold organisation-wide roles, so every home's manager reads their
+  training, competence and supervision records, as `app.works_at` counts them. The owner confirms
+  this under H-1609.
+- **Writes follow the same scope in the policies themselves** (training records, supervisions,
+  competence sign-offs and withdrawals, revalidation evidence, training certificates), not only
+  through the read policy. The HZ-119 sign-off guard looks up withdrawals with definer rights
+  (`app.competence_withdrawn_after`), so a narrower read never hides a withdrawal from it.
+- **LMS import is for organisation-wide holders of `workforce.training.manage` only**, in the API
+  (403 `lms_import_organisation_wide`, audited) and in row-level security
+  (`app.holds_staff_permission_everywhere`). Its learner links and rows name members across every
+  home, and a commit by a home's manager would otherwise fail on members out of scope. This is the
+  simpler of the two options the security review offered (the other: scope each row by its worker).
 - **A member reads their own** (`workforce.self.read`), as before.
 - **Assigned-people and self scopes give no development reads**, as before.
 - **The reminder tasks about a member** (`workforce.training_expiry`, `workforce.competence_expiry`,
   `workforce.supervision_due`: source `tenant_user`) are visible only to holders whose scope covers
   that member. A workforce task about no member keeps the rule of migration 0079.
-- **Enforced twice.** Migration 0161 adds `app.holds_staff_permission_for(permission, member)` (a
-  definer owned by `harbour_workforce_definer`, ADR-0133) and `app.reads_development_of(member)`,
-  and changes the read policies of the development tables, their earlier versions, e-learning,
-  training certificates and the task policy. The API's matrix, supervisions list and member record
-  read the same predicate, so the lists match row-level security.
+- **Enforced twice.** Migration 0161 adds `app.development_scope_members(permissions, members)` (a
+  set-based definer owned by `harbour_workforce_definer`, ADR-0133: the reader's homes are found
+  once), with `app.holds_staff_permission_for`, `app.reads_development_of` and
+  `app.holds_staff_permission_everywhere` over it. It changes the read and write policies of the
+  development tables, their earlier versions, e-learning, training certificates, LMS import and
+  the task policy. The API's matrix and supervisions list ask the same definer once per list, and a
+  member's record asks it once, so the lists match row-level security.
 
 ### Consequences
 
@@ -67,22 +83,25 @@ new data.
 - Good: the reminder task visibility question recorded in WORK-009 slice 2 (a reminder about a
   member was visible to every holder at any home) is closed without giving the task a location,
   which would have shown it to everyone at the home (`app.task_visible`, migration 0008).
-- Neutral: a member who works across the organisation (an organisation-wide role) is in every
-  home's scope, as `app.works_at` counts them.
+- Neutral: a member who works across the organisation (an organisation-wide role, such as the HR
+  director or the Nominated Individual) is in every home's scope, as `app.works_at` counts them.
+- Neutral: a home's manager no longer runs LMS imports; HR or the owner does.
 - Bad: there is no team or line-manager scope for staff (scope kinds are tenant, location, assigned,
   self and none), so a team lead's scope is their home. Option 3 needs a line-manager field first;
   it stays a known gap in workforce.md.
-- Neutral: write policies still check the permission anywhere, but every development write in the
-  API returns or first reads the row, so the read policy refuses it outside scope (an audited 403,
-  tested for a training record). Narrowing the write policies themselves is left for a later
-  migration.
+- Neutral: a revalidation confirmer named at another home cannot confirm, since the confirmation is
+  a write in the nurse's scope; HR names a confirmer who works where the nurse does.
 
 ### Confirmation
 
-`packages/db/test/development-scope.test.ts` (HR, a tenant-scoped holder, a home's manager, the
-member, another organisation; records and reminder tasks) and
+`packages/db/test/development-scope.test.ts` (HR, a tenant-scoped holder, a home's manager, an
+acting-up access grant, an assigned-scope role, the member and another organisation, across the
+training, supervision, sign-off, withdrawal, revalidation, e-learning, earlier-version and
+certificate tables and the reminder tasks; out-of-scope writes refused without RETURNING; the
+HZ-119 guard; the context definers that read tasks) and
 `apps/api/test/development-scope.test.ts` (the same through the supervisions list, the training
-matrix, the member's record and the tasks list); `definer-acls.test.ts` lists the new definer.
+matrix, the member's record and the tasks list); `apps/api/test/lms-import.test.ts` (a home's manager
+refused in words, audited); `definer-acls.test.ts` lists the new definers and grants.
 
 ## More information
 

@@ -80,6 +80,38 @@ import { audit, dbCode } from "./people-shared";
  */
 
 const TRAINING = "workforce.training.manage";
+
+/**
+ * LMS import names learners across every home, so it is for organisation-wide holders of
+ * workforce.training.manage only (ADR-0136): HR's role with no person scope, a tenant-scoped role,
+ * or one held organisation-wide. A home's manager is refused in words, audited; the database
+ * holds the same rule (migration 0161).
+ */
+async function requireOrganisationTraining(c: Context<AppEnv>): Promise<TenantAccess> {
+  const access = await requirePermission(c, TRAINING);
+  const everywhere = await withTenant(c, async (tx) => {
+    const result = await tx.execute<{ ok: boolean }>(
+      sql`SELECT app.holds_staff_permission_everywhere(${TRAINING}) AS ok`,
+    );
+    return result.rows[0]?.ok === true;
+  });
+  if (!everywhere) {
+    await writeAudit(c.get("services").appPool, access, {
+      action: "workforce.lms_import.refused",
+      outcome: "denied",
+      resourceType: "lms_import",
+      reason: "lms_import_organisation_wide",
+      requestId: c.get("requestId"),
+    });
+    throw new HttpProblem(
+      403,
+      "lms_import_organisation_wide",
+      "Only an organisation-wide training lead imports from a learning platform.",
+      "Importing from a learning platform covers staff at every home, so it is for HR or the owner. Ask them to run the import.",
+    );
+  }
+  return access;
+}
 const A = {
   sourceCreated: "workforce.lms_source.created",
   sourceEnded: "workforce.lms_source.ended",
@@ -462,7 +494,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsSourceList, "Sources"),
     }),
     async (c) => {
-      await requirePermission(c, TRAINING);
+      await requireOrganisationTraining(c);
       const items = await withTenant(c, async (tx) =>
         (
           await tx
@@ -488,7 +520,7 @@ export const lmsImportRouter = createRouter()
       responses: created(LmsSourceItem, "Added"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const body = c.req.valid("json");
       if ((body.kind === "api") !== (body.externalOrganisationId !== null)) {
         throw problems.invalid(
@@ -532,7 +564,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsSourceItem, "Ended"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const { version } = c.req.valid("json");
       const item = await change(c, access, A.sourceEnded, id, async (tx) => {
@@ -571,7 +603,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsCourseMapList, "Mappings"),
     }),
     async (c) => {
-      await requirePermission(c, TRAINING);
+      await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const items = await withTenant(c, async (tx) => {
         await sourceOf(tx, id);
@@ -602,7 +634,7 @@ export const lmsImportRouter = createRouter()
       responses: created(LmsCourseMapItem, "Mapped"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       if (checkCourseMapping(body.topic, body.tier)) {
@@ -644,7 +676,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsCourseMapItem, "Changed"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id, mapId } = c.req.valid("param");
       const { version, ...body } = c.req.valid("json");
       if (checkCourseMapping(body.topic, body.tier)) {
@@ -689,7 +721,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsLearnerLinkList, "Links"),
     }),
     async (c) => {
-      await requirePermission(c, TRAINING);
+      await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const items = await withTenant(c, async (tx) => {
         await sourceOf(tx, id);
@@ -720,7 +752,7 @@ export const lmsImportRouter = createRouter()
       responses: created(LmsLearnerLinkItem, "Linked"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const item = await change(c, access, A.learnerLinked, id, async (tx) => {
@@ -767,7 +799,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsLearnerLinkItem, "Unlinked"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id, linkId } = c.req.valid("param");
       const item = await change(c, access, A.learnerUnlinked, linkId, async (tx) => {
         await sourceOf(tx, id, true);
@@ -806,7 +838,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsImportList, "Imports"),
     }),
     async (c) => {
-      await requirePermission(c, TRAINING);
+      await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const items = await withTenant(c, async (tx) => {
         await sourceOf(tx, id);
@@ -837,7 +869,7 @@ export const lmsImportRouter = createRouter()
       responses: created(LmsImportDetail, "Staged and dry run"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const { format, content } = c.req.valid("json");
       const today = ukIsoDate(new Date());
@@ -874,7 +906,7 @@ export const lmsImportRouter = createRouter()
       responses: created(LmsImportDetail, "Staged and dry run"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const adapter = c.get("services").learningPlatform;
       const source = await withTenant(c, (tx) => sourceOf(tx, id));
@@ -937,7 +969,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsImportDetail, "The import"),
     }),
     async (c) => {
-      await requirePermission(c, TRAINING);
+      await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       return c.json(await withTenant(c, (tx) => detailOf(tx, id)), 200);
     },
@@ -955,7 +987,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsImportDetail, "Dry run"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const detail = await change(c, access, A.dryRun, id, async (tx) => {
         const [imp] = await tx.select().from(lmsImport).where(eq(lmsImport.id, id)).for("update");
@@ -989,7 +1021,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsCommitResult, "Imported"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const { dryRunNumber } = c.req.valid("json");
       const stale = (reason: string) =>
@@ -1139,7 +1171,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsImportDetail, "Skipped"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id, rowId } = c.req.valid("param");
       const { reason } = c.req.valid("json");
       const detail = await change(c, access, A.skipped, id, async (tx) => {
@@ -1183,7 +1215,7 @@ export const lmsImportRouter = createRouter()
       responses: ok(LmsImportDetail, "Discarded"),
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { id } = c.req.valid("param");
       const { version } = c.req.valid("json");
       const detail = await change(c, access, A.discarded, id, async (tx) => {
@@ -1218,7 +1250,7 @@ export const lmsImportRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, TRAINING);
+      const access = await requireOrganisationTraining(c);
       const { memberId, recordId } = c.req.valid("param");
       const { title } = c.req.valid("query");
       if (memberId === access.tenantUserId) {

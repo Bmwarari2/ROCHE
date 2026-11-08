@@ -3534,6 +3534,7 @@ person receiving care.
 | `apps/api/test/medicine-administrations.test.ts`: `hazard HZ-119 competence from the port`: `refuses someone with no sign-off, and records under an override of an expired one, flagged` (competence and any override read from the port at the time, never the request; the override stored with the record); `hazards HZ-004 and HZ-119 a dose recorded after it was given (#162)` (a time before the server's and a reason; the recorder's competence now; always flagged and escalated; refused from a recorder without current competence) | Passing (Phase 2 slice 22) |
 | `apps/api/test/controlled-drugs.test.ts`: `hazard HZ-119 refuses a witness whose medicines competence is not current` (a controlled drugs witness needs current competence from the port) | Passing (Phase 2 slice 34) |
 | `apps/web/src/lib/medication-errors.test.ts`: `hazard HZ-119 counts overrides per member, a member without a name said so`, and the override report on the web (slice 55) | Passing (Phase 2 slice 55) |
+| `packages/db/test/development-scope.test.ts`: `hazard HZ-119 still refuses a sign-off backdated before a withdrawal, whoever inserts it` (the sign-off guard looks up withdrawals with definer rights, `app.competence_withdrawn_after`, so attribute-scoped reads never hide one from it; ADR-0136, migration 0161) | Passing (08/11/2026) |
 
 ---
 ## HZ-121 Medicines not reconciled after admission, transfer or return from hospital
