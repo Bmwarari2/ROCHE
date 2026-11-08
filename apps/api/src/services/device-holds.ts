@@ -118,6 +118,8 @@ export const KEY_LOST_TASK_KIND = "sync.device_key_lost";
 export const KEY_LOST_ACTIONS = {
   recorded: "sync.device.key_lost",
   raised: "sync.device_key_lost.raised",
+  /** A hold task of the lost database's device, linked to the review (left open). */
+  linked: "sync.device_hold.key_lost_linked",
 } as const;
 /** The deletion record kind a lost key writes (`DEVICE_DISCARD_KINDS`). */
 export const KEY_INVALIDATED_KIND = "key_invalidated" as const;
@@ -1410,12 +1412,12 @@ export type KeyLostOutcome =
  * - The owner counts only when on the staff and the sender or bound to the device; otherwise the
  *   name is audited as a claim and the record names no owner (security review M1). The device
  *   counts only when the sender or that owner is bound to it, else it is audited as a claim (L2).
- * - The count is the device's, else the bound device's last report; the review is urgent unless
- *   that count is 0 (clinical review H3).
+ * - The count is the higher of the device's and the bound device's last report; the review is
+ *   always urgent (clinical reviews H3 and re-review M1).
  * - The review goes where the owner worked, from the hold's locations, else where the sender works
- *   (`holdLocations`), for the holders of `safety.incident.manage`; no later report closes it, and
- *   its sender cannot (tasks route). The old device's hold tasks close as superseded by it when the
- *   device counts, since that device will never report again (clinical review M6).
+ *   (`holdLocations`), for the holders of `safety.incident.manage`; no later report closes it,
+ *   and neither its sender nor the owner can (tasks route). The old device's open hold tasks are
+ *   linked to it, and left for whoever may close them (clinical review M6, security re-review).
  */
 export async function recordKeyLost(
   db: Db,
@@ -1434,6 +1436,8 @@ export async function recordKeyLost(
       .where(eq(deviceDiscardRecord.discardId, id))
       .limit(1);
     if (record && record.kind !== KEY_INVALIDATED_KIND) return { outcome: "other_deletion" };
+    // Only its sender's replay raises a missing review (security re-review L-b).
+    if (record && record.senderTenantUserId !== sender) return { outcome: "replay", tasks: 0 };
     const replay = record !== undefined;
     if (!record) {
       await keyLostQuota.take(tx, sender);
@@ -1444,7 +1448,7 @@ export async function recordKeyLost(
             await tx
               .select({ id: tenantUser.id })
               .from(tenantUser)
-              .where(eq(tenantUser.id, claimedOwner))
+              .where(and(eq(tenantUser.id, claimedOwner), eq(tenantUser.status, "active")))
           ).length > 0
         : false;
       const ownerBound =
@@ -1458,11 +1462,13 @@ export async function recordKeyLost(
         ((await boundToDevice(tx, claimedDevice, sender)) ||
           (owner !== null && (await boundToDevice(tx, claimedDevice, owner))));
       const deviceId = deviceBound ? claimedDevice : null;
+      // The higher of the device's count and its last report: the phone never lowers what the
+      // server last heard (clinical re-review H1, M1).
       let count = body.count;
       let countFrom: "device" | "last_report" | "unknown" = count === null ? "unknown" : "device";
-      if (count === null && deviceId) {
+      if (deviceId) {
         const last = (await lastReportedWaiting(tx, [deviceId])).get(deviceId);
-        if (last) {
+        if (last && (count === null || last.waiting > count)) {
           count = last.waiting;
           countFrom = "last_report";
         }
@@ -1512,6 +1518,7 @@ export async function recordKeyLost(
           eq(task.kind, KEY_LOST_TASK_KIND),
           eq(task.sourceType, FLAGGED_ENTRY_SOURCE),
           eq(task.sourceId, id),
+          isNull(task.deletedAt),
         ),
       )
       .limit(1);
@@ -1523,7 +1530,13 @@ export async function recordKeyLost(
       owner ? body.locationIds : [],
       now,
     );
-    const urgent = record.entryCount === null || record.entryCount > 0;
+    // Always urgent: entries written after the device's last report cannot be known, so a count
+    // of 0 does not show nothing was lost (clinical re-review M1; H-1534 for the CSO).
+    // The old device's open hold tasks are linked, never closed here: closing them is for their
+    // owner, raiser or a manager (`closingRight`; security re-review M, clinical re-review H1).
+    const holds = record.deviceId
+      ? await tx.select({ id: task.id }).from(task).where(openDeviceTasks(record.deviceId))
+      : [];
     const ids: string[] = [];
     for (const target of await taskTargets(tx, locations, now)) {
       const [created] = await tx
@@ -1538,8 +1551,12 @@ export async function recordKeyLost(
           assigneeTenantUserId: target.assignee,
           assigneeRoleKey: "registered_manager",
           dueAt: now,
-          priority: urgent ? "urgent" : "routine",
-          details: { ownerTenantUserId: owner, entryCount: record.entryCount },
+          priority: "urgent",
+          details: {
+            ownerTenantUserId: owner,
+            entryCount: record.entryCount,
+            ...(holds.length > 0 ? { holdTaskIds: holds.map((h) => h.id) } : {}),
+          },
         })
         .onConflictDoNothing()
         .returning({ id: task.id });
@@ -1554,33 +1571,18 @@ export async function recordKeyLost(
           ownerTenantUserId: owner,
           count: record.entryCount,
           locationId: target.locationId,
-          priority: urgent ? "urgent" : "routine",
         },
         requestId,
       });
     }
-    // The old device will never report again: its hold tasks give way to this review.
-    if (record.deviceId && ids.length > 0) {
-      const open = await tx.select().from(task).where(openDeviceTasks(record.deviceId));
-      for (const row of open) {
-        await tx
-          .update(task)
-          .set({
-            status: "done",
-            statusReason:
-              "The device's key stopped opening its database: its entries are reviewed on the lost-key task.",
-            completedAt: now,
-            completedBy: sender,
-          })
-          .where(eq(task.id, row.id));
-        await auditInTx(tx, access, {
-          action: DEVICE_HOLD_ACTIONS.closed,
-          resourceType: "task",
-          resourceId: row.id,
-          scope: { deviceId: record.deviceId, because: "key_lost", supersededBy: ids[0] },
-          requestId,
-        });
-      }
+    for (const hold of holds) {
+      await auditInTx(tx, access, {
+        action: KEY_LOST_ACTIONS.linked,
+        resourceType: "task",
+        resourceId: hold.id,
+        scope: { deviceId: record.deviceId, discardId: id, reviewTaskId: ids[0] ?? null },
+        requestId,
+      });
     }
     return { outcome: replay ? "replay" : "recorded", tasks: ids.length };
   });

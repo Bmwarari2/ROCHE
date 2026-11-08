@@ -131,6 +131,9 @@ export async function sendDiscard(
     );
     if (response.ok) return "acknowledged";
     if (response.status === 403) return "forbidden";
+    // A lost key's record past the daily limit waits for the next session without holding up the
+    // deletions behind it (clinical re-review L2).
+    if (lostKey && response.status === 429) return "rejected";
     if ([400, 413, 422].includes(response.status)) return "rejected";
     return "retry";
   } catch {

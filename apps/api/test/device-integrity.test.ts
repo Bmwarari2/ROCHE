@@ -1876,14 +1876,15 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     expect(tasks.length).toBeGreaterThan(0);
     for (const t of tasks) {
       expect(t).toMatchObject({ priority: "urgent", status: "open" });
-      expect(t.details).toEqual({ ownerTenantUserId: DEMO.users.owner.id, entryCount: 3 });
+      expect(t.details).toMatchObject({ ownerTenantUserId: DEMO.users.owner.id, entryCount: 3 });
     }
-    const holds = await asTenant<{ status: string }>(
-      "SELECT status FROM task WHERE kind = 'sync.device_hold' AND source_id = $1",
+    // The hold task is linked to the review and left open for whoever may close it.
+    const holds = await asTenant<{ id: string; status: string }>(
+      "SELECT id, status FROM task WHERE kind = 'sync.device_hold' AND source_id = $1",
       [device],
     );
-    expect(holds.length).toBeGreaterThan(0);
-    expect(holds.every((t) => t.status === "done")).toBe(true);
+    expect(holds.map((t) => t.status)).toEqual(["open"]);
+    expect(tasks[0]?.details.holdTaskIds).toEqual(holds.map((t) => t.id));
     // A replay records nothing more and raises no second review.
     const again = await lostKey("owner", { id, ownerTenantUserId: DEMO.users.owner.id });
     expect(await again.json()).toMatchObject({ replay: true });
@@ -1895,30 +1896,34 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     // The sender cannot close it; a reviewer must say what was found.
     const [review] = tasks;
     if (!review) throw new Error("expected a review");
-    const transition = (who: Who, reason?: string) =>
+    const transition = (who: Who, reason?: string, to = "done") =>
       call(who, `/v1/tasks/${review.id}/transition`, {
         method: "POST",
-        body: { to: "done", version: review.version, ...(reason ? { reason } : {}) },
+        body: { to, version: review.version, ...(reason ? { reason } : {}) },
       });
-    expect((await transition("owner")).status).toBe(403);
+    // The sender (here also the owner) cannot close it.
+    expect((await transition("owner", "re_recorded")).status).toBe(403);
     expect((await transition("manager")).status).toBe(422);
     expect((await transition("manager", "looked")).status).toBe(422);
+    // Never skipped or cancelled, whatever the reason.
+    expect((await transition("manager", "not needed", "skipped")).status).toBe(422);
+    expect((await transition("manager", "re_recorded", "cancelled")).status).toBe(422);
     expect((await transition("manager", "re_recorded")).status).toBe(200);
   });
 
-  it("takes an owner who never used the device only as a claim, and the count from the last report", async () => {
+  it("takes an owner who never used the device only as a claim, and never a count below the last report", async () => {
     const id = crypto.randomUUID();
     const device = "0199d000-0000-4000-8000-0000000b1532";
-    expect((await report("manager", { held: 0 }, device)).status).toBe(204);
+    expect((await report("manager", { held: 4 }, device)).status).toBe(204);
     const response = await lostKey("manager", {
       id,
       ownerTenantUserId: DEMO.users.owner.id,
       deviceId: device,
-      count: null,
+      count: 1,
     });
     expect(response.status).toBe(200);
     expect(await recordOf(id)).toEqual([
-      expect.objectContaining({ owner: null, device_id: device, count: 0 }),
+      expect.objectContaining({ owner: null, device_id: device, count: 4 }),
     ]);
     const [audit] = await asTenant<{ scope: Record<string, unknown> }>(
       "SELECT scope FROM audit_event WHERE action = 'sync.device.key_lost' AND resource_id = $1",
@@ -1927,10 +1932,9 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     expect(audit?.scope).toMatchObject({
       claimedOwnerTenantUserId: DEMO.users.owner.id,
       countFrom: "last_report",
-      count: 0,
+      count: 4,
     });
-    // Nothing was waiting when it last reported: the review is routine, not urgent.
-    expect((await reviews(id)).every((t) => t.priority === "routine")).toBe(true);
+    expect((await reviews(id)).every((t) => t.priority === "urgent")).toBe(true);
   });
 
   it("takes a device nobody involved used only as a claim", async () => {

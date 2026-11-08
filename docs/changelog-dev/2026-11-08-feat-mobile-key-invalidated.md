@@ -12,25 +12,32 @@ confirms it at merge).
 - **One transaction.** The record, its audit event `sync.device.key_lost` and the review
   `sync.device_key_lost` are written together. A replay raises the review if it is missing. The
   review joins the open sync-task index.
-- **Who sends it.** Any member of the organisation, up to 3 a day.
+- **Who sends it.** Any member of the staff, up to 3 a day. Never a family portal session.
 - **What counts.**
-  - The owner counts only when on the staff and either the sender or bound to the device.
+  - The owner counts only when an active member and either the sender or bound to the device.
   - The device counts only when the sender or owner used it.
   - Otherwise each is audited as a claim.
-  - The count comes from the hold, else from the device's last report.
+  - The count is the higher of the phone's and the device's last report.
 - **The review.**
-  - It is urgent unless that count is 0.
+  - It is always urgent.
   - It goes where the owner worked.
-  - No later report closes it, and its sender cannot.
-  - It is done only with a coded outcome (`KEY_LOST_REVIEW_OUTCOMES`).
-  - The old device's hold tasks close as superseded by it.
+  - No later report closes it. Neither its sender nor the owner can close it.
+  - It is never skipped or cancelled, and is done only with a coded outcome
+    (`KEY_LOST_REVIEW_OUTCOMES`).
+  - The old device's open hold tasks are linked to it, and left for whoever may close them.
+  - Only the sender's replay raises a missing review.
 - **On the phone.** `openVault` keeps a `keyLostTombstone` when it replaces a key that no longer
   opens the database. It takes the hold's owner, count and places, else the person signed in. One
   keystore slot is always free for it, and it is kept with no organisation known. It is sent to the
   new route.
-- **Reviews.** The clinical and security reviews of the first cut asked for the review in the same
-  transaction, routing to the owner, a credible owner and device, a count, no person ids, a quota,
-  the hold task superseded and a coded outcome. All of these are done.
+- **Reviews.** Two clinical and two security reviews were run.
+  - The first round asked for the review in the same transaction, routing to the owner, a credible
+    owner and device, a count, no person ids and a quota.
+  - The re-reviews asked for the hold tasks to be linked rather than closed, for the review never to
+    be skipped or cancelled, for an always-urgent review that never takes a lower count, for no
+    portal sessions or inactive owners, and for the owner to be barred from closing it.
+  - All of these are done.
+  - The CSO decisions are in H-1534.
 - **Tests.**
   - `hazard HZ-006 a device's lost key is put on record with a review (H-1531)` in
     apps/api/test/device-integrity.test.ts.
