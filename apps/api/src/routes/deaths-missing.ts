@@ -35,7 +35,9 @@ import {
   deathStepProblems,
   herbertProfileProblems,
   herbertReviewDueOn,
+  type IncidentType,
   LIVE_PERSON_STATUSES,
+  MISSING_INCIDENT_TYPES,
   type MissingTimelineKind,
   type PersonStatus,
   timelineEntryProblems,
@@ -86,8 +88,6 @@ const IdParam = z.object({ id: z.uuid() });
 const MANAGE = "safety.incident.manage";
 const READ = "safety.incident.read";
 const REPORT = "safety.incident.report";
-/** Missing person and absconding incidents (the classifier's `MISSING`). */
-const MISSING_TYPES = ["missing_person", "absconding"];
 /** A device's clock may run a little ahead: a time up to a minute later than now is taken. */
 const FUTURE_TOLERANCE_MS = 60_000;
 const LIST_LIMIT = 200;
@@ -586,7 +586,10 @@ export const deathsMissingRouter = createRouter()
           .from(incident)
           .where(and(eq(incident.id, body.incidentId), isNull(incident.deletedAt)));
         if (!found) throw problems.notFound();
-        if (!MISSING_TYPES.includes(found.type) || found.status === "closed") {
+        if (
+          !MISSING_INCIDENT_TYPES.includes(found.type as IncidentType) ||
+          found.status === "closed"
+        ) {
           throw problems.invalid(
             "Open the episode on an open missing person or absconding incident.",
           );

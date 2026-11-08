@@ -119,6 +119,56 @@ test("SAFE-015 the manager opens a missing person episode with the police call f
   await accessibleInBothThemes(page, "Herbert Protocol profile tab");
 });
 
+test("HZ-127 an absconding incident opens a missing person episode from the incident page", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(180_000);
+  await context.addCookies(session);
+  const listed = await context.request.get(`${API_URL}/v1/missing-episodes`, {
+    headers: { "x-harbour-tenant": DEMO_TENANT },
+  });
+  expect(listed.status(), await listed.text()).toBe(200);
+  const busy = new Set(
+    ((await listed.json()) as { items: { personId: string; status: string }[] }).items
+      .filter((e) => e.status !== "closed")
+      .map((e) => e.personId),
+  );
+  const person = [6, 5, 4, 3, 2, 1].map(demoPerson).find((p) => !busy.has(p));
+  test.skip(!person, "Every demo resident already has an open missing person episode.");
+  if (!person) return;
+  const noticed = new Date(Date.now() - 5 * 60_000);
+  const recorded = await context.request.post(`${API_URL}/v1/incidents`, {
+    headers: { "x-harbour-tenant": DEMO_TENANT },
+    data: {
+      locationId: DEMO_LOCATION,
+      type: "absconding",
+      occurredAt: noticed.toISOString(),
+      description: `Left through the garden gate without staff knowing (${RUN}).`,
+      people: [{ kind: "service_user", role: "affected", personId: person }],
+    },
+  });
+  expect(recorded.status(), await recorded.text()).toBe(201);
+  const incident = (await recorded.json()) as { id: string };
+
+  await page.goto(`/incidents/${incident.id}`);
+  // One link, for the person affected, naming them; the incident page passes axe with it.
+  const link = page.getByRole("link", { name: /^Record the missing person episode for / });
+  await expect(link).toHaveCount(1);
+  await expect(link).toHaveAttribute("href", new RegExp(`person=${person}$`));
+  await accessibleInBothThemes(page, "absconding incident with the episode link");
+  await link.click();
+  await page.waitForURL(/\/missing\/new\?/);
+  await fillWhen(page, "When they were noticed missing", noticed);
+  await page
+    .getByRole("group", { name: /call the police at once/i })
+    .getByRole("radio", { name: "No", exact: true })
+    .check();
+  await page.getByRole("button", { name: "Open the episode" }).click();
+  await page.waitForURL(/\/missing\/[0-9a-f-]{36}$/);
+  await expect(page.getByText(/call by \d{2}\/\d{2}\/\d{4}/i).first()).toBeVisible();
+});
+
 test("HZ-127 a police call made before the person was found is recorded afterwards at its true time", async ({
   page,
   context,

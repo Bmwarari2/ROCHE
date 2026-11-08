@@ -6,6 +6,7 @@ import { PrintButton } from "@/components/cd/PrintButton";
 import { RegisterEntries, StockChecks } from "@/components/cd/Register";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { getShellContext, tenantApi } from "@/lib/api";
+import { cdRecordingAt } from "@/lib/cd-recording";
 import { isUuid } from "@/lib/context-cookies";
 import { cdPageHref, cdShown } from "@/lib/controlled-drugs";
 import { formatDate, formatDateTime, formatNhsNumber } from "@/lib/format";
@@ -39,6 +40,8 @@ export default async function PrintCdPage({
   ]);
   const page = read.data;
   if (!person || !page || page.personId !== id) notFound();
+  // Which register is the record at the person's home (H-1517).
+  const recordingOn = await cdRecordingAt(person.locationId);
   const printedAt = formatDateTime(new Date().toISOString()) ?? "";
 
   return (
@@ -82,7 +85,9 @@ export default async function PrintCdPage({
         </h2>
         <StockChecks page={page} />
       </section>
-      <p className="m-0 text-body-dense">{t("cd.print.footer")}</p>
+      <p className="m-0 text-body-dense">
+        {t(recordingOn ? "cd.print.footer" : "cd.print.footerNotTurnedOn")}
+      </p>
     </main>
   );
 }

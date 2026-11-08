@@ -89,7 +89,7 @@ From the records of processing (Part B, purposes B1 to B10 that apply): `{{ropa.
 
 Likelihood of harm: remote, possible, probable. Severity of harm: minimal, significant, severe. Overall: low, medium, high.
 
-R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the row; R13 to R19 are the Phase 1 residential processing every tenant has (section 7A lists which risks apply to each kind of processing); R20 to R29 are the Phase 2 processing (section 7B, a first draft; R22, R25 and R28 cover processing still being built, and a tenant records in section 7B.6 what it does not use). A DPIA signed before a standard risk was added is flagged for review. Thapsus Care fills this table from `packages/domain/src/platform/dpia.ts`, and a test (`dpia.test.ts`) fails if an id or its wording differs from this table.
+R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the row; R13 to R19 are the Phase 1 residential processing every tenant has (section 7A lists which risks apply to each kind of processing); R20 to R29 are the Phase 2 processing (section 7B, a draft for the DPO; the processing under R22 and R25 is built but off or mock-only until the DPO's decisions, and a tenant records in section 7B.6 what it does not use). A DPIA signed before a standard risk was added is flagged for review. Thapsus Care fills this table from `packages/domain/src/platform/dpia.ts`, and a test (`dpia.test.ts`) fails if an id or its wording differs from this table.
 
 | ID | Risk | Likelihood | Severity | Overall |
 | --- | --- | --- | --- | --- |
@@ -147,15 +147,15 @@ R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the 
 | R17 | Notifications and deadlines worked out from the incident's answers, overdue escalation, submission only by holders of `safety.notification.submit` after a fresh sign-in, raiser cannot close (section 7A) | Name who submits; check each form before it is sent | Reduced | | |
 | R18 | Capacity test in the Act's words, authority checked against the contact's legal authority, best-interests checklist, DoLS expiry reminders, every version kept (section 7A) | Mental Capacity Act policy and training; DoLS applications and reviews on time | Reduced | | |
 | R19 | Invented sample people only, flagged, badged, watermarked, left out of the full export (not yet of statutory notifications: a draft about a sample person is decided not required, H-452), removed as a batch (section 7A) | Remove sample data before go-live | Reduced | | |
-| R20 | Staff file permissions of their own (owner and HR by default), MFA, row-level security, HR-only documents hidden from everyone without `workforce.hr_document.read` and every open audited, no DBS certificate copy kept (section 7B) | Who holds HR access; the appropriate policy document; retention of staff files | Reduced | | |
-| R21 | Speaking up in a silo the owner and managers cannot read, anonymous concerns with no identity stored, audit without the reporter; the safeguarding log for its managers only, carers see protective measures only (section 7B) | Name the Freedom to Speak Up lead; guidance to reporters | Reduced | | |
-| R22 | Planned: location only at the clock-in or check-in itself, scoped like the shift, its own retention (section 7B; not built) | Explain monitoring to staff | Planned | | |
-| R23 | Subject map over every table, third-party names highlighted but decided by a person with a reason, bundle built when issued and never stored, its SHA-256 recorded (section 7B) | Review each record before the bundle is issued | Reduced | | |
+| R20 | Staff file permissions of their own (owner and HR by default), MFA, row-level security; HR-only documents (fit notes included) hidden from everyone without `workforce.hr_document.read` and every open audited; sponsor records HR only; no DBS certificate copy kept; vetting ports send only their declared fields; the rota and absence screens learn only yes or no; leavers' access ended on time (section 7B) | Who holds HR and pay access; the appropriate policy document; retention of staff files | Reduced | | |
+| R21 | Speaking up and casework in silos no wider role, grant or break-glass reaches (ADR-0089); anonymous concerns with no identity stored, audit without the reporter, the lead's export with step-up; the safeguarding log for its managers only, carers see protective measures only (section 7B) | Name the Freedom to Speak Up lead and the caseworkers; guidance to reporters | Reduced | | |
+| R22 | Location and NFC evidence off: the phone sends none, the API keeps a word only where a location's setting asks for it, never a position; lone-worker location off by default, one point per event the worker sends, never a track, erased after `lone_worker.location_days`; check-ins made by the worker, never used to judge performance (section 7B) | Explain monitoring to staff; switch nothing on before the employee-monitoring DPIA (H-527) | Reduced | | |
+| R23 | Subject map over every table, third-party names highlighted but decided by a person with a reason, bundle built when issued and never stored, its SHA-256 recorded; disclosure requests carry their legal basis, are approved by someone other than the requester with step-up and leave only by the recipient's secure route (section 7B) | Review each record before a bundle or pack is issued | Reduced | | |
 | R24 | ICO clock worked out on every read, decision with reasoning, late reports need reasons, Thapsus notices open the register entry and tell the data protection lead (section 7B) | Name who decides on reporting and who deputises | Reduced | | |
-| R25 | No adapter on by default; payroll (slice 76) built: only a locked run, on request with step-up, minimum fields (no name, date of birth, NI number or bank detail), the provider the organisation's own processor (ADR-0097), Xero only through a mock until assessed (H-1192); vetting, learning and e-signature providers each assessed before they receive data (section 7B) | Choose providers knowingly | Planned | | |
-| R26 | Only mapped columns kept, staged rows in quarantine and deleted at commit, discard or expiry, matching never merges, undo of a whole commit, organisation-wide importers only (section 7B) | Check the source export; sign off a sample after committing | Reduced | | |
+| R25 | No adapter on by default and only mocks, refused in production: payroll exports only of a locked run, on request with step-up, minimum fields (no name, date of birth, NI number or bank detail), the provider the organisation's own processor (ADR-0097); vetting and learning platform ports send only declared fields; signing stays in Thapsus Care unless DocuSign is assessed (H-540); OCR unavailable until Document AI in europe-west2 (H-1262); the Thapsus-HR link UK only; each provider assessed before it is switched on (section 7B, H-793) | Choose providers knowingly | Reduced | | |
+| R26 | Only mapped columns kept, staged rows in quarantine and deleted at commit, discard or expiry, matching never merges, imported medicines "not yet checked" and care plans as drafts, undo of a whole commit, organisation-wide importers only; doubtful Thapsus-HR matches to a person (section 7B) | Check the source export; sign off a sample after committing | Reduced | | |
 | R27 | Links only invited members, DNS-proved domains, Thapsus Care's own second factor still asked for care records and step-up, keys in the managed store only (section 7B) | The identity provider and its contract | Reduced | | |
-| R28 | Results only once a survey has closed and at least `wellbeing.survey_min_group_size` answered, each question likewise, no count below the size, no breakdown or export of responses, free text in alphabetical order; responses hold no member and no time but the week, are closed to the application role and audited with an anonymous actor; check-ins seen by a manager only while the member shares them (section 7B; scheduling.md section 20) | Set the smallest group shown (it can only be raised); warn staff that free text can identify them | Reduced | | |
+| R28 | Results only once a survey has closed and at least `wellbeing.survey_min_group_size` answered (an organisation can raise it, never lower it), each question likewise, no count below the size, no breakdown or export of responses; responses hold no member and no time but the week, are closed to the application role and audited with an anonymous actor; check-ins seen by a manager only while the member shares them (section 7B; scheduling.md section 20) | Set the smallest group shown (it can only be raised); warn staff that free text can identify them | Reduced | | |
 | R29 | Unsuccessful applicants kept 6 months (talent pool by consent), interview notes never passed to the staff file, equality monitoring kept apart and counted with small counts suppressed (section 7B) | Applicant privacy notice; the equality questions | Reduced | | |
 
 ## 7A. Phase 1 processing: residential care records
@@ -206,18 +206,29 @@ Taken from the records of processing ([records-of-processing.md](records-of-proc
 | Local risks added in section 6 | *Tenant completes* |
 | Who reviewed section 7A, and when | *Tenant completes* |
 
-## 7B. Phase 2 processing: workforce, rights and safety (first draft)
+## 7B. Phase 2 processing: workforce, rights and safety (draft)
 
-**Status: first draft for the DPO, not signed and not approved.** Written 31 October 2026 for plan
-slice 84 ([phase-2.md](../plans/phase-2.md)). It covers only the Phase 2 slices built so far, each
-with a pull request open or merged: 11 staff file (#151), 13 safeguarding log (#155), 15 DSAR
-workbench (#149), 18 complaints (#152), 20 breach register (#156), 23 applicants
-(`feat/work-applicant-tracking`), 24 speaking up (`feat/safety-speak-up`), 25 policy library
-(#154), 26 import wizard (#150) and 33 single sign-on (`feat/platform-sso`). Evidence paths name
-files on those branches; a path is on `main` only once its pull request merges. Risks R22, R25 and
-R28 belong to slices not built yet (30, 46 and 71; 76 to 79; 44): they are listed so the DPO sees
-the whole set, with the measures each slice is planned to carry, and are assessed again when those
-slices land.
+**Status: draft for the DPO, not signed and not approved.** First written 31 October 2026 and
+brought up to date on 7 November 2026 for plan slice 84 ([phase-2.md](../plans/phase-2.md)), from
+`main` at that date. It covers the Phase 2 slices on `main`:
+
+- workforce: 11 staff file, 17 training and competence, 23 applicants, 29 induction and leavers,
+  35 sponsor licence and the staff privacy notice, 39 employee relations casework, 43 e-learning,
+  77 vetting adapters, 78 learning platform imports;
+- rota, time and pay: 12 dependency tool, 21 rota, 27 bank and agency workers, 30 time and
+  attendance, 36 pay runs, 40 absence and leave, 44 wellbeing, 46 lone working, 76 payroll
+  exports, and 71 shifts, the clock and lone working on the phone;
+- safety: 13 safeguarding log, 18 complaints, 24 speaking up, 31 outbreaks, 37 deaths and missing
+  persons, 41 disclosure requests;
+- quality: 14 framework and evidence, 19 audits, 25 policy library, 32 data security evidence, 47
+  quality dashboard;
+- platform: 15 DSAR workbench, 20 breach register, 26 and 51 imports, 33 single sign-on;
+- integrations: 79 e-signature and OCR, 86 to 90 the Thapsus-HR link;
+- medicines (lane A) and the phone (68, 72), which add no new risk id (section 7B.4);
+- the web screens built for these slices.
+
+Evidence paths are files on `main`. Slices not on `main` on that date (among them the phone's
+medicines round, 69 and 70) are added when they merge (section 7B.6).
 
 R20 to R29 are in sections 6 and 7 and in the in-app prefill (`packages/domain/src/platform/dpia.ts`
 and its test), as Phase 1 did for R13 to R19. A DPIA signed before they were added is flagged for
@@ -228,12 +239,26 @@ completes* are the provider's own.
 
 ### 7B.1 Lawful bases
 
-Taken from the records of processing on each branch ([records-of-processing.md](records-of-processing.md)).
-Every basis here is a proposal until the DPO confirms it (H-526, H-790).
+Taken from the records of processing ([records-of-processing.md](records-of-processing.md): Part B
+and the data categories table). Every basis here is a proposal until the DPO confirms it (H-526,
+H-790). Where the records of processing name no basis, this table says so and section 7B.6 lists
+the gap; this section does not supply one.
 
 | Processing | Article 6 basis | Article 9 or Article 10 condition |
 | --- | --- | --- |
-| Staff file and pre-employment checks (B3; slice 11) | Art 6(1)(b) contract of employment; 6(1)(c) where a law requires the record (regulation 19 and Schedule 3 of the 2014 Regulations; Immigration, Asylum and Nationality Act 2006 for right to work) | Health: Art 9(2)(b) with DPA 2018 Sch 1 para 1. Criminal offence data (DBS): Art 10 with DPA 2018 s.10(5), Sch 1 para 1 and para 18. Both need the provider's appropriate policy document (H-576) |
+| Staff file, pre-employment checks and vetting checks (B3; slices 11 and 77) | Art 6(1)(b) contract of employment; 6(1)(c) where a law requires the record (regulation 19 and Schedule 3 of the 2014 Regulations; Immigration, Asylum and Nationality Act 2006 for right to work). The worker's consent to a DBS check is recorded because the DBS requires it, and is not the lawful basis (H-1124) | Health: Art 9(2)(b) with DPA 2018 Sch 1 para 1. Criminal offence data (a DBS check or Update Service status check and its result, never the certificate's contents): Art 10 with DPA 2018 s.10(5), Sch 1 para 1 and para 18. Both need the provider's appropriate policy document (H-576) |
+| Induction, the Care Certificate and leavers; training, competence and supervision; e-learning; learning platform imports (B3; slices 17, 29, 43, 78) | As B3: Art 6(1)(b), and 6(1)(c) (Regulations 18 and 19 of the 2014 Regulations, named for training records and imports) | None asked for. Probation notes, an exit interview summary or a withdrawal reason may reveal health in free text; no condition is named for that (section 7B.6) |
+| Sponsor licence duties, the staff privacy notice and LDSS claims (B3; slice 35) | Art 6(1)(c) (the sponsor duties a sponsor licence carries) and 6(1)(b) | None (nationality is implied by sponsorship; no special category field) |
+| Staff photo or image in the organisation's publications (B3a; slice 35) | Art 6(1)(a) consent, per purpose, withdrawable | None |
+| Employee relations casework (B3; slice 39) | Art 6(1)(b) and (c); a DBS referral Art 6(1)(c) (Safeguarding Vulnerable Groups Act 2006 s.35) | Health: Art 9(2)(b) with Sch 1 para 1. Allegations of criminal conduct and referral decisions: Art 10 with s.10(5), Sch 1 para 1 and para 18 (H-800, H-802) |
+| Rota, bank and agency workers (B3; slices 21 and 27) | As B3 for staff. For agency workers, whom the organisation does not employ, the records of processing name no Article 6 basis of their own (section 7B.6; H-547) | Coded reasons on an agency worker's AWR record (sickness, pregnancy or maternity): Art 9(2)(b) with Sch 1 para 1 |
+| Time and attendance and working-time records, on the web and the phone (B3; slices 30 and 71) | As B3: Art 6(1)(b), and 6(1)(c) where a law requires the record. The records of processing call location and NFC evidence employee monitoring but name no basis for it (section 7B.6; H-527) | None asked for |
+| Absence and leave, fit notes and return to work (B3; slice 40) | As B3 | Art 9(2)(b) with Sch 1 para 1 and the appropriate policy document; Art 9(2)(h) where occupational health advice is given (H-974) |
+| Pay calculation runs (B3; slice 36) | Art 6(1)(b) and 6(1)(c) (minimum wage, SSP, holiday and auto-enrolment records) | Sickness dates in a period of incapacity: Art 9(2)(b) with Sch 1 para 1, under the appropriate policy document |
+| Payroll and pension exports (B3; slice 76) | Art 6(1)(c) (paying wages, tax, National Insurance and auto-enrolment, Pensions Act 2008) and 6(1)(b) | None: SSP leaves only as an amount, never a reason |
+| Thapsus-HR link (B3; slices 86 to 90) | The contract with the employee and legal obligations (minimum wage, working time, SSP). Not yet a purpose row of its own (H-1341; section 7B.6) | Sickness dates: Art 9(2)(b) |
+| Lone-worker safety (B3; slices 46 and 71) | Art 6(1)(c) (Health and Safety at Work etc. Act 1974 s.2; Management of Health and Safety at Work Regulations 1999 reg 3), with 6(1)(f) for what goes beyond it (H-1033) | Art 9(2)(b) with Sch 1 para 1 where an alarm note reveals an injury |
+| Staff wellbeing and voice (B3; slice 44) | Art 6(1)(f) (hearing staff and supporting their wellbeing); 6(1)(e) for a public body. Voluntary, never a condition of work (H-1080) | Art 9(2)(b) with Sch 1 para 1 for a check-in the member shares with their manager. None is named for a check-in the member keeps to themselves (section 7B.6) |
 | Safeguarding log (B4; slice 13) | Art 6(1)(ea) recognised legitimate interest, or 6(1)(c) or (e) for a public body | Art 9(2)(g) with Sch 1 para 18, with an appropriate policy document; Art 10 where a concern alleges a crime |
 | Data subject requests (B5 and B13; slice 15) | Art 6(1)(c): the controller's duties under UK GDPR Articles 12 to 22 | Indirect: a bundle carries the subject's own special category data to them |
 | Complaints and compliments (B14; slice 18) | Complaints: Art 6(1)(c), Regulation 16. Compliments: Art 6(1)(f) | Art 9(2)(h) with Sch 1 para 2 where a complaint or compliment reveals health (B14, a purpose of its own, H-700) |
@@ -241,27 +266,48 @@ Every basis here is a proposal until the DPO confirms it (H-526, H-790).
 | Applicants and recruitment (B15; slice 23) | Art 6(1)(b) steps before a contract and 6(1)(f); talent pool Art 6(1)(a) consent, withdrawable | Equality monitoring only: Art 9(2)(g) with Sch 1 para 8, voluntary, kept apart, reported as suppressed counts (H-576) |
 | Whistleblowing and speaking up (B16; slice 24) | Art 6(1)(f) (protecting workers under the Public Interest Disclosure Act 1998, and safe care); 6(1)(e) for a public body | Art 9(2)(b) with Sch 1 para 1, or 9(2)(h) with Sch 1 para 2 where a concern reveals health; Art 10 with Sch 1 para 10 where it alleges a crime |
 | Policy read-and-sign (B3 and B6; slice 25) | Art 6(1)(b) or (c) (staff compliance records) | None |
-| Import of records from a previous system (slice 26) | The basis of the records imported (B1 for people; B2 and B3 as those imports land); no new purpose | As the records imported |
+| Import of records from a previous system (slices 26 and 51) | The basis of the records imported (B1 for people, medicines and care plans; B3 for staff file checks; B2 as contacts land); no new purpose | As the records imported |
 | Single sign-on links (B3 and B5; slice 33) | Art 6(1)(b) and (f) (authenticating staff for employment and security) | None |
-| Outbreak line list (B1 for residents, B3 for staff; slice 22) | Residents: as care records (B1). Staff cases: Art 6(1)(c), Regulation 12(2)(h) of the 2014 Regulations (infection control) | Art 9(2)(i) with Sch 1 para 3 (public health), and Art 9(2)(b) with Sch 1 para 1 for the employer's health and safety duties. Staff cases are kept 3 years from the outbreak's closure (`outbreak_staff_case`); agency workers not in Thapsus Care are counted unnamed, with nothing identifying; staff see their own row through a subject access request, not in the app (H-767, H-782, recommended answers applied 31/10/2026) |
+| Outbreak line list (B7; slice 31) | Residents: as care records (B1). Staff cases: Art 6(1)(c), Regulation 12(2)(h) of the 2014 Regulations (infection control) | Art 9(2)(i) with Sch 1 para 3 (public health), and Art 9(2)(b) with Sch 1 para 1 for staff cases. Staff cases are kept 3 years from the outbreak's closure (`outbreak_staff_case`); agency workers not in Thapsus Care are counted unnamed (H-767, H-782, recommended answers applied 31/10/2026) |
+| Deaths and missing persons (B1 and B7; slice 37) | The death record, mortality review and missing person timeline: as care records (B1); the notifications: B7. The Herbert Protocol profile given to the police: proposed Art 6(1)(d) vital interests, or 6(1)(e) for a public body (H-772) | Art 9(2)(h) for the care record; for the profile given to the police, proposed Art 9(2)(c) where the person cannot consent, or Sch 1 para 18 (H-772) |
+| Disclosure requests (B4 and B7 conditions; slice 41) | Stored with each request for its type: Art 6(1)(c) for coroners (Coroners and Justice Act 2009 Sch 5), Safeguarding Adults Reviews (Care Act 2014 ss.44 and 45) and Domestic Homicide Reviews (Domestic Violence, Crime and Victims Act 2004 s.9); for the police and solicitors, the Article 6 basis beside the DPA 2018 Sch 2 para 2 or para 5 exemption, never the exemption alone; the Access to Health Records Act 1990 for people who have died (outside UK GDPR) (H-592, H-821) | The B4 or B7 condition, named beside the statute or exemption (H-821) |
+| E-signature requests and OCR of scanned MAR charts (B1, B3 and B5; slice 79) | OCR: as the person's medicines record (B1). Signature requests: B3 and B5 | OCR: Art 9(2)(h) as B1. Signatures: none |
+| Medicines record, administrations, controlled drugs, stock, PRN, covert administration and errors (B1, and B7 for errors; lane A) | As care records (B1), never consent | Art 9(2)(h) as B1 |
+| Dependency categories (B1; slice 12) | As B1 (H-711) | As B1 |
 
 ### 7B.2 Which risks apply to which processing
 
 | Slice and processing | Risks (section 6 and below) |
 | --- | --- |
 | 11 Staff file and pre-employment checks | R20, R1, R5 |
-| 13 Safeguarding log | R21 (the person an allegation is about), R1, R5, R6 |
-| 15 DSAR workbench | R23, R5 |
-| 18 Complaints and compliments | R1, R5, R23 (complainants as third parties in a DSAR) |
-| 20 Breach register and data protection complaints | R24 |
+| 17, 43, 72, 78 Training, competence, supervision, e-learning (also offline on the phone) and learning platform imports | R1, R5; R25 and R26 for imports (78) |
 | 23 Applicants and recruitment | R29, R20 (a hired applicant's checks) |
+| 29 Induction, the Care Certificate and leavers | R20, R1, R5 |
+| 35 Sponsor licence, staff privacy notice, image consent and LDSS claims | R20, R5 |
+| 39 Employee relations casework | R21, R20, R5 |
+| 77 Vetting adapters | R25, R20 |
+| 21, 27 Rota, bank and agency workers | R1, R20 (the rota learns only whether a check blocks a shift) |
+| 30, 71 Time and attendance, and the clock on the phone | R22, R1, R5 |
+| 36, 40 Pay runs, absence, fit notes and return to work | R20, R1, R5 |
+| 76 Payroll and pension exports | R25, R7 |
+| 86 to 90 Thapsus-HR link | R25, R26 and R1; the plan assigns R30 to it (wrong matching, out-of-date data and over-sharing), not yet written (section 7B.6) |
+| 46, 71 Lone working, on the web and the phone | R22, R2 |
+| 44 Wellbeing surveys, recognition and check-ins | R28, R1 |
+| 13 Safeguarding log | R21 (the person an allegation is about), R1, R5, R6 |
+| 18 Complaints and compliments | R1, R5, R23 (complainants as third parties in a DSAR) |
 | 24 Whistleblowing and speaking up | R21 |
-| 25 Policy library and read-and-sign | No new risk: staff signatures only, under R1 and R5 |
-| 26 Import wizard | R26, R4, R3 |
+| 31 Outbreaks | R1, R5, R17 |
+| 37 Deaths and missing persons | R1, R6 (the Herbert Protocol profile given to the police), R17 |
+| 41 Disclosure requests | R23 |
+| 15 DSAR workbench | R23, R5 |
+| 20 Breach register and data protection complaints | R24 |
+| 26, 51 Import wizard: people, contacts, allergies, staff, medicines and care plans | R26, R4, R3 |
 | 33 Single sign-on | R27, R1 |
-| 30, 46, 71 Clock-in and lone-worker check-ins (not built) | R22 |
-| 76 to 79 Payroll, vetting, learning and e-signature adapters (not built) | R25, R7 |
-| 44 Wellbeing surveys, recognition and check-ins | R28 |
+| 79 E-signature and OCR | R25, R7, R4 (values read from a chart stay unconfirmed until a person decides each) |
+| 25 Policy library and read-and-sign | No new risk: R1 and R5 (section 7B.4) |
+| 14, 19, 32, 47 Quality framework, audits, data security evidence and dashboard | No new risk: R1 (section 7B.4) |
+| 12 Dependency tool | No new risk: R1, R4 (section 7B.4) |
+| Medicines (lane A) and their sync to the phone (68) | No new risk: R1, R2, R4, R8, R14 (section 7B.4) |
 
 ### 7B.3 Risks R20 to R29
 
@@ -272,44 +318,45 @@ measures; "expected residual" is with Thapsus Care's measures built and the tena
 
 | Field | Value |
 | --- | --- |
-| Slices | 11 (built), 23 (a hired applicant's checks; built), 29, 35, 36 and 40 (not built) |
+| Slices | 11, 23 (a hired applicant's checks), 29, 35, 36, 39, 40 and 77 (all built); 21 and 27 read checks without seeing them |
 | Initial | Possible, severe, **high** |
-| Measures built (evidence) | Four permissions of their own (`workforce.staff_file.read`, `.manage`, `workforce.hr_document.read`, `workforce.dbs_risk_assessment.sign`), owner and HR by default (`docs/specs/workforce.md` section 3); forced row-level security on `staff_profile` and `compliance_item`, read by holders and by the worker for their own file only, never written on one's own file (migration 0073); HR-only documents hidden by the `document_hr_only` policy from everyone without `workforce.hr_document.read`, never served by the general document routes, never found by search, and every open audited as `workforce.hr_document.viewed` (`apps/api/src/routes/staff-files.ts`); no DBS certificate copy and no right to work share code kept, only the details each Schedule 3 rule needs (`packages/domain/src/workforce/staff-file.ts`); expiry reminder tasks with opaque ids and a generic title; MFA for the staff file and recruitment permissions; right to work copies as `right_to_work_copy` (2 years after employment ends) |
-| Open measures | HR-only documents use `staff_file`, whose rule row (the tenant's choice of `staff_file.*` and the leaving-date trigger) is not in the retention engine yet, so nothing destroys them yet (slice 11 changelog); HR's inbox cannot see reminder tasks until the task visibility rule learns `required_permission` (slice 17) |
-| Expected residual | Possible, significant, **medium** until the retention rule runs; then remote, significant, **low** |
-| DPO decides | What of a DBS check is kept and for how long (H-575); the appropriate policy document for health and criminal offence data (H-576); the default holders of the new permissions (H-577); the staff privacy notice (H-578); retention of the staff file as the tenant selects (H-525). *Tenant completes*: who holds HR access at each home |
+| Measures built (evidence) | Staff file permissions of their own (`workforce.staff_file.read`, `.manage`, `workforce.hr_document.read`, `workforce.dbs_risk_assessment.sign`), owner and HR by default, MFA ([workforce.md](../specs/workforce.md) section 3); forced row-level security on `staff_profile` and `compliance_item`, read by holders and by the worker for their own file, never written on one's own (`packages/db/drizzle/0073_staff_profile.sql`); HR-only documents hidden by the `document_hr_only` policy from everyone without `workforce.hr_document.read`, never served by the general document routes or found by search, every open audited as `workforce.hr_document.viewed` (`apps/api/src/routes/staff-files.ts`); no DBS certificate copy and no right to work share code kept (`packages/domain/src/workforce/staff-file.ts`); vetting ports send only each port's declared fields and refuse an answer carrying anything more, such as a certificate's contents (`apps/api/src/integrations/vetting.ts`). Sponsored-worker records HR only (`workforce.immigration.read`, `workforce.sponsor.manage`), never one's own (`apps/api/src/routes/sponsorship.ts`). Fit notes and return to work notes are HR-only documents, never the condition typed into Thapsus Care; rota managers learn only that someone is away and the kind; the Bradford factor and SSP working are never stored (`apps/api/src/routes/absences.ts`, `packages/db/drizzle/0107_absence_leave.sql`). Pay runs only for organisation-wide pay holders with MFA; a member reads their own (`apps/api/src/routes/pay.ts`). The rota asks the workforce port whether a member may work and learns only the answer (`packages/domain/src/workforce/roster-checks.ts`). Leavers' access ends at the end of the leaving day or their last shift that day, and a staff file with no keep-until date raises a review (`sweepLeaverAccess` in `apps/api/src/jobs/tasks.ts`, H-873, H-874). Expiry reminder tasks carry opaque ids and a generic title and reach HR's inbox through the task's required permission (`apps/api/src/routes/tasks.ts`) |
+| Open measures | No scheduled job yet destroys staff files, HR-only documents, absences or pay runs when their class ends; destruction past retention is a person's action through the retention screens (section 7B.5) |
+| Expected residual | Possible, significant, **medium** until destruction runs on time; then remote, significant, **low** |
+| DPO decides | What of a DBS check is kept and for how long (H-575); the appropriate policy document for health and criminal offence data (H-576); the lawful basis for vetting results (H-1124); the fit note condition (H-974) and `sickness_absence` retention (H-973); the staff privacy notice (H-578); retention of the staff file as the tenant selects (H-525). *Tenant completes*: who holds HR and pay access at each home |
 
 #### R21 The identity of a whistleblower or the subject of a case disclosed, or a silo reached by a wider role
 
 | Field | Value |
 | --- | --- |
-| Slices | 24 (built), 13 (the person a safeguarding allegation is about; built), 39 casework (not built) |
+| Slices | 24 speaking up, 39 casework, 13 (the person a safeguarding allegation is about); all built |
 | Initial | Possible, severe, **high** |
-| Measures built (evidence) | Speaking up in a silo (ADR-0089 (`docs/decisions/0089-restricted-silos-whistleblowing.md`) on `feat/safety-speak-up`): `safety.speak_up.manage` carried only by the built-in `speak_up_guardian` role, never by roles made from "every permission", never by an access grant, never with user or role management, never self-appointed (guards in migration 0086); only the Freedom to Speak Up lead and the members they name read a case, never the owner or the Registered Manager; the reporter of a named or confidential concern kept apart from the concern; an anonymous concern stores no account, IP address or device, its reply token only as a SHA-256; audit names no actor for raising or replying, no outbox event, no `record_version` copies; left out of the free full export (`apps/api/src/routes/speak-up.ts`, `packages/db/test/speak-up.test.ts`). Safeguarding log: the full log only for `safety.safeguarding.manage` within the permission's reach, staff caring for the person read only the protective measures, audit with opaque ids, not sent to devices (`apps/api/src/routes/safeguarding.ts`, migration 0075, HZ-126) |
-| Open measures | What someone writes may still identify them: the guidance to reporters says so (H-722); the lead's separate export and a whistleblowing retention class (H-721); casework (slice 39) builds its own silo on ADR-0089 |
+| Measures built (evidence) | Two silo permissions, `safety.speak_up.manage` and `workforce.casework.manage` (`SILO_PERMISSIONS` in `packages/domain/src/platform/permissions.ts`; [ADR-0089](../decisions/0089-restricted-silos-whistleblowing.md)): never in roles made from "every permission", never by an access grant, never with user or role management, never self-appointed (`packages/db/drizzle/0086_speak_up.sql`, `0101_employee_relations_casework.sql`). Speaking up: only the Freedom to Speak Up lead and the members they name read a case, never the owner or the Registered Manager; the reporter of a named or confidential concern kept apart from the concern; an anonymous concern stores no account, IP address or device, its reply token only as a SHA-256; audit names no actor for raising or replying; left out of the free full export, and the lead's own export needs a fresh step-up and is audited with counts only (`apps/api/src/routes/speak-up.ts`); the anonymised view is held by no role until its screen exists ([ADR-0125](../decisions/0125-speak-up-anonymised-view-not-yet-granted.md)). Casework: read only by the members named on a case, its opener included; no role, grant or break-glass reaches it; the member of staff it is about is never a member; MFA on every route (`packages/domain/src/workforce/casework.ts`, `apps/api/src/routes/casework.ts`). Safeguarding log: the full log only for `safety.safeguarding.manage` within the permission's reach, staff caring for the person read only the protective measures, audit with opaque ids, not sent to devices (`apps/api/src/routes/safeguarding.ts`, `packages/db/drizzle/0075_safeguarding_log.sql`, HZ-126) |
+| Open measures | What someone writes may still identify them: the guidance to reporters says so (H-722). The caseworker role is given through the operator or support for now (H-803), and a caseworker close to the colleague a case is about is for the case manager to manage (a declared-conflict check is planned with slice 58) |
 | Expected residual | Remote, severe, **medium** (free text can identify a reporter whatever the system does) |
-| DPO decides | Who holds the lead role and how it is reviewed (H-720); retention and the lead's export (H-721); the reporter guidance (H-722); how a subject access request from someone named in a concern or allegation is handled, with the safeguarding and confidentiality exemptions (H-596, H-791). *Tenant completes*: name the Freedom to Speak Up lead |
+| DPO decides | Who holds the lead role and how it is reviewed (H-720); the reporter guidance (H-722); how a subject access request from someone named in a concern, case or allegation is handled, with the safeguarding and confidentiality exemptions (H-596, H-791). *Tenant completes*: name the Freedom to Speak Up lead and who holds the caseworker role |
 
 #### R22 Clock-in location, NFC and lone-worker check-ins used to monitor staff beyond their purpose
 
 | Field | Value |
 | --- | --- |
-| Slices | 30, 46 and 71 (not built) |
+| Slices | 30 time and attendance, 46 lone working and 71 the phone (all built) |
 | Initial | Possible, significant, **medium** |
-| Measures planned | Location recorded only at the clock-in or check-in itself, never tracked between; scoped like the shift record; a retention class of its own for lone-worker check-ins (H-525); explained to staff in the staff privacy notice (H-578). Assessed again when the slices are built |
-| Expected residual | To be assessed |
-| DPO decides | Whether location at clock-in is necessary and proportionate for each service type; the retention period (H-792) |
+| Measures built (evidence) | Location and NFC evidence are off everywhere: the phone always sends a clock event with evidence `none` and sends no location with a lone-worker event (`apps/mobile/src/sync/shift-upload.ts`, `apps/mobile/src/scheduling/actions.ts`; [scheduling.md](../specs/scheduling.md) section 22.2). Clock evidence is never a position: a location's setting is `none` by default, and the API keeps `at_location` or an NFC tag only when that location's setting asks for it and the tag is one of its own short codes, otherwise it stores `none` and flags `evidence_not_matched` (`allowedEvidence` in `apps/api/src/routes/time-attendance.ts`, `packages/db/src/schema/time-attendance.ts`; section 16). Lone-worker location is off by default (`scheduling.lone_worker.location` in `packages/domain/src/platform/feature-flags.ts`); the API stores a point only when a device sends one and the flag is on for that location: one point attached to one event the worker sent, never a track, erased after `lone_worker.location_days` (30 days, to verify) by the lone-worker sweep (`apps/api/src/routes/lone-worker.ts`, `sweepLoneWorkersJob` in `apps/api/src/jobs/tasks.ts`; section 19.5). Check-ins are made by the worker, never inferred; monitors (`scheduling.lone_worker.monitor`, MFA) see a point only on an open alarm, as text with no map provider (H-1144), and which sessions and alarms they viewed is audited; a duress press is shown on the phone and audited as an ordinary check-in (HZ-125). Clock events are seen by the worker and the managers who build or approve the rota at the location; audit carries ids only. Nothing here is used to judge performance or timekeeping |
+| Not built or off | NFC tags and location evidence at clock-in, and lone-worker location, wait for the employee-monitoring DPIA (H-527): no screen sets clock evidence, the phone cannot send it, and the API's clock setting asks the manager to confirm the DPIA is approved (`dpiaApproved`) rather than reading the signed DPIA |
+| Expected residual | Remote, significant, **low** while evidence and location stay off; assessed again in the employee-monitoring DPIA before either is switched on (H-527) |
+| DPO decides | The employee-monitoring DPIA, and whether location or NFC evidence is necessary and proportionate for each service type (H-527, H-792); that it covers lone working, its basis and retention (H-1033); the staff privacy notice (H-578). *Tenant completes*: explain monitoring to staff |
 
 #### R23 A subject access bundle or disclosure that reveals third parties, misses records or goes beyond its legal basis
 
 | Field | Value |
 | --- | --- |
-| Slices | 15 (built), 18 (complainants as third parties; built), 41 disclosure requests (not built) |
+| Slices | 15 DSAR workbench, 41 disclosure requests, 18 (complainants as third parties); all built |
 | Initial | Possible, significant, **medium** |
-| Measures built (evidence) | The subject map over the export catalogue finds every table that refers to the subject (`packages/domain/src/platform/dsar.ts`, ADR-0090 (`docs/decisions/0090-dsar-workbench-and-disclosure-collector.md`) on `feat/platform-dsar-workbench`); third-party names highlighted for the reviewer but never redacted or withheld on Thapsus Care's own: a person decides each record with a reason under DPA 2018 Schedules 2 to 4; the bundle issued only when every item has a decision, withheld items counted, and built from the records when issued, never stored, with its SHA-256 recorded; erasure assessed against the retention schedule and left to the retention engine; `quality.dsar.manage` across the organisation with MFA; every read and write audited with ids and counts; a closed case never changes (migration 0077); retention `data_rights_case` (3 years from closure) |
-| Open measures | Tables the subject map does not search are listed in [dsar-procedure.md](dsar-procedure.md) step 6 for a manual search; the speaking-up silo is outside the workbench by design (H-721) |
+| Measures built (evidence) | One collector over the export catalogue with a subject map per table, used by both subject access and disclosure requests (`packages/domain/src/platform/dsar.ts`; [ADR-0090](../decisions/0090-dsar-workbench-and-disclosure-collector.md)); the case lists the tables it could not search; third-party names highlighted for the reviewer but never redacted or withheld on Thapsus Care's own: a person decides each record with a reason under DPA 2018 Schedules 2 to 4; a DSAR bundle issued only when every item has a decision, built when issued and never stored, with its SHA-256 recorded; erasure assessed against the retention schedule and left to the retention engine; `quality.dsar.manage` across the organisation with MFA; a closed case never changes (`apps/api/src/routes/dsar.ts`, `packages/db/drizzle/0077_dsar_workbench.sql`). Disclosure requests store the legal basis for their type; nothing is released until someone other than the requester approves it, with a fresh step-up; the pack is kept as a document with its SHA-256, given only through the recipient's secure route and never by ordinary email (`packages/domain/src/safety/disclosure.ts`, `apps/api/src/routes/disclosures.ts`, `packages/db/drizzle/0103_disclosure_requests.sql`, `0124_disclosure_hand_over.sql`, H-958). Every read and write audited with ids and counts |
+| Open measures | Tables the collector cannot search are checked by hand ([dsar-procedure.md](dsar-procedure.md) step 6); the speaking-up and casework silos are answered by the lead and the case members, outside the workbench |
 | Expected residual | Possible, significant, **medium** (depends on the reviewer's decisions) |
-| DPO decides | The retention of DSAR cases (H-613) and the other workbench defaults (H-612 to H-615); who reviews bundles; the exemptions the organisation relies on. *Tenant completes*: the DSAR procedure owner |
+| DPO decides | The retention of DSAR cases (H-613) and the other workbench defaults (H-612 to H-615); the disclosure bases (H-592, H-821) and their retention (H-820); who reviews bundles; the exemptions the organisation relies on. *Tenant completes*: the DSAR procedure owner and who approves disclosures |
 
 #### R24 A breach not assessed or reported within 72 hours, or a tenant not told by Thapsus as processor
 
@@ -317,29 +364,29 @@ measures; "expected residual" is with Thapsus Care's measures built and the tena
 | --- | --- |
 | Slices | 20 (built) |
 | Initial | Possible, severe, **high** |
-| Measures built (evidence) | The register (`dp_breach`) with the ICO clock worked out on every read from `ico.breach.report_hours` (`docs/specs/platform.md` rules 18 to 26 on `feat/platform-breach-register`); `assessBreach` stores a suggestion as decision support only, and the decision goes through `checkBreachDecision` with reasoning; a late report needs the reasons for the delay; a notice to the people affected drafted from Thapsus Care's template and refused while a prompt remains (`breach-notice.ts`); Thapsus notifies the organisation only through `app.send_processor_breach_notice` (an active operator admin with a fresh sign-in), which opens the organisation's register entry and tells its data protection lead and owners urgently (migration 0082); every read and change audited with ids and codes only; the register reached only with `quality.dsar.manage` across the organisation |
-| Open measures | Retention of the register is interim `audit_event` (H-670); who at Thapsus sends notices and the contractual target (H-673) |
+| Measures built (evidence) | The register (`dp_breach`) with the ICO clock worked out on every read from `ico.breach.report_hours` ([platform.md](../specs/platform.md), breach register); `assessBreach` stores a suggestion as decision support only, and the decision goes through `checkBreachDecision` with reasoning (`packages/domain/src/platform/data-rights.ts`); a late report needs the reasons for the delay; a notice to the people affected drafted from Thapsus Care's template and refused while a prompt remains (`packages/domain/src/platform/breach-notice.ts`); Thapsus notifies the organisation only through `app.send_processor_breach_notice` (an active operator admin with a fresh sign-in), which opens the organisation's register entry and tells its data protection lead and owners urgently (`packages/db/drizzle/0082_breach_register.sql`, `apps/api/src/routes/operator-breach-notices.ts`); every read and change audited with ids and codes only; the register reached only with `quality.dsar.manage` across the organisation (`apps/api/src/routes/data-protection.ts`) |
+| Open measures | Who at Thapsus sends notices and the contractual target (H-673) |
 | Expected residual | Remote, severe, **medium** |
-| DPO decides | Retention periods (H-670); the Article 9 condition and the B13 rows (H-671); the notice template (H-672); the Thapsus contact and target in the data processing agreement (H-673). *Tenant completes*: who decides on reporting and who deputises |
+| DPO decides | Retention periods (`dp_breach` 6 years, recommended answer applied, H-670); the Article 9 condition (H-671); the notice template (H-672); the Thapsus contact and target in the data processing agreement (H-673). *Tenant completes*: who decides on reporting and who deputises |
 
 #### R25 Payroll, vetting, learning and e-signature providers receiving staff or care data, possibly outside the UK
 
 | Field | Value |
 | --- | --- |
-| Slices | 76, 77 and 78 (not built); 79 built (e-signature and OCR, ADR-0095) |
+| Slices | 76 payroll exports, 77 vetting adapters, 78 learning platform imports, 79 e-signature and OCR, 86 to 90 the Thapsus-HR link (all built, every adapter off or a mock) |
 | Initial | Possible, significant, **medium** |
-| Measures planned | No adapter on by default; each provider joins the sub-processor register and this DPIA before it receives data (H-520 to H-522, H-540); only the fields each provider needs; transfers only to the UK or with an adequacy decision or the IDTA. Assessed again when the adapters are built |
-| Measures built (slice 79) | Signing is in Thapsus Care by default, so nothing leaves; DocuSign is off by default and refused in production until H-540, and its envelope carries only an organisation document, its hash, a generic subject and the signer's name and sign-in email. OCR runs only for an organisation that switched it on, with an engine on the allowlist in europe-west2 (Document AI under the Google Cloud entry, H-1262), only on a photograph that scanned clean, and every value stays unconfirmed until a person decides it (HZ-005); no value read or typed reaches the audit trail, logs or events |
-| Expected residual | To be assessed |
-| DPO decides | Each provider before it is switched on (H-793) |
+| Measures built (evidence) | No adapter is on by default and only contract-tested mocks exist; production refuses the mocks at start, so no call leaves Thapsus Care (`apps/api/src/config.ts`). Payroll: a locked pay run leaves only when a holder of `finance.payroll.export` across the organisation exports it with step-up, as the minimum fields (payroll reference, hours, pay elements, total, holiday accrued, auto-enrolment category and qualifying earnings; no name, date of birth, NI number or bank detail; SSP only as an amount); file exports are downloaded by that person; each export recorded with its SHA-256 and the file never kept; the payroll provider is the organisation's own processor ([ADR-0097](../decisions/0097-payroll-and-pension-exports.md)); Xero only through a mock until assessed (`packages/domain/src/scheduling/payroll-export/payroll-export.ts`, `apps/api/src/routes/payroll-export.ts`, `apps/api/src/integrations/payroll/xero.ts`, H-1192). Vetting: off for every organisation, mock only, each port sending only its declared fields ([ADR-0094](../decisions/0094-vetting-and-identity-integrations.md), `apps/api/src/integrations/vetting.ts`). Learning platforms: the organisation's own processor; a file upload or a mock pull; names, emails and scores in a file ignored and never stored ([ADR-0102](../decisions/0102-learning-platform-imports.md), `apps/api/src/integrations/lms/learning-platform.ts`, H-1254). E-signature: in Thapsus Care by default, so nothing leaves; DocuSign off by default and refused in production until H-540, its envelope carrying only an organisation document, its hash, a generic subject and the signer's name and sign-in email. OCR: unavailable in production until the Document AI adapter in europe-west2 is built (H-1262); values read stay unconfirmed until a person decides each (HZ-005), and none reaches the audit trail, logs or events ([ADR-0095](../decisions/0095-ocr-and-e-signature-adapters.md), `apps/api/src/integrations/esign-ocr.ts`). Thapsus-HR link: connects only to a UK workspace over HTTPS, with step-up; matches by employee number, or work email with date of birth, never by name; names, email and date of birth read for matching are not stored; sickness comes in as dates and type only; pay goes out as units, never money; only a mock exists ([ADR-0126](../decisions/0126-thapsus-hr-link.md), `packages/domain/src/integrations/thapsus-hr.ts`, `apps/api/src/integrations/thapsus-hr.ts`) |
+| Open measures | Each provider joins the sub-processor register or the organisation's own processor list, and this DPIA, before it is switched on; transfers only to the UK, or with an adequacy decision or the IDTA (H-520, H-793). Whether Thapsus-HR is a sub-processor of Thapsus Care or the organisation's own processor (H-1341) |
+| Expected residual | Remote, significant, **low** while every adapter is off or a mock; assessed again for each provider before it is switched on (H-793) |
+| DPO decides | Each provider before it is switched on (H-793), and that payroll and learning providers are the organisation's own processors (H-1192, H-1254); DocuSign (H-540); Document AI's terms (H-1262); Thapsus-HR's role (H-1341). *Tenant completes*: choose providers knowingly |
 
 #### R26 Imported data inaccurate, excessive, or about people outside the service
 
 | Field | Value |
 | --- | --- |
-| Slices | 26 (built: people first), 51 (medicines, care plans, staff files, TUPE; not built) |
+| Slices | 26 (people, contacts, allergies, staff), 51 (medicines, care plans, staff files), 78 (training completions), 87 (matching to Thapsus-HR employees); all built |
 | Initial | Possible, significant, **medium** |
-| Measures built (evidence) | Only columns matched to a Thapsus Care field are kept; an upload with unmapped columns is refused until each is mapped or left out; staged rows in quarantine, never shown back, deleted at commit, discard or expiry (`import.staging_expiry_days`, 7 days) and left out of the full export; no error, log or audit event carries an imported value; matching against people already in the organisation never merges (HZ-130); people with allergies to record and allergy status unknown are reported in the dry run (HZ-007); commit and undo need a fresh sign-in, and undo removes a commit's people whole within `import.undo_window_days`; only a member with the import permissions across the whole organisation may import, so matching never discloses a person at another home (`packages/domain/src/platform/imports.ts`, `apps/api/src/routes/platform-imports.ts`, migration 0088, ADR-0092 (`docs/decisions/0092-import-wizard.md`) on `feat/platform-import-wizard`) |
+| Measures built (evidence) | Only columns matched to a Thapsus Care field are kept; an upload with unmapped columns is refused until each is mapped or left out; staged rows in quarantine, never shown back, deleted at commit, discard or expiry (`import.staging_expiry_days`, 7 days, by the import expiry job) and left out of the full export; no error, log or audit event carries an imported value; matching against people already in the organisation never merges (HZ-130); people with allergies to record and allergy status unknown are reported in the dry run (HZ-007); imported medicines arrive "not yet checked" (HZ-005) and care plans as drafts; commit and undo need a fresh sign-in, and undo removes a commit whole within `import.undo_window_days`; only a member with the import permissions across the whole organisation may import, so matching never discloses a person at another home (`packages/domain/src/platform/imports.ts`, `imports-clinical.ts`, `apps/api/src/routes/platform-imports.ts`, `packages/db/drizzle/0088_import_wizard.sql`, `0136_clinical_imports.sql`, [ADR-0092](../decisions/0092-import-wizard.md)). Training imports keep only the learner id, course code and dates, linked to a member by a person. Thapsus-HR matches that are ambiguous or conflicting go to a person to review (`matchEmployee`) |
 | Open measures | The tenant checks the source export and signs off a sample after committing (H-682) |
 | Expected residual | Remote, significant, **low** |
 | DPO decides | The staging period, retention and these measures (H-681); whether home-scoped importing is wanted (H-683). *Tenant completes*: who imports, and the sample check |
@@ -348,9 +395,9 @@ measures; "expected residual" is with Thapsus Care's measures built and the tena
 
 | Field | Value |
 | --- | --- |
-| Slices | 33 (built: OpenID Connect; SAML later) |
+| Slices | 33 (built: OpenID Connect; SAML not built) |
 | Initial | Possible, severe, **high** |
-| Measures built (evidence) | Links only members the organisation already invited, never creates one; a domain counts only once proved by a DNS TXT record and can be verified by one organisation at a time; a provider's MFA claim is never read: an SSO session has no Thapsus Care factor, so care records and step-up ask for the passkey or authenticator code on that session (HZ-112); `private_key_jwt` only, with keys read from the managed secret store, never stored in the database; configuration needs `platform.tenant.manage` with step-up, audited without key names, tokens or domains (`packages/domain/src/platform/sso.ts`, `apps/api/src/routes/sso.ts`, migration 0095, ADR-0091 (`docs/decisions/0091-single-sign-on.md`) on `feat/platform-sso`) |
+| Measures built (evidence) | Links only members the organisation already invited, never creates one; a domain counts only once proved by a DNS TXT record and can be verified by one organisation at a time; a provider's MFA claim is never read: an SSO session has no Thapsus Care factor, so care records and step-up ask for the passkey or authenticator code on that session (HZ-112); `private_key_jwt` only, with keys read from the managed secret store, never stored in the database; configuration needs `platform.tenant.manage` with step-up, audited without key names, tokens or domains (`packages/domain/src/platform/sso.ts`, `apps/api/src/routes/sso.ts`, `packages/db/drizzle/0095_single_sign_on.sql`, [ADR-0091](../decisions/0091-single-sign-on.md)) |
 | Open measures | SAML (H-753); the identity provider is the organisation's own processor, not Thapsus's sub-processor (ADR-0091) |
 | Expected residual | Remote, significant, **low** |
 | DPO decides | The decisions logged with the slice (H-750 to H-755); whether the identity provider needs an entry in the organisation's own processor list. *Tenant completes*: the identity provider and its contract |
@@ -359,12 +406,12 @@ measures; "expected residual" is with Thapsus Care's measures built and the tena
 
 | Field | Value |
 | --- | --- |
-| Slices | 44 (`feat/sched-wellbeing`) |
+| Slices | 44 (built) |
 | Initial | Possible, significant, **medium** |
-| Measures | Results show only once the survey has closed and at least `wellbeing.survey_min_group_size` people answered (Thapsus Care default 5, to verify; an organisation can raise it and never lower it); each question shows only when that many answered it; below the size no count, spread or text is shown. There is no breakdown, filter or export of responses (the export leaves them out). A scale's counts show all or none: none when any point was chosen by fewer than the size. A response holds no member, no creator and no time but the UK week; its id is random; it waits apart and is moved, shuffled, when the survey closes, so it never shares a transaction with the member's participation row; the audit records each response anonymously at the close, never as it arrives; the application role cannot read responses. Only members on a staff file from before the survey opened answer, never its writer or the home's survey managers, so respondents cannot be made up or a manager's own answers subtracted. Wellbeing check-ins (possibly health) are the member's own and a manager sees one only while it is shared (scheduling.md section 20) |
-| Residual risks | Free text can identify its writer by what it says (staff are warned on the form, H-1081). Comparing two overlapping surveys of the same people can narrow down answers (H-1081). Until a survey closes, and in the database's write-ahead log, point-in-time backups and dead rows until vacuum, a waiting response sits in the same transaction as its participation row, which someone with direct database access (Thapsus operators, not the application) could link; operator access is logged and approved (H-1081). A manager who sets up made-up members, with staff files, before a survey opens could still pad its respondents (H-1081). Statement logging (pgAudit) must not record the answers given to the submission function (H-1081) |
-| Expected residual | Unlikely, significant, **low** |
-| DPO decides | The smallest group shown (H-794, H-1080) |
+| Measures built (evidence) | Results show only once the survey has closed and at least `wellbeing.survey_min_group_size` people answered (Thapsus Care default 5, to verify); the size in force is the larger of Thapsus Care's figure and the organisation's own, so an organisation can raise it and never lower it, and with no figure in force results never show (`app.survey_min_group_size`); each question shows only when that many answered it; below the size no count, spread or text is shown. There is no breakdown, filter or export of responses (the export leaves them out). A scale's counts show all or none: none when any point was chosen by fewer than the size. A response holds no member, no creator and no time but the UK week; its id is random; it waits apart and is moved, shuffled, when the survey closes, and the audit records each response anonymously at the close; the application role cannot read responses. Only members on a staff file from before the survey opened answer, never its writer or the home's survey managers. Wellbeing check-ins are the member's own and a manager sees one only while it is shared; nothing is scored or used for a decision about a member (`packages/domain/src/scheduling/wellbeing/wellbeing.ts`, `apps/api/src/routes/wellbeing.ts`, `packages/db/drizzle/0115_staff_wellbeing.sql`; [scheduling.md](../specs/scheduling.md) section 20) |
+| Open measures | Free text can identify its writer by what it says (staff are warned on the form). Comparing two overlapping surveys of the same people can narrow down answers. Until a survey closes, and in the write-ahead log, point-in-time backups and dead rows until vacuum, a waiting response sits in the same transaction as its participation row, which someone with direct database access (Thapsus operators, not the application) could link; operator access is logged and approved. A manager who sets up made-up members, with staff files, before a survey opens could still pad its respondents. Statement logging (pgAudit) must not record the answers given to the submission function. No job yet destroys wellbeing records at the end of `staff_wellbeing` (H-1081, H-1082) |
+| Expected residual | Remote, significant, **low** |
+| DPO decides | The smallest group shown and the basis (H-794, H-1080); the residual points above (H-1081); retention (H-1082). *Tenant completes*: whether to raise the smallest group shown; warn staff that free text can identify them |
 
 #### R29 Applicants' data kept after an unsuccessful application or used beyond recruitment
 
@@ -372,8 +419,8 @@ measures; "expected residual" is with Thapsus Care's measures built and the tena
 | --- | --- |
 | Slices | 23 (built) |
 | Initial | Possible, significant, **medium** |
-| Measures built (evidence) | Kept while an application is open, then 6 months after the last closes (`applicant.unsuccessful`), or the talent pool period the applicant agreed to when later (`applicant.talent_pool`, 12 months from consent, withdrawable); interview scores and panel notes never pass to the staff file, only the job, the Schedule 3 conditions and the start date; equality monitoring insert-only with a random id and the date only, read by nobody, counted only through `app.equality_monitoring_counts` with counts under 5 shown as "fewer than 5" and padding, timing and differencing refused; `workforce.recruitment.manage` with MFA; audit with ids and codes only (`packages/domain/src/workforce/recruitment.ts`, `apps/api/src/routes/recruitment.ts`, migration 0085 on `feat/work-applicant-tracking`) |
-| Open measures | The retention engine's destruction of applicant records runs with the retention rows above (DPO to confirm) |
+| Measures built (evidence) | Kept while an application is open, then 6 months after the last closes (`applicant.unsuccessful`), or the talent pool period the applicant agreed to when later (`applicant.talent_pool`, 12 months from consent, withdrawable); interview scores and panel notes never pass to the staff file, only the job, the Schedule 3 conditions and the start date; equality monitoring insert-only with a random id and the date only, read by nobody, counted only through `app.equality_monitoring_counts` with counts under 5 shown as "fewer than 5" and padding, timing and differencing refused; `workforce.recruitment.manage` with MFA; audit with ids and codes only (`packages/domain/src/workforce/recruitment.ts`, `apps/api/src/routes/recruitment.ts`, `packages/db/drizzle/0085_applicant_tracking.sql`) |
+| Open measures | No scheduled job yet destroys applicant records at the end of their class (section 7B.5) |
 | Expected residual | Remote, significant, **low** |
 | DPO decides | Retention defaults (H-732); the equality questions (H-733); whether monitoring is in the tenant export (H-734); the applicant privacy notice (H-735); the smallest count shown (H-731) |
 
@@ -383,33 +430,62 @@ measures; "expected residual" is with Thapsus Care's measures built and the tena
   (R5) and sharing (R6) apply; the person an allegation is about is under R21 and complainants in a
   subject access request under R23. Clinical risk is in the hazard log (HZ-126).
 - **Policy library (slice 25)**: staff signatures on policy versions only; R1 and R5.
+- **Training, competence, supervision and e-learning (slices 17, 43 and 72)**: B3 records under R1
+  and R5; the e-learning package sees the member's first name only, in a sandbox on a separate
+  origin ([ADR-0093](../decisions/0093-elearning-runtime.md)); offline courses on the phone sit in
+  the encrypted device database (R2).
+- **Rota and bank and agency workers (slices 21 and 27)**: R1; an agency or bank worker's access
+  comes from their booked shifts and ends at shift end plus `access.agency.post_shift_hours`
+  ([ADR-0088](../decisions/0088-rota-derived-agency-access.md)).
+- **Outbreaks (slice 31)** and **deaths and missing persons (slice 37)**: care records and
+  statutory notifications under R1, R5, R6 and R17; the Herbert Protocol profile is prepared with
+  the person and their family and says where any prefilled part came from.
+- **Quality framework, audits, data security evidence and the dashboard (slices 14, 19, 32 and
+  47)**: organisation data and counts; a count of 1 or more below `quality.indicator.min_group_size`
+  is withheld (H-981).
+- **Dependency tool (slice 12)**: categories chosen by staff from the organisation's own scale,
+  never derived by Thapsus Care (B1; R1, R4).
+- **Medicines (lane A)** and their copies on the phone (slice 68): B1 records under R1, R2, R4, R8
+  and, for the printable MAR, R14; clinical risk is in the hazard log.
 
-### 7B.5 Retention gaps the DPO sets
+### 7B.5 Retention the DPO sets
 
-From the plan's list (H-525), for the built slices: DBS certificate details (11; settled as a spec
-decision for the DPO to confirm, H-575), safeguarding (13; `serious_incident`, H-596), DSAR cases
-(15; `data_rights_case`, 3 years, H-613), the breach register and data protection complaints (20;
-interim `audit_event`, H-670), unsuccessful applicants and the talent pool (23; H-732),
-whistleblowing (24; `speak_up_concern`, 6 years after the concern closes, H-721 recommended answer applied 31/10/2026), staff outbreak cases (22; `outbreak_staff_case`, 3 years after the outbreak closes, H-767), read-and-sign records (25; H-742) and import
-batches (26; staged rows at most 7 days, batch and commit records as audit, H-681).
-From the plan's list (H-525), for the built slices, with the recommended answers applied on
-31/10/2026 for the DPO to review at the testing phase ([retention.md](../specs/retention.md)): DBS
-certificate details (11; with the staff file, no certificate copy, H-575), safeguarding (13;
-`serious_incident`, H-596), DSAR cases (15; `data_rights_case`, 3 years, H-613), the breach
-register and Thapsus breach notices (20; `dp_breach`, 6 years from closure, H-670), data
-protection complaints (20; `data_rights_case`, 3 years, H-670), unsuccessful applicants (23; 6
-months after the last application closes) and the talent pool (H-732), whistleblowing (24;
-`whistleblowing`, 6 years from closure, replacing the interim `complaint`, H-721), read-and-sign
-records (25; H-742) and import batches (26; staged rows at most 7 days, batch and commit records as
-audit, H-681). Classes are also set for slices not built yet: medicines stock, disposal and
-temperature logs, audits, staff surveys, lone-worker check-ins, sponsor records and payroll exports
-(H-525).
+From the plan's list (H-525) and [retention.md](../specs/retention.md), for the built slices, with
+the recommended answers applied on 31/10/2026 for the DPO to review at the testing phase:
+
+| Records (slice) | Class in the code | Open |
+| --- | --- | --- |
+| Staff file, HR-only documents, casework, induction and leavers, pay profiles, supervision (11, 29, 36, 39) | `staff_file`, the tenant's chosen option; right to work copies `right_to_work_copy` (2 years after employment ends) | DBS details (H-575); casework (H-806) |
+| Sponsor records (35) | `sponsor_record` (2 years after employment ends) | H-901 |
+| Vetting consents and checks (77) | `staff_file` | - |
+| Training, competence, e-learning, imported training and read-and-sign (17, 25, 43, 78) | `training_record` | Read-and-sign (H-742) |
+| Rota, agency, clock events, timesheets, pay runs and payroll export records (21, 27, 30, 36, 76) | `rota_and_timesheet`; working time results `working_time_record`, opt-outs `working_time_opt_out` | retention.md also lists a `payroll_export` class (6 years) that the code does not use |
+| Absences, fit notes, return to work (40) | `sickness_absence` (6 years) | H-973 |
+| Lone working (46) | `lone_worker` (3 years from the finish); location points erased after `lone_worker.location_days` (30 days) | H-1033; retention.md also lists a `lone_worker_check_in` class (3 months for routine check-ins) that the code does not use |
+| Wellbeing (44) | `staff_wellbeing` (2 years) | H-1082 |
+| Safeguarding log (13) | `serious_incident` | H-596 |
+| DSAR cases (15) | `data_rights_case` (3 years) | H-613 |
+| Breach register and Thapsus breach notices (20) | `dp_breach` (6 years from closure) | H-670 |
+| Data protection complaints (20) | `data_rights_case` (3 years) | H-670 |
+| Disclosure requests and packs (41) | `serious_incident` | H-820 |
+| Unsuccessful applicants and the talent pool (23) | `applicant.unsuccessful` (6 months), `applicant.talent_pool` (12 months from consent) | H-732 |
+| Speaking up (24) | `speak_up_concern` (6 years from closure) | H-721; retention.md also lists a `whistleblowing` class of the same period that the code does not use |
+| Staff outbreak cases (31) | `outbreak_staff_case` (3 years from the outbreak's closure) | H-767 |
+| Import batches (26, 51) | Staged rows at most 7 days; batch and commit records as audit | H-681 |
+| OCR of scanned MAR charts (79) | `care_record`, with the image | - |
+| Thapsus-HR links and delivery log (87 to 90) | Links with the staff file; delivery log 12 months | H-1341 |
+
+The import expiry job and the lone-worker location erasure run on a schedule. No scheduled job yet
+destroys the other Phase 2 records when their class ends; until it does, destruction past retention
+is a person's action through the retention screens.
 
 ### 7B.6 Before this section is signed
 
 | Item | Value |
 | --- | --- |
-| Slices built since this draft, to add | *Thapsus Care updates the draft* |
+| Slices merged since 7 November 2026, to add | *Thapsus Care updates the draft* |
+| Lawful bases the records of processing do not yet name | Location and NFC evidence at clock-in, as employee monitoring (H-527); agency workers' records, whom the organisation does not employ (H-547); a wellbeing check-in the member keeps to themselves, which may reveal health (H-1080); health revealed in free text in induction, probation, exit interview and training records; the Thapsus-HR link as a purpose row of its own (H-1341). The plan's proposed purposes B17 (sponsor duties) and B18 (disclosure requests) are not rows in the records of processing: sponsor duties sit in B3 and disclosures in a note with a basis per type. *DPO completes* |
+| Risk R30 for the Thapsus-HR link (wrong matching, out-of-date data, over-sharing), assigned in the plan and ADR-0126 | Not yet in section 6 or the prefill; until it is, R25, R26 and R1 cover the link. *DPO decides whether it is added* |
 | R20 to R29 in sections 6 and 7 and in the in-app prefill | Done (H-795) |
 | DPO review of this section | *DPO completes* (H-790) |
 | Who reviewed section 7B, and when | *Tenant completes* |

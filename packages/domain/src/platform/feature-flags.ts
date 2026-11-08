@@ -117,6 +117,15 @@ export const FLAGS = {
     defaultEnabled: false,
     licensed: false,
   },
+  // Controlled drug recording in Harbour's register (H-1517, HZ-115, HZ-008): off at every location
+  // until controlled drugs are recorded on both the web and the phone there, so one register is
+  // the record. Until then the paper register is, and the register screens say so. Set per location.
+  "medicines.cd_recording": {
+    description:
+      "Controlled drugs recorded in Thapsus Care's register at this location (off until both the web and the phone record them; H-1517)",
+    defaultEnabled: false,
+    licensed: false,
+  },
 } as const satisfies Record<string, FlagDefinition>;
 
 /** The organisation-wide flag that lets phones use Care mode (H-381). */

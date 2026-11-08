@@ -428,6 +428,50 @@ describe("hazard HZ-127 the missing person episode (slice 37)", () => {
   });
 });
 
+describe("hazard HZ-127 an absconding incident opens an episode as a missing person one does", () => {
+  it("hazard HZ-127 opens an episode on an absconding incident, raising the police call task, and refuses one on a fall", async () => {
+    const record = async (type: string) => {
+      const created = await as("carer", "/v1/incidents", {
+        method: "POST",
+        body: {
+          locationId: DEMO.locationId,
+          type,
+          occurredAt: ago(20 * MIN),
+          description: "Left through the garden gate without staff knowing.",
+          people: [{ kind: "service_user", role: "affected", personId: resident(1) }],
+        },
+      });
+      expect(created.status, await created.clone().text()).toBe(201);
+      return (await json<IncidentDetail>(created)).id;
+    };
+    const open = (incidentId: string) =>
+      as("carer", "/v1/missing-episodes", {
+        method: "POST",
+        body: {
+          id: newId(),
+          incidentId,
+          personId: resident(1),
+          immediateRisk: false,
+          noticedMissingAt: ago(20 * MIN),
+        },
+      });
+    const refused = await open(await record("fall"));
+    expect(refused.status).toBe(422);
+    const opened = await open(await record("absconding"));
+    expect(opened.status, await opened.clone().text()).toBe(201);
+    const view = await json<MissingEpisodeView>(opened);
+    expect(view.status).toBe("open");
+    const tasks = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ status: string; priority: string }>(
+        "SELECT status, priority FROM task WHERE kind = 'safety.missing_police_call' AND source_id = $1",
+        [view.id],
+      );
+      return rows;
+    });
+    expect(tasks).toEqual([{ status: "open", priority: "urgent" }]);
+  });
+});
+
 describe("hazard HZ-127 a police call recorded after the person was found", () => {
   /** An episode for a resident with none still searching or found (the tests above leave some). */
   async function freeEpisode(minutesAgo: number) {

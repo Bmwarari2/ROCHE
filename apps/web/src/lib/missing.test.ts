@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   kindsFor,
   latePoliceCallShown,
+  missingEpisodeSubjects,
   missingShown,
   missingStatusChip,
   policeCallChip,
@@ -224,6 +225,36 @@ describe("missing persons", () => {
       ["record", "about_me"],
     );
     expect(prefillSources("Allergies (from the record): penicillin")).toEqual(["record"]);
+  });
+});
+
+describe("opening an episode from its incident", () => {
+  const AFFECTED = "0199f000-0000-7000-8000-0000000000c1";
+  const WITNESS = "0199f000-0000-7000-8000-0000000000c2";
+  const REPORT = ["safety.incident.report"];
+  const incidentOf = (type: string, status = "open") => ({
+    type,
+    status,
+    people: [
+      { kind: "service_user", role: "affected", personId: AFFECTED },
+      { kind: "service_user", role: "witness", personId: WITNESS },
+      { kind: "staff", role: "affected", personId: null },
+    ],
+  });
+
+  it.each([
+    ["missing_person", [AFFECTED]],
+    ["absconding", [AFFECTED]],
+    ["fall", []],
+    ["medication", []],
+  ])("hazard HZ-127 offers it on a %s incident for the person affected only", (type, offered) => {
+    expect(missingEpisodeSubjects(incidentOf(type), REPORT)).toEqual(offered);
+  });
+
+  it("hazard HZ-127 never offers it for a witness, on a closed incident, or without report", () => {
+    expect(missingEpisodeSubjects(incidentOf("absconding"), REPORT)).not.toContain(WITNESS);
+    expect(missingEpisodeSubjects(incidentOf("absconding", "closed"), REPORT)).toEqual([]);
+    expect(missingEpisodeSubjects(incidentOf("absconding"), ["safety.incident.read"])).toEqual([]);
   });
 });
 

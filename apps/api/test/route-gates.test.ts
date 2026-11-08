@@ -29,6 +29,8 @@ const CASE_MEMBER =
 
 const UNGATED: Readonly<Record<string, string>> = {
   "GET /v1/me": "the member's own memberships and roles; scope 'none'",
+  "GET /v1/me/locations/{id}/flags":
+    "feature flags at a location the member works at (H-1517), refused elsewhere; scope 'none'",
   "GET /v1/branding":
     "the organisation's white-label name, accent and logo id (PLAT-002); no personal data",
   "GET /v1/branding/logo": "the organisation's logo (PLAT-002); about no one; scope 'none'",
