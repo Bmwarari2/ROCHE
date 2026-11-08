@@ -21,6 +21,7 @@ import {
   cdPageHref,
   cdShown,
   cdTabHref,
+  doseWitnessFrom,
   movementChip,
 } from "@/lib/controlled-drugs";
 import { formatDateTime } from "@/lib/format";
@@ -86,10 +87,17 @@ async function RegisterPage({
     // Until recording is released at the person's home, the paper register is the record (H-1517).
     cdRecordingAt(person.locationId),
   ]);
-  const signatures = waiting?.data?.assertions ?? [];
+  // A signature for a dose record's correction is used only by that correction (HZ-004).
+  const signatures = (waiting?.data?.assertions ?? []).filter((a) => a.administrationId === null);
   const loneAllowed = page.witnessPolicy === "where_available";
   const unit = page.unit.name;
   const query = await searchParams;
+  const dose = doseWitnessFrom({
+    dose: firstParam(query.dose),
+    movement: firstParam(query.movement),
+    quantity: firstParam(query.quantity),
+    recorder: firstParam(query.recorder),
+  });
   const done = firstParam(query.done);
   const until = formatDateTime(firstParam(query.until) ?? null) ?? "";
   const entryOptions = page.entries.map((e) => ({
@@ -154,6 +162,7 @@ async function RegisterPage({
               pageId={pageId}
               recorders={recorders?.data?.recorders ?? []}
               unit={unit}
+              dose={dose}
             />
           )}
         </Card>

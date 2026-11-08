@@ -1,4 +1,12 @@
-import { Button, FlagChip, iconByName, StatusChip, Text, useTheme } from "@harbour/ui-native";
+import {
+  Button,
+  FlagChip,
+  iconByName,
+  PersonFlags,
+  StatusChip,
+  Text,
+  useTheme,
+} from "@harbour/ui-native";
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, findNodeHandle, type TextInput, View } from "react-native";
 import type { FieldError } from "../care/entries";
@@ -111,6 +119,17 @@ export function RoundTaskCard({
       <View accessible style={{ gap: theme.space[0.5] }}>
         <Text emphasis>{item.title}</Text>
         {item.person ? <Text>{item.person}</Text> : null}
+        {/* Allergies beside the person on every round card, as on the medicines round (guides
+            review, HZ-001, HZ-007); communication needs are the round's own flags below. */}
+        {item.personId ? (
+          <PersonFlags
+            allergyStatus={item.row.allergy_status ?? null}
+            allergyCount={Number(item.row.allergy_count) || 0}
+            communicationNeedsCount={0}
+            context="list"
+            testID={`round-${item.id}-person-flags`}
+          />
+        ) : null}
         {item.flags.length > 0 ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space[1] }}>
             {item.flags.map((flag) => (

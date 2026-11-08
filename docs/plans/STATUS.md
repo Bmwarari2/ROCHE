@@ -4,7 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 1% done** (3 of 234 register rows `done`; 103 `partial`, 128 `todo`). Rows become `done`
+**Overall: 2% done** (4 of 234 register rows `done`; 115 `partial`, 115 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 **Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
@@ -16,6 +16,13 @@ releases. Migration 0131; human actions H-1240 to H-1245. The job's Terraform wa
 adds the Terraform for that job (H-1241): the Cloud Run job `harbour-<env>-dmd`, its monthly Cloud
 Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job is applied
 (H-1501 to H-1505).
+
+**Committed on 07/11/2026, not pushed:** `fix/workforce-certificate-revalidation-permissions`
+(WORK-004 stays `partial`, WORK-012 `todo`). Two findings from the workforce guides' review: a Care
+Certificate observation needs only `workforce.competence.observe` (API, row-level security and a
+Care Certificate section on the training record, so team leaders and clinical leads can record
+it); and the NMC revalidation confirmation is recorded only by the confirmer HR names, never by HR
+unless named (API, database and web). Migrations 0156 and 0157.
 
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
@@ -31,6 +38,41 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
+
+## User guides: Phase 2 gaps (08/11/2026)
+
+`docs/guides-phase-2-gaps`, from `main` at ea6fc04d: 24 new guides for screens that merged after
+their guides were written (branding, documents, tasks and approvals, legal holds and destruction,
+personal details, About me, sharing, enquiries, pre-admission, admission, property, discharge and
+transfer, duty of candour, investigations and trends, evidence packs, the statement of purpose,
+the home page and memberships), the inspector's evidence pack guide rewritten for its page, and
+about 20 guides brought up to `main` (an absconding incident opens a missing person episode, #191;
+the phone's Training tab, #184; the controlled drugs banner and round notices, #187). Linked from
+the indexes, the guides README and the register's user docs column; no status changed. Gaps still
+open and findings: `docs/changelog-dev/2026-11-08-docs-guides-phase-2-gaps.md`.
+
+## Retention registry (08/11/2026)
+
+`feat/platform-retention-registry` (retention sweeps plan slices 2 and 3, on #193 and slice 1): the
+retention registry in `packages/domain/src/platform/retention-registry/`, one entry for each of the
+238 tables with personal data (Phase 0 to 2 and the sign-in schema) and 76 listed as holding none;
+a `packages/db` test that fails for a table with neither, or an entry naming a missing table,
+column or retention.md class; and the export catalogue's `retention` field checked against it
+(45 values corrected). No migration, data change or route. DPO decisions found are in plan section
+3.2. See `docs/changelog-dev/2026-11-08-feat-platform-retention-registry.md`.
+
+## H-1555: clock and lone-worker location evidence under a signed DPIA (07/11/2026)
+
+`fix/scheduling-clock-evidence-dpia`: location or NFC clock-in evidence and the lone-worker
+location are used only when the organisation's signed DPIA covers them (a client tick no longer
+switches them on); turning either on flags the DPIA for review. Migration 0154. See
+`docs/changelog-dev/2026-11-07-fix-scheduling-clock-evidence-dpia.md`.
+
+## Retention sweep rules (08/11/2026)
+
+`feat/platform-retention-rules` (retention sweeps plan slice 1, on #193), from `main` at ea6fc04d: the
+six pure domain rules of plan section 5.2 with table-driven tests per class; no database and no record
+changes. See `docs/changelog-dev/2026-11-08-feat-platform-retention-rules.md`.
 
 ## Paused 07/11/2026: where to resume on Sunday 08/11 at 08:00
 
@@ -92,6 +134,23 @@ pull request. Nothing is scheduled until the owner approves the plans.
 **Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
 phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
 and 1 once #193 has its numbers.
+
+## Doses recorded twice and corrections on the web (08/11/2026)
+
+`feat/meds-web-cd-conflicts-corrections`: the three web screens the phone sends staff to (HZ-004;
+medicines.md 15.4): deciding a dose recorded twice (a controlled drug's included, with step-up and
+someone who took no part), correcting the record that stands, and correcting a controlled drug's
+record with a witness who signs, in their own session, for exactly that correction. H-1605's
+stop-gap stays until this merges. Additive API fields only; no migration.
+
+## Retention sweeps: plan (07/11/2026)
+
+`feat/platform-retention-sweeps`: `docs/plans/retention-sweeps.md`, a draft inventory and plan for
+destroying Phase 2 records when their retention class ends. Nothing destroys database rows today;
+133 of the 135 Phase 2 tables with personal data are never swept. 15 slices, report only first;
+an ADR and 12 DPO questions come before any record is destroyed.
+Slice 0 done (08/11/2026, docs only): ADR-0135 proposed, retention.md mapping de-duplicated and complete,
+retention-and-deletion.md matches today, the 12 questions logged with provisional answers (H-1556 to H-1560, H-1581 to H-1587).
 
 ## User guides: safety, quality and platform, second pass (07/11/2026)
 
@@ -674,7 +733,10 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
 - slice 72 leftovers, `feat/mobile-training-placement`: Training tab beside Shifts (H-1365 done); Welsh strings H-1526; tab bar H-1527; Android Maestro run not done (no emulator here);
+- phone safety from the guides review, `feat/mobile-device-safety` (no migration; H-1530, H-1531; H-1604 stop-gap): PRN 24-hour maximum against the amount, Correct only where allowed, offline competence, keep-my-entries sign-out, honest key-reset notice, round-card allergies and Show record, device-mode gate; still open: shared-device PIN sign-in (ADR-0025, H-1530), the key-reset record at the server (H-1531), save confirmation, a device-withdraw screen, phone incidents and passkeys, hard-coded sign-in and lock strings; Maestro not run;
 - slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0147; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
+- slice 69 the medicines round on the phone, `feat/mobile-meds-round` (no migration; ADR-0081; H-1432 to H-1438; on slice 68): the round shared with the API, GS1 pack scan and photo confirmation, offline records judged at the phone's time, integrity gate, reminders; MOB-007, MEDS-002 partial; Maestro flow written, not run;
+- slice 70 controlled drugs, corrections and conflicts on the phone, `feat/mobile-meds-cd-offline` (0153 for now, the integrator renumbers; ADR-0084; H-1439, H-1440, H-1521 to H-1525; on slice 69): PIN keys per member and phone, two signatures verified on upload, referenced corrections, conflict review; MOB-007, MEDS-005 partial; Maestro flows written, not run;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
 - slice 71 shifts, clock and lone working on the phone, `feat/mobile-shifts-checkins` (0139; HZ-125; H-1310 to H-1319): streams, phone screens, offline queue; MOB-007 partial;

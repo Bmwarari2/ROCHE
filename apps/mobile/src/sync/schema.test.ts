@@ -13,6 +13,7 @@ describe("schema bridge", () => {
       person: false,
       allergy: false,
       location: false,
+      location_service: false,
       sync_meta: true,
       person_care_profile: false,
       care_plan: false,

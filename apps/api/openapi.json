@@ -330,6 +330,40 @@
           "flags"
         ]
       },
+      "DeviceKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "enrolledAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "deviceId",
+          "enrolledAt"
+        ]
+      },
+      "EnrolDeviceKey": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]{86}[AEIMQUYcgkosw048]=$"
+          }
+        },
+        "required": [
+          "publicKey"
+        ]
+      },
       "Branding": {
         "type": "object",
         "properties": {
@@ -33932,6 +33966,9 @@
           "reviewedBy": {
             "$ref": "#/components/schemas/StaffName"
           },
+          "confirmer": {
+            "$ref": "#/components/schemas/StaffName"
+          },
           "confirmedBy": {
             "$ref": "#/components/schemas/StaffName"
           },
@@ -33970,6 +34007,7 @@
           "confirmation",
           "reviewState",
           "reviewedBy",
+          "confirmer",
           "confirmedBy",
           "confirmedOn",
           "daysLeft",
@@ -34260,6 +34298,28 @@
         "required": [
           "expectedVersion",
           "cycleDueOn"
+        ]
+      },
+      "NameRevalidationConfirmer": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cycleDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "confirmerId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "cycleDueOn",
+          "confirmerId"
         ]
       },
       "ConfirmRevalidation": {
@@ -37070,6 +37130,9 @@
           },
           {
             "$ref": "#/components/schemas/SyncRefusedVisit"
+          },
+          {
+            "$ref": "#/components/schemas/SyncRefusedAdministration"
           }
         ],
         "discriminator": {
@@ -37079,7 +37142,8 @@
             "observation": "#/components/schemas/SyncRefusedObservation",
             "body_map_mark": "#/components/schemas/SyncRefusedBodyMapMark",
             "activity_record": "#/components/schemas/SyncRefusedActivityRecord",
-            "visit_log": "#/components/schemas/SyncRefusedVisit"
+            "visit_log": "#/components/schemas/SyncRefusedVisit",
+            "medication_administration": "#/components/schemas/SyncRefusedAdministration"
           }
         }
       },
@@ -37754,6 +37818,636 @@
           "payload"
         ],
         "additionalProperties": false
+      },
+      "SyncRefusedAdministration": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "medication_administration"
+            ]
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "record"
+                    ]
+                  },
+                  "body": {
+                    "$ref": "#/components/schemas/RecordAdministration"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "body"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "correction"
+                    ]
+                  },
+                  "supersedesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "body": {
+                    "$ref": "#/components/schemas/CorrectAdministration"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "supersedesId",
+                  "body"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "RecordAdministration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AdministrationOutcome"
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 2000,
+                "default": null
+              }
+            },
+            "default": null,
+            "required": [
+              "code"
+            ]
+          },
+          "amount": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "quantity": {
+                "type": "number",
+                "minimum": 0.001,
+                "maximum": 10000000
+              },
+              "unitCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "default": null,
+            "required": [
+              "quantity",
+              "unitCode"
+            ]
+          },
+          "amountDifferenceReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "timingReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "intervalOverrideReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "controlledDrug": {
+            "$ref": "#/components/schemas/DoseCdWitness"
+          },
+          "covert": {
+            "type": "boolean",
+            "default": false
+          },
+          "givenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          },
+          "deviceOffsetMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -86400000,
+            "maximum": 86400000,
+            "default": null
+          },
+          "givenBeforeRecorded": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "default": null,
+            "required": [
+              "reason"
+            ]
+          },
+          "givenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "pointOfCare": {
+            "$ref": "#/components/schemas/PointOfCare"
+          },
+          "deviceRecordedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "entryId",
+          "outcome"
+        ]
+      },
+      "AdministrationOutcome": {
+        "type": "string",
+        "enum": [
+          "given",
+          "refused",
+          "omitted",
+          "not_available",
+          "self_administered",
+          "given_by_family",
+          "withheld"
+        ]
+      },
+      "DoseCdWitness": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "witnessAssertionId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "witnessAssertionId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "noWitnessReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "noWitnessReason"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "deviceSignatures": {
+                "type": "object",
+                "properties": {
+                  "recorder": {
+                    "$ref": "#/components/schemas/DeviceSignature"
+                  },
+                  "witness": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "keyId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "signature": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9+/]{86}==$"
+                      },
+                      "signedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "witnessId": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    },
+                    "default": null,
+                    "required": [
+                      "keyId",
+                      "signature",
+                      "signedAt",
+                      "witnessId"
+                    ]
+                  },
+                  "noWitnessReason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "default": null
+                  }
+                },
+                "required": [
+                  "recorder"
+                ]
+              }
+            },
+            "required": [
+              "deviceSignatures"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "DeviceSignature": {
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]{86}==$"
+          },
+          "signedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "keyId",
+          "signature",
+          "signedAt"
+        ]
+      },
+      "PointOfCare": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "identity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "photo",
+              "wristband",
+              null
+            ]
+          },
+          "pack": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "scanned",
+                  "override"
+                ]
+              },
+              "gtin": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{14}$",
+                "default": null
+              },
+              "batch": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 20,
+                "default": null
+              },
+              "expiry": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "default": null
+              },
+              "amppId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[1-9]\\d{5,17}$",
+                "default": null
+              },
+              "override": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "no_barcode_on_pack",
+                      "barcode_unreadable",
+                      "pack_not_in_reference_data",
+                      "patient_own_supply",
+                      "other"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "default": null
+                  }
+                },
+                "default": null,
+                "required": [
+                  "code"
+                ]
+              }
+            },
+            "required": [
+              "method"
+            ]
+          }
+        },
+        "default": null,
+        "required": [
+          "identity",
+          "pack"
+        ]
+      },
+      "CorrectAdministration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "default": null
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AdministrationOutcome"
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 2000,
+                "default": null
+              }
+            },
+            "default": null,
+            "required": [
+              "code"
+            ]
+          },
+          "amount": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "quantity": {
+                "type": "number",
+                "minimum": 0.001,
+                "maximum": 10000000
+              },
+              "unitCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "default": null,
+            "required": [
+              "quantity",
+              "unitCode"
+            ]
+          },
+          "amountDifferenceReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "timingReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "intervalOverrideReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "controlledDrug": {
+            "$ref": "#/components/schemas/DoseCdWitness"
+          },
+          "covert": {
+            "type": "boolean"
+          },
+          "correctionReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "givenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "givenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "entryId",
+          "outcome",
+          "correctionReason",
+          "givenAt"
+        ]
       },
       "RefusedEntryList": {
         "type": "object",
@@ -44185,6 +44879,9 @@
               "mayGive",
               "notice"
             ]
+          },
+          "controlledDrug": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -44215,7 +44912,8 @@
           "replacedFrom",
           "reanchor",
           "withdrawn",
-          "status"
+          "status",
+          "controlledDrug"
         ]
       },
       "DmdProductRef": {
@@ -46069,6 +46767,9 @@
               "at",
               "method"
             ]
+          },
+          "inCdRegister": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -46092,19 +46793,8 @@
           "supersedesId",
           "correctionReason",
           "supersededById",
-          "witness"
-        ]
-      },
-      "AdministrationOutcome": {
-        "type": "string",
-        "enum": [
-          "given",
-          "refused",
-          "omitted",
-          "not_available",
-          "self_administered",
-          "given_by_family",
-          "withheld"
+          "witness",
+          "inCdRegister"
         ]
       },
       "AdministrationConflictRaised": {
@@ -46126,323 +46816,6 @@
           "conflictId",
           "standingId",
           "message"
-        ]
-      },
-      "RecordAdministration": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "entryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "dueAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "default": null
-          },
-          "outcome": {
-            "$ref": "#/components/schemas/AdministrationOutcome"
-          },
-          "reason": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "code": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 60
-              },
-              "note": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "minLength": 1,
-                "maxLength": 2000,
-                "default": null
-              }
-            },
-            "default": null,
-            "required": [
-              "code"
-            ]
-          },
-          "amount": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "quantity": {
-                "type": "number",
-                "minimum": 0.001,
-                "maximum": 10000000
-              },
-              "unitCode": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 40
-              }
-            },
-            "default": null,
-            "required": [
-              "quantity",
-              "unitCode"
-            ]
-          },
-          "amountDifferenceReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "timingReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "intervalOverrideReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "controlledDrug": {
-            "$ref": "#/components/schemas/CdWitness"
-          },
-          "covert": {
-            "type": "boolean",
-            "default": false
-          },
-          "givenAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "default": null
-          },
-          "deviceOffsetMs": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": -86400000,
-            "maximum": 86400000,
-            "default": null
-          },
-          "givenBeforeRecorded": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "reason": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 2000
-              }
-            },
-            "default": null,
-            "required": [
-              "reason"
-            ]
-          },
-          "givenBy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "default": null
-          }
-        },
-        "required": [
-          "id",
-          "entryId",
-          "outcome"
-        ]
-      },
-      "CdWitness": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "witnessAssertionId": {
-                "type": "string",
-                "format": "uuid"
-              }
-            },
-            "required": [
-              "witnessAssertionId"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "noWitnessReason": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 2000
-              }
-            },
-            "required": [
-              "noWitnessReason"
-            ]
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null
-      },
-      "CorrectAdministration": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "entryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "dueAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "default": null
-          },
-          "outcome": {
-            "$ref": "#/components/schemas/AdministrationOutcome"
-          },
-          "reason": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "code": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 60
-              },
-              "note": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "minLength": 1,
-                "maxLength": 2000,
-                "default": null
-              }
-            },
-            "default": null,
-            "required": [
-              "code"
-            ]
-          },
-          "amount": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "quantity": {
-                "type": "number",
-                "minimum": 0.001,
-                "maximum": 10000000
-              },
-              "unitCode": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 40
-              }
-            },
-            "default": null,
-            "required": [
-              "quantity",
-              "unitCode"
-            ]
-          },
-          "amountDifferenceReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "timingReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "intervalOverrideReason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 2000,
-            "default": null
-          },
-          "controlledDrug": {
-            "$ref": "#/components/schemas/CdWitness"
-          },
-          "covert": {
-            "type": "boolean"
-          },
-          "correctionReason": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000
-          },
-          "givenAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "givenBy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "default": null
-          }
-        },
-        "required": [
-          "id",
-          "entryId",
-          "outcome",
-          "correctionReason",
-          "givenAt"
         ]
       },
       "WitnessAdministration": {
@@ -47381,6 +47754,13 @@
                 "quantity": {
                   "type": "number"
                 },
+                "administrationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
                 "witnessName": {
                   "type": "string"
                 },
@@ -47393,6 +47773,7 @@
                 "id",
                 "movement",
                 "quantity",
+                "administrationId",
                 "witnessName",
                 "expiresAt"
               ]
@@ -47553,6 +47934,35 @@
           "witness"
         ]
       },
+      "CdWitness": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "witnessAssertionId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "witnessAssertionId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "noWitnessReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "noWitnessReason"
+            ]
+          }
+        ]
+      },
       "StockCheckRecorded": {
         "type": "object",
         "properties": {
@@ -47592,6 +48002,92 @@
         "required": [
           "counted",
           "witness"
+        ]
+      },
+      "CdRecordingState": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "locationId",
+          "enabled",
+          "changed"
+        ]
+      },
+      "CdRecordingChange": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "paperRegisterClosed": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "balancesToCarryForward": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "phonesUpdated": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "paperRegisterClosed",
+              "balancesToCarryForward",
+              "phonesUpdated"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "paperRegisterRestarted": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "reason",
+              "paperRegisterRestarted"
+            ]
+          }
         ]
       },
       "LocationMedicineRound": {
@@ -47885,6 +48381,12 @@
           "standing": {
             "$ref": "#/components/schemas/Administration"
           },
+          "current": {
+            "$ref": "#/components/schemas/Administration"
+          },
+          "controlledDrug": {
+            "type": "boolean"
+          },
           "uploaded": {
             "$ref": "#/components/schemas/UploadedAdministration"
           },
@@ -47963,6 +48465,8 @@
           "entryId",
           "dueAt",
           "standing",
+          "current",
+          "controlledDrug",
           "uploaded",
           "joined",
           "problems",
@@ -58077,6 +58581,58 @@
               "harbour",
               "thapsus_hr"
             ]
+          },
+          "postponedFromId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "postponedTo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "startsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "endsOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "id",
+              "startsOn",
+              "endsOn"
+            ]
+          },
+          "postponement": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "latestStartsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "noticeBy": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "latestStartsOn",
+              "noticeBy"
+            ]
           }
         },
         "required": [
@@ -58095,7 +58651,10 @@
           "bradfordExcluded",
           "coverNeeded",
           "fitNoteUncoveredDays",
-          "source"
+          "source",
+          "postponedFromId",
+          "postponedTo",
+          "postponement"
         ]
       },
       "AbsenceKind": {
@@ -58261,6 +58820,58 @@
               "thapsus_hr"
             ]
           },
+          "postponedFromId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "postponedTo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "startsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "endsOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "id",
+              "startsOn",
+              "endsOn"
+            ]
+          },
+          "postponement": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "latestStartsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "noticeBy": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "latestStartsOn",
+              "noticeBy"
+            ]
+          },
           "carersLeave": {
             "type": [
               "object",
@@ -58322,6 +58933,9 @@
           "coverNeeded",
           "fitNoteUncoveredDays",
           "source",
+          "postponedFromId",
+          "postponedTo",
+          "postponement",
           "carersLeave",
           "fitNotes",
           "returnToWork",
@@ -58475,6 +59089,17 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 500
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "confirmsPostponable": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -59129,13 +59754,18 @@
             "items": {
               "type": "string"
             }
+          },
+          "inUse": {
+            "type": "boolean",
+            "description": "Whether the evidence asked for is in effect at the location: not none, the flag scheduling.clock.location_evidence on there, and the organisation's signed DPIA covering it (H-1555). While false, clock events keep no location or NFC evidence."
           }
         },
         "required": [
           "locationId",
           "version",
           "evidence",
-          "nfcTagRefs"
+          "nfcTagRefs",
+          "inUse"
         ]
       },
       "ChangeClockSetting": {
@@ -59161,7 +59791,9 @@
           },
           "dpiaApproved": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "deprecated": true,
+            "description": "Deprecated and ignored: location or NFC evidence needs the organisation's signed DPIA to cover it, which the API checks (H-1555)."
           }
         },
         "required": [
@@ -62791,6 +63423,75 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/device-keys": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Enrol your signing key for this phone",
+        "description": "For holders of medicines.cd.administer or medicines.cd.witness, with a fresh step-up, from a phone bound to them (x-harbour-device) and not revoked. Stores the public key; the newest key for the member and phone signs from its enrolment. Audited as medicines.device_key.enrolled.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrolDeviceKey"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The key enrolled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceKey"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -97307,13 +98008,93 @@
         }
       }
     },
+    "/v1/workforce/members/{memberId}/care-certificate": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A member's Care Certificate",
+        "description": "workforce.staff_file.read, workforce.staff_file.manage or workforce.competence.observe. The Care Certificate alone, with the staff file's id to record against, so an observer (a team leader or clinical lead) can find and observe it without any staff file permission; 404 when the member has no staff file. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Care Certificate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareCertificateView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workforce/staff-files/{id}/care-certificate/{standardId}": {
       "put": {
         "tags": [
           "workforce"
         ],
         "summary": "Record a Care Certificate standard's assessment or observation",
-        "description": "workforce.staff_file.manage or workforce.competence.observe, never on one's own file, in the caller's own name: the knowledge assessment, then the observation in practice (observers only). Audited.",
+        "description": "Never on one's own file, in the caller's own name: the knowledge assessment (workforce.staff_file.manage or workforce.competence.observe), then the observation in practice (workforce.competence.observe only; no staff file permission needed). Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -99399,13 +100180,201 @@
         }
       }
     },
+    "/v1/workforce/members/{memberId}/revalidation/confirmer": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Name who confirms a nurse's revalidation",
+        "description": "workforce.training.manage, never for oneself, against expectedVersion. A colleague other than the nurse and other than the caller (so nobody makes themselves the confirmer); never once confirmed. Only the named confirmer records the confirmation (rule 8, H-693). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameRevalidationConfirmer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/revalidation/confirmers": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Who may be named a nurse's revalidation confirmer",
+        "description": "workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false,
+            "name": "cycleDueOn",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Who may be named",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColleagueList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workforce/members/{memberId}/revalidation/confirmation": {
       "post": {
         "tags": [
           "workforce"
         ],
         "summary": "Record that you confirmed a nurse's revalidation",
-        "description": "The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.",
+        "description": "Only the confirmer named on the cycle (PUT .../revalidation/confirmer), acting for themselves and in their own name, after HR's review; never the nurse, and never HR unless named (separation of duties). The confirmer holds workforce.training.manage or workforce.supervision.manage, ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out (rule 8, H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -117282,6 +118251,96 @@
         }
       }
     },
+    "/v1/locations/{id}/controlled-drugs/recording": {
+      "put": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Turn controlled drug recording on or off at a home",
+        "description": "Owner or Registered Manager: `medicines.record.manage` and `platform.location.manage` at the home, with a fresh second sign-in step (H-1517, H-1518; HZ-115, HZ-008). One register is the record: turning it on says the paper register is counted, witnessed and closed now, that each balance is carried into Thapsus Care's register before the next dose, and that the home's phones are updated; turning it off needs a reason and says the paper register is restarted with each balance. The reason is kept with the setting, not in the audit trail. Audited either way, and so is every refusal once the request is well formed. Elsewhere 404.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CdRecordingChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recording as it now stands at the home",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CdRecordingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/locations/{id}/medicine-round": {
       "get": {
         "tags": [
@@ -130393,7 +131452,7 @@
           "scheduling"
         ],
         "summary": "Approve, decline or postpone a leave request",
-        "description": "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
+        "description": "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable). Carer's and unpaid parental leave may be postponed, never declined (H-970): with the new first and last days, the same number of days as asked for, starting after the first day asked for and no later than the rate table's months after it, given within the rate table's days of the request (and, for carer's leave, before it was due to start); parental leave also needs confirmsPostponable (422 absence_postpone_*). The request becomes postponed and the new dates become approved leave pointing back at it. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved, .declined or .postponed, and .approved for the new dates), never the reason.",
         "security": [
           {
             "bearerAuth": []
@@ -131556,6 +132615,7 @@
           "scheduling"
         ],
         "summary": "Clock evidence at a location",
+        "description": "scheduling.rota.manage, .rota.read or .timesheet.self. The evidence the location's setting asks for, and whether it is in effect (inUse): not none, the flag scheduling.clock.location_evidence on at the location, and the organisation's signed DPIA covering it (H-1555). While inUse is false, clock events keep no location or NFC evidence.",
         "security": [
           {
             "bearerAuth": []
@@ -131633,7 +132693,7 @@
           "scheduling"
         ],
         "summary": "Set clock evidence at a location",
-        "description": "Location or NFC evidence is employee monitoring: it needs dpiaApproved, confirming the employee-monitoring DPIA is approved (H-527). Never a position: only whether the phone was at the location or read the location's tag.",
+        "description": "scheduling.rota.approve. Location or NFC evidence is employee monitoring (H-527, H-1555): it is refused (422 dpia_monitoring_not_covered) unless the flag scheduling.clock.location_evidence is on at the location and the organisation's signed DPIA lists it among its features. dpiaApproved is deprecated and ignored. Setting none is always allowed. Never a position: only whether the phone was at the location or read the location's tag. Audited with the evidence and the id of the signed DPIA relied on (dpiaId). The answer says whether the evidence is in effect (inUse).",
         "security": [
           {
             "bearerAuth": []
@@ -132984,7 +134044,7 @@
           "scheduling"
         ],
         "summary": "The on-call route for lone-worker alarms (H-539)",
-        "description": "Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached. Holders of scheduling.lone_worker.check_in, .monitor or .manage.",
+        "description": "Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached for the organisation as a whole (the organisation-wide value of the flag scheduling.lone_worker.location, on and covered by the organisation's signed DPIA; H-1555). A location's own flag row may switch it on or off at that location alone, which this value does not show. Holders of scheduling.lone_worker.check_in, .monitor or .manage.",
         "security": [
           {
             "bearerAuth": []
@@ -133266,7 +134326,7 @@
           "scheduling"
         ],
         "summary": "Check in, ask for help, raise duress or finish",
-        "description": "scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the organisation's flag is on. Audited (duress as an event like any other).",
+        "description": "scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the flag scheduling.lone_worker.location is on at the session's location and the organisation's signed DPIA covers it (H-1555). Audited (duress as an event like any other), with whether a location sent was kept and never the location itself.",
         "security": [
           {
             "bearerAuth": []

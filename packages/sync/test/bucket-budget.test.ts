@@ -69,6 +69,8 @@ interface Profile {
   /** The medicines family's whole homes, when wider than the others' (defaults to `whole`). */
   readonly medsWhole?: readonly string[];
   readonly assigned: readonly { id: string; location_id: string }[];
+  /** The token's `location_ids`, when wider than the whole homes (security review, M2). */
+  readonly locations?: readonly string[];
 }
 
 async function measure(date: string, profile: Profile) {
@@ -90,7 +92,7 @@ async function measure(date: string, profile: Profile) {
   const claims: Partial<SyncTokenClaims> = {
     sub: "member",
     tenant_id: "A",
-    location_ids: [...profile.whole],
+    location_ids: [...(profile.locations ?? profile.whole)],
     offline_days: days,
     shift_days: shiftWindowDays(now),
     people_location_ids: [...profile.whole],
@@ -135,6 +137,7 @@ async function measure(date: string, profile: Profile) {
     medsDays: medsRecentDays(now).length,
     medsBlocks: offlineWindowBlocks(medsRecentDays(now)).length,
     medsAssignedPeople: profile.assigned.length,
+    locations: (profile.locations ?? profile.whole).length,
   });
   return { device, estimate };
 }
@@ -227,6 +230,14 @@ describe("hazard HZ-002 a phone stays under PowerSync's buckets per connection (
       [
         "40 assigned people at two homes",
         { whole: [], assigned: [...at("H1", 20), ...at("H2", 20)] },
+      ],
+      [
+        "20 assigned people, with six homes in scope and none whole (security review, M2)",
+        {
+          whole: [],
+          locations: ["H0", "H1", "H2", "H3", "H4", "H5"],
+          assigned: [...at("H1", 10), ...at("H2", 10)],
+        },
       ],
       [
         "100 assigned people at two homes",

@@ -11,8 +11,8 @@ gaps the slice 83 guides review found.
   literal) of the date the report was sent (reg 29(4)), so 56 days after it, as before
   (`preventionResponse` in the domain, table-driven tests with fixed dates across the clock
   changes).
-- **Extension**: a later date the coroner allowed (`prevention_extended_to`, migration 0157,
-  written as 0157 until it is renumbered before merge; reg 29(5)); refused unless later than the
+- **Extension**: a later date the coroner allowed (`prevention_extended_to`, migration 0158;
+  reg 29(5)); refused unless later than the
   usual due date, naming it; the response is then due on it, and the screen says "(extended by
   the coroner)". The closed-request guard lets it be recorded after release, as the other
   Regulation 28 dates.

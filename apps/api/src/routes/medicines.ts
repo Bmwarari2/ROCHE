@@ -78,6 +78,7 @@ import {
   entryOut,
   guardConcurrent,
   insertEntry,
+  isControlledDrug,
   lockPerson,
   personEntries,
   requireDocuments,
@@ -697,7 +698,14 @@ export const medicinesRouter = createRouter()
           scope: { personId: id },
         });
         await changed(tx, result.entry, "changed");
-        return entryOut({ entry: result.entry, medicineId: result.entry.id }, now);
+        return entryOut(
+          {
+            entry: result.entry,
+            medicineId: result.entry.id,
+            controlledDrug: await isControlledDrug(tx, result.entry.id),
+          },
+          now,
+        );
       });
       return c.json(out, 201);
     },
@@ -760,7 +768,14 @@ export const medicinesRouter = createRouter()
         });
         await changed(tx, result.next, "changed");
         return {
-          entry: entryOut({ entry: result.next, medicineId }, now),
+          entry: entryOut(
+            {
+              entry: result.next,
+              medicineId,
+              controlledDrug: await isControlledDrug(tx, result.next.id),
+            },
+            now,
+          ),
           withdrawn: result.withdrawn.map((w) => w.id),
         };
       });
@@ -828,7 +843,14 @@ export const medicinesRouter = createRouter()
             resourceId: entryId,
             scope: { personId: stored.entry.personId },
           });
-          return entryOut({ entry: result.entry, medicineId }, now);
+          return entryOut(
+            {
+              entry: result.entry,
+              medicineId,
+              controlledDrug: await isControlledDrug(tx, result.entry.id),
+            },
+            now,
+          );
         }),
       );
       return c.json(out, 200);
@@ -885,7 +907,14 @@ export const medicinesRouter = createRouter()
         });
         await changed(tx, target, "stopped");
         return {
-          entry: entryOut({ entry: result.stopped ?? stored.entry, medicineId }, now),
+          entry: entryOut(
+            {
+              entry: result.stopped ?? stored.entry,
+              medicineId,
+              controlledDrug: await isControlledDrug(tx, (result.stopped ?? stored.entry).id),
+            },
+            now,
+          ),
           withdrawn: result.withdrawn.map((w) => w.id),
         };
       });

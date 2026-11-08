@@ -205,6 +205,14 @@ and handover reuse the task engine. A second record of a dose from a device is k
 to decide; Thapsus Care never picks which record is right, and a dose found given twice raises an
 incident for people to investigate. Nothing suggests a dose, a change or a treatment.
 
+**Doses recorded twice and dose record corrections on the web (Phase 2, 08/11/2026)**: re-checked;
+still inside the boundary. The screens show both records in words and whether they agree, and
+offer only the decisions the records allow (a fixed rule about what the records say, not about the
+person); they never suggest which record is right. A correction records what a person says
+happened, with why. What a controlled drug's correction does to the register (a dose given, or a
+correction by the change in amount) is arithmetic on the two records, shown so the witness signs
+for exactly that; it says nothing about the medicine or its dose.
+
 **Controlled drugs register (Phase 2, slice 34)**: re-checked; still inside the boundary. The
 register records movements people make and checks arithmetic and signatures (the running balance,
 a witness who is a second person, a count against the page); it says nothing about the medicine,
@@ -307,3 +315,13 @@ The `clinical-safety-reviewer` agent checks the answer against the diff. A "Yes"
 | Review and approve this boundary statement | CSO |
 
 **Printable MAR chart and controlled drugs register page (Phase 2 slice 50)**: these stay inside the boundary. They print the record as it stands: each dose's outcome as recorded, the reason recorded, when and by whom, the allergies and communication needs as recorded, and the register's entries, signatures and stock checks. They add no score, judgement or recommendation; "no outcome recorded" and "not yet due" describe the record, and every page says it is not the live record and to check the eMAR before giving or holding any medicine.
+
+**The medicines round on the phone (Phase 2 slice 69; ADR-0081)**: the phone runs the same
+`medicineRound` as the API on its synced MAR rows: which doses are due, late or recorded, from the
+prescriber's schedule and the tenant's dose windows in the rate table, and when a when-required
+medicine may next be given from the prescribed interval and maximum. It applies those
+tenant-configured rules and the prescription as written; it makes no recommendation, score or
+judgement of its own. Matching a scanned pack to the MAR entry's dm+d product and checking its
+expiry is a record-keeping check against reference data, not a clinical decision. Where the phone
+cannot know (a last dose older than its records) it says so and sends the carer to the nurse in
+charge. Re-checked for this PR: nothing in the slice moves Thapsus Care across the boundary.

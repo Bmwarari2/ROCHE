@@ -17,9 +17,60 @@ export const CdMovement = z
   .meta({ id: "CdMovement" });
 
 /** How the second signature is given: a witness's assertion, or (where policy allows) why none. */
+/** One signature made on a phone with a member's own PIN-unlocked key (ADR-0084; slice 70). */
+export const DeviceSignature = z
+  .object({
+    /** The member_device_key that signed. */
+    keyId: uuid,
+    /** ECDSA P-256 over the dose statement (`cdDoseStatementText`), r||s, base64. */
+    signature: z.string().regex(/^[A-Za-z0-9+/]{86}==$/),
+    /** When they signed, by the phone's clock. */
+    signedAt: isoDateTime,
+  })
+  .meta({ id: "DeviceSignature" });
+
 export const CdWitness = z
   .union([z.object({ witnessAssertionId: uuid }), z.object({ noWitnessReason: reason })])
   .meta({ id: "CdWitness" });
+
+/**
+ * A dose's second signature: as the register's, or, offline on one phone, the recorder's own
+ * signature standing for their step-up and the witness's on the same phone; the server verifies
+ * both (ADR-0084; slice 70).
+ */
+export const DoseCdWitness = z
+  .union([
+    z.object({ witnessAssertionId: uuid }),
+    z.object({ noWitnessReason: reason }),
+    z.object({
+      deviceSignatures: z
+        .object({
+          recorder: DeviceSignature,
+          /** The witness's signature, made on the same phone when they saw the dose given. */
+          witness: DeviceSignature.extend({ witnessId: uuid }).nullable().default(null),
+          /**
+           * Where the location's policy allows it (`where_available`), why there was no witness;
+           * flagged for manager review. Refused where a witness is required.
+           */
+          noWitnessReason: reason.nullable().default(null),
+        })
+        .refine((d) => (d.witness === null) !== (d.noWitnessReason === null), {
+          message: "Give the witness's signature, or why there was none, not both.",
+        }),
+    }),
+  ])
+  .meta({ id: "DoseCdWitness" });
+
+export const EnrolDeviceKey = z
+  .object({
+    /** The uncompressed P-256 public key (65 bytes), base64. */
+    publicKey: z.string().regex(/^[A-Za-z0-9+/]{86}[AEIMQUYcgkosw048]=$/),
+  })
+  .meta({ id: "EnrolDeviceKey" });
+
+export const DeviceKeyOut = z
+  .object({ id: uuid, deviceId: uuid, enrolledAt: isoDateTime })
+  .meta({ id: "DeviceKey" });
 
 export const OpenCdPage = z
   .object({ /** The MAR entry whose dm+d product is a controlled drug. */ entryId: uuid })
@@ -152,9 +203,42 @@ export const CdWaitingAssertions = z
         id: uuid,
         movement: z.union([CdMovement, z.literal("stock_check")]),
         quantity: z.number(),
+        /** The administration the witness saw (its client id), for a dose; null otherwise. */
+        administrationId: uuid.nullable(),
         witnessName: z.string(),
         expiresAt: isoDateTime,
       }),
     ),
   })
   .meta({ id: "CdWaitingAssertions" });
+
+/**
+ * Turning controlled drug recording on or off at a home (H-1517, H-1518; HZ-115, HZ-008). One
+ * register is the record: switching on closes the paper register, switching off restarts it, and
+ * each needs the person doing it to say the steps around it are done.
+ */
+export const CdRecordingChange = z
+  .discriminatedUnion("enabled", [
+    z.object({
+      enabled: z.literal(true),
+      /** The paper register's pages are counted, witnessed and closed now. */
+      paperRegisterClosed: z.literal(true),
+      /** Each balance is entered in Thapsus Care's register, witnessed, before the next dose. */
+      balancesToCarryForward: z.literal(true),
+      /** The home's phones run the version that records controlled drugs. */
+      phonesUpdated: z.literal(true),
+    }),
+    z.object({
+      enabled: z.literal(false),
+      reason,
+      /** The register pages are printed and the paper register restarted with each balance. */
+      paperRegisterRestarted: z.literal(true),
+    }),
+  ])
+  .meta({ id: "CdRecordingChange" });
+export type CdRecordingChange = z.infer<typeof CdRecordingChange>;
+
+export const CdRecordingState = z
+  .object({ locationId: uuid, enabled: z.boolean(), changed: z.boolean() })
+  .meta({ id: "CdRecordingState" });
+export type CdRecordingState = z.infer<typeof CdRecordingState>;

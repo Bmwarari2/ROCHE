@@ -7,8 +7,8 @@ care or support worker sees only the people assigned to them. Some roles can see
 act on it.
 
 **Register row**: CARE-013. These steps are for the web. The phone app has the round too, on its
-**Round** tab, with its own buttons. Medicines are not on this round: use **Medicines round** on
-the web.
+**Round** tab, with its own buttons. Medicines are not on this round: use the phone's **Medicines** tab,
+if your organisation has switched it on, or **Medicines round** on the web.
 
 ## Steps
 

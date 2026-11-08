@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { builtinRole } from "../platform/roles";
 import {
   accessEndsAt,
   accessRemovalDue,
@@ -13,6 +14,7 @@ import {
   INDUCTION_ITEMS,
   inductionState,
   leaverState,
+  mayRecordStandardStep,
   REFERENCE_DECLINED_REASONS,
   type StandardProgress,
   staffFileRetainUntil,
@@ -104,6 +106,44 @@ describe("the Care Certificate (workforce.md rule 20)", () => {
     expect(partial).toMatchObject({ competent: 0, complete: false, completedOn: null });
     expect(partial.standards[0]?.status).toBe("knowledge_assessed");
     expect(partial.standards[1]?.status).toBe("not_started");
+  });
+});
+
+describe("who records a Care Certificate step (rule 20; section 3)", () => {
+  const rolePermissions = (key: string) => builtinRole(key)?.permissions ?? [];
+  // The observation needs only workforce.competence.observe: team leaders and clinical leads
+  // observe without any staff file permission.
+  it.each([
+    ["team leader", rolePermissions("team_leader"), true, true],
+    ["clinical lead", rolePermissions("clinical_lead"), true, true],
+    ["HR", rolePermissions("hr"), true, true],
+    ["Registered Manager", rolePermissions("registered_manager"), true, true],
+    ["care worker", rolePermissions("care_worker"), false, false],
+    ["group executive", rolePermissions("group_executive"), false, false],
+    ["the observe permission alone", ["workforce.competence.observe"], true, true],
+    ["the staff file's manage permission alone", ["workforce.staff_file.manage"], true, false],
+    ["the staff file's read permission alone", ["workforce.staff_file.read"], false, false],
+    ["no permission", [], false, false],
+  ] as const)("%s: knowledge %s, observation %s", (_name, permissions, knowledge, observation) => {
+    expect(mayRecordStandardStep(permissions, "knowledge")).toBe(knowledge);
+    expect(mayRecordStandardStep(permissions, "observation")).toBe(observation);
+  });
+
+  it("a team leader's observation passes the rule, with no staff file permission", () => {
+    const permissions = rolePermissions("team_leader");
+    expect(permissions.some((p) => p.startsWith("workforce.staff_file."))).toBe(false);
+    expect(
+      checkStandardChange({
+        current: assessed,
+        step: "observation",
+        on: "2026-11-06",
+        today: "2026-11-07",
+        startsOn: "2026-11-01",
+        workerId: WORKER,
+        actorId: ASSESSOR,
+        actorObserves: mayRecordStandardStep(permissions, "observation"),
+      }),
+    ).toEqual({ ok: true });
   });
 });
 

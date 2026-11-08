@@ -536,6 +536,11 @@ export const revalidationEvidence = pgTable(
     reviewState: text("review_state").notNull().default("draft"),
     reviewedBy: uuid("reviewed_by"),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /**
+     * Who is to confirm this cycle, named by HR (never the nurse, never the one naming them):
+     * only they record the confirmation (rule 8, separation of duties; migration 0156).
+     */
+    confirmerId: uuid("confirmer_id"),
     /** The confirmer, in their own name and never the nurse (NMC revalidation guidance). */
     confirmedBy: uuid("confirmed_by"),
     confirmedOn: date("confirmed_on"),
@@ -545,6 +550,8 @@ export const revalidationEvidence = pgTable(
     unique("revalidation_evidence_tenant_id_id_key").on(t.tenantId, t.id),
     workerRef("revalidation_evidence_reviewed_by_fk", t, t.reviewedBy),
     workerRef("revalidation_evidence_confirmed_by_fk", t, t.confirmedBy),
+    workerRef("revalidation_evidence_confirmer_fk", t, t.confirmerId),
+    check("revalidation_evidence_confirmer", sql`confirmer_id IS DISTINCT FROM worker_id`),
     check(
       "revalidation_evidence_review_state",
       sql`review_state IN ('draft', 'submitted', 'reviewed')`,

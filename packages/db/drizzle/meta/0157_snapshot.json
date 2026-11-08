@@ -1,6 +1,6 @@
 {
-  "id": "43ff2cad-bc59-4390-9a09-e78bbac5c984",
-  "prevId": "e4a1faeb-d4f3-4224-9017-e0974191cb6a",
+  "id": "44717323-e9e3-4dcd-8750-6119c646224c",
+  "prevId": "0ac7360b-0b04-4363-9a24-369dcf31fad9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -101,6 +101,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "postponed_from_id": {
+          "name": "postponed_from_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -144,6 +150,28 @@
         }
       },
       "indexes": {
+        "absence_postponed_from_key": {
+          "name": "absence_postponed_from_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "postponed_from_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "postponed_from_id IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "absence_member_idx": {
           "name": "absence_member_idx",
           "columns": [
@@ -222,6 +250,21 @@
         }
       },
       "foreignKeys": {
+        "absence_postponed_from_fk": {
+          "name": "absence_postponed_from_fk",
+          "tableFrom": "absence",
+          "tableTo": "absence",
+          "columnsFrom": [
+            "tenant_id",
+            "postponed_from_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "absence_member_fk": {
           "name": "absence_member_fk",
           "tableFrom": "absence",
@@ -281,6 +324,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "absence_postponed_from": {
+          "name": "absence_postponed_from",
+          "value": "postponed_from_id IS NULL OR (kind IN ('carers_leave', 'parental_leave') AND source = 'harbour')"
+        },
         "absence_kind": {
           "name": "absence_kind",
           "value": "kind IN ('annual_leave', 'sickness', 'compassionate', 'carers_leave', 'parental_leave', 'maternity', 'paternity', 'adoption', 'parental_bereavement', 'unpaid', 'other')"
@@ -15056,12 +15103,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "prevention_extended_to": {
-          "name": "prevention_extended_to",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
         "pack_downloaded_at": {
           "name": "pack_downloaded_at",
           "type": "timestamp with time zone",
@@ -15341,10 +15382,6 @@
         "disclosure_request_prevention": {
           "name": "disclosure_request_prevention",
           "value": "(prevention_report_on IS NULL OR type = 'coroner')\n        AND (prevention_responded_on IS NULL OR (prevention_report_on IS NOT NULL AND prevention_responded_on >= prevention_report_on))"
-        },
-        "disclosure_request_prevention_extension": {
-          "name": "disclosure_request_prevention_extension",
-          "value": "prevention_extended_to IS NULL OR (prevention_report_on IS NOT NULL AND prevention_extended_to > prevention_report_on)"
         }
       },
       "isRLSEnabled": false
@@ -26818,6 +26855,31 @@
           "primaryKey": false,
           "notNull": false
         },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'step_up'"
+        },
+        "device_key_id": {
+          "name": "device_key_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signature": {
+          "name": "signature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signed_at": {
+          "name": "signed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -26828,6 +26890,21 @@
       },
       "indexes": {},
       "foreignKeys": {
+        "controlled_drug_witness_assertion_device_key_fk": {
+          "name": "controlled_drug_witness_assertion_device_key_fk",
+          "tableFrom": "controlled_drug_witness_assertion",
+          "tableTo": "member_device_key",
+          "columnsFrom": [
+            "tenant_id",
+            "device_key_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "controlled_drug_witness_assertion_page_fk": {
           "name": "controlled_drug_witness_assertion_page_fk",
           "tableFrom": "controlled_drug_witness_assertion",
@@ -26898,6 +26975,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "controlled_drug_witness_assertion_method": {
+          "name": "controlled_drug_witness_assertion_method",
+          "value": "(method = 'step_up' AND device_key_id IS NULL AND signature IS NULL AND signed_at IS NULL)\n       OR (method = 'device_factor' AND device_key_id IS NOT NULL AND signature IS NOT NULL AND signed_at IS NOT NULL)"
+        },
         "controlled_drug_witness_assertion_two_people": {
           "name": "controlled_drug_witness_assertion_two_people",
           "value": "witness_id <> recorder_id"
@@ -59488,6 +59569,138 @@
       },
       "isRLSEnabled": false
     },
+    "public.member_device_key": {
+      "name": "member_device_key",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenant_user_id": {
+          "name": "tenant_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enrolled_at": {
+          "name": "enrolled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "member_device_key_member_idx": {
+          "name": "member_device_key_member_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "device_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tenant_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "enrolled_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "member_device_key_binding_fk": {
+          "name": "member_device_key_binding_fk",
+          "tableFrom": "member_device_key",
+          "tableTo": "device_binding",
+          "columnsFrom": [
+            "tenant_id",
+            "device_id",
+            "tenant_user_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "device_id",
+            "tenant_user_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "member_device_key_tenant_id_id_key": {
+          "name": "member_device_key_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "member_device_key_shape": {
+          "name": "member_device_key_shape",
+          "value": "public_key ~ '^[A-Za-z0-9+/]{86}[AEIMQUYcgkosw048]=$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.refused_entry": {
       "name": "refused_entry",
       "schema": "",
@@ -59707,7 +59920,7 @@
       "checkConstraints": {
         "refused_entry_table": {
           "name": "refused_entry_table",
-          "value": "record_table IN ('care_note', 'observation', 'body_map_mark', 'activity_record', 'visit_log')"
+          "value": "record_table IN ('care_note', 'observation', 'body_map_mark', 'activity_record', 'visit_log', 'medication_administration')"
         },
         "refused_entry_payload": {
           "name": "refused_entry_payload",
@@ -63529,6 +63742,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "confirmer_id": {
+          "name": "confirmer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "confirmed_by": {
           "name": "confirmed_by",
           "type": "uuid",
@@ -63615,6 +63834,21 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "revalidation_evidence_confirmer_fk": {
+          "name": "revalidation_evidence_confirmer_fk",
+          "tableFrom": "revalidation_evidence",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "confirmer_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "revalidation_evidence_worker_fk": {
           "name": "revalidation_evidence_worker_fk",
           "tableFrom": "revalidation_evidence",
@@ -63653,6 +63887,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "revalidation_evidence_confirmer": {
+          "name": "revalidation_evidence_confirmer",
+          "value": "confirmer_id IS DISTINCT FROM worker_id"
+        },
         "revalidation_evidence_review_state": {
           "name": "revalidation_evidence_review_state",
           "value": "review_state IN ('draft', 'submitted', 'reviewed')"

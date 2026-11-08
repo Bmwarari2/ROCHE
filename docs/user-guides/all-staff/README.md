@@ -8,6 +8,8 @@ Guides for everyone who uses Thapsus Care.
 - [How to handle speak-up cases](handle-speak-up-cases.md)
 - [How to raise a speak-up concern](raise-a-speak-up-concern.md)
 - [How to read and sign a policy](read-and-sign-a-policy.md)
+- [How to read and sign an organisation document](read-and-sign-an-organisation-document.md)
+- [How to read your home page](read-your-home-page.md)
 - [How to search for a person](search-for-a-person.md)
 - [How to see the history of a record](view-a-records-history.md)
 - [How to set up a passkey or an authenticator app](set-up-a-second-sign-in-step.md)

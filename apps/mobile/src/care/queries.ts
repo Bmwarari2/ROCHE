@@ -1,3 +1,4 @@
+import { INACTIVE_ALLERGY_STATUSES } from "../people/queries";
 import { answeredStateSql } from "./answered-tasks";
 /**
  * Local SQLite queries for Care mode. They run against the PowerSync views on the device, so they
@@ -222,7 +223,8 @@ export interface AssessmentRow {
  * a payload that is not JSON names no one and never stops the list.
  */
 export const UPLOAD_ISSUES_SQL = `SELECT i.id, i.person_id, i.record_table, i.http_status, i.code,
-  i.message, i.payload, i.rejected_at, i.server_copy, p.preferred_name, p.given_name, p.family_name
+  i.message, i.payload, i.rejected_at, i.server_copy, p.preferred_name, p.given_name, p.family_name,
+  m.product_name AS medicine_name
 FROM (SELECT u.id, u.tenant_id, u.record_table, u.http_status, u.code, u.message, u.payload,
     u.rejected_at, u.server_copy,
     COALESCE(u.person_id, CASE WHEN u.record_table = 'task' AND json_valid(u.payload) THEN
@@ -231,11 +233,15 @@ FROM (SELECT u.id, u.tenant_id, u.record_table, u.http_status, u.code, u.message
     END) AS person_id
   FROM upload_issue u) i
 LEFT JOIN person p ON p.id = i.person_id AND p.tenant_id = i.tenant_id
+LEFT JOIN medication m ON m.tenant_id = i.tenant_id AND i.record_table = 'medication_administration'
+  AND m.id = CASE WHEN json_valid(i.payload) THEN json_extract(i.payload, '$.medication_id') END
 WHERE (i.tenant_id = ? OR i.tenant_id IS NULL)
 ORDER BY i.rejected_at DESC, i.id`;
 
 export interface UploadIssueRow {
   readonly id: string;
+  /** For a dose recorded on this phone: the medicine, as the phone holds it (slice 70). */
+  readonly medicine_name?: string | null;
   readonly person_id: string | null;
   readonly record_table: string | null;
   readonly http_status: number | null;
@@ -266,7 +272,10 @@ export const ROUND_TASKS_SQL = `SELECT t.id, t.tenant_id, t.person_id, t.locatio
   t.required_permission, t.assignee_tenant_user_id, t.version, t.queued_transition,
   t.from_earlier_plan, t.kind, t.series_id, t.escalation_level,
   p.preferred_name, p.given_name, p.family_name, p.communication_needs,
-  p.location_id AS person_location_id,
+  p.location_id AS person_location_id, p.allergy_status,
+  (SELECT COUNT(*) FROM allergy a WHERE a.person_id = p.id AND a.tenant_id = p.tenant_id
+    AND lower(trim(COALESCE(a.status, 'active'))) NOT IN (${INACTIVE_ALLERGY_STATUSES.map((s) => `'${s}'`).join(", ")}))
+    AS allergy_count,
   (SELECT COUNT(*) FROM care_note e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
     + (SELECT COUNT(*) FROM observation e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
     + (SELECT COUNT(*) FROM body_map_mark e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)

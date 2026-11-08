@@ -33,7 +33,8 @@ owners. The witness is another of them at the same home.
   themselves, and only their confirmation closes their task.
 - If you cannot see the staff list, the form says to ask a manager to record a witnessed disposal.
 - **Controlled drugs are not disposed of here.** Record their disposal or destruction on the
-  controlled drugs register, with a witness (see
+  controlled drugs register, with a witness: the paper register until controlled drug recording
+  is turned on for your home (see
   [How to record a controlled drug received, returned, disposed of or destroyed](record-a-controlled-drug-movement.md)).
 - Your organisation's policy decides whether a disposal may go without a witness. Thapsus Care
   says so when it may not.

@@ -12,6 +12,7 @@ import {
 } from "@/components/medicines/RoundDetails";
 import { PersonHeaderCompact } from "@/components/people/PersonHeader";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
+import { conflictsHref } from "@/lib/administration-corrections";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
@@ -69,6 +70,14 @@ export default async function MedicinesRoundPage({ params }: { readonly params: 
         title={title}
         description={t("medicines.round.slot", { from: when(slot.from), to: when(slot.to) })}
       />
+      <p className="m-0">
+        <Link
+          href={conflictsHref(locationId)}
+          className="inline-flex min-h-target items-center underline"
+        >
+          {t("medicines.conflicts.link")}
+        </Link>
+      </p>
       {people.error ? (
         <Notice
           tone="warning"
