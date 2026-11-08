@@ -34,5 +34,7 @@ senior carers, nurses and managers.
 
 ## Good to know
 
-- Chart entries cannot be corrected on the web. Tell the nurse in charge if one is wrong.
+- Chart entries cannot be corrected on the web. Tell the nurse in charge if one is wrong, or
+  correct it on the phone: see [How to correct an entry on the phone](correct-an-entry-on-the-phone.md).
+- On the phone, see [How to record a chart entry on the phone](record-a-chart-entry-on-the-phone.md).
 - For vital signs and NEWS2, see [How to record vital signs](record-vital-signs.md).
