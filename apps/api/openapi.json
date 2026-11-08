@@ -9892,6 +9892,140 @@
           "signatureAlgorithm"
         ]
       },
+      "RetentionDue": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "report"
+            ]
+          },
+          "report": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "asOf": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tablesRead": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tablesSkipped": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totals": {
+                "$ref": "#/components/schemas/RetentionReportCounts"
+              },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RetentionReportLine"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "asOf",
+              "durationMs",
+              "tablesRead",
+              "tablesSkipped",
+              "totals",
+              "lines"
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "report"
+        ],
+        "description": "The latest retention report: counts per table and class, no record ids"
+      },
+      "RetentionReportCounts": {
+        "type": "object",
+        "properties": {
+          "due": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "held": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "retain": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "no_trigger_yet": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tenant_policy": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "never_offered": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "not_evaluated": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "due",
+          "held",
+          "retain",
+          "no_trigger_yet",
+          "tenant_policy",
+          "never_offered",
+          "not_evaluated"
+        ]
+      },
+      "RetentionReportLine": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "recordClass": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RetentionReportCounts"
+          }
+        },
+        "required": [
+          "table",
+          "recordClass",
+          "reason",
+          "counts"
+        ]
+      },
       "SignatureRequestItem": {
         "type": "object",
         "properties": {
@@ -75428,6 +75562,65 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/retention/due": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The latest retention report: counts of records due, held and kept",
+        "description": "Counts per table and record class from the nightly retention sweep in report mode; null until a report has run. Nothing is destroyed. Tenant-wide holders of platform.retention.manage.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The latest report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionDue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

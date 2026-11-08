@@ -82,6 +82,7 @@ import { generatePlanTasks } from "../services/plan-tasks";
 import { expireImportBatches } from "../services/platform-imports";
 import { raisePolicyReminders } from "../services/policies";
 import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
+import { reportRetention } from "../services/retention-report";
 import { roleHolders, toldOf } from "../services/role-holders";
 import {
   escalateOverdueSafeguardingReferrals,
@@ -523,6 +524,23 @@ export async function eachTenant(
     }
   }
   return total;
+}
+
+/** The retention sweep's queue (retention sweeps plan 5.4), named in `platform.job.tenant_failed`. */
+export const RETENTION_SWEEP_QUEUE = "retention-sweep";
+
+/**
+ * The retention sweep in report mode (plan 5.4, slice 4): for each organisation whose sweep is in
+ * report mode, one `retention_report` row and one audit event, counts only. Reads every registry
+ * table and changes none; an organisation with the flag off is skipped. One organisation's
+ * failure never stops the others' (`eachTenant`), and is audited as the system.
+ */
+export async function sweepRetentionReports(deps: TaskDeps, now = new Date()): Promise<number> {
+  const reported = await eachTenant(deps, RETENTION_SWEEP_QUEUE, async (tx, tenantId) =>
+    (await reportRetention(tx, tenantId, now)) ? 1 : 0,
+  );
+  if (reported > 0) deps.logger.info({ reported }, "retention reports written");
+  return reported;
 }
 
 /**

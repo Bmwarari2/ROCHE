@@ -8525,6 +8525,30 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.retention_report": {
+    context: "platform",
+    description:
+      "The nightly retention report (retention sweeps plan 5.4): counts of records due, held and kept, per table and class; no record ids.",
+    treatment: "tenant_rows",
+    retention: "permanent",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      mode: { description: "The sweep's mode for the run (report)." },
+      as_of: { description: "When the run decided what was due." },
+      duration_ms: { description: "How long the run took.", unit: "milliseconds" },
+      tables_read: { description: "Tables whose records were decided.", unit: "tables" },
+      tables_skipped: {
+        description: "Tables counted without deciding, with the reason.",
+        unit: "tables",
+      },
+      lines: { description: "Counts per table and record class, by status." },
+      totals: { description: "Counts by status over every table." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.retention_decision": {
     context: "platform",
     description:

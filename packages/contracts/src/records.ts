@@ -266,3 +266,51 @@ export const DestructionResult = z
     description: "Certificates per record class; skipped ids were held, not yet due or not found",
   });
 export type DestructionResult = z.infer<typeof DestructionResult>;
+
+/** Counts by status in the retention report (retention sweeps plan 5.4): never an id. */
+export const RetentionReportCounts = z
+  .object({
+    due: z.number().int().min(0),
+    held: z.number().int().min(0),
+    retain: z.number().int().min(0),
+    no_trigger_yet: z.number().int().min(0),
+    tenant_policy: z.number().int().min(0),
+    never_offered: z.number().int().min(0),
+    not_evaluated: z.number().int().min(0),
+  })
+  .meta({ id: "RetentionReportCounts" });
+export type RetentionReportCounts = z.infer<typeof RetentionReportCounts>;
+
+export const RetentionReportLine = z
+  .object({
+    table: z.string(),
+    /** The record classes, comma separated; null for a table counted without deciding. */
+    recordClass: z.string().nullable(),
+    /** Why the table was counted without deciding (a code), or null. */
+    reason: z.string().nullable(),
+    counts: RetentionReportCounts,
+  })
+  .meta({ id: "RetentionReportLine" });
+export type RetentionReportLine = z.infer<typeof RetentionReportLine>;
+
+export const RetentionDue = z
+  .object({
+    /** The sweep's mode: off (the default) or report; nothing is destroyed in either. */
+    mode: z.enum(["off", "report"]),
+    report: z
+      .object({
+        id: uuid,
+        asOf: isoDateTime,
+        durationMs: z.number().int().min(0),
+        tablesRead: z.number().int().min(0),
+        tablesSkipped: z.number().int().min(0),
+        totals: RetentionReportCounts,
+        lines: z.array(RetentionReportLine),
+      })
+      .nullable(),
+  })
+  .meta({
+    id: "RetentionDue",
+    description: "The latest retention report: counts per table and class, no record ids",
+  });
+export type RetentionDue = z.infer<typeof RetentionDue>;

@@ -32,6 +32,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Retention report (08/11/2026)
+
+`feat/platform-retention-report` (retention sweeps plan slice 4), from `main` at 8d9b4cc8: the
+nightly `retention-sweep` queue in report mode, behind the flag `platform.retention.sweep_report`
+(off by default). It reads every registry table and writes one `retention_report` row per
+organisation (counts per table and class: due, held, kept, waiting, by policy, never offered, not
+evaluated; no record ids) and the audit event `platform.retention.sweep_reported`; it changes no
+record. `GET /v1/retention/due` shows the latest report (`platform.retention.manage`, audited).
+Migration 0156 (renumber at merge if needed). See
+`docs/changelog-dev/2026-11-08-feat-platform-retention-report.md`.
+
 ## Retention registry (08/11/2026)
 
 `feat/platform-retention-registry` (retention sweeps plan slices 2 and 3, on #193 and slice 1): the
