@@ -102,6 +102,9 @@ const INJURY_MARK_TYPES: ReadonlySet<string> = new Set([
  */
 export function urgentRefusedCopy(body: Pick<SyncRefusedEntry, "table" | "payload">): boolean {
   if (body.table === "observation") return true;
+  // A dose recorded on a phone and refused may have been given (a controlled drug's register
+  // without its entry, a second dose on the way): the nurse in charge is told at once (slice 70).
+  if (body.table === "medication_administration") return true;
   if (body.table !== "body_map_mark") return false;
   const mark = body.payload as { markType?: unknown; pressureCategory?: unknown };
   if (mark.markType === "pressure_ulcer") {
@@ -285,7 +288,8 @@ export async function copyRefusedEntry(
   },
 ): Promise<{ id: string; taskId: string | null; replay: boolean }> {
   const entryId = body.entryId.toLowerCase();
-  const claimedId = body.payload.id;
+  const facts = copyFacts(body);
+  const claimedId = facts.claimedId;
   if (claimedId !== undefined && claimedId.toLowerCase() !== entryId) {
     throw problems.invalid("The entry's content names another entry.");
   }
@@ -315,7 +319,7 @@ export async function copyRefusedEntry(
     const reached = await inSystemView(db, access, async (tx) => {
       const days = await offlineWindowDaysOf(tx, access.tenantId);
       const since = new Date(input.now.getTime() - days * DAY_MS);
-      return personReachedBy(tx, input.author, personId, since, input.now, ENTRY_PERMISSION);
+      return personReachedBy(tx, input.author, personId, since, input.now, facts.permission);
     });
     if (!reached) {
       throw problems.invalid("This copy names someone the entry's author has not cared for here.");
@@ -375,7 +379,7 @@ export async function copyRefusedEntry(
           clientId: entryId,
           refusedEntryId: created.id,
           refusalCode: body.code,
-          occurredAt: new Date(body.payload.occurredAt).toISOString(),
+          occurredAt: new Date(facts.occurredAt).toISOString(),
           deviceId: input.deviceId,
           recordedBy: input.author,
           at: input.now.toISOString(),
@@ -474,4 +478,28 @@ export async function refusedEntriesFor(
     .orderBy(desc(refusedEntry.refusedAt), desc(refusedEntry.id))
     .limit(page.limit);
   return { rows, next: rows.length === page.limit ? (rows.at(-1)?.id ?? null) : null };
+}
+
+/**
+ * What a copy says about its entry: the id its content names, when it happened and whose reach the
+ * author needs. A dose recorded on a phone (slice 70) carries the record or correction it would
+ * have sent, timed by when it was given and reached with `medicines.emar.administer`.
+ */
+export function copyFacts(body: SyncRefusedEntry): {
+  readonly claimedId: string | undefined;
+  readonly occurredAt: string;
+  readonly permission: Permission;
+} {
+  if (body.table === "medication_administration") {
+    return {
+      claimedId: body.payload.body.id,
+      occurredAt: body.payload.body.givenAt ?? body.refusedAt,
+      permission: "medicines.emar.administer",
+    };
+  }
+  return {
+    claimedId: body.payload.id,
+    occurredAt: body.payload.occurredAt,
+    permission: ENTRY_PERMISSION,
+  };
 }

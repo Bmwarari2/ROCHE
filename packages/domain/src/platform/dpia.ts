@@ -329,10 +329,15 @@ const PHASE_1_RISKS: readonly DpiaRisk[] = [
 
 /**
  * The Phase 2 processing's risks (dpia-template.md sections 6, 7 and 7B; plan slice 84): staff
- * vetting records, silos for speaking up and casework, location at clock-in, subject access
- * bundles, breaches, adapter providers, imports, single sign-on, staff surveys and applicants.
- * Standard for every tenant once Phase 2 ships; R22, R25 and R28 cover processing still being
- * built, which section 7B says, and a tenant records what it does not use there.
+ * vetting and employment records, silos for speaking up and casework, location and NFC evidence
+ * at clock-in and lone working, subject access bundles and disclosures, breaches, adapter
+ * providers, imports, single sign-on, staff surveys and applicants. All of it is built; R22's
+ * location and NFC evidence is off until the employee-monitoring DPIA (H-527), and R25's adapters
+ * are off by default with mocks only until each provider is assessed (H-793). Standard for every
+ * tenant, whose DPO records in section 7B.6 what it does not use. As with the Phase 1 risks, the
+ * prefill carries each risk's id, wording and initial rating; the measures, evidence and residual
+ * guidance are the template's section 7B, and a test keeps the wording and ratings in step with
+ * sections 6 and 7B.3.
  */
 const PHASE_2_RISKS: readonly DpiaRisk[] = [
   {
@@ -743,8 +748,8 @@ export function dpiaReviewDueAt(
 
 /**
  * What has changed since the DPIA was signed. Removing processing never triggers a review. A
- * standard risk Harbour has added since (for example the Phase 2 risks R20 to R29) does: the
- * signed version never assessed it.
+ * standard risk added since (for example the Phase 2 risks R20 to R29) does: the signed version
+ * never assessed it.
  */
 export function dpiaReviewTriggers(
   signed: { readonly signedAt: Date; readonly basis: DpiaBasis },

@@ -246,6 +246,35 @@ async function seedDemoFlags(client: pg.PoolClient): Promise<void> {
   }
 }
 
+/**
+ * Controlled drug recording released at the demo home only (H-1517), so the demo and the journeys
+ * record in Harbour's register; real homes start with it off. Kept out of `seedDemoTenant`, which
+ * the API tests share, so they prove the default. Safe to run repeatedly.
+ */
+export async function seedDemoCdRecording(ownerPool: pg.Pool): Promise<void> {
+  const client = await ownerPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await client.query(
+      `INSERT INTO feature_flag (flag_key, location_id, enabled)
+       SELECT 'medicines.cd_recording', $1, true
+        WHERE NOT EXISTS (SELECT 1 FROM feature_flag
+                           WHERE flag_key = 'medicines.cd_recording' AND location_id = $1)`,
+      [DEMO.locationId],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 /** The demo organisation's escalation policy for NEWS2 (care.md rule 5): a title and reference only. */
 export const DEMO_ESCALATION_POLICY = {
   toolKey: "news2",

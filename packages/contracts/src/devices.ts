@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CreateBodyMapMark, CreateCareNote, CreateObservation } from "./care";
 import { CreateActivityRecord, CreateVisit } from "./care-planning";
+import { CorrectAdministration, RecordAdministration } from "./medicine-administrations";
 import { StaffName } from "./staff";
 
 /**
@@ -182,6 +183,25 @@ export const SyncRefusedEntry = z
       .object({ ...refusedCopy, table: z.literal("visit_log"), payload: CreateVisit.strict() })
       .strict()
       .meta({ id: "SyncRefusedVisit" }),
+    // A dose recorded on a phone (slice 70; HZ-115, HZ-004): the record, or the correction with
+    // the record it names, as the phone sent it. A dose given offline is never only on one phone.
+    z
+      .object({
+        ...refusedCopy,
+        table: z.literal("medication_administration"),
+        payload: z.union([
+          z.object({ kind: z.literal("record"), body: RecordAdministration }).strict(),
+          z
+            .object({
+              kind: z.literal("correction"),
+              supersedesId: uuid,
+              body: CorrectAdministration,
+            })
+            .strict(),
+        ]),
+      })
+      .strict()
+      .meta({ id: "SyncRefusedAdministration" }),
   ])
   .meta({ id: "SyncRefusedEntry" });
 export type SyncRefusedEntry = z.infer<typeof SyncRefusedEntry>;

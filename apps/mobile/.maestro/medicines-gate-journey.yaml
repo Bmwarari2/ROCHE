@@ -1,0 +1,80 @@
+# The Phase 2 medicines gate journey (slices 68 to 70), for an iOS simulator and an Android
+# emulator: the round opens after a complete sync; a witness and the member set medicines PINs on
+# this phone while online; a controlled drug is given offline with both PINs; a record is corrected
+# with why; everything reaches Thapsus Care once the network returns. Positive identification and pack
+# checks are covered in hazard-HZ-003-offline-round.yaml.
+#
+# Needs the live API stack; HARBOUR_CD_MEDICINE (a controlled drug with stock on its register page)
+# due now on the MAR of a person the member is assigned to; the member holding
+# medicines.cd.administer and the witness (HARBOUR_WITNESS_EMAIL, HARBOUR_WITNESS_PASSWORD, with a
+# TOTP seed the runner turns into HARBOUR_WITNESS_CODE) holding medicines.cd.witness; and a
+# simulator or emulator the integrity checks trust. The member's own PIN is set the same way with
+# HARBOUR_EMAIL. setAirplaneMode works on Android only; on iOS run the offline steps with the
+# simulator's network conditioner off, by hand, and record which was used.
+appId: uk.co.thapsus.harbour
+name: Medicines gate journey
+tags:
+  - offline
+  - gate
+env:
+  HARBOUR_CD_MEDICINE: ${HARBOUR_CD_MEDICINE || "Morphine"}
+  HARBOUR_MEMBER_PIN: ${HARBOUR_MEMBER_PIN || "482916"}
+  HARBOUR_WITNESS_PIN: ${HARBOUR_WITNESS_PIN || "739215"}
+---
+- runFlow: sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 60000
+- tapOn:
+    id: "tab-medicines"
+- assertNotVisible:
+    id: "medicines-blocked"
+- tapOn: "Medicines PINs on this phone"
+# The witness signs in on this phone for this alone, and sets their PIN.
+- tapOn: "Their email address"
+- inputText: ${HARBOUR_WITNESS_EMAIL}
+- tapOn: "Their password"
+- inputText: ${HARBOUR_WITNESS_PASSWORD}
+- tapOn: "New medicines PIN"
+- inputText: ${HARBOUR_WITNESS_PIN}
+- tapOn: "The PIN again"
+- inputText: ${HARBOUR_WITNESS_PIN}
+- hideKeyboard
+- tapOn: "Set PIN on this phone"
+- tapOn: "The 6-digit code from their authenticator app"
+- inputText: ${HARBOUR_WITNESS_CODE}
+- hideKeyboard
+- tapOn: "Set PIN on this phone"
+- extendedWaitUntil:
+    visible:
+      text: "PIN set for .*"
+    timeout: 20000
+- back
+- setAirplaneMode: enabled
+- tapOn:
+    text: ".*${HARBOUR_CD_MEDICINE}.*"
+- tapOn:
+    text: "${HARBOUR_CD_MEDICINE}.*"
+- tapOn: "Given"
+- tapOn: "I have checked their photo, name and date of birth"
+- tapOn: "The pack has no barcode"
+- tapOn: "Witness: .*"
+- tapOn: "Witness's PIN"
+- inputText: ${HARBOUR_WITNESS_PIN}
+- hideKeyboard
+# The witness signs as they see the dose given, before the member records it.
+- tapOn: "Witness signs now"
+- assertVisible:
+    text: "Witnessed by .*"
+- tapOn: "Your PIN"
+- inputText: ${HARBOUR_MEMBER_PIN}
+- hideKeyboard
+- tapOn: "Record dose"
+- assertVisible:
+    text: "Recorded on this phone.*"
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 90000

@@ -5,7 +5,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * H-1555 (migration 0153): `app.signed_dpia_covers(flag)` answers, for whoever clocks in or checks
+ * H-1555 (migration 0154): `app.signed_dpia_covers(flag)` answers, for whoever clocks in or checks
  * in, whether their own organisation's signed DPIA lists an employee-monitoring flag. It runs as
  * harbour_platform_definer, which row-level security binds only through `tenant_isolation`, so
  * these tests prove it never answers from another organisation's DPIA, and that only the signed

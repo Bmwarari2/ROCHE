@@ -64,7 +64,7 @@ async function flagRows(tx: Transaction) {
  * Whether the organisation's signed DPIA covers an employee-monitoring flag (H-1555), read in the
  * request's transaction. The DPIA's row-level security shows it only to holders of a DPIA
  * permission, and this is asked for whoever clocks in or checks in, so it is answered by
- * `app.signed_dpia_covers(flag)` (migration 0153): the signed version's id when its basis lists
+ * `app.signed_dpia_covers(flag)` (migration 0154): the signed version's id when its basis lists
  * the flag, else null, and nothing else (never the basis or its other features). `dpiaId` is the
  * signed version relied on, or null when it does not cover the flag.
  */

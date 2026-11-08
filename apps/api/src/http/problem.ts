@@ -53,6 +53,17 @@ export const problems = {
     new HttpProblem(403, "feature_disabled", "This is switched off for your organisation.", detail),
   notFound: () => new HttpProblem(404, "not_found", "We could not find that."),
   /**
+   * Controlled drug recording not released at the person's home (H-1517, HZ-115): the paper
+   * register is the record there, so Thapsus Care's register takes nothing.
+   */
+  cdRecordingNotEnabled: () =>
+    new HttpProblem(
+      409,
+      "cd_recording_not_enabled",
+      "Controlled drug recording is not turned on for this home.",
+      "The paper controlled drugs register is the record here. Record this controlled drug there, with a witness.",
+    ),
+  /**
    * The device was revoked by a manager (care.md section 6, Device integrity part 2): distinct from
    * an expired session (401) and from the session codes, so the device wipes, keeping unsent
    * entries under the hold rules.

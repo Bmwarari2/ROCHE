@@ -5,7 +5,7 @@ the witness signs first, signed in as themselves, for what they saw. The person 
 chooses that signature when they record it.
 
 **Who can do this**: care workers, senior carers, nurses and managers, with current medicines
-competence. Agency and bank workers cannot witness controlled drugs.
+competence. Agency or bank workers cannot witness controlled drugs.
 
 **Register row**: MEDS-005.
 

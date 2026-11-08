@@ -395,7 +395,8 @@ checks), `apps/api/test/safeguarding.test.ts` (routes, scope through the API, th
 
 Schema and API on the slice 7 rules (`deaths.ts`, `missing-person.ts`), with
 `packages/domain/src/safety/death-record.ts` and `missing-episode.ts` (migration 0099; hazards
-HZ-013 and HZ-127). No web screens yet (slice 63).
+HZ-013 and HZ-127). Web screens (slice 63): `apps/web/src/app/(shell)/deaths`, `missing` and
+`people/[id]/herbert`.
 
 1. **The death record** opens once per death recorded on a person's exit: from the people
    lifecycle's `people.person.died` event (the same handler drafts the death notifications), or on

@@ -17,12 +17,12 @@ protection fix found by the slice 84 DPIA review.
   is in effect there); the lone-worker route's `locationEvidence` is documented as the
   organisation-wide value; a lone-worker event's audit says whether a point sent was kept
   (`locationKept`).
-- **Migration 0153** (`signed_dpia_covers(flag)`): a security-definer function answering one
+- **Migration 0154** (`signed_dpia_covers(flag)`): a security-definer function answering one
   question, the signed DPIA's id when its basis lists the flag and NULL otherwise, so callers never
   read the feature list; needed because the DPIA's row-level policy hides it from carers and lone
   workers whose requests run the check (ADR-0133 owner and grants; definer ACL test). Narrowed
   from a whole-feature-list function after the security review. Renumbered to the next free
-  number at merge if #188 takes 0153 first.
+  number after #188 took 0153.
 - Tests: domain (table-driven basis, coverage and review triggers), API (refusals with a client
   tick, flag off, DPIA not covering; acceptance when covered; clock-in evidence; lone-worker
   location; review trigger; another organisation's signed DPIA never relied on; a genuinely

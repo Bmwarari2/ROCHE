@@ -41,6 +41,6 @@ The request now shows **Response**, with the outcome, when it was sent and its f
   on time.
 - Once closed, a request cannot be changed.
 - The rules are in the
-  [platform specification](../../specs/platform.md#phase-2-the-dsar-workbench-plat-022-work-011)
-  (rule 5). Your procedure is the
+  [platform specification](../../specs/platform.md#phase-2-the-dsar-workbench-plat-022-work-011).
+  Your procedure is the
   [subject access request procedure](../../compliance/dsar-procedure.md).

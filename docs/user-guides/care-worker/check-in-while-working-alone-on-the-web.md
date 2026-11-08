@@ -4,7 +4,7 @@ Start a lone-working session before you work alone, check in at the times you ch
 help if you need it.
 
 **Who can do this**: any member of staff who works alone, including care and support workers, team
-leaders or senior carers, nurses, agency and bank workers, and housekeeping, catering, activities
+leaders or senior carers, nurses, agency or bank workers, and housekeeping, catering, activities
 and maintenance staff.
 
 **Register row**: SCHED-012. A silent alarm can be raised only from the phone app, not on the web.

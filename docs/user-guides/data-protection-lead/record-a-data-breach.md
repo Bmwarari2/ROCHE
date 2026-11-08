@@ -66,7 +66,7 @@ nights and weekends included.
 - A closed breach cannot change.
 - Correcting what happened or when, after recording, is not on this screen yet. Ask Thapsus Care
   support.
-- If Thapsus tells you of a breach as your processor, see
+- If Thapsus Cargo Ltd, which runs Thapsus Care for your organisation, tells you of a breach, see
   [How to acknowledge a breach notice from Thapsus](acknowledge-a-breach-notice-from-thapsus.md).
 - Your procedure is the [breach response procedure](../../compliance/breach-response.md). The
   rules are in the
