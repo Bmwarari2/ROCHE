@@ -29,6 +29,9 @@ export interface RoundTaskRow extends TaskToMove {
   readonly from_earlier_plan: number | null;
   readonly preferred_name: string | null;
   readonly given_name: string | null;
+  /** The person's allergy status and active allergies, for the flags beside them (HZ-001, HZ-007). */
+  readonly allergy_status?: string | null;
+  readonly allergy_count?: number | null;
   readonly family_name: string | null;
   /** The person's communication needs (JSON), for the Accessible Information Standard flag. */
   readonly communication_needs: string | null;

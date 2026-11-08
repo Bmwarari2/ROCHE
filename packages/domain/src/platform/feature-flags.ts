@@ -90,9 +90,20 @@ export const FLAGS = {
     licensed: false,
   },
   // Lone-worker location (SCHED-012, H-527): evidence only, captured with a check-in, help or
-  // duress event and never as a track; off until the employee-monitoring DPIA allows it.
+  // duress event and never as a track; used only while the organisation's signed DPIA covers it
+  // (H-1555), and switching it on flags the DPIA for review.
   "scheduling.lone_worker.location": {
     description: "Attach the device's location to lone-worker check-ins and alarms (evidence only)",
+    defaultEnabled: false,
+    licensed: false,
+  },
+  // Location or NFC clock-in evidence (H-527, H-1555): the organisation's intention to use it,
+  // which is employee monitoring. Switching it on lists it in the DPIA's features and flags the
+  // signed DPIA for review; a location's clock setting asks for evidence, and clock-ins keep it,
+  // only while this is on there and the organisation's signed DPIA covers it.
+  "scheduling.clock.location_evidence": {
+    description:
+      "Location or NFC evidence at clock-in (employee monitoring; needs the signed DPIA to cover it)",
     defaultEnabled: false,
     licensed: false,
   },

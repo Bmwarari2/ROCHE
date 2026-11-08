@@ -1,5 +1,6 @@
 import type { CommunicationStatement } from "@harbour/domain";
-import { communicationLines, marIdentity, marPrintedNotice } from "./mar-pdf";
+import { formatUkDateTimeWithZone } from "@harbour/domain";
+import { communicationLines, marIdentity } from "./mar-pdf";
 import { type PdfLine, renderPdf } from "./pdf";
 import { ukDateTime } from "./transfer-pack-pdf";
 
@@ -84,7 +85,7 @@ export function cdRegisterLines(input: CdPrintInput): PdfLine[] {
   const unit = input.page.unitName;
   const lines: PdfLine[] = [
     { text: `Controlled drugs register: ${input.page.productName}`, bold: true, size: 14 },
-    { text: marPrintedNotice(input.printedAt), bold: true },
+    { text: cdRegisterPrintedNotice(input.printedAt), bold: true },
     { text: marIdentity(input.person) },
     { text: "Communication needs", bold: true, gapBefore: 8 },
     ...communicationLines(input.communication).map((text) => ({ text })),
@@ -130,9 +131,18 @@ export function renderCdRegisterPdf(input: CdPrintInput): Uint8Array {
   const heading = `Controlled drugs register: ${input.page.productName}. ${marIdentity(input.person)}`;
   return renderPdf({
     title: "Controlled drugs register page",
-    header: [heading, marPrintedNotice(input.printedAt)],
+    header: [heading, cdRegisterPrintedNotice(input.printedAt)],
     lines: cdRegisterLines(input),
     footer: (page, pages) =>
       `${input.person.name}, controlled drugs register: ${input.page.productName}. Page ${page} of ${pages}`,
   });
+}
+
+/**
+ * The register's own printed notice (#200 review): a print of the controlled drugs register is not
+ * the eMAR's, and is not the live record either. Where recording is turned on at the home, Thapsus
+ * Care's register is the record; otherwise the paper register is (H-1517).
+ */
+export function cdRegisterPrintedNotice(printedAt: Date): string {
+  return `Printed from Thapsus Care's controlled drugs register at ${formatUkDateTimeWithZone(printedAt)}. This is not the live record: where controlled drug recording is turned on at this home, the register in Thapsus Care is the record; otherwise the paper register is.`;
 }

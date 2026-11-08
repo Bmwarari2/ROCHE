@@ -115,6 +115,16 @@ export default function RoundScreen() {
         taskTitle: null,
       });
   }, []);
+  // On a phone, "Show record" opens the person's record, with their photo, name, date of birth and
+  // allergies, as its own screen (guides review, HZ-001).
+  const openRecord = useCallback(
+    (item: RoundItem) => {
+      if (item.personId) {
+        router.push({ pathname: "/people/[personId]", params: { personId: item.personId } });
+      }
+    },
+    [router],
+  );
   // One push, on the round's own stack (#73 clinical review M3: never two pushes across tabs).
   const openScreen = useCallback<OpenPersonScreen>(
     (personId, screen, params) =>
@@ -144,12 +154,12 @@ export default function RoundScreen() {
           onMark={(to, reason) => moveTask(item.row, { to, reason })}
           onRecordEvidence={recordEvidence}
           refusal={taskRefusal(item.row, item.row.person_location_id)}
-          onShowPerson={split ? showPerson : undefined}
+          onShowPerson={split ? showPerson : openRecord}
           personShown={split && pane.kind === "person" && item.personId === pane.personId}
         />
       </View>
     ),
-    [theme, manager, moveTask, recordEvidence, taskRefusal, split, showPerson, pane],
+    [theme, manager, moveTask, recordEvidence, taskRefusal, split, showPerson, openRecord, pane],
   );
 
   const list = (

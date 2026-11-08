@@ -1096,6 +1096,38 @@ person scopes of the care streams (replication bypasses RLS, so the stream queri
   so it is checked at its drift-corrected time, idempotent by id, and a refusal comes back to the
   device as a conflict for the nurse in charge (slice 70).
 
+### 13.9 The round on the phone (slice 69; ADR-0081)
+
+1. The phone runs `medicineRound` (packages/domain `medicines/round.ts`), the API's own round, on
+   its synced rows, slot by slot with yesterday's doses still outstanding first; a version it cannot
+   read is named, never left out. A when-required medicine whose interval reaches before the
+   administrations the phone holds says the last dose may not be on the phone.
+2. The round opens only on a device the root and jailbreak checks trust, after a complete sync and
+   once the medicines figures are read from the rate table (`roundGate`). Controlled drugs are not
+   recorded on the phone until slice 70.
+3. A dose given needs photo confirmation (or, once issued, a wristband token) and a pack scan that
+   matches the entry's product, or an override reason; another product or an expired pack is never
+   overridden. Inside the interval, or with the last dose unknown, the phone does not record it.
+4. The record is written to the phone at once and sent with `deviceRecordedAt` and `pointOfCare`;
+   the API requires the checks on a phone's upload, matches a scanned pack through dm+d, judges the
+   record at the phone's time (within the clock-drift figure of its UUIDv7) and keeps the checks as
+   `scan_evidence`. A refused record moves to "needs attention" and leaves the round.
+5. Local reminders when a time-critical dose's window opens, naming no one.
+
+### 13.10 Controlled drugs, corrections and conflicts on the phone (slice 70; ADR-0084)
+
+1. Each member who records or witnesses controlled drugs sets a medicines PIN on the phone while
+   online (`POST /v1/me/device-keys`, with a fresh step-up; a witness signs in on that phone for
+   this alone). The PIN unlocks their own key on that phone; wrong PINs are throttled.
+2. A controlled drug given needs the witness's PIN and the recorder's: both sign the dose statement
+   and the API verifies them on upload, then writes the register entry with a `device_factor`
+   witness. The phone always asks for a witness.
+3. A record that has reached Thapsus Care is corrected by a new record naming it, with why (at least 20
+   characters), sent to the corrections route; a record still waiting on the phone, or a controlled
+   drug's record, is not corrected on the phone.
+4. The nurse in charge reviews doses recorded on two phones online on the phone: the same dose sent
+   twice, or given twice (a medication incident); a correction of the MAR is made on the web.
+
 ### 13.9 Audit and outbox
 
 Audit actions, carrying ids, outcomes, flags and problem codes, never the medicine or the dose:
@@ -1176,6 +1208,15 @@ witness, who signs on the same device with their own factor, is slice 70.
 - `POST /v1/controlled-drugs/pages/{pageId}/entries`: a receipt, disposal, transfer out,
   destruction or correction, checked by `checkCdEntry` under the person's lock. The recorder needs
   `medicines.cd.administer` and a fresh step-up.
+- `PUT /v1/locations/{id}/controlled-drugs/recording` (H-1518): turns controlled drug recording on
+  or off at a home, for a member holding `medicines.record.manage` and `platform.location.manage`
+  there, with a fresh step-up. On: the paper register's pages are counted, witnessed and closed now,
+  each balance is carried in as a witnessed receipt before the next dose, and the home's phones are
+  updated, each confirmed. Off: a reason, and the pages printed and the paper register restarted.
+  Audited as `medicines.cd_recording.changed`, refusals included; a request for the state already
+  in force changes nothing. The web's **Controlled drug recording** page (from the home's medicines
+  reports) asks for each in words. The phone reads the switch for the person's home and stops a
+  controlled drug before signing where it is not on; never read counts as off.
 - `POST /v1/controlled-drugs/pages/{pageId}/stock-checks`, with `medicines.cd.administer` or
   `medicines.stock.manage`: a count, witnessed under the same rules.
   `cdStockCheck` compares it with the page. A count that does not balance needs a reason and

@@ -19,6 +19,7 @@
 import type { SyncRefusedEntry } from "@harbour/contracts";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
 import { type ApiOptions, apiHeaders } from "./discards";
+import { toMedicinesUpload } from "./medicines-upload";
 
 /** The tables a device writes care entries to: the only refusals the server copies. */
 export const REFUSED_COPY_TABLES: ReadonlySet<string> = new Set([
@@ -27,6 +28,8 @@ export const REFUSED_COPY_TABLES: ReadonlySet<string> = new Set([
   "body_map_mark",
   "activity_record",
   "visit_log",
+  // A dose recorded on this phone (slice 70; HZ-115, HZ-004): never only on one phone.
+  "medication_administration",
 ]);
 
 /** Needs-attention codes that are never sent to the server. */
@@ -78,6 +81,7 @@ export function toRefusedCopy(
   | { readonly kind: "skip" }
   | { readonly kind: "unbuildable" } {
   const table = row.record_table;
+  if (table === "medication_administration") return doseCopy(row, now);
   if (!table || !REFUSED_COPY_TABLES.has(table) || !isCareEntryTable(table)) {
     return { kind: "skip" };
   }
@@ -140,6 +144,12 @@ export async function sendRefusedCopy(
       body: JSON.stringify(body),
     });
     if (response.ok) return "copied";
+    // A member who may not keep copies (no `care.note.write`) never will: waiting would hold every
+    // later copy on this phone behind it. Reported as kept only on this phone (merge clinical
+    // review, L). Other 403s (step-up, a phone not yet bound) may pass later, so they wait.
+    if (response.status === 403 && (await problemCode(response)) === "missing_permission") {
+      return "refused";
+    }
     if (response.status === 401 || response.status === 403 || response.status === 408) {
       return "retry";
     }
@@ -149,6 +159,15 @@ export async function sendRefusedCopy(
     return "refused";
   } catch {
     return "retry";
+  }
+}
+
+async function problemCode(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.clone().json()) as { code?: unknown } | null;
+    return typeof body?.code === "string" ? body.code : null;
+  } catch {
+    return null;
   }
 }
 
@@ -198,4 +217,55 @@ export async function flushRefusedCopies(
     await db.execute(SET_SERVER_COPY_SQL, [state, row.id]).catch(() => undefined);
   }
   return copied;
+}
+
+/** A dose's copy: the record or correction the phone would have sent (`toMedicinesUpload`). */
+function doseCopy(
+  row: UploadIssueRow,
+  now: Date,
+):
+  | { readonly kind: "copy"; readonly body: SyncRefusedEntry }
+  | { readonly kind: "skip" }
+  | { readonly kind: "unbuildable" } {
+  if (row.code && NOT_COPIED_CODES.has(row.code)) return { kind: "skip" };
+  if (!UUID.test(row.id)) return { kind: "unbuildable" };
+  let data: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(row.payload ?? "{}");
+    if (isRecord(parsed)) data = parsed;
+  } catch {
+    return { kind: "unbuildable" };
+  }
+  const request = toMedicinesUpload({
+    op: "PUT",
+    table: "medication_administration",
+    id: row.id,
+    opData: { tenant_id: row.tenant_id, person_id: row.person_id, ...data },
+  });
+  if (request.kind !== "request") return { kind: "unbuildable" };
+  const correction = request.path.endsWith("/corrections");
+  const supersedesId = typeof data.supersedes_id === "string" ? data.supersedes_id : null;
+  const refusedAt =
+    row.rejected_at && !Number.isNaN(Date.parse(row.rejected_at))
+      ? new Date(row.rejected_at).toISOString()
+      : now.toISOString();
+  return {
+    kind: "copy",
+    body: {
+      entryId: row.id.toLowerCase(),
+      table: "medication_administration",
+      personId: row.person_id && UUID.test(row.person_id) ? row.person_id.toLowerCase() : null,
+      httpStatus:
+        typeof row.http_status === "number" && row.http_status >= 100 && row.http_status <= 599
+          ? row.http_status
+          : null,
+      code: copyCode(row.code),
+      message: row.message ? row.message.slice(0, 500) : null,
+      refusedAt,
+      payload:
+        correction && supersedesId
+          ? { kind: "correction", supersedesId, body: request.body }
+          : { kind: "record", body: request.body },
+    } as SyncRefusedEntry,
+  };
 }

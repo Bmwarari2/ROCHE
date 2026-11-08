@@ -71,8 +71,18 @@ export const ClockSettingItem = z
   .object({
     locationId: uuid,
     version: z.number().int().nullable(),
+    /** The evidence the setting asks for; it is kept only while `inUse` (H-1555). */
     evidence: ClockEvidence,
     nfcTagRefs: z.array(z.string()),
+    /**
+     * Whether the evidence asked for is in effect at the location: not none, the flag
+     * scheduling.clock.location_evidence on there, and the organisation's signed DPIA covering it
+     * (H-1555). While false, clock events keep no location or NFC evidence.
+     */
+    inUse: z.boolean().meta({
+      description:
+        "Whether the evidence asked for is in effect at the location: not none, the flag scheduling.clock.location_evidence on there, and the organisation's signed DPIA covering it (H-1555). While false, clock events keep no location or NFC evidence.",
+    }),
   })
   .meta({ id: "ClockSettingItem" });
 
@@ -81,8 +91,15 @@ export const ChangeClockSetting = z
     version: z.number().int().nullable(),
     evidence: ClockEvidence,
     nfcTagRefs: z.array(tagRef).max(20).default([]),
-    /** Turning location or NFC evidence on needs the employee-monitoring DPIA approved (H-527). */
-    dpiaApproved: z.boolean().default(false),
+    /**
+     * Deprecated and ignored (H-1555): location or NFC evidence needs the organisation's signed
+     * DPIA to cover it, which the API checks itself. Kept so older clients are not refused.
+     */
+    dpiaApproved: z.boolean().default(false).meta({
+      deprecated: true,
+      description:
+        "Deprecated and ignored: location or NFC evidence needs the organisation's signed DPIA to cover it, which the API checks (H-1555).",
+    }),
   })
   .meta({ id: "ChangeClockSetting" });
 

@@ -307,3 +307,13 @@ The `clinical-safety-reviewer` agent checks the answer against the diff. A "Yes"
 | Review and approve this boundary statement | CSO |
 
 **Printable MAR chart and controlled drugs register page (Phase 2 slice 50)**: these stay inside the boundary. They print the record as it stands: each dose's outcome as recorded, the reason recorded, when and by whom, the allergies and communication needs as recorded, and the register's entries, signatures and stock checks. They add no score, judgement or recommendation; "no outcome recorded" and "not yet due" describe the record, and every page says it is not the live record and to check the eMAR before giving or holding any medicine.
+
+**The medicines round on the phone (Phase 2 slice 69; ADR-0081)**: the phone runs the same
+`medicineRound` as the API on its synced MAR rows: which doses are due, late or recorded, from the
+prescriber's schedule and the tenant's dose windows in the rate table, and when a when-required
+medicine may next be given from the prescribed interval and maximum. It applies those
+tenant-configured rules and the prescription as written; it makes no recommendation, score or
+judgement of its own. Matching a scanned pack to the MAR entry's dm+d product and checking its
+expiry is a record-keeping check against reference data, not a clinical decision. Where the phone
+cannot know (a last dose older than its records) it says so and sends the carer to the nurse in
+charge. Re-checked for this PR: nothing in the slice moves Thapsus Care across the boundary.
