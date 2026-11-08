@@ -21,6 +21,7 @@ import { importBatch } from "./imports";
 import { person, placement } from "./people";
 import { hospitalTransfer } from "./people-lifecycle";
 import { document, tenantUser } from "./platform";
+import { memberDeviceKey } from "./sync";
 
 /**
  * The medicines record and reconciliation (medicines.md section 2; MEDS-001; slice 16). The rules
@@ -840,10 +841,30 @@ export const controlledDrugWitnessAssertion = pgTable(
     assertedAt: timestamp("asserted_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     usedAt: timestamp("used_at", { withTimezone: true }),
+    /**
+     * How the witness signed (ADR-0084): `step_up` in their own session, or `device_factor` with
+     * their PIN on the recorder's device, offline, verified when the record arrived (slice 70).
+     */
+    method: text("method").notNull().default("step_up"),
+    deviceKeyId: uuid("device_key_id"),
+    /** The device signature (ECDSA P-256, r||s, base64) over the signed statement. */
+    signature: text("signature"),
+    /** When the witness signed on the device, by its clock. */
+    signedAt: timestamp("signed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("controlled_drug_witness_assertion_tenant_id_id_key").on(t.tenantId, t.id),
+    check(
+      "controlled_drug_witness_assertion_method",
+      sql`(method = 'step_up' AND device_key_id IS NULL AND signature IS NULL AND signed_at IS NULL)
+       OR (method = 'device_factor' AND device_key_id IS NOT NULL AND signature IS NOT NULL AND signed_at IS NOT NULL)`,
+    ),
+    foreignKey({
+      name: "controlled_drug_witness_assertion_device_key_fk",
+      columns: [t.tenantId, t.deviceKeyId],
+      foreignColumns: [memberDeviceKey.tenantId, memberDeviceKey.id],
+    }),
     unique("controlled_drug_witness_assertion_tenant_person_id_key").on(
       t.tenantId,
       t.personId,

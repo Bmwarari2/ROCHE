@@ -99,6 +99,15 @@ pull request. Nothing is scheduled until the owner approves the plans.
 phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
 and 1 once #193 has its numbers.
 
+## Retention sweeps: plan (07/11/2026)
+
+`feat/platform-retention-sweeps`: `docs/plans/retention-sweeps.md`, a draft inventory and plan for
+destroying Phase 2 records when their retention class ends. Nothing destroys database rows today;
+133 of the 135 Phase 2 tables with personal data are never swept. 15 slices, report only first;
+an ADR and 12 DPO questions come before any record is destroyed.
+Slice 0 done (08/11/2026, docs only): ADR-0135 proposed, retention.md mapping de-duplicated and complete,
+retention-and-deletion.md matches today, the 12 questions logged with provisional answers (H-1556 to H-1560, H-1581 to H-1587).
+
 ## User guides: safety, quality and platform, second pass (07/11/2026)
 
 `docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
@@ -681,6 +690,8 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
 - slice 72 leftovers, `feat/mobile-training-placement`: Training tab beside Shifts (H-1365 done); Welsh strings H-1526; tab bar H-1527; Android Maestro run not done (no emulator here);
 - slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0147; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
+- slice 69 the medicines round on the phone, `feat/mobile-meds-round` (no migration; ADR-0081; H-1432 to H-1438; on slice 68): the round shared with the API, GS1 pack scan and photo confirmation, offline records judged at the phone's time, integrity gate, reminders; MOB-007, MEDS-002 partial; Maestro flow written, not run;
+- slice 70 controlled drugs, corrections and conflicts on the phone, `feat/mobile-meds-cd-offline` (0153 for now, the integrator renumbers; ADR-0084; H-1439, H-1440, H-1521 to H-1525; on slice 69): PIN keys per member and phone, two signatures verified on upload, referenced corrections, conflict review; MOB-007, MEDS-005 partial; Maestro flows written, not run;
 - slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
 - slice 46 lone-worker safety, `feat/sched-lone-worker` (0113; HZ-125; H-1030 to H-1039): schema, domain, API and sweep; SCHED-012 partial (web slice 61, mobile slice 71);
 - slice 71 shifts, clock and lone working on the phone, `feat/mobile-shifts-checkins` (0139; HZ-125; H-1310 to H-1319): streams, phone screens, offline queue; MOB-007 partial;

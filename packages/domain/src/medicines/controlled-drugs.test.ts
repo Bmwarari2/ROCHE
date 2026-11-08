@@ -14,6 +14,7 @@ import {
   checkCdEntry,
   defaultCdWitnessPolicy,
   type ServiceType,
+  witnessPolicyForServices,
 } from "./controlled-drugs";
 
 const rates = tableMedicinesRates();
@@ -305,5 +306,20 @@ describe("stock checks", () => {
     expect(cdStockCheckDueAt(at(2, 10), rates)).toEqual(
       addUkDays(at(2, 10), rates.cdStockCheckIntervalDays),
     );
+  });
+});
+
+describe("hazard HZ-116 a home's witness policy is the strictest of its active services", () => {
+  it.each([
+    ["a care home", ["residential"], "required"],
+    ["a nursing home", ["nursing"], "required"],
+    ["home care", ["domiciliary"], "where_available"],
+    ["supported living and live-in", ["supported_living", "live_in"], "where_available"],
+    ["home care run beside a care home", ["domiciliary", "residential"], "required"],
+    ["a home with no active service", [], "required"],
+    ["a service type this code does not know", ["something_new"], "required"],
+    ["a service with no type", [null], "required"],
+  ] as const)("%s", (_case, types, policy) => {
+    expect(witnessPolicyForServices(types)).toBe(policy);
   });
 });
