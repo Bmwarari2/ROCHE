@@ -32,7 +32,8 @@ import {
   recordProblems,
 } from "../medicines/record";
 import { ukToday } from "../medicines/round";
-import { packCheckWords } from "../medicines/view";
+import { useCdRecording } from "../medicines/use-cd-recording";
+import { packCheckWords, ukInstantWords } from "../medicines/view";
 import { phoneWitnessPolicy, WITNESS_SERVICES_SQL } from "../medicines/witness-policy";
 import { newEntryId } from "../platform/ids";
 import { CarePersonHeader } from "./CarePersonHeader";
@@ -136,7 +137,22 @@ export function DoseRecordPanel({
     me?.tenantUserId ?? "",
   ]);
   const competence = phoneCompetence(competenceRows ?? [], new Date());
-  const cdBlocked = dose.controlledDrug && !mayRecordCd;
+  // Where the paper register is the record (H-1517; HZ-115), a controlled drug is not recorded on
+  // the phone at all; not read counts as off. Said before the permission, which it overrides.
+  const {
+    recording: cdRecording,
+    ready: cdRecordingReady,
+    readAt: cdRecordingReadAt,
+  } = useCdRecording(dose.personId, dose.controlledDrug);
+  const cdOff = dose.controlledDrug && cdRecording !== "on";
+  const cdBlocked = dose.controlledDrug && (cdOff || !mayRecordCd);
+  const cdBlockedWords = !cdOff
+    ? t("mobile.meds.cdNotPermitted")
+    : cdRecording === "off"
+      ? t("mobile.meds.cdRecordingOff", {
+          checked: cdRecordingReadAt ? ukInstantWords(cdRecordingReadAt) : "",
+        })
+      : t("mobile.meds.cdRecordingUnknown");
   // The home's witness policy, as the API applies it: "no one is here to witness" only where it
   // allows that; unknown counts as required (HZ-116; lead's batch 5 review, B4).
   const { data: serviceRows } = useQuery<{ service_type: string | null }>(WITNESS_SERVICES_SQL, [
@@ -146,8 +162,8 @@ export function DoseRecordPanel({
   const loneAllowed = witnessPolicy === "where_available";
   // Said as the panel opens, before any check or outcome is chosen (slice 70 reviews; WCAG 4.1.3).
   useEffect(() => {
-    if (cdBlocked) announce(t("mobile.meds.cdNotPermitted"));
-  }, [cdBlocked]);
+    if (cdBlocked && cdRecordingReady) announce(cdBlockedWords);
+  }, [cdBlocked, cdRecordingReady, cdBlockedWords]);
 
   const cdFields = async (
     id: string,
@@ -292,7 +308,7 @@ export function DoseRecordPanel({
     if (!outcome || saving) return;
     // The line at the top already says why; it is not repeated in the problems list.
     if (cdBlocked && outcome === "given") {
-      announce(t("mobile.meds.cdNotPermitted"));
+      announce(cdBlockedWords);
       return;
     }
     const quantity = Number(amount);
@@ -372,6 +388,7 @@ export function DoseRecordPanel({
       packRefused,
       cdSignatures,
       mayRecordCd,
+      cdRecording,
       witnessPolicy,
     };
     const found = recordProblems(input);
@@ -403,9 +420,18 @@ export function DoseRecordPanel({
       <StatusLine tone="warning" testID="dose-allergies">
         {dose.allergyWords}
       </StatusLine>
-      {cdBlocked ? (
-        <StatusLine tone="danger" testID="cd-not-permitted">
-          {t("mobile.meds.cdNotPermitted")}
+      {cdBlocked && cdRecordingReady ? (
+        <StatusLine
+          tone="danger"
+          testID={
+            !cdOff
+              ? "cd-not-permitted"
+              : cdRecording === "off"
+                ? "cd-recording-off"
+                : "cd-recording-unknown"
+          }
+        >
+          {cdBlockedWords}
         </StatusLine>
       ) : null}
 

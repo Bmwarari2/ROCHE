@@ -26,6 +26,8 @@ export type RecordProblem =
   | "amount_required"
   | "cd_signatures_required"
   | "cd_not_permitted"
+  | "cd_recording_off"
+  | "cd_recording_unknown"
   | "cd_witness_required"
   | "witness_is_recorder"
   | "may_not_give"
@@ -94,6 +96,11 @@ export interface DoseRecordInput {
   readonly cdSignatures?: CdDeviceSignatures | null;
   /** Whether the member may record controlled drugs (`medicines.cd.administer`). */
   readonly mayRecordCd: boolean;
+  /**
+   * Whether controlled drugs are recorded in Thapsus Care's register at the person's home
+   * (`medicines.cd_recording`, H-1517), as the phone last read it; not read counts as off.
+   */
+  readonly cdRecording: "on" | "off" | "unknown";
   /** The home's controlled drugs witness policy (`phoneWitnessPolicy`); unknown counts as required. */
   readonly witnessPolicy?: "required" | "where_available";
 }
@@ -121,13 +128,22 @@ const GIVES = new Set<AdministrationOutcome>(["given"]);
 export function recordProblems(input: DoseRecordInput): RecordProblem[] {
   const problems: RecordProblem[] = [];
   const gives = GIVES.has(input.outcome);
+  // Where the paper register is the record (H-1517), a controlled drug given is not recorded on the
+  // phone at all: the API would refuse it after the dose. One message, so nothing else is asked.
+  const cdRecordingOff = gives && input.controlledDrug && input.cdRecording !== "on";
+  // Not known is its own problem: never "use the paper register", which may be closed (clinical
+  // review of H-1518, H1).
+  if (cdRecordingOff) {
+    problems.push(input.cdRecording === "off" ? "cd_recording_off" : "cd_recording_unknown");
+  }
   // Checked before anything is given: a witness who may not record controlled drugs is never the
   // recorder; the API would refuse it only after the dose (HZ-116; lead's batch 5 review, 1).
   // Unknown counts as not permitted: only a recorder the phone knows may record it passes.
-  const cdNotPermitted = gives && input.controlledDrug && input.mayRecordCd !== true;
+  const cdNotPermitted =
+    gives && input.controlledDrug && !cdRecordingOff && input.mayRecordCd !== true;
   if (cdNotPermitted) problems.push("cd_not_permitted");
   // A controlled drug given needs the recorder's and a witness's signatures on this phone.
-  if (gives && input.controlledDrug && !cdNotPermitted && !input.cdSignatures)
+  if (gives && input.controlledDrug && !cdRecordingOff && !cdNotPermitted && !input.cdSignatures)
     problems.push("cd_signatures_required");
   // No witness only where the home's policy allows it: the register refuses it otherwise, after the
   // dose was given (HZ-116; lead's batch 5 review, B4).
