@@ -4,6 +4,32 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
+**Paused on 08/11/2026 at about 21:15 by the owner, until he says resume.** All work is on
+Thapsus-HR meanwhile. Nothing was merged or opened after the pause; open pull requests were left
+as they are and their running CI was cancelled (#220's run was left to finish its last step).
+Main is 9cfb4c4c (#217). Where to resume, in this order:
+
+1. The merge queue, one at a time (each appends to the end of `docs/plans/human-actions.md`):
+   - #219 (retention report screen, ce421cbd, main 9cfb4c4c merged in): re-run CI, then merge.
+   - #220 (destruction batches, 3e58bb6b, migration 0162): merge main in, re-run CI, merge.
+   - #221 (reporting lines PR 1, 21d96714, green before the pause): merge main in and renumber its
+     migration to 0163, then merge. Then PR 2 from `wip/reporting-lines-web` (234be11d, both
+     reviews' fixes applied), labels data-protection and web.
+   - #222 (device withdrawal exact count, 854aa2b7, H-1535) and #223 (mobile strings, f8d3a518):
+     merge main in if they conflict, re-run CI, merge.
+   - #194, #196, #201 (migration 0158 at merge) and #203 (migration 0159 at merge): merge main in
+     when their turn comes.
+2. `wip/platform-dsar-array-columns` (2a84b2fc): the DSAR array-column fix with the security
+   review's Medium (downtime packs cut to the subject's own pages) and Lows fixed with tests; re-run
+   domain, db, api, typecheck and Biome, renumber the migration after #220, add the idArray
+   declaration for `destruction_batch_item.subject_ids`, then open the PR (data-protection).
+3. `wip/mobile-incidents` (fd343060, HZ-141, H-1630): re-run the clinical, accessibility and
+   security reviewers, fix their findings, open the PR. Then conflict review and passkey sign-in on
+   the phone.
+4. The vulnerability exceptions expire on 14/11/2026 (`.trivyignore`, `.trivyignore-images`,
+   pnpm `ignoreGhsas`, `docs/compliance/vulnerability-exceptions.md`): upgrade glob to 14.0.2 and
+   renew the rest with reasons. This needs the owner's resume or a one-off go-ahead before 14/11.
+
 **Overall: 2% done** (4 of 234 register rows `done`; 119 `partial`, 111 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
