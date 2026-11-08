@@ -94,6 +94,7 @@ Items Brian may want to confirm (each ADR says how to change it):
 | [0114](0114-supervision-notes-kept-in-harbour.md) | Supervision and appraisal notes are kept in Harbour, read by few | proposed | 2026-10-31 | Phase 2 |
 | [0125](0125-speak-up-anonymised-view-not-yet-granted.md) | The speak-up anonymised view is not granted until it exists | accepted | 2026-10-31 | Phase 2 |
 | [0133](0133-definer-functions-owned-by-nologin-roles.md) | Security-definer functions are owned by NOLOGIN roles, one per bounded context | accepted | 2026-11-07 | Phase 2 |
+| [0135](0135-retention-row-destruction.md) | Destroying database rows when their retention class ends (number to be confirmed at merge) | proposed | 2026-11-08 | Phase 2 |
 
 ## Open items carried by these ADRs
 
