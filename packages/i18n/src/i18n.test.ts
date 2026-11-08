@@ -129,6 +129,10 @@ describe("catalogues", () => {
       "medicines.stock.order.cycleSubject",
       "medicines.stock.aMember",
       "medicines.stock.you",
+      // The subject of a date check on the dose record correction form.
+      "medicines.correct.form.givenAtSubject",
+      // Inside "Review and decide: … for {person}" when the person cannot be seen.
+      "medicines.conflicts.someone",
     ]);
     for (const [key, message] of Object.entries(catalogues["en-GB"])) {
       if (continuations.has(key) || /^[{:]/.test(message)) continue;

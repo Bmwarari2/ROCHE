@@ -64,5 +64,8 @@ Branch `feat/platform-retention-report`, from `main` at 8d9b4cc8 (the registry, 
 ## What is next
 
 - Slice 5: the report screen at `/settings/retention`.
-- How long reports are kept (the catalogue says `permanent`, as other records-management proof) is
-  for the DPO to confirm with the plan's questions.
+- Provisional DPO decisions, logged in `docs/plans/human-actions.md`: how long reports are kept
+  (H-1610, permanent), one organisation-wide report setting (H-1611), today's holds only until
+  slice 12 (H-1612) and the 95 entries counted as not evaluated (H-1613).
+- Also: #207's second H-1605 is renumbered H-1609 and marked superseded by #210's H-1605, and
+  `scripts/check-markdown-links.mjs` now fails on a duplicate H-number or ADR number.

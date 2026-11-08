@@ -76941,6 +76941,7 @@ export interface components {
         mayGive: boolean;
         notice: string | null;
       };
+      controlledDrug: boolean;
     };
     DmdProductRef: {
       vmpId: string;
@@ -77432,6 +77433,7 @@ export interface components {
         /** @enum {string} */
         method: "step_up" | "device_factor";
       } | null;
+      inCdRegister: boolean;
     };
     AdministrationConflictRaised: {
       /** Format: uuid */
@@ -77682,6 +77684,8 @@ export interface components {
         id: string;
         movement: components["schemas"]["CdMovement"] | "stock_check";
         quantity: number;
+        /** Format: uuid */
+        administrationId: string | null;
         witnessName: string;
         /** Format: date-time */
         expiresAt: string;
@@ -77851,6 +77855,8 @@ export interface components {
       /** Format: date-time */
       dueAt: string;
       standing: components["schemas"]["Administration"];
+      current: components["schemas"]["Administration"];
+      controlledDrug: boolean;
       uploaded: components["schemas"]["UploadedAdministration"];
       joined: components["schemas"]["UploadedAdministration"][];
       problems: string[];

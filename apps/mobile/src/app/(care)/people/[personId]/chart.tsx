@@ -84,7 +84,7 @@ export default function ChartScreen() {
     typeof params.chart === "string" && isChartKind(params.chart) ? params.chart : null;
   const tenantId = useTenantId();
   const { profile, loaded: profileLoaded } = useCareProfileState(id);
-  const { submit, saving, saveFailed } = useSaveAndReturn();
+  const { submit, saving, saveFailed } = useSaveAndReturn(id);
 
   const [chart, setChart] = useState<ChartKind | null>(initialChart);
   // The round's task this entry answers, when the carer came from the round (gate item (f)).

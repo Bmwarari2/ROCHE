@@ -29,7 +29,7 @@ Write a short everyday update for the person's family, from a recent note, activ
 
 - **The feed is not for news.** Never use it for falls, hospital visits, illness or deaths. Phone
   the family as your home's policy says.
-- Who in the family sees an update depends on the person's sharing decisions. Sharing decisions
-  have no screen yet.
+- Who in the family sees an update depends on the person's sharing decisions (see
+  [How to record a sharing decision](../registered-manager/record-a-sharing-decision.md)).
 - Updates are on hold while the person is in hospital, while the next of kin is still to be told
   about an incident, or while a duty of candour step is open.

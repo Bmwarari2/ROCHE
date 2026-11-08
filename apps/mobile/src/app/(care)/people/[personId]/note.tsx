@@ -37,7 +37,7 @@ export default function NoteScreen() {
   // A note never answers a round task: a note that says it was not done is "Not done" with a
   // reason on the round (#123 clinical review, M3).
   const context = useEntryContext(id, !correct && typeof task === "string" ? task : null, null);
-  const { submit, saving, saveFailed } = useSaveAndReturn();
+  const { submit, saving, saveFailed } = useSaveAndReturn(id);
 
   const originalParams = useMemo(() => [tenantId, id, correctId ?? ""], [tenantId, id, correctId]);
   const { data: originals } = useQuery<NoteRow>(NOTE_BY_ID_SQL, originalParams);
