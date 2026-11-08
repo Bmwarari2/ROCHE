@@ -1,5 +1,6 @@
-import type { DevelopmentRecord, TrainingMatrix } from "@harbour/contracts";
+import type { DevelopmentRecord, SupervisionsDue, TrainingMatrix } from "@harbour/contracts";
 import {
+  auditEvent,
   competenceSignOff,
   competenceWithdrawal,
   location,
@@ -20,6 +21,10 @@ import {
   type Competence,
   competenceDecision,
   expiryState,
+  meetingReminderKey,
+  meetingReminders,
+  meetingsDue,
+  meetingsNeedAttention,
   nextMeeting,
   PORTAL_ONLY_PERMISSIONS,
   reminderDays,
@@ -47,8 +52,31 @@ import { withSystemRights } from "./system-rights";
 export const TRAINING_EXPIRY_TASK = "workforce.training_expiry";
 export const COMPETENCE_EXPIRY_TASK = "workforce.competence_expiry";
 export const DEVELOPMENT_REMINDER_PERMISSION = "workforce.training.manage";
+/** A supervision or appraisal due or overdue (rule 7; WORK-009): for holders of the permission. */
+export const SUPERVISION_DUE_TASK = "workforce.supervision_due";
+export const SUPERVISION_REMINDER_PERMISSION = "workforce.supervision.manage";
 /** Who the reminders go to: the built-in HR role (no person scope: the tasks are about no person). */
 export const DEVELOPMENT_REMINDER_ROLE = "hr";
+
+/**
+ * The audit event for a workforce reminder task the system raised or cancelled (section 5.5: every
+ * write): actor the system, the job or the cause, the reminder's idempotency key and the task id,
+ * opaque ids and codes only. In the transaction that wrote the task, for its organisation.
+ */
+async function auditReminder(
+  tx: Transaction,
+  change: "raised" | "cancelled",
+  taskId: string,
+  scope: Record<string, string | number>,
+): Promise<void> {
+  await tx.insert(auditEvent).values({
+    tenantId: sql`current_setting('app.tenant_id')::uuid`,
+    action: `workforce.reminder.${change}`,
+    resourceType: "task",
+    resourceId: taskId,
+    scope: { actor: "system", ...scope },
+  });
+}
 
 type Nation = "england" | "wales" | "scotland" | "northern_ireland";
 
@@ -281,7 +309,9 @@ export async function developmentRecord(
       .map((h) => h.heldOn)
       .sort()
       .at(-1);
-    return last ? nextMeeting(kind, held, last, perYear, today) : null;
+    return last
+      ? nextMeeting(kind, held, last, perYear, today, rates.supervisionDueWindowDays)
+      : null;
   };
 
   const plan = evidence
@@ -385,6 +415,8 @@ export async function raiseDevelopmentReminders(
   now: Date,
 ): Promise<number> {
   const today = ukIsoDate(now);
+  // One sweep at a time per organisation, so the read-first check raises each reminder once.
+  await lockDevelopmentReminders(tx);
   const members = new Set<string>([
     ...(await tx.select({ id: trainingRecord.workerId }).from(trainingRecord)).map((r) => r.id),
     ...(await tx.select({ id: competenceSignOff.workerId }).from(competenceSignOff)).map(
@@ -424,26 +456,39 @@ export async function raiseDevelopmentReminders(
     );
     if (state.reminderDue === null) return;
     const nearest = Math.min(...reminderDays(rates));
-    await tx.insert(task).values({
-      kind,
-      title:
-        kind === TRAINING_EXPIRY_TASK
-          ? "Renew training before it expires"
-          : "Observe a competence again before it expires",
-      requiredPermission: DEVELOPMENT_REMINDER_PERMISSION,
-      sourceType: "tenant_user",
-      sourceId: memberId,
-      locationId: null,
-      assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
-      dueAt: ukEndOfDay(dueOn),
-      priority: state.reminderDue <= nearest ? "urgent" : "routine",
-      details: {
+    const [created] = await tx
+      .insert(task)
+      .values({
+        kind,
+        title:
+          kind === TRAINING_EXPIRY_TASK
+            ? "Renew training before it expires"
+            : "Observe a competence again before it expires",
+        requiredPermission: DEVELOPMENT_REMINDER_PERMISSION,
+        sourceType: "tenant_user",
+        sourceId: memberId,
+        locationId: null,
+        assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
+        dueAt: ukEndOfDay(dueOn),
+        priority: state.reminderDue <= nearest ? "urgent" : "routine",
+        details: {
+          memberId,
+          ...subject,
+          reminderDueOn: dueOn,
+          reminderDays: state.reminderDue,
+        },
+      })
+      .returning({ id: task.id });
+    if (created) {
+      await auditReminder(tx, "raised", created.id, {
+        job: "development-reminders",
+        kind,
         memberId,
         ...subject,
         reminderDueOn: dueOn,
         reminderDays: state.reminderDue,
-      },
-    });
+      });
+    }
     raised += 1;
   };
   const left = new Set(
@@ -503,6 +548,7 @@ export function endDevelopmentReminders(
       ? [TRAINING_EXPIRY_TASK, "trainingTopic", subject.trainingTopic]
       : [COMPETENCE_EXPIRY_TASK, "competence", subject.competence];
   return withSystemRights(tx, async () => {
+    await lockDevelopmentReminders(tx);
     const ended = await tx
       .update(task)
       .set({ status: "cancelled", statusReason: "Ended: recorded again" })
@@ -516,6 +562,14 @@ export function endDevelopmentReminders(
         ),
       )
       .returning({ id: task.id });
+    for (const t of ended) {
+      await auditReminder(tx, "cancelled", t.id, {
+        cause: "recorded_again",
+        kind,
+        memberId,
+        [key]: value,
+      });
+    }
     return ended.length;
   });
 }
@@ -525,24 +579,21 @@ export const MATRIX_MEMBER_LIMIT = 2000;
 
 const PORTAL = sql.raw(`ARRAY[${PORTAL_ONLY_PERMISSIONS.map((p) => `'${p}'`).join(", ")}]::text[]`);
 
+type StaffMember = {
+  displayName: string;
+  keys: Set<string>;
+  roles: Set<string>;
+  locations: Set<string>;
+  nation: Nation | null;
+};
+
 /**
- * The organisation's training matrix (slice 57; WORK-005): every member of staff whose roles need
- * training, each required topic's state today, by the same rules as one member's record. Read by
- * holders of the workforce read permissions only (asked of the database first); the members' roles
- * and places are read with the system's rights, as for one member, and their records under the
- * caller's own row-level security. Null when the caller may not read development records.
+ * Every member of staff with a role in force (no portal account), with their role keys, where the
+ * roles are held and the nation of the first place, read with the system's rights: the matrix and
+ * the supervisions list show members by these, and read each member's records under the caller's
+ * own row-level security.
  */
-export async function trainingMatrixFor(
-  tx: Transaction,
-  tenantId: string,
-  now: Date,
-  filter: { readonly locationId?: string; readonly roleKey?: string; readonly attention?: boolean },
-): Promise<TrainingMatrix | null> {
-  const allowed = await tx.execute<{ ok: boolean }>(
-    sql`SELECT app.is_system() OR app.reads_development() AS ok`,
-  );
-  if (allowed.rows[0]?.ok !== true) return null;
-  const today = ukIsoDate(now);
+async function staffMembers(tx: Transaction, now: Date): Promise<Map<string, StaffMember>> {
   const assignments = await withSystemRights(tx, () =>
     tx
       .select({
@@ -586,16 +637,7 @@ export async function trainingMatrixFor(
         ),
       ),
   );
-  const members = new Map<
-    string,
-    {
-      displayName: string;
-      keys: Set<string>;
-      roles: Set<string>;
-      locations: Set<string>;
-      nation: Nation | null;
-    }
-  >();
+  const members = new Map<string, StaffMember>();
   for (const a of assignments) {
     const m = members.get(a.memberId) ?? {
       displayName: a.displayName,
@@ -611,6 +653,28 @@ export async function trainingMatrixFor(
     m.nation ??= (a.nation as Nation | null) ?? null;
     members.set(a.memberId, m);
   }
+  return members;
+}
+
+/**
+ * The organisation's training matrix (slice 57; WORK-005): every member of staff whose roles need
+ * training, each required topic's state today, by the same rules as one member's record. Read by
+ * holders of the workforce read permissions only (asked of the database first); the members' roles
+ * and places are read with the system's rights, as for one member, and their records under the
+ * caller's own row-level security. Null when the caller may not read development records.
+ */
+export async function trainingMatrixFor(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+  filter: { readonly locationId?: string; readonly roleKey?: string; readonly attention?: boolean },
+): Promise<TrainingMatrix | null> {
+  const allowed = await tx.execute<{ ok: boolean }>(
+    sql`SELECT app.is_system() OR app.reads_development() AS ok`,
+  );
+  if (allowed.rows[0]?.ok !== true) return null;
+  const today = ukIsoDate(now);
+  const members = await staffMembers(tx, now);
   const requirementRows = await activeRequirements(tx);
   const wanted = [...members.entries()]
     .filter(([, m]) => !filter.locationId || m.locations.has(filter.locationId))
@@ -687,4 +751,288 @@ export async function trainingMatrixFor(
     members: rows,
     truncated,
   };
+}
+
+/**
+ * Supervisions and appraisals across staff (WORK-009; workforce.md rule 7): every member of staff,
+ * their next supervision and appraisal by the rules of the member's record, with
+ * `supervision.due_window_days` as the window in which one shows as due, and the last spot check.
+ * The same readers and limit as the matrix; the records are read under the caller's own row-level
+ * security. With none held the state is `none_recorded`: the start date is in the staff file, which
+ * these readers may not see. Null when the caller may not read development records.
+ */
+export async function supervisionsDueFor(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+  filter: { readonly locationId?: string; readonly attention?: boolean },
+): Promise<SupervisionsDue | null> {
+  const allowed = await tx.execute<{ ok: boolean }>(
+    sql`SELECT app.is_system() OR app.reads_development() AS ok`,
+  );
+  if (allowed.rows[0]?.ok !== true) return null;
+  const today = ukIsoDate(now);
+  const members = await staffMembers(tx, now);
+  const wanted = [...members.entries()]
+    .filter(([, m]) => !filter.locationId || m.locations.has(filter.locationId))
+    .map(([id, m]) => ({ id, ...m }))
+    .sort(
+      (x, y) => x.displayName.localeCompare(y.displayName, "en-GB") || x.id.localeCompare(y.id),
+    );
+  const truncated = wanted.length > MATRIX_MEMBER_LIMIT;
+  const capped = wanted.slice(0, MATRIX_MEMBER_LIMIT);
+  const ids = capped.map((m) => m.id);
+  const held: { workerId: string; kind: string; heldOn: string }[] = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    held.push(
+      ...(await tx
+        .select({
+          workerId: supervisionRecord.workerId,
+          kind: supervisionRecord.kind,
+          heldOn: supervisionRecord.heldOn,
+        })
+        .from(supervisionRecord)
+        .where(
+          and(
+            inArray(supervisionRecord.workerId, ids.slice(i, i + 500)),
+            isNull(supervisionRecord.deletedAt),
+          ),
+        )),
+    );
+  }
+  const byWorker = new Map<string, typeof held>();
+  for (const r of held) {
+    const list = byWorker.get(r.workerId) ?? [];
+    list.push(r);
+    byWorker.set(r.workerId, list);
+  }
+  const rates = new Map<Nation, WorkforceRates>();
+  const ratesFor = async (nation: Nation) => {
+    const found = rates.get(nation);
+    if (found) return found;
+    const loaded = await workforceRates(tx, tenantId, nation, today);
+    rates.set(nation, loaded);
+    return loaded;
+  };
+  const home = await ratesFor("england");
+  const names = await staffNames(tx, ids);
+  const rows = [];
+  for (const m of capped) {
+    const member = names(m.id);
+    if (!member) continue;
+    const r = await ratesFor(m.nation ?? "england");
+    const records = (byWorker.get(m.id) ?? []).map((x) => ({
+      kind: x.kind as "supervision" | "appraisal" | "spot_check",
+      heldOn: x.heldOn,
+    }));
+    const meetings = meetingsDue(
+      records,
+      { supervision: r.supervisionsPerYear, appraisal: r.appraisalsPerYear },
+      today,
+      r.supervisionDueWindowDays,
+    );
+    if (filter.attention && !meetingsNeedAttention(meetings)) continue;
+    const lastSpotCheckOn =
+      records
+        .filter((x) => x.kind === "spot_check" && x.heldOn <= today)
+        .map((x) => x.heldOn)
+        .sort()
+        .at(-1) ?? null;
+    rows.push({
+      member,
+      roles: [...m.roles].sort(),
+      locationIds: [...m.locations].sort(),
+      meetings: [...meetings],
+      lastSpotCheckOn,
+    });
+  }
+  return { asOf: today, dueWindowDays: home.supervisionDueWindowDays, members: rows, truncated };
+}
+
+/**
+ * Serialises the supervision reminder sweep and a meeting being recorded, per organisation, for the
+ * rest of the transaction: two sweeps at once (pg-boss may run the job twice, or retry it) read and
+ * insert one after the other, so the read-first check raises each reminder once, and a meeting
+ * recorded during a sweep is either seen by it or closes what it raised. No migration: a
+ * transaction advisory lock on a fixed name and the organisation.
+ */
+async function lockSupervisionReminders(tx: Transaction): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('workforce.supervision_reminders'), hashtext(current_setting('app.tenant_id')))`,
+  );
+}
+
+/**
+ * The same for the training and competence reminders, under their own key: the sweep and a renewal
+ * ending its reminders, one at a time per organisation, so two sweeps at once raise each once.
+ */
+async function lockDevelopmentReminders(tx: Transaction): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('workforce.development_reminders'), hashtext(current_setting('app.tenant_id')))`,
+  );
+}
+
+/**
+ * Supervision and appraisal reminders (workforce.md rule 7; WORK-009): for every member of staff
+ * with a role in force, one task when a supervision or appraisal falls due inside
+ * `supervision.due_window_days` or is overdue, once for each due date (a task already raised for
+ * the member, the kind and the date, whatever its status, stops a second). The task is about no
+ * person and no location, so it goes to HR's role and is seen by holders of
+ * `workforce.supervision.manage` (migration 0079's task visibility). With none held, the next falls
+ * due from the start date in the staff file; with neither, no task (never a guessed date). Leavers
+ * get none. Runs as the system in each organisation.
+ */
+export async function raiseSupervisionReminders(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+): Promise<number> {
+  const today = ukIsoDate(now);
+  await lockSupervisionReminders(tx);
+  const members = await staffMembers(tx, now);
+  if (members.size === 0) return 0;
+  const ids = [...members.keys()];
+  const profiles = new Map(
+    (
+      await tx
+        .select({
+          id: staffProfile.tenantUserId,
+          startsOn: staffProfile.startsOn,
+          leftOn: staffProfile.leftOn,
+        })
+        .from(staffProfile)
+    ).map((p) => [p.id, p]),
+  );
+  const held = await tx
+    .select({
+      workerId: supervisionRecord.workerId,
+      kind: supervisionRecord.kind,
+      heldOn: supervisionRecord.heldOn,
+    })
+    .from(supervisionRecord)
+    .where(isNull(supervisionRecord.deletedAt));
+  const sent = await tx
+    .select({ sourceId: task.sourceId, details: task.details })
+    .from(task)
+    .where(eq(task.kind, SUPERVISION_DUE_TASK));
+  const raisedFor = (memberId: string) =>
+    new Set(
+      sent
+        .filter((t) => t.sourceId === memberId)
+        .map((t) => t.details as { meetingKind?: unknown; reminderDueOn?: unknown } | null)
+        .filter(
+          (d): d is { meetingKind: "supervision" | "appraisal"; reminderDueOn: string } =>
+            (d?.meetingKind === "supervision" || d?.meetingKind === "appraisal") &&
+            typeof d.reminderDueOn === "string",
+        )
+        .map((d) => meetingReminderKey(d.meetingKind, d.reminderDueOn)),
+    );
+  const rates = new Map<Nation, WorkforceRates>();
+  let raised = 0;
+  for (const id of ids) {
+    const member = members.get(id);
+    if (!member) continue;
+    const profile = profiles.get(id);
+    if (profile?.leftOn && profile.leftOn < today) continue;
+    const nation = member.nation ?? "england";
+    const r = rates.get(nation) ?? (await workforceRates(tx, tenantId, nation, today));
+    rates.set(nation, r);
+    const records = held
+      .filter((h) => h.workerId === id)
+      .map((h) => ({
+        kind: h.kind as "supervision" | "appraisal" | "spot_check",
+        heldOn: h.heldOn,
+      }));
+    const meetings = meetingsDue(
+      records,
+      { supervision: r.supervisionsPerYear, appraisal: r.appraisalsPerYear },
+      today,
+      r.supervisionDueWindowDays,
+      profile?.startsOn && profile.startsOn <= today ? profile.startsOn : null,
+    );
+    for (const reminder of meetingReminders(meetings, raisedFor(id))) {
+      // Inside the lock, just before raising: a meeting held since the read above stops it.
+      const lastHeldOn = meetings.find((m) => m.kind === reminder.kind)?.lastHeldOn ?? null;
+      const [latest] = await tx
+        .select({ heldOn: sql<string | null>`max(${supervisionRecord.heldOn})` })
+        .from(supervisionRecord)
+        .where(
+          and(
+            eq(supervisionRecord.workerId, id),
+            eq(supervisionRecord.kind, reminder.kind),
+            isNull(supervisionRecord.deletedAt),
+            lte(supervisionRecord.heldOn, today),
+          ),
+        );
+      if ((latest?.heldOn ?? null) !== lastHeldOn) continue;
+      const [created] = await tx
+        .insert(task)
+        .values({
+          kind: SUPERVISION_DUE_TASK,
+          title:
+            reminder.kind === "supervision"
+              ? "Hold a supervision that is due"
+              : "Hold an appraisal that is due",
+          requiredPermission: SUPERVISION_REMINDER_PERMISSION,
+          sourceType: "tenant_user",
+          sourceId: id,
+          locationId: null,
+          assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
+          dueAt: ukEndOfDay(reminder.dueOn),
+          priority: reminder.priority,
+          details: { memberId: id, meetingKind: reminder.kind, reminderDueOn: reminder.dueOn },
+        })
+        .returning({ id: task.id });
+      if (created) {
+        await auditReminder(tx, "raised", created.id, {
+          job: "supervision-reminders",
+          kind: SUPERVISION_DUE_TASK,
+          memberId: id,
+          meetingKind: reminder.kind,
+          reminderDueOn: reminder.dueOn,
+        });
+      }
+      raised += 1;
+    }
+  }
+  return raised;
+}
+
+/**
+ * Closes a member's open supervision or appraisal reminders once one is held (rule 7): the next
+ * due date's reminder follows from the sweep. A spot check closes none: it never counts as a
+ * supervision. With the system's rights, for that member and kind only, because the reminders are
+ * about no person and no location.
+ */
+export function endSupervisionReminders(
+  tx: Transaction,
+  memberId: string,
+  kind: "supervision" | "appraisal" | "spot_check",
+): Promise<number> {
+  if (kind === "spot_check") return Promise.resolve(0);
+  return withSystemRights(tx, async () => {
+    await lockSupervisionReminders(tx);
+    const ended = await tx
+      .update(task)
+      .set({ status: "cancelled", statusReason: "Ended: held" })
+      .where(
+        and(
+          eq(task.kind, SUPERVISION_DUE_TASK),
+          eq(task.sourceType, "tenant_user"),
+          eq(task.sourceId, memberId),
+          inArray(task.status, ["open", "in_progress"]),
+          sql`${task.details}->>'meetingKind' = ${kind}`,
+        ),
+      )
+      .returning({ id: task.id });
+    for (const t of ended) {
+      await auditReminder(tx, "cancelled", t.id, {
+        cause: "meeting_recorded",
+        kind: SUPERVISION_DUE_TASK,
+        memberId,
+        meetingKind: kind,
+      });
+    }
+    return ended.length;
+  });
 }

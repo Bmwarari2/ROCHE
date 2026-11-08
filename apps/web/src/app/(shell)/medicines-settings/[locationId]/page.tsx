@@ -1,21 +1,17 @@
 import { Card, PageHeader } from "@harbour/ui";
-import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Notice } from "@/components/care/Notice";
-import { CdRecordingForm } from "@/components/medicines/CdRecordingForm";
+import { CdRecordingSetting } from "@/components/medicines/CdRecordingSetting";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext } from "@/lib/api";
 import { cdRecordingStateAt } from "@/lib/cd-recording";
 import { isUuid } from "@/lib/context-cookies";
+import { cdRecordingSettingsShown } from "@/lib/controlled-drugs";
 import { t } from "@/lib/i18n";
 
 type Params = Promise<{ locationId: string }>;
 
 export const metadata: Metadata = { title: t("medicines.cdRecording.title") };
-
-/** Who may turn controlled drug recording on or off at a home: the API checks both again. */
-const NEEDS = ["medicines.record.manage", "platform.location.manage"] as const;
 
 /**
  * Controlled drug recording at one home (H-1517, H-1518; HZ-115, HZ-008): whether Thapsus Care's
@@ -30,7 +26,7 @@ export default async function MedicinesSettingsPage({ params }: { readonly param
   const title = t("medicines.cdRecording.title");
   const location = me.locations.find((l) => l.id === locationId);
   if (!location) notFound();
-  if (!NEEDS.every((p) => me.permissions.includes(p))) return <SafetyForbidden title={title} />;
+  if (!cdRecordingSettingsShown(me.permissions)) return <SafetyForbidden title={title} />;
   const enabled = await cdRecordingStateAt(locationId);
   return (
     <>
@@ -40,15 +36,7 @@ export default async function MedicinesSettingsPage({ params }: { readonly param
         description={t("medicines.cdRecording.description")}
       />
       <Card as="section" title={t("medicines.cdRecording.cardTitle")} headingLevel={2}>
-        {enabled === null ? (
-          <Notice
-            tone="warning"
-            icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
-            title={t("medicines.cdRecording.unreadable")}
-          />
-        ) : (
-          <CdRecordingForm locationId={locationId} enabled={enabled} />
-        )}
+        <CdRecordingSetting locationId={locationId} enabled={enabled} />
       </Card>
     </>
   );

@@ -1221,8 +1221,12 @@ the whole organisation) reads them for the full export, never writes.
    email is not a route (`POST /v1/disclosures/{id}/hand-over`, audited `safety.disclosure.handed_over`;
    the database holds the same rules).
 43. **Coroner tracker.** A coroner request may record a Regulation 28 prevention of future deaths
-    report received on a day; the response is due `coroner.prevention_report_response_days` later
-    (Coroners (Investigations) Regulations 2013 reg 29, rate table) and is recorded when sent.
+    report by the date it was sent; the response is due within
+    `coroner.prevention_report_response_days` (rate table) of that date, so on the date sent plus
+    that many days (Coroners (Investigations) Regulations 2013 reg 29(4)), or by a later date the
+    coroner allowed (reg 29(5); the extension, later than the usual due date, which may be granted
+    after it); the response is recorded when sent. A date left out when saving keeps what was
+    recorded (`preventionResponse` in the domain).
 44. **Audit.** Every read and change writes `audit_event` with ids, codes and counts only, never the
     requester's name, purpose, reasons or record content; viewing records and the pack are audited
     as care-record views.

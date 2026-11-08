@@ -45,6 +45,7 @@ import {
   remindDolsExpiry,
   remindPolicies,
   remindStaffFileExpiry,
+  remindSupervisionsDue,
   reportBreakGlass,
   reportUnroutedDaily,
   retryUnroutedTasks,
@@ -203,6 +204,8 @@ await work(QUEUES.policyReminders, async () => {
 });
 await work(QUEUES.developmentExpiry, async () => {
   await remindDevelopmentExpiry(deps);
+  // Supervisions and appraisals due (WORK-009), on the same hourly schedule.
+  await remindSupervisionsDue(deps);
 });
 await work(QUEUES.leaverAccess, async () => {
   await sweepLeaverAccess(deps);

@@ -97,21 +97,44 @@ export function apiHeaders(options: ApiOptions): Record<string, string> {
   };
 }
 
-/** Sends one stage of a deletion. Never throws. */
+/**
+ * The request body for a lost key (`SyncKeyLost` in `@harbour/contracts`; H-1531): only what the
+ * device knew of its hold, never a reason, a deleter or ids.
+ */
+export function keyLostBody(tombstone: Tombstone) {
+  return {
+    id: tombstone.id,
+    ownerTenantUserId: tombstone.ownerTenantUserId,
+    count: tombstone.count,
+    deviceId: tombstone.deviceId ?? null,
+    locationIds: [...(tombstone.locationIds ?? [])].filter(isOpaqueId).slice(0, 50),
+    lastSyncedAt: tombstone.lastSyncedAt ?? null,
+    lostAt: tombstone.at,
+  };
+}
+
+/** Sends one stage of a deletion; a lost key goes to its own route. Never throws. */
 export async function sendDiscard(
   options: ApiOptions,
   tombstone: Tombstone,
   stage: DiscardStage,
 ): Promise<DiscardSendResult> {
+  const lostKey = tombstone.kind === "key_invalidated";
   try {
-    const response = await options.fetch(`${options.apiUrl}/v1/sync/discards`, {
-      method: "POST",
-      headers: apiHeaders(options),
-      credentials: "omit",
-      body: JSON.stringify(discardBody(tombstone, stage)),
-    });
+    const response = await options.fetch(
+      `${options.apiUrl}/v1/sync/${lostKey ? "key-lost" : "discards"}`,
+      {
+        method: "POST",
+        headers: apiHeaders(options),
+        credentials: "omit",
+        body: JSON.stringify(lostKey ? keyLostBody(tombstone) : discardBody(tombstone, stage)),
+      },
+    );
     if (response.ok) return "acknowledged";
     if (response.status === 403) return "forbidden";
+    // A lost key's record past the daily limit waits for the next session without holding up the
+    // deletions behind it (clinical re-review L2).
+    if (lostKey && response.status === 429) return "rejected";
     if ([400, 413, 422].includes(response.status)) return "rejected";
     return "retry";
   } catch {
