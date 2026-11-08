@@ -3,6 +3,7 @@ import { useQuery } from "@powersync/react";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
+import { useSession } from "../../../app-state/session";
 import { useTenantId } from "../../../care/hooks";
 import { CarePersonHeader } from "../../../components/CarePersonHeader";
 import { CorrectionPanel } from "../../../components/CorrectionPanel";
@@ -10,6 +11,7 @@ import { type DoseChoice, DoseRecordPanel } from "../../../components/DoseRecord
 import { Screen } from "../../../components/Screen";
 import { StatusLine } from "../../../components/StatusLine";
 import { t } from "../../../i18n/t";
+import { mayCorrectOnPhone } from "../../../medicines/correction";
 import { DMD_SUBSET_FAILED_META_ID, DMD_SUBSET_META_ID } from "../../../medicines/dmd-subset";
 import { useMedicinesRound } from "../../../medicines/hooks";
 import { ROUND_MEDICATION_SQL, ROUND_SCHEDULE_SQL } from "../../../medicines/queries";
@@ -62,6 +64,7 @@ export default function PersonMedicinesScreen() {
   const theme = useTheme();
   const { personId } = useLocalSearchParams<{ personId: string }>();
   const tenantId = useTenantId();
+  const { me } = useSession();
   const { gate, rounds, people, administrations } = useMedicinesRound();
   const params = useMemo(() => [tenantId], [tenantId]);
   const { data: meds } = useQuery<MedicationLocalRow>(ROUND_MEDICATION_SQL, params);
@@ -110,7 +113,11 @@ export default function PersonMedicinesScreen() {
     dueAt: string | null,
     mayGive: boolean,
     time: string | null,
-    prn: { nextAllowedAt: string | null; lastDoseNotOnDevice: boolean } | null = null,
+    prn: {
+      nextAllowedAt: string | null;
+      lastDoseNotOnDevice: boolean;
+      remaining: number | null;
+    } | null = null,
   ) => {
     const row = meds.find((m) => m.id === entryId);
     const slot = time
@@ -140,6 +147,7 @@ export default function PersonMedicinesScreen() {
       allergyWords: allergy.words,
       nextAllowedAt: prn?.nextAllowedAt ? new Date(prn.nextAllowedAt) : null,
       lastDoseNotOnDevice: prn?.lastDoseNotOnDevice ?? false,
+      prnRemaining: prn?.remaining ?? null,
     });
   };
 
@@ -283,6 +291,7 @@ export default function PersonMedicinesScreen() {
                   choose(w.entryId, w.productName, "", null, w.remaining !== 0, null, {
                     nextAllowedAt: w.nextAllowedAt,
                     lastDoseNotOnDevice: w.lastDoseNotOnDevice,
+                    remaining: w.remaining,
                   })
                 }
                 testID={`person-prn-${w.entryId}`}
@@ -301,7 +310,9 @@ export default function PersonMedicinesScreen() {
                   ? t("mobile.meds.correctionProblem", { problem: "not_synced" })
                   : med?.cd_schedule
                     ? t("mobile.meds.correctionProblem", { problem: "controlled_drug_on_web" })
-                    : null;
+                    : !mayCorrectOnPhone(r, me ?? {})
+                      ? t("mobile.meds.correctionProblem", { problem: "not_yours" })
+                      : null;
               return (
                 <ListItem
                   key={r.id}

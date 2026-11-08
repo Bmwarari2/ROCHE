@@ -969,7 +969,7 @@ streams:
                        medication_administration.due_at, medication_administration.outcome,
                        medication_administration.reason_code, medication_administration.quantity,
                        medication_administration.unit_code, medication_administration.given_at,
-                       medication_administration.administered_by,
+                       medication_administration.administered_by, medication_administration.recorded_by,
                        medication_administration.recorded_at,
                        medication_administration.supersedes_id, medication_administration.covert,
                        medication_administration.flags
@@ -1061,7 +1061,7 @@ streams:
                        medication_administration.due_at, medication_administration.outcome,
                        medication_administration.reason_code, medication_administration.quantity,
                        medication_administration.unit_code, medication_administration.given_at,
-                       medication_administration.administered_by,
+                       medication_administration.administered_by, medication_administration.recorded_by,
                        medication_administration.recorded_at,
                        medication_administration.supersedes_id, medication_administration.covert,
                        medication_administration.flags

@@ -726,6 +726,7 @@ const medication_administration = new Table(
     unit_code: column.text,
     given_at: column.text,
     administered_by: column.text,
+    recorded_by: column.text,
     recorded_at: column.text,
     supersedes_id: column.text,
     covert: column.integer,

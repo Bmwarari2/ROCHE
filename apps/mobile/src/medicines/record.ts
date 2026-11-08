@@ -30,6 +30,7 @@ export type RecordProblem =
   | "witness_is_recorder"
   | "may_not_give"
   | "inside_interval"
+  | "over_24h_maximum"
   | "last_dose_unknown"
   | "pack_mismatch";
 
@@ -68,6 +69,11 @@ export interface DoseRecordInput {
   readonly nextAllowedAt?: Date | null;
   /** Its interval reaches before the records this phone holds, with none inside it (HZ-004). */
   readonly lastDoseNotOnDevice?: boolean;
+  /**
+   * What is left of a when-required dose's 24-hour maximum, in the dose's unit, from the records
+   * this phone holds; null when it has none (HZ-004).
+   */
+  readonly prnRemaining?: number | null;
   /** The last scan was another medicine or an expired pack: no override clears it (HZ-113). */
   readonly packRefused?: boolean;
   /**
@@ -132,6 +138,16 @@ export function recordProblems(input: DoseRecordInput): RecordProblem[] {
     problems.push("inside_interval");
   }
   if (gives && input.lastDoseNotOnDevice) problems.push("last_dose_unknown");
+  // The amount typed is compared with what is left of the 24-hour maximum, before the dose is
+  // given, never only "none left" (guides review of the phone, 08/11/2026; HZ-004).
+  if (
+    gives &&
+    typeof input.prnRemaining === "number" &&
+    input.amount &&
+    input.amount.quantity > input.prnRemaining
+  ) {
+    problems.push("over_24h_maximum");
+  }
   if (gives && input.packRefused) problems.push("pack_mismatch");
   const codes = OUTCOME_REASONS[input.outcome];
   if (codes.length > 0 && (!input.reason || !codes.includes(input.reason.code))) {
@@ -192,6 +208,7 @@ export function localAdministrationRow(input: DoseRecordInput): Record<string, s
     unit_code: input.amount?.unitCode ?? null,
     given_at: givenAt.toISOString(),
     administered_by: input.memberId,
+    recorded_by: input.memberId,
     recorded_at: input.at.toISOString(),
     supersedes_id: null,
     request: JSON.stringify({ personId: input.personId, body: recordRequestBody(input) }),

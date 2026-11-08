@@ -48,6 +48,32 @@ describe("hazards HZ-001 and HZ-116 a dose recorded on the phone needs identity,
       ["note_required"],
     ],
     ["a dose given without an amount", { amount: null }, ["amount_required"]],
+    [
+      "hazard HZ-004 a when-required dose of 2 when 1 is left of its 24-hour maximum",
+      { amount: { quantity: 2, unitCode: "428673006" }, prnRemaining: 1 },
+      ["over_24h_maximum"],
+    ],
+    [
+      "hazard HZ-004 a when-required dose of exactly what is left of its 24-hour maximum",
+      { amount: { quantity: 1, unitCode: "428673006" }, prnRemaining: 1 },
+      [],
+    ],
+    [
+      "a when-required dose with no 24-hour maximum",
+      { amount: { quantity: 4, unitCode: "428673006" }, prnRemaining: null },
+      [],
+    ],
+    [
+      "hazard HZ-004 a refusal recorded when nothing is left of the 24-hour maximum",
+      {
+        outcome: "refused",
+        reason: { code: "other", note: "Said no thank you" },
+        identity: null,
+        pack: null,
+        prnRemaining: 0,
+      },
+      [],
+    ],
     ["a controlled drug with no signatures", { controlledDrug: true }, ["cd_signatures_required"]],
     [
       "a controlled drug from someone who may not record controlled drugs",

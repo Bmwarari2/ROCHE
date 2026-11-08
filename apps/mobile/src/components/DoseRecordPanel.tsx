@@ -60,6 +60,8 @@ export interface DoseChoice {
   /** A when-required dose's next allowed time (HZ-004). */
   readonly nextAllowedAt: Date | null;
   readonly lastDoseNotOnDevice: boolean;
+  /** What is left of a when-required dose's 24-hour maximum, in its unit (HZ-004). */
+  readonly prnRemaining?: number | null;
 }
 
 function announce(words: string) {
@@ -354,6 +356,7 @@ export function DoseRecordPanel({
       mayGive: dose.mayGive,
       controlledDrug: dose.controlledDrug,
       nextAllowedAt: dose.nextAllowedAt,
+      prnRemaining: dose.prnRemaining ?? null,
       lastDoseNotOnDevice: dose.lastDoseNotOnDevice,
       packRefused,
       cdSignatures,
