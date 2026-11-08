@@ -18,7 +18,7 @@ import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
 
 type Params = Promise<{ deviceId: string }>;
-type SearchParams = Promise<{ done?: string | string[] }>;
+type SearchParams = Promise<{ done?: string | string[]; waiting?: string | string[] }>;
 
 /** The phone as this person may see it, or null. */
 async function deviceFor(deviceId: string): Promise<DeviceSummary | null> {
@@ -60,6 +60,8 @@ export default async function DevicePage({
   if (!device) notFound();
   const query = await searchParams;
   const done = query.done === "withdrawn" || query.done === "already" ? query.done : null;
+  const waitingNow = Number(typeof query.waiting === "string" ? query.waiting : "0");
+  const waiting = Number.isInteger(waitingNow) && waitingNow > 0 ? waitingNow : 0;
   const mayWithdraw = !device.revokedAt && mayWithdrawDevices(me.permissions);
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -71,7 +73,10 @@ export default async function DevicePage({
         })}
       />
       {done ? (
-        <RecordedArrival message={t("devices.withdraw.done", { done })} param="done" />
+        <RecordedArrival
+          message={t("devices.withdraw.done", { done, count: waiting })}
+          param="done"
+        />
       ) : null}
       <Card as="section" title={t("devices.detail.title")} headingLevel={2}>
         <div className="flex flex-col gap-2">
@@ -85,7 +90,11 @@ export default async function DevicePage({
         <Card as="section" title={t("devices.withdraw.cardTitle")} headingLevel={2}>
           <div className="flex flex-col gap-4">
             <p className="m-0">{t("devices.withdraw.about")}</p>
-            <DeviceWithdrawForm deviceId={device.deviceId} entriesWaiting={device.entriesWaiting} />
+            <DeviceWithdrawForm
+              deviceId={device.deviceId}
+              entriesWaiting={device.entriesWaiting}
+              reported={device.lastReportedAt !== null}
+            />
           </div>
         </Card>
       ) : null}

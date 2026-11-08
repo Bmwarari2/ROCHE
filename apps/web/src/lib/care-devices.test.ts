@@ -53,20 +53,13 @@ describe("hazard HZ-040 Care mode phones grouped for a manager", () => {
     expect(other?.deviceId).toBe(OTHER);
   });
 
-  it("counts a phone withdrawn when any of its bindings is", () => {
-    const [phone] = groupDevices([
-      binding(),
-      binding({
-        tenantUserId: BEN,
-        memberName: "Ben Example",
-        revokedAt: "2026-11-08T10:00:00Z",
-        revocationReason: "lost_or_stolen",
-      }),
-    ]);
-    expect(phone).toMatchObject({
-      revokedAt: "2026-11-08T10:00:00Z",
-      revocationReason: "lost_or_stolen",
-    });
+  it("counts a phone withdrawn only when every binding is", () => {
+    const revoked = { revokedAt: "2026-11-08T10:00:00Z", revocationReason: "lost_or_stolen" };
+    const ben = { tenantUserId: BEN, memberName: "Ben Example" };
+    const [partly] = groupDevices([binding(), binding({ ...ben, ...revoked })]);
+    expect(partly?.revokedAt).toBeNull();
+    const [phone] = groupDevices([binding(revoked), binding({ ...ben, ...revoked })]);
+    expect(phone).toMatchObject(revoked);
   });
 
   it.each([

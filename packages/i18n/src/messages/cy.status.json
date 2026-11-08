@@ -8209,6 +8209,7 @@
     "devices.withdrawnReason",
     "devices.detail.description",
     "devices.withdraw.entriesArrived",
-    "devices.withdraw.sending"
+    "devices.withdraw.sending",
+    "devices.withdraw.confirmNeverReported"
   ]
 }

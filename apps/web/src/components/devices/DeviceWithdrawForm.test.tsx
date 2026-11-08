@@ -87,7 +87,7 @@ const tick = () =>
 
 describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
   it("needs a coded reason and the tick, and sends nothing without them", async () => {
-    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={3} />);
+    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={3} reported />);
     expect(text()).toContain("3 entries were waiting on it when it last reported");
     expect(document.querySelectorAll("input:checked")).toHaveLength(0);
     expect(await violations()).toEqual([]);
@@ -102,19 +102,33 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
     expect(withdrawDevice).not.toHaveBeenCalled();
   });
 
-  it("sends the code and the confirmation, then opens the page again at done", async () => {
-    withdrawDevice.mockResolvedValue({ ok: true, data: { replay: false } });
-    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} />);
-    await choose("staff_left");
-    await tick();
-    await submit();
-    expect(withdrawDevice).toHaveBeenCalledWith(PHONE, {
-      reasonCode: "staff_left",
-      confirmEntriesWaiting: true,
-    });
-    expect(router.replace).toHaveBeenCalledWith(
-      expect.stringMatching(new RegExp(`^/settings/devices/${PHONE}\\?done=withdrawn&at=\\d+$`)),
-    );
+  it.each([
+    [0, false],
+    [2, true],
+  ])(
+    "with %i entries seen, confirms entries waiting: %s (only a count the manager saw)",
+    async (seen, confirms) => {
+      withdrawDevice.mockResolvedValue({ ok: true, data: { replay: false, entriesWaiting: seen } });
+      await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={seen} reported />);
+      await choose("staff_left");
+      await tick();
+      await submit();
+      expect(withdrawDevice).toHaveBeenCalledWith(PHONE, {
+        reasonCode: "staff_left",
+        confirmEntriesWaiting: confirms,
+      });
+      expect(router.replace).toHaveBeenCalledWith(
+        expect.stringMatching(
+          new RegExp(`^/settings/devices/${PHONE}\\?done=withdrawn&waiting=${seen}&at=\\d+$`),
+        ),
+      );
+    },
+  );
+
+  it("says plainly when the phone has never reported what it holds", async () => {
+    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} reported={false} />);
+    expect(text()).toContain("it has never reported what it holds");
+    expect(await violations()).toEqual([]);
   });
 
   it("asks to reload and tick again when entries were reported since the page opened", async () => {
@@ -125,7 +139,7 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
       message,
       fields: { confirm: message },
     });
-    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} />);
+    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} reported />);
     await choose("lost_or_stolen");
     await tick();
     await submit();
@@ -147,7 +161,7 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
       code: "step_up_required",
       message: "Sign in again",
     });
-    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} />);
+    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} reported />);
     await choose("replaced");
     await tick();
     await submit();
@@ -161,10 +175,14 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
   it("says the phone is withdrawn on arrival, with focus on the page's heading", async () => {
     search = new URLSearchParams({ done: "withdrawn", at: "1" });
     await render(
-      <RecordedArrival message={t("devices.withdraw.done", { done: "withdrawn" })} param="done" />,
+      <RecordedArrival
+        message={t("devices.withdraw.done", { done: "withdrawn", count: 2 })}
+        param="done"
+      />,
     );
     const status = document.querySelector('[role="status"]');
     expect(status?.textContent).toContain("The phone is withdrawn.");
+    expect(status?.textContent).toContain("2 entries were waiting on it when it last reported");
     const heading = document.querySelector("h1");
     expect(document.activeElement).toBe(heading);
     expect(heading?.getAttribute("aria-describedby")).toBe(status?.querySelector("p")?.id);

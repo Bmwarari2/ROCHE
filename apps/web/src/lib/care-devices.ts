@@ -43,8 +43,9 @@ const later = (a: string, b: string) => (Date.parse(a) >= Date.parse(b) ? a : b)
 const earlier = (a: string, b: string) => (Date.parse(a) <= Date.parse(b) ? a : b);
 
 /**
- * The bindings grouped by phone, most recently seen first. A phone counts as withdrawn when any of
- * its bindings is (the API withdraws them all together).
+ * The bindings grouped by phone, most recently seen first. A phone counts as withdrawn only when
+ * every binding is, as the API judges it (clinical review of #217, L1); one left in use keeps the
+ * form offered.
  */
 export function groupDevices(items: readonly DeviceBindingItem[]): DeviceSummary[] {
   const byDevice = new Map<string, DeviceSummary>();
@@ -73,8 +74,9 @@ export function groupDevices(items: readonly DeviceBindingItem[]): DeviceSummary
         : [...was.members, member],
       firstSeenAt: earlier(was.firstSeenAt, item.firstSeenAt),
       lastSeenAt: later(was.lastSeenAt, item.lastSeenAt),
-      revokedAt: was.revokedAt ?? item.revokedAt,
-      revocationReason: was.revocationReason ?? item.revocationReason,
+      revokedAt: was.revokedAt && item.revokedAt ? later(was.revokedAt, item.revokedAt) : null,
+      revocationReason:
+        was.revokedAt && item.revokedAt ? (was.revocationReason ?? item.revocationReason) : null,
       entriesWaiting: Math.max(was.entriesWaiting, item.entriesWaiting),
       lastReportedAt:
         was.lastReportedAt && item.lastReportedAt

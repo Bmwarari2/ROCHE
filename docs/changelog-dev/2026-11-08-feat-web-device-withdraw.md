@@ -33,3 +33,15 @@ Branch `feat/web-device-withdraw`, from main. No migration and no API change: th
 - Playwright: `e2e/care-devices.spec.ts` (manager list with axe in light and dark, 404 for an
   unknown phone, care worker refused). It has not been run here. The withdraw form itself needs a
   synced phone, which the demo seed does not give.
+- Clinical review (request changes), all fixed:
+  - Only a count the manager saw is confirmed. When the page showed none, entries reported since
+    are refused (409) and the form asks to reload. Before this fix that refusal could never fire.
+  - A phone that never reported says it may hold unsent entries.
+  - The success message gives how many entries stay on the phone.
+  - A phone counts as withdrawn only when every binding is.
+  - "Not withdrawn" replaces "In use".
+  - The screen and the guide say a lost phone may never connect.
+  - The hazard row is corrected and names its tests.
+  - The CSO questions are in H-1535.
+- Form test: `DeviceWithdrawForm.test.tsx` (component test with jsdom and axe), at the lead's
+  request.

@@ -1,8 +1,8 @@
 # How to withdraw a lost or unused phone
 
 When a phone used for Care mode is lost, stolen, replaced, or belonged to someone who has left,
-withdraw it, so it can no longer reach Thapsus Care and removes the care records stored on it.
-Withdrawing cannot be undone.
+withdraw it, so it can no longer reach Thapsus Care. If it connects again, it removes the care
+records stored on it. Withdrawing cannot be undone.
 
 **Who can do this**: Registered Managers, deputy managers and owners.
 
@@ -21,21 +21,23 @@ Withdrawing cannot be undone.
 5. Choose **Withdraw this phone**. If you have not used your passkey or a code in the last few
    minutes, Thapsus Care asks you to sign in again. Then choose the reason and tick the box again,
    and choose **Withdraw this phone** again.
-6. The page says **The phone is withdrawn. Thapsus Care refuses it the next time it connects.** It
-   shows the phone as **Withdrawn**, with when and why.
+6. The page says **The phone is withdrawn. Thapsus Care refuses it if it connects again.**, with
+   how many entries were waiting on it when it last reported. It shows the phone as **Withdrawn**,
+   with when and why.
 
-If the phone reported entries waiting after you opened the page, Thapsus Care asks you to reload
-the page to see how many, and tick the box again.
+If the page showed nothing waiting but the phone has reported entries since you opened it, Thapsus
+Care asks you to reload the page to see how many, and tick the box again.
 
 ## What happens next
 
-- The next time the phone connects, Thapsus Care refuses it and the phone removes the care records
-  stored on it.
-- Entries on it that were not sent stay on it, locked, until their owner or a manager signs in on
-  that phone to send them or delete them with a reason. See
+- Ask the member of staff what they recorded on the phone that may not have been sent, so the care
+  can be recorded again. A lost phone may never connect, so its unsent entries may never arrive.
+- If the phone connects again, Thapsus Care refuses it and the phone removes the care records
+  stored on it. Entries on it that were not sent stay on it, locked, until their owner or a manager
+  signs in on that phone to send them or delete them with a reason. See
   [How to send or delete another person's unsent entries on a phone](send-or-delete-another-persons-unsent-entries-on-a-phone.md).
-- If entries were waiting, the task to deal with them is due now and marked urgent. Ask the member
-  of staff what they recorded, so care that never reached Thapsus Care can be recorded again.
+- If entries were waiting, the task to deal with them is due now and marked urgent.
+- A phone that has never reported what it holds may still hold care entries that were never sent.
 
 ## Good to know
 

@@ -8,6 +8,10 @@ export function DeviceStateChip({ device }: { readonly device: Pick<DeviceSummar
   return device.revokedAt ? (
     <StatusChip status="neutral" icon={Ban} label={t("devices.state", { state: "withdrawn" })} />
   ) : (
-    <StatusChip status="info" icon={Smartphone} label={t("devices.state", { state: "inUse" })} />
+    <StatusChip
+      status="info"
+      icon={Smartphone}
+      label={t("devices.state", { state: "notWithdrawn" })}
+    />
   );
 }

@@ -24,9 +24,13 @@ const FIELDS = ["reason", "confirm"] as const;
 export function DeviceWithdrawForm({
   deviceId,
   entriesWaiting,
+  reported,
 }: {
   readonly deviceId: string;
+  /** The count the manager sees, from the phone's last report. */
   readonly entriesWaiting: number;
+  /** Whether the phone has ever reported what it holds. */
+  readonly reported: boolean;
 }) {
   const router = useRouter();
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
@@ -50,14 +54,18 @@ export function DeviceWithdrawForm({
       return;
     }
     startTransition(async () => {
+      // Only a count the manager saw is confirmed: when the page showed none, the API refuses
+      // entries it heard of since (409 entries_waiting) and the page is reloaded to show them
+      // (clinical review of #217, H1).
       const outcome = await withdrawDevice(deviceId, {
         reasonCode: reason,
-        confirmEntriesWaiting: confirmed,
+        confirmEntriesWaiting: confirmed && entriesWaiting > 0,
       });
       setResult(outcome);
       if (outcome.ok) {
         const done = outcome.data.replay ? "already" : "withdrawn";
-        router.replace(`${path}?done=${done}&at=${Date.now()}`);
+        const waiting = outcome.data.entriesWaiting;
+        router.replace(`${path}?done=${done}&waiting=${waiting}&at=${Date.now()}`);
       }
     });
   };
@@ -91,7 +99,11 @@ export function DeviceWithdrawForm({
         id={ids.confirm}
         name="confirm"
         error={errorFor(result, "confirm")}
-        label={t("devices.withdraw.confirm", { count: entriesWaiting })}
+        label={
+          reported
+            ? t("devices.withdraw.confirm", { count: entriesWaiting })
+            : t("devices.withdraw.confirmNeverReported")
+        }
       />
       <div>
         <Button type="submit" variant="destructive" disabled={pending}>
