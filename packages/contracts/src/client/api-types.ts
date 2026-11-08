@@ -74585,16 +74585,17 @@ export interface components {
       /** Format: uuid */
       id: string;
       /** @enum {string} */
-      kind: "held_deleted" | "signed_out_with_unsent" | "refused_removed";
+      kind: "held_deleted" | "signed_out_with_unsent" | "refused_removed" | "key_invalidated";
       /** @enum {string} */
       stage: "requested" | "deleted" | "failed";
-      /** @enum {string} */
+      /** @enum {string|null} */
       reasonCode:
         | "recorded_elsewhere"
         | "entered_in_error"
         | "staff_left"
         | "nurse_in_charge_informed"
-        | "other";
+        | "other"
+        | null;
       organisationReasonCode?: components["schemas"]["DiscardReasonCode"];
       /** Format: uuid */
       ownerTenantUserId: string | null;

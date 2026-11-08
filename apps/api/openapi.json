@@ -36732,7 +36732,8 @@
             "enum": [
               "held_deleted",
               "signed_out_with_unsent",
-              "refused_removed"
+              "refused_removed",
+              "key_invalidated"
             ]
           },
           "stage": {
@@ -36744,13 +36745,17 @@
             ]
           },
           "reasonCode": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "recorded_elsewhere",
               "entered_in_error",
               "staff_left",
               "nurse_in_charge_informed",
-              "other"
+              "other",
+              null
             ]
           },
           "organisationReasonCode": {

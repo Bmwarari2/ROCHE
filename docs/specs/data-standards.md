@@ -1613,7 +1613,13 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`, resource `task`) carry the
   deletion record, the owner's `tenant_user` id, the count and how many were added;
   a cap is `sync.entry_flag.capped` (resource `device_discard`, scope `mergedInto`: the owner's
-  oldest open task at the location, whose `added` event then carries `merged`). A hold's device
+  oldest open task at the location, whose `added` event then carries `merged`). A deletion of kind
+  `key_invalidated` (a key that stopped opening the phone's database; H-1531) has a null
+  `reason_code` (the only kind that may; check `device_discard_record_reason`), is audited with
+  the reason `key_invalidated`, and raises `sync.device_key_lost` review tasks (source
+  `device_discard`; details: the owner's `tenant_user` id and the count only), audited as
+  `sync.device_key_lost.raised` (resource `task`; scope: the deletion record, the owner, the count,
+  the location and the device it was held on). A hold's device
   report (unsent, refused, held and blocked counts, the oldest age, when the hold started, the
   owner's `tenant_user` id and up to 50 location ids, contract `SyncDeviceReport`, which refuses
   unknown keys) may wait in the keystore the same way, with the id of the device that held the

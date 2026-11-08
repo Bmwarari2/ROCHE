@@ -24,7 +24,12 @@
 import { t } from "../i18n/t";
 
 /** Mirrors `SYNC_DISCARD_KINDS` in `@harbour/contracts`; a test keeps them equal. */
-export const DISCARD_KINDS = ["held_deleted", "signed_out_with_unsent", "refused_removed"] as const;
+export const DISCARD_KINDS = [
+  "held_deleted",
+  "signed_out_with_unsent",
+  "refused_removed",
+  "key_invalidated",
+] as const;
 export type DiscardKind = (typeof DISCARD_KINDS)[number];
 
 /** Mirrors `SYNC_DISCARD_REASON_CODES` in `@harbour/contracts`; a test keeps them equal. */
@@ -61,7 +66,8 @@ export interface Tombstone {
   /** A UUID: also the discard's id at the API, so a replay of a stage is recorded once. */
   readonly id: string;
   readonly kind: DiscardKind;
-  readonly reasonCode: DiscardReasonCode;
+  /** Null only for `key_invalidated`: a loss nobody chose has no reason (H-1531). */
+  readonly reasonCode: DiscardReasonCode | null;
   /** The stage the deletion has reached on the device. */
   readonly stage: DiscardStage;
   /** Stages the server has not acknowledged yet, in the order they happened. */
@@ -143,8 +149,13 @@ function unsentStages(value: Record<string, unknown>, stage: DiscardStage): Disc
 export function cleanTombstone(value: unknown): Tombstone | null {
   if (!isRecord(value)) return null;
   const kind = DISCARD_KINDS.find((k) => k === value.kind);
-  const reasonCode = DISCARD_REASON_CODES.find((c) => c === value.reasonCode);
-  if (!isOpaqueId(value.id) || !kind || !reasonCode) return null;
+  const reasonCode =
+    kind === "key_invalidated"
+      ? value.reasonCode === null
+        ? null
+        : undefined
+      : DISCARD_REASON_CODES.find((c) => c === value.reasonCode);
+  if (!isOpaqueId(value.id) || !kind || reasonCode === undefined) return null;
   if (typeof value.at !== "string" || !ISO_TIME.test(value.at)) return null;
   if (value.stage !== undefined && asStage(value.stage) === undefined) return null;
   const stage = asStage(value.stage) ?? "requested";
@@ -316,4 +327,42 @@ export async function readTombstones(store: TombstoneStore): Promise<Tombstone[]
     if (item && item !== "damaged") out.push(item);
   }
   return out;
+}
+
+/**
+ * The record of a database its key no longer opens (H-1531, HZ-006): the file is already gone, so
+ * it is "deleted" from the start, with no reason, no deleter and no ids, only the count the hold
+ * knew. Whose and which organisation's come from the hold, else the person signed in. Null when
+ * no organisation is known: there is nowhere to send it.
+ */
+export function keyLostTombstone(input: {
+  readonly id: string;
+  readonly at: Date;
+  readonly held: {
+    readonly tenantId: string;
+    readonly tenantUserId: string | null;
+    readonly entries: number | null;
+  } | null;
+  readonly signedInTenantId: string | null;
+  readonly deviceId: string | null;
+}): Tombstone | null {
+  const tenantId = opaqueOrNull(input.held?.tenantId) ?? opaqueOrNull(input.signedInTenantId);
+  if (!tenantId || !isOpaqueId(input.id)) return null;
+  const deviceId = opaqueOrNull(input.deviceId);
+  return {
+    id: input.id.toLowerCase(),
+    kind: "key_invalidated",
+    reasonCode: null,
+    stage: "deleted",
+    unsent: ["deleted"],
+    tenantId,
+    ownerTenantUserId: opaqueOrNull(input.held?.tenantUserId),
+    deletedByTenantUserId: null,
+    entryIds: [],
+    personIds: [],
+    count: input.held?.entries ?? null,
+    at: input.at.toISOString(),
+    idsMissing: "key_invalid",
+    ...(deviceId ? { deviceId: deviceId.toLowerCase() } : {}),
+  };
 }

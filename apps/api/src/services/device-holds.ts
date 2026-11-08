@@ -107,6 +107,13 @@ export const REFUSED_REVIEW_TASK_KIND = "care.refused_entry_review";
  * (scheduling.md section 17 rule 7; HZ-123); defined here for the same reason as the review above.
  */
 export const COVER_TASK_KIND = "scheduling.cover_needed";
+/**
+ * A device's key stopped opening its database and its unsent entries were lost (H-1531, HZ-006):
+ * a manager checks with their owner what was not recorded. It points at the deletion record, and
+ * no report of the device closes it.
+ */
+export const KEY_LOST_TASK_KIND = "sync.device_key_lost";
+export const KEY_LOST_ACTIONS = { raised: "sync.device_key_lost.raised" } as const;
 /** A flagged-entry task points at the deletion record it comes from. */
 export const FLAGGED_ENTRY_SOURCE = "device_discard";
 const FLAGGED_ENTRY_TASK_KINDS = [REPORTED_DELETED_TASK_KIND, UPLOADED_BEFORE_DELETION_TASK_KIND];
@@ -121,6 +128,7 @@ type FlaggedEntryKind = (typeof FLAGGED_ENTRY_TASK_KINDS)[number];
 export const PERMISSION_ESCALATED_TASK_KINDS: readonly string[] = [
   DEVICE_HOLD_TASK_KIND,
   ...FLAGGED_ENTRY_TASK_KINDS,
+  KEY_LOST_TASK_KIND,
   REFUSED_REVIEW_TASK_KIND,
   COVER_TASK_KIND,
 ];
@@ -1374,6 +1382,70 @@ export async function closeDeviceHoldOnDeletion(
   return withRequestContext(db, systemFor(access), async (tx) => {
     await lock(tx, access.tenantId, `device_hold:${deviceId}`);
     return closeIfEntitled(tx, access, deviceId, "deletion", now, requestId);
+  });
+}
+
+/**
+ * A task for each place the lost entries' owner or the sender works (`holdLocations`, then
+ * `taskTargets`), due at once and urgent: what was lost is recalled while staff remember it
+ * (H-1531). Raised once per deletion record, since only its first "deleted" stage gets here (the
+ * discard replay index). The task holds opaque ids and a count only.
+ */
+export async function raiseKeyLostTask(
+  db: Db,
+  access: TenantAccess,
+  record: {
+    readonly id: string;
+    readonly ownerTenantUserId: string | null;
+    readonly count: number | null;
+    readonly deviceId?: string | undefined;
+  },
+  now: Date,
+  requestId?: string,
+): Promise<number> {
+  return withRequestContext(db, systemFor(access), async (tx) => {
+    const owner = record.ownerTenantUserId?.toLowerCase() ?? null;
+    const locations = await holdLocations(
+      tx,
+      { reporter: access.tenantUserId, owner: owner ?? access.tenantUserId },
+      [],
+      now,
+    );
+    let raised = 0;
+    for (const target of await taskTargets(tx, locations, now)) {
+      const [created] = await tx
+        .insert(task)
+        .values({
+          locationId: target.locationId,
+          kind: KEY_LOST_TASK_KIND,
+          title: "Unsent care entries were lost on a device: check what was not recorded",
+          requiredPermission: DISCARD_OTHERS_PERMISSION,
+          sourceType: FLAGGED_ENTRY_SOURCE,
+          sourceId: record.id,
+          assigneeTenantUserId: target.assignee,
+          assigneeRoleKey: "registered_manager",
+          dueAt: now,
+          priority: "urgent",
+          details: { ownerTenantUserId: owner, entryCount: record.count },
+        })
+        .returning({ id: task.id });
+      if (!created) continue;
+      raised += 1;
+      await auditInTx(tx, access, {
+        action: KEY_LOST_ACTIONS.raised,
+        resourceType: "task",
+        resourceId: created.id,
+        scope: {
+          discardId: record.id,
+          ownerTenantUserId: owner,
+          count: record.count,
+          locationId: target.locationId,
+          ...(record.deviceId ? { heldOnDeviceId: record.deviceId.toLowerCase() } : {}),
+        },
+        requestId,
+      });
+    }
+    return raised;
   });
 }
 

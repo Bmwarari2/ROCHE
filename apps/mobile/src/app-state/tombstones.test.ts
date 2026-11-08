@@ -4,8 +4,10 @@ import {
   SYNC_DISCARD_LEFTOVERS,
   SYNC_DISCARD_REASON_CODES,
   SYNC_DISCARD_STAGES,
+  SyncDiscard,
 } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
+import { discardBody } from "../sync/discards";
 import {
   acknowledgeStage,
   cleanTombstone,
@@ -14,6 +16,7 @@ import {
   DISCARD_LEFTOVERS,
   DISCARD_REASON_CODES,
   DISCARD_STAGES,
+  keyLostTombstone,
   MAX_TOMBSTONE_ENTRY_IDS,
   MAX_TOMBSTONES,
   purgeLegacyTombstones,
@@ -197,5 +200,56 @@ describe("hazard HZ-040 tombstones in the keystore (S4, M1, L4)", () => {
     await recordTombstone(store, stone(1));
     items.set(`${TOMBSTONE_ITEM_PREFIX}${id(1)}`, "{not json");
     expect(await readTombstones(store)).toEqual([]);
+  });
+});
+
+describe("hazard HZ-006 a database its key no longer opens is put on record (H-1531)", () => {
+  const at = new Date("2026-11-08T10:00:00.000Z");
+  const held = { tenantId: id(1), tenantUserId: id(2), entries: 4 };
+
+  it.each([
+    ["the hold's organisation, owner and count", held, null, id(1), id(2), 4],
+    ["the signed-in organisation when nothing was held", null, id(5), id(5), null, null],
+  ] as const)("names %s", (_label, h, signedIn, tenant, owner, count) => {
+    const t = keyLostTombstone({
+      id: id(9),
+      at,
+      held: h,
+      signedInTenantId: signedIn,
+      deviceId: id(7),
+    });
+    expect(t).toMatchObject({
+      kind: "key_invalidated",
+      reasonCode: null,
+      stage: "deleted",
+      unsent: ["deleted"],
+      tenantId: tenant,
+      ownerTenantUserId: owner,
+      deletedByTenantUserId: null,
+      entryIds: [],
+      count,
+      idsMissing: "key_invalid",
+      deviceId: id(7),
+    });
+  });
+
+  it("is not made when no organisation is known", () => {
+    expect(
+      keyLostTombstone({ id: id(9), at, held: null, signedInTenantId: null, deviceId: null }),
+    ).toBeNull();
+  });
+
+  it("is what the API takes, and survives the keystore", () => {
+    const t = keyLostTombstone({ id: id(9), at, held, signedInTenantId: null, deviceId: id(7) });
+    if (!t) throw new Error("expected a record");
+    expect(SyncDiscard.safeParse(discardBody(t, "deleted")).success).toBe(true);
+    expect(cleanTombstone(JSON.parse(JSON.stringify(t)))).toEqual(t);
+  });
+
+  it.each([
+    ["a lost key with a reason", { kind: "key_invalidated", reasonCode: "other" }],
+    ["any other kind without one", { kind: "held_deleted", reasonCode: null }],
+  ])("drops %s", (_label, fields) => {
+    expect(cleanTombstone({ id: id(9), at: at.toISOString(), ...fields })).toBeNull();
   });
 });

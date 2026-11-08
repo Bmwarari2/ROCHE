@@ -169,7 +169,9 @@ import {
   type DiscardReasonCode,
   type IdsMissing,
   isOpaqueId,
+  keyLostTombstone,
   purgeLegacyTombstones,
+  recordTombstone,
   type Tombstone,
 } from "./tombstones";
 
@@ -636,6 +638,18 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       if (created && previousId) {
         deleteDatabaseFile(databaseFilename(previousId, appEnv.demoMode));
         setResetNotice(RESET_NOTICE);
+        // The server hears of the lost entries, with the count the hold knew, and a manager
+        // reviews them (H-1531); sent after the next sync. Best effort: the notice stands anyway.
+        if (!appEnv.demoMode) {
+          const lost = keyLostTombstone({
+            id: Crypto.randomUUID(),
+            at: new Date(),
+            held: heldRef.current,
+            signedInTenantId: tenantRef.current,
+            deviceId: await readPlain(DEVICE_ID_ITEM).catch(() => null),
+          });
+          if (lost) await recordTombstone(tombstoneStore, lost).catch(() => undefined);
+        }
       }
 
       const filename = databaseFilename(key.id, appEnv.demoMode);

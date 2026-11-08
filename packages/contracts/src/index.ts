@@ -326,7 +326,13 @@ export const SYNC_DISCARD_KINDS = [
   "held_deleted",
   "signed_out_with_unsent",
   "refused_removed",
+  // The device's key stopped opening its database, so its unsent entries were lost: nobody chose
+  // it, so it has no reason code, no deleter and no entry ids (H-1531, HZ-006).
+  "key_invalidated",
 ] as const;
+
+/** The kind of deletion nobody chose: recorded only once done, with no reason or deleter. */
+export const SYNC_DISCARD_UNCHOSEN_KIND = "key_invalidated" as const;
 
 /**
  * Why: a coded reason. The person's own words never reach the server's audit trail, which is
@@ -428,9 +434,10 @@ export const SyncDiscard = z
     stage: z.enum(SYNC_DISCARD_STAGES),
     /**
      * The coded reason: one of the five every organisation starts with. A reason the organisation
-     * added goes in `organisationReasonCode`, with `other` here.
+     * added goes in `organisationReasonCode`, with `other` here. Null only for a
+     * `key_invalidated` loss, which nobody chose.
      */
-    reasonCode: z.enum(SYNC_DISCARD_REASON_CODES),
+    reasonCode: z.enum(SYNC_DISCARD_REASON_CODES).nullable(),
     /**
      * One of the organisation's own coded reasons (`GET /v1/discard-reasons`), when the reason is
      * one it added; `reasonCode` is then `other`. The API checks it against the organisation's
@@ -470,6 +477,26 @@ export const SyncDiscard = z
     message: "Send an organisation's own reason with the reason code other.",
     path: ["reasonCode"],
   })
+  // A key that stopped opening the database is a loss nobody chose (H-1531): no reason, no
+  // deleter and no ids, recorded once it has happened; every other kind needs a reason.
+  .refine((d) => (d.reasonCode === null) === (d.kind === SYNC_DISCARD_UNCHOSEN_KIND), {
+    message: "Only a lost key's record has no reason, and it always has none.",
+    path: ["reasonCode"],
+  })
+  .refine(
+    (d) =>
+      d.kind !== SYNC_DISCARD_UNCHOSEN_KIND ||
+      (d.stage === "deleted" &&
+        (d.deletedByTenantUserId ?? null) === null &&
+        d.organisationReasonCode === undefined &&
+        d.entryIds.length === 0 &&
+        d.idsMissing === "key_invalid"),
+    {
+      message:
+        "A lost key's record is sent once, as deleted, with no deleter, no ids and idsMissing key_invalid.",
+      path: ["kind"],
+    },
+  )
   .meta({
     id: "SyncDiscard",
     description:

@@ -974,6 +974,13 @@
       "when": 1794040761143,
       "tag": "0153_device_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1794138644002,
+      "tag": "0154_discard_key_invalidated",
+      "breakpoints": true
     }
   ]
 }

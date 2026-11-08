@@ -1,4 +1,5 @@
 import {
+  SYNC_DISCARD_UNCHOSEN_KIND,
   SyncDeviceReport,
   SyncDiscard,
   SyncDiscardResult,
@@ -47,6 +48,7 @@ import {
   DISCARD_ACTIONS,
   DISCARD_OTHERS_PERMISSION,
   flagEntriesAlreadyUploaded,
+  raiseKeyLostTask,
   recordDeviceHold,
 } from "../services/device-holds";
 import {
@@ -644,10 +646,14 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // owner, another member of staff's entries, or a deletion the device says someone else made
         // (security review round 4, M1). Registered Managers, deputies and nurses hold it.
         let asManager = false;
+        // A key that stopped opening the device's database is a loss nobody chose (H-1531): the
+        // sender reports it, whoever's entries they were, and a manager reviews it.
+        const unchosen = body.kind === SYNC_DISCARD_UNCHOSEN_KIND;
         if (
-          !body.ownerTenantUserId ||
-          body.ownerTenantUserId !== access.tenantUserId ||
-          deleter !== access.tenantUserId
+          !unchosen &&
+          (!body.ownerTenantUserId ||
+            body.ownerTenantUserId !== access.tenantUserId ||
+            deleter !== access.tenantUserId)
         ) {
           access = await requirePermission(c, DISCARD_OTHERS_PERMISSION);
           asManager = true;
@@ -661,7 +667,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           first !== undefined &&
           first.senderTenantUserId !== access.tenantUserId &&
           owner !== access.tenantUserId;
-        if (!asManager) {
+        if (!asManager && !unchosen) {
           const [first] = await withTenant(c, (tx) =>
             withTenantWideScope(tx, () =>
               tx
@@ -698,11 +704,15 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           // One of the organisation's coded reasons (care.md section 6, Device integrity part 8): a
           // code it never had is refused; a retired one is still taken, because the device may
           // have recorded the deletion before it was retired, and a deletion is never stranded.
-          const [reason] = await tx
-            .select({ id: discardReason.id, code: discardReason.code })
-            .from(discardReason)
-            .where(eq(discardReason.code, reasonCode));
-          if (!reason) {
+          // A lost key has no reason: nobody chose it (H-1531; the contract allows null only then).
+          const [reason] =
+            reasonCode === null
+              ? [null]
+              : await tx
+                  .select({ id: discardReason.id, code: discardReason.code })
+                  .from(discardReason)
+                  .where(eq(discardReason.code, reasonCode));
+          if (reason === undefined) {
             throw problems.invalid(
               "That reason is not one of your organisation's coded reasons for deleting entries.",
             );
@@ -786,12 +796,12 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             // One of the five is audited by its code; a code the organisation wrote is audited as
             // "other" with the reason's id, so no name it might contain enters the trail (#26
             // review round 2, low). The deletion record keeps the code.
-            reason: body.organisationReasonCode ? "other" : reasonCode,
+            reason: body.organisationReasonCode ? "other" : (reasonCode ?? body.kind),
             scope: {
               kind: body.kind,
               stage: body.stage,
               reasonCode: body.organisationReasonCode ? "other" : reasonCode,
-              ...(body.organisationReasonCode ? { organisationReasonId: reason.id } : {}),
+              ...(body.organisationReasonCode && reason ? { organisationReasonId: reason.id } : {}),
               ownerTenantUserId: body.ownerTenantUserId,
               // As the device recorded it; the event's actor is whoever sent this request.
               deletedByTenantUserId: recordedDeleter,
@@ -850,6 +860,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
               new Date(),
               requestId,
             );
+          }
+          // Entries lost with the device's key: a manager checks with their owner what was not
+          // recorded, on a task no later report of the device closes (H-1531, HZ-006).
+          if (body.stage === "deleted" && unchosen) {
+            await raiseKeyLostTask(services.db, access, body, new Date(), requestId);
           }
           // Listed entries the server already had are flagged once the deletion is done (C-L2;
           // security review round 6, N1).
