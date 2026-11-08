@@ -2101,3 +2101,67 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     );
   });
 });
+
+// Placed last: each case raises a hold for the owner, whose daily cap the tests above rely on.
+describe("hazard HZ-006 a withdrawal confirms the exact count the manager saw (H-1535)", () => {
+  const listed = async (who: As) =>
+    (
+      await json<{
+        items: { deviceId: string; entriesWaiting: number; lastReportedAt: string | null }[];
+      }>(await call(who, "/v1/devices"))
+    ).items;
+
+  it.each([
+    ["the same count and report", 0, 200],
+    ["a higher count reported since", 3, 409],
+    ["a lower count reported since", 1, 409],
+    ["the same count reported again, later", 2, 409],
+  ] as const)(
+    "hazard HZ-006 a withdrawal confirms the exact count the manager saw (H-1535): %s",
+    async (_label, since, status) => {
+      const device = `0199d000-0000-4000-8000-00000b15${status}${since}`;
+      const user = await freshSession("owner");
+      const revoker = await freshSession("owner");
+      await syncToken(user, device);
+      expect((await report(user, { held: 2 }, device)).status).toBe(204);
+      const seen = (await listed("owner")).find((d) => d.deviceId === device);
+      expect(seen?.entriesWaiting).toBe(2);
+      if (since > 0) {
+        // A later report: the clock moves on at least a millisecond.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        expect((await report(user, { held: since }, device)).status).toBe(204);
+      }
+      const response = await call(revoker, `/v1/devices/${device}/revoke`, {
+        method: "POST",
+        body: {
+          reasonCode: "lost_or_stolen",
+          confirmedEntriesWaiting: { count: 2, reportedAt: seen?.lastReportedAt ?? null },
+        },
+      });
+      expect(response.status).toBe(status);
+      if (status === 409) {
+        expect(await json(response)).toMatchObject({ code: "entries_waiting" });
+        const revoked = await asTenant(
+          "SELECT 1 FROM device_binding WHERE device_id = $1 AND revoked_at IS NOT NULL",
+          [device],
+        );
+        expect(revoked).toEqual([]);
+      }
+    },
+  );
+
+  it("hazard HZ-006 a device that never reported is withdrawn on a count of none confirmed as never reported (H-1535)", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b1599";
+    const user = await freshSession("owner");
+    const revoker = await freshSession("owner");
+    await syncToken(user, device);
+    const send = (reportedAt: string | null) =>
+      call(revoker, `/v1/devices/${device}/revoke`, {
+        method: "POST",
+        body: { reasonCode: "replaced", confirmedEntriesWaiting: { count: 0, reportedAt } },
+      });
+    // A report time it never had is refused; none, as the manager saw, is taken.
+    expect((await send(new Date().toISOString())).status).toBe(409);
+    expect((await send(null)).status).toBe(200);
+  });
+});

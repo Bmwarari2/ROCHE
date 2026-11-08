@@ -37,6 +37,7 @@ const { RecordedArrival } = await import("@/components/safety/RecordedArrival");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const PHONE = "0199d000-0000-4000-8000-0000000babcd";
+const REPORTED = "2026-11-08T09:15:00.000Z";
 let root: Root;
 
 beforeEach(() => {
@@ -87,7 +88,9 @@ const tick = () =>
 
 describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
   it("needs a coded reason and the tick, and sends nothing without them", async () => {
-    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={3} reported />);
+    await render(
+      <DeviceWithdrawForm deviceId={PHONE} entriesWaiting={3} lastReportedAt={REPORTED} />,
+    );
     expect(text()).toContain("3 entries were waiting on it when it last reported");
     expect(document.querySelectorAll("input:checked")).toHaveLength(0);
     expect(await violations()).toEqual([]);
@@ -103,19 +106,22 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
   });
 
   it.each([
-    [0, false],
-    [2, true],
-  ])(
-    "with %i entries seen, confirms entries waiting: %s (only a count the manager saw)",
-    async (seen, confirms) => {
+    [0, REPORTED],
+    [2, REPORTED],
+    [0, null],
+  ] as const)(
+    "with %i entries seen, reported %s, confirms exactly what the manager saw (H-1535)",
+    async (seen, reportedAt) => {
       withdrawDevice.mockResolvedValue({ ok: true, data: { replay: false, entriesWaiting: seen } });
-      await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={seen} reported />);
+      await render(
+        <DeviceWithdrawForm deviceId={PHONE} entriesWaiting={seen} lastReportedAt={reportedAt} />,
+      );
       await choose("staff_left");
       await tick();
       await submit();
       expect(withdrawDevice).toHaveBeenCalledWith(PHONE, {
         reasonCode: "staff_left",
-        confirmEntriesWaiting: confirms,
+        seen: { count: seen, reportedAt },
       });
       expect(router.replace).toHaveBeenCalledWith(
         expect.stringMatching(
@@ -125,12 +131,6 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
     },
   );
 
-  it("says plainly when the phone has never reported what it holds", async () => {
-    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} reported={false} />);
-    expect(text()).toContain("it has never reported what it holds");
-    expect(await violations()).toEqual([]);
-  });
-
   it("asks to reload and tick again when entries were reported since the page opened", async () => {
     const message = t("devices.withdraw.entriesArrived");
     withdrawDevice.mockResolvedValue({
@@ -139,7 +139,9 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
       message,
       fields: { confirm: message },
     });
-    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} reported />);
+    await render(
+      <DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} lastReportedAt={REPORTED} />,
+    );
     await choose("lost_or_stolen");
     await tick();
     await submit();
@@ -161,7 +163,9 @@ describe("hazard HZ-006 hazard HZ-040 withdrawing a Care mode phone", () => {
       code: "step_up_required",
       message: "Sign in again",
     });
-    await render(<DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} reported />);
+    await render(
+      <DeviceWithdrawForm deviceId={PHONE} entriesWaiting={0} lastReportedAt={REPORTED} />,
+    );
     await choose("replaced");
     await tick();
     await submit();

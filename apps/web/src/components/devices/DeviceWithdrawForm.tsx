@@ -24,14 +24,15 @@ const FIELDS = ["reason", "confirm"] as const;
 export function DeviceWithdrawForm({
   deviceId,
   entriesWaiting,
-  reported,
+  lastReportedAt,
 }: {
   readonly deviceId: string;
   /** The count the manager sees, from the phone's last report. */
   readonly entriesWaiting: number;
-  /** Whether the phone has ever reported what it holds. */
-  readonly reported: boolean;
+  /** When the phone last reported what it holds; null when it never has. */
+  readonly lastReportedAt: string | null;
 }) {
+  const reported = lastReportedAt !== null;
   const router = useRouter();
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [reason, setReason] = useState<DeviceRevocationReason | null>(null);
@@ -54,12 +55,11 @@ export function DeviceWithdrawForm({
       return;
     }
     startTransition(async () => {
-      // Only a count the manager saw is confirmed: when the page showed none, the API refuses
-      // entries it heard of since (409 entries_waiting) and the page is reloaded to show them
-      // (clinical review of #217, H1).
+      // The exact count and report the manager saw are confirmed (H-1535; HZ-006): the API refuses
+      // (409 entries_waiting) when either has changed, and the page is reloaded to show them.
       const outcome = await withdrawDevice(deviceId, {
         reasonCode: reason,
-        confirmEntriesWaiting: confirmed && entriesWaiting > 0,
+        seen: { count: entriesWaiting, reportedAt: lastReportedAt },
       });
       setResult(outcome);
       if (outcome.ok) {

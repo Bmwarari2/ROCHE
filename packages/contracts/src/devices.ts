@@ -102,6 +102,20 @@ export const RevokeDevice = z
      * revocation of a device with entries waiting is refused (409 `entries_waiting`) without it.
      */
     confirmEntriesWaiting: z.boolean().optional(),
+    /**
+     * What the manager saw, confirmed exactly (H-1535; HZ-006): the entries the device last
+     * reported waiting and when it reported (null when it never had). The revocation is refused
+     * (409 `entries_waiting`) when the count is now different, higher or lower, or the report is
+     * newer, so a manager never withdraws a device on a count they did not see. Takes the place
+     * of `confirmEntriesWaiting` when given.
+     */
+    confirmedEntriesWaiting: z
+      .object({
+        count: z.number().int().min(0).max(100_000),
+        reportedAt: isoDateTime.nullable(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .meta({ id: "RevokeDevice" });
