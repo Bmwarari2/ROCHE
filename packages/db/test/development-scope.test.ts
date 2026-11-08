@@ -368,6 +368,86 @@ describe("hazard HZ-011 development writes follow the same scope in the policies
   });
 });
 
+describe("hazard HZ-119 the sign-off guard sees withdrawals the inserter cannot read (ADR-0136)", () => {
+  it("hazard HZ-119 refuses a backdated sign-off for a member whose withdrawal the inserter's rules hide", async () => {
+    // North House's manager cannot read Sam's withdrawal (Sam works only at South House)...
+    expect(
+      await as("north", async (c) =>
+        Number(
+          (
+            await c.query<{ n: string }>(
+              `SELECT count(*) AS n FROM competence_withdrawal x
+                 JOIN competence_sign_off s ON s.id = x.sign_off_id WHERE s.worker_id = $1`,
+              [W_SOUTH],
+            )
+          ).rows[0]?.n,
+        ),
+      ),
+    ).toBe(0);
+    // ...yet the guard, which runs before the insert policy, still finds it and refuses the
+    // backdated sign-off for that reason, not only because Sam is out of scope.
+    const message = await as("north", (c) =>
+      c.query(
+        `INSERT INTO competence_sign_off (worker_id, competence, observed_on, observer_id, valid_until)
+         VALUES ($1, 'moving_and_handling_hoist', DATE '2026-07-01', app.current_user_id(), DATE '2027-06-30')`,
+        [W_SOUTH],
+      ),
+    ).then(
+      () => "ok",
+      (error: Error) => error.message,
+    );
+    expect(message).toMatch(/observed on or after the day the competence was withdrawn/);
+  });
+
+  it("answers no to a direct call outside the guard, so it never reveals a withdrawal", async () => {
+    const direct = await as(
+      "north",
+      async (c) =>
+        (
+          await c.query<{ ok: boolean }>(
+            "SELECT app.competence_withdrawn_after($1::uuid, 'moving_and_handling_hoist', DATE '2026-07-01') AS ok",
+            [W_SOUTH],
+          )
+        ).rows[0]?.ok,
+    );
+    expect(direct).toBe(false);
+  });
+});
+
+describe("H-693 a revalidation confirmer's scope covers the nurse (ADR-0136)", () => {
+  const candidates = (nurse: string) =>
+    as("hr", async (c) =>
+      (
+        await c.query<{ id: string }>(
+          "SELECT id FROM app.revalidation_confirmer_candidates($1::uuid) AS id",
+          [nurse],
+        )
+      ).rows.map((r) => r.id),
+    );
+  const name = (nurse: string, confirmer: string) =>
+    as("hr", (c) =>
+      c.query(
+        "UPDATE revalidation_evidence SET confirmer_id = $2 WHERE worker_id = $1 AND cycle_due_on = DATE '2027-03-31'",
+        [nurse, confirmer],
+      ),
+    ).then(
+      () => "ok",
+      (error: Error) => error.message,
+    );
+
+  it("offers North House's manager for a North House nurse, never for a South House nurse", async () => {
+    expect(await candidates(W_NORTH)).toContain(NORTH_LEAD);
+    expect(await candidates(W_SOUTH)).not.toContain(NORTH_LEAD);
+    // HR, organisation-wide, may confirm for either.
+    expect(await candidates(W_SOUTH)).toContain(ORG);
+  });
+
+  it("refuses naming a confirmer whose scope does not cover the nurse, and names one that does", async () => {
+    expect(await name(W_SOUTH, NORTH_LEAD)).toMatch(/revalidation_confirmer_not_permitted/);
+    expect(await name(W_NORTH, NORTH_LEAD)).toBe("ok");
+  });
+});
+
 describe("hazard HZ-011 the context definers that read tasks evaluate the task policy (ADR-0133)", () => {
   it.each(["harbour_care_definer", "harbour_platform_definer"])(
     "%s reads or routes tasks about members without error",

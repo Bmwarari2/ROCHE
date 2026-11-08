@@ -50,6 +50,19 @@ the lead assigned on 08/11/2026.
   attempts, earlier versions and certificates, an acting-up access grant and an assigned-scope
   role (none); agency workers hold location roles, so the home case covers them.
 
+## Security re-review and clinical review (applied in one commit)
+
+- HZ-119: a new test shows the sign-off guard refusing a backdated sign-off for a member whose
+  withdrawal the inserter cannot read; `app.competence_withdrawn_after` answers only inside a
+  trigger (`pg_trigger_depth() > 0`), and a direct call says no. The hazard log row names it.
+- A revalidation confirmer's scope must cover the nurse: `app.member_may_confirm_revalidation(member,
+  nurse)` and `app.revalidation_confirmer_candidates(nurse)` ask the scope with the candidate as
+  reader (`app.development_scope_members_for`, executable by no one directly); the revalidation
+  guard and the API use them; naming an out-of-scope confirmer is a 422 `confirmer_not_permitted`.
+  0157's one-argument versions stay for the previous release.
+- CSO rows H-1610 (the confirmer restriction as a residual risk) and H-1611 (managers see their own
+  scope's training; the competence port is unaffected), with the ADR's consequences.
+
 ## Checks
 
 See the PR's test evidence.

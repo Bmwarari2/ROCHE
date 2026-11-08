@@ -32590,7 +32590,7 @@ export interface paths {
     };
     /**
      * Who may be named a nurse's revalidation confirmer
-     * @description workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.
+     * @description workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage in a scope that covers the nurse (as app.revalidation_confirmer_candidates counts them; ADR-0136), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.
      */
     get: {
       parameters: {

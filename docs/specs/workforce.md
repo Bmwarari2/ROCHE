@@ -220,7 +220,9 @@ tenant-scoped role or one held organisation-wide; otherwise only the members who
 holder's homes, as `app.works_at` counts them (a role in force there or across the organisation,
 or that home on their staff profile; an access grant at a home counts as a role there). Members
 with an organisation-wide role (the HR director, the Nominated Individual) are therefore in every
-home's scope. Writes follow the same scope in the policies themselves. The member reads their own
+home's scope. Writes follow the same scope in the policies themselves, so a revalidation confirmer
+must hold training or supervision rights in a scope that covers the nurse (only such members are
+offered or may be named; H-1610). The member reads their own
 (`workforce.self.read`); written as section 2b says, never
 by the member about themselves. None of them is special category data, so they need MFA only where
 the role does. Medicines and scheduling never read these tables: they ask the competence port

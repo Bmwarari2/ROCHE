@@ -147,6 +147,52 @@ describe("hazard HZ-011 development reads follow attribute scope (ADR-0136)", ()
     expect(await reminders("carer")).toEqual([]);
   });
 
+  it("never offers or names a revalidation confirmer whose scope does not cover the nurse", async () => {
+    const cycle = "2027-03-31";
+    // Recorded by the Owner through the application role, as the API would.
+    const client = await h.db.pool("harbour_app").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true),
+                set_config('app.user_id', $2, true)`,
+        [DEMO.tenantId, DEMO.users.owner.id],
+      );
+      await client.query(
+        "INSERT INTO revalidation_evidence (worker_id, cycle_due_on) VALUES ($1, $2)",
+        [LODGE_WORKER, cycle],
+      );
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+    const offered = async (member: string) =>
+      (
+        (await (
+          await as("owner", `/v1/workforce/members/${member}/revalidation/confirmers`)
+        ).json()) as { items: { id: string }[] }
+      ).items.map((i) => i.id);
+    // The demo home's Registered Manager confirms for its own staff, never for Lodge staff.
+    expect(await offered(CARER)).toContain(DEMO.users.manager.id);
+    expect(await offered(LODGE_WORKER)).not.toContain(DEMO.users.manager.id);
+    const [row] = (await sql(
+      "SELECT version FROM revalidation_evidence WHERE worker_id = $1 AND cycle_due_on = $2",
+      [LODGE_WORKER, cycle],
+    )) as { version: number }[];
+    const named = await h.request(`/v1/workforce/members/${LODGE_WORKER}/revalidation/confirmer`, {
+      method: "PUT",
+      body: {
+        expectedVersion: row?.version,
+        cycleDueOn: cycle,
+        confirmerId: DEMO.users.manager.id,
+      },
+      token: h.tokens.owner,
+      tenant: DEMO.tenantId,
+    });
+    expect(named.status).toBe(422);
+    expect(((await named.json()) as { code: string }).code).toBe("confirmer_not_permitted");
+  });
+
   it("refuses the lists to a care worker, and shows another organisation nothing of this one", async () => {
     expect((await as("carer", "/v1/workforce/supervisions-due")).status).toBe(403);
     expect((await as("carer", "/v1/workforce/training-matrix")).status).toBe(403);

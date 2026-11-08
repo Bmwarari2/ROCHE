@@ -2,7 +2,7 @@
 status: "proposed"
 date: 2026-11-08
 decision-makers: lead engineer (Claude Code lead session), for the owner
-consulted: security reviewer (agent); owner to confirm (H-1609)
+consulted: security reviewer and clinical safety reviewer (agents); owner to confirm (H-1609); CSO to accept H-1610 and H-1611
 informed: engineering
 ---
 
@@ -89,8 +89,17 @@ new data.
 - Bad: there is no team or line-manager scope for staff (scope kinds are tenant, location, assigned,
   self and none), so a team lead's scope is their home. Option 3 needs a line-manager field first;
   it stays a known gap in workforce.md.
-- Neutral: a revalidation confirmer named at another home cannot confirm, since the confirmation is
-  a write in the nurse's scope; HR names a confirmer who works where the nurse does.
+- Bad, accepted by the CSO as a residual risk (H-1610): a revalidation confirmer must hold training
+  or supervision rights in a scope that covers the nurse, since the confirmation is a write in the
+  nurse's scope. Naming a manager from another home is refused when they are named (422
+  `confirmer_not_permitted`), never discovered at confirmation, and the confirmer list offers only
+  those who may confirm (`app.revalidation_confirmer_candidates(nurse)`); this could delay a
+  confirmation, mitigated by HR, who may always confirm.
+- Neutral, accepted by the CSO (H-1611): a home's manager sees the training, competence and
+  supervision of the staff in their scope only. Point-of-care gating is unaffected: the competence
+  port reads every worker's sign-offs with the system's rights (ADR-0085, HZ-119).
+- Neutral: the HZ-119 withdrawal lookup (`app.competence_withdrawn_after`) answers only inside the
+  sign-off guard, its only caller, so a direct call never reveals a withdrawal.
 
 ### Confirmation
 

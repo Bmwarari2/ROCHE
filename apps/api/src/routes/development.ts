@@ -951,9 +951,10 @@ export const developmentRouter = createRouter()
               eq(revalidationEvidence.cycleDueOn, body.cycleDueOn),
             ),
           );
-        // Whether the person named may confirm (HR or a line manager), as the database counts it.
+        // Whether the person named may confirm (HR or a line manager whose scope covers the nurse;
+        // ADR-0136), as the database counts it.
         const eligible = await tx.execute<{ ok: boolean }>(
-          sql`SELECT app.member_may_confirm_revalidation(${body.confirmerId}::uuid) AS ok`,
+          sql`SELECT app.member_may_confirm_revalidation(${body.confirmerId}::uuid, ${memberId}::uuid) AS ok`,
         );
         const check = checkConfirmerNaming({
           actorId: access.tenantUserId,
@@ -1000,7 +1001,7 @@ export const developmentRouter = createRouter()
       tags: ["workforce"],
       summary: "Who may be named a nurse's revalidation confirmer",
       description:
-        "workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.",
+        "workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage in a scope that covers the nurse (as app.revalidation_confirmer_candidates counts them; ADR-0136), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.",
       security,
       request: { params: MemberParam, query: ConfirmerQuery },
       responses: {
@@ -1028,7 +1029,7 @@ export const developmentRouter = createRouter()
                 )
             : [];
           const found = await tx.execute<{ id: string }>(
-            sql`SELECT id FROM app.revalidation_confirmer_candidates() AS id`,
+            sql`SELECT id FROM app.revalidation_confirmer_candidates(${memberId}::uuid) AS id`,
           );
           const left = new Set([memberId, access.tenantUserId, cycle?.reviewedBy ?? null]);
           const ids = found.rows.map((r) => r.id).filter((id) => !left.has(id));
