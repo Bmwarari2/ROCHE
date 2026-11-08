@@ -148,7 +148,7 @@ export const deathRecord = pgTable(
   ],
 );
 
-/** Each step of a death as recorded (append-only; the latest for a step counts). */
+/** Each step of a death as recorded (append-only; a correction supersedes the standing entry). */
 export const deathStep = pgTable(
   "death_step",
   {

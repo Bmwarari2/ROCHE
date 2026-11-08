@@ -337,7 +337,10 @@ export const deathsMissingRouter = createRouter()
             again.deathRecordId === id &&
             again.step === body.step &&
             again.outcome === body.outcome &&
-            again.at.getTime() === new Date(body.at).getTime();
+            again.at.getTime() === new Date(body.at).getTime() &&
+            again.supersedesId === (body.supersedesId ?? null) &&
+            (again.correctionReason ?? null) ===
+              (body.supersedesId ? (body.correctionReason?.trim() ?? null) : null);
           if (!same) throw problems.alreadySavedDifferently();
           return deathItem(row, await readDeath(tx, access.tenantId, row, now), now);
         }
@@ -367,31 +370,59 @@ export const deathsMissingRouter = createRouter()
         // A step already recorded changes only by a correction that supersedes its standing entry,
         // with why (section 5.5; HZ-013); the superseded entry is kept and shown struck through.
         const recorded = await tx
-          .select({ id: deathStep.id, step: deathStep.step, supersedesId: deathStep.supersedesId })
+          .select({
+            id: deathStep.id,
+            step: deathStep.step,
+            supersedesId: deathStep.supersedesId,
+            reference: deathStep.reference,
+          })
           .from(deathStep)
           .where(eq(deathStep.deathRecordId, id))
           .orderBy(asc(deathStep.recordedAt), asc(deathStep.id));
-        const correctionProblems = deathStepCorrectionProblems(
+        const correctionProblems: string[] = deathStepCorrectionProblems(
           currentDeathStepEntry(recorded, body.step),
           {
             supersedesId: body.supersedesId ?? null,
             correctionReason: body.correctionReason ?? null,
           },
         );
+        // Correcting the police told keeps the police reference unless the new entry gives one.
+        const standing = currentDeathStepEntry(recorded, body.step);
+        if (
+          body.supersedesId &&
+          standing?.reference &&
+          body.outcome === "done" &&
+          !body.reference?.trim()
+        ) {
+          correctionProblems.push("Give the police reference again, or the corrected one.");
+        }
         const allProblems = [...stepProblems, ...correctionProblems];
         if (allProblems.length > 0) throw problems.invalid(allProblems.join(" "));
-        await tx.insert(deathStep).values({
-          id: body.id,
-          deathRecordId: id,
-          personId: row.personId,
-          step: body.step,
-          outcome: body.outcome,
-          at: new Date(body.at),
-          note: body.note ?? null,
-          reference: body.reference ?? null,
-          supersedesId: body.supersedesId ?? null,
-          correctionReason: body.supersedesId ? (body.correctionReason?.trim() ?? null) : null,
-        });
+        try {
+          await tx.insert(deathStep).values({
+            id: body.id,
+            deathRecordId: id,
+            personId: row.personId,
+            step: body.step,
+            outcome: body.outcome,
+            at: new Date(body.at),
+            note: body.note ?? null,
+            reference: body.reference ?? null,
+            supersedesId: body.supersedesId ?? null,
+            correctionReason: body.supersedesId ? (body.correctionReason?.trim() ?? null) : null,
+          });
+        } catch (error) {
+          // The database's own rules (migration 0158), said in words rather than as a failure.
+          if (dbCode(error) === "23505") {
+            throw problems.conflict("This entry has already been corrected: reload the page.");
+          }
+          if (dbCode(error) === "23514") {
+            throw problems.invalid(
+              "This correction cannot be saved: reload the page and try again.",
+            );
+          }
+          throw error;
+        }
         await audit(c, tx, access, {
           action: body.supersedesId ? "safety.death.step_corrected" : "safety.death.step",
           resourceType: "death_record",

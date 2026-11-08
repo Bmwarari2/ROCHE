@@ -149,6 +149,38 @@ describe("hazard HZ-013 the death record (migration 0099)", () => {
         c.query("UPDATE death_step SET note = 'changed' WHERE id = $1", [first?.id]),
       ),
     ).rejects.toThrow();
+    // Never another death's entry: set up a second death in one transaction, rolled back.
+    await expect(
+      ownerDb(async (c) => {
+        const exit = await one<{ id: string }>(
+          c,
+          `INSERT INTO exit_record (person_id, location_id, kind, state, regulator, left_at,
+             learning_disability_or_autism, death_expected)
+           VALUES ($1, $2, 'death', 'recorded', 'cqc', now() - interval '1 hour', false, true)
+           RETURNING id`,
+          [a.personAda, a.locationNorth],
+        );
+        const other = await one<{ id: string }>(
+          c,
+          `INSERT INTO death_record (person_id, location_id, exit_record_id, died_at,
+             learning_disability_or_autism, review_due_at, expected)
+           VALUES ($1, $2, $3, now() - interval '1 hour', false, now() + interval '28 days', true)
+           RETURNING id`,
+          [a.personAda, a.locationNorth, exit?.id],
+        );
+        const step = await one<{ id: string }>(
+          c,
+          `INSERT INTO death_step (death_record_id, person_id, step, outcome, at)
+           VALUES ($1, $2, 'verification_of_death', 'done', now()) RETURNING id`,
+          [other?.id, a.personAda],
+        );
+        await c.query(
+          `INSERT INTO death_step (death_record_id, person_id, step, outcome, at, supersedes_id, correction_reason)
+           VALUES ($1, $2, 'verification_of_death', 'done', now(), $3, 'Pointing at another death.')`,
+          [deathId, a.personBen, step?.id],
+        );
+      }),
+    ).rejects.toThrow(/death_step_supersedes_other/);
   });
 
   it("refuses a step not needed without a reason, and a review without findings and lessons", async () => {
@@ -208,6 +240,16 @@ describe("hazard HZ-013 the death record (migration 0099)", () => {
         c.query("UPDATE death_record SET judged_by = 'Dr Example, GP' WHERE id = $1", [deathId]),
       ),
     ).rejects.toThrow(/death_record_finished/);
+    // No step, first or correction, is recorded on a closed record (migration 0158).
+    await expect(
+      asManager((c) =>
+        c.query(
+          `INSERT INTO death_step (death_record_id, person_id, step, outcome, at)
+           VALUES ($1, $2, 'preserve_room_and_equipment', 'done', now())`,
+          [deathId, a.personBen],
+        ),
+      ),
+    ).rejects.toThrow(/death_record_finished/);
   });
 
   it("hazard HZ-011 shows a death record to no one outside the person's scope or organisation", async () => {
@@ -223,6 +265,21 @@ describe("hazard HZ-013 the death record (migration 0099)", () => {
           `INSERT INTO death_step (tenant_id, death_record_id, person_id, step, outcome, at)
            VALUES ($1, $2, $3, 'family_informed', 'done', now())`,
           [TENANT_A, deathId, a.personBen],
+        ),
+      ),
+    ).rejects.toThrow();
+    // Nor a correction from another organisation naming one of this organisation's entries.
+    const entry = await asManager(async (c) =>
+      one<{ id: string }>(c, "SELECT id FROM death_step WHERE death_record_id = $1 LIMIT 1", [
+        deathId,
+      ]),
+    );
+    await expect(
+      asOtherTenant((c) =>
+        c.query(
+          `INSERT INTO death_step (tenant_id, death_record_id, person_id, step, outcome, at, supersedes_id, correction_reason)
+           VALUES ($1, $2, $3, 'verification_of_death', 'done', now(), $4, 'From another organisation.')`,
+          [TENANT_B, deathId, a.personBen, entry?.id],
         ),
       ),
     ).rejects.toThrow();

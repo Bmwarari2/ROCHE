@@ -267,7 +267,13 @@ describe("correcting a recorded step (section 5.5; HZ-013)", () => {
   });
 
   it("says a superseded entry and a correction in words, never by colour alone", () => {
-    expect(supersededChip(t)).toMatchObject({ icon: "circle-minus", label: "Corrected later" });
+    expect(supersededChip("correction", t)).toMatchObject({
+      icon: "circle-minus",
+      label: "Corrected later",
+    });
+    expect(supersededChip("later_entry", t).label).toBe(
+      "Replaced by a later entry (recorded before corrections)",
+    );
     expect(correctionChip(t)).toMatchObject({ icon: "file-pen", label: "Correction" });
   });
 });

@@ -179,6 +179,23 @@ export async function readDeath(tx: Transaction, tenantId: string, row: DeathRow
   return { view, steps, notifications };
 }
 
+/**
+ * How a step entry was replaced: by a correction naming it (section 5.5), or, for entries recorded
+ * before corrections existed (migration 0158), by a later entry for the same step; or not at all.
+ */
+function supersededHow(
+  steps: readonly { id: string; step: string; supersedesId: string | null }[],
+  entry: { id: string; step: string },
+): "correction" | "later_entry" | null {
+  if (steps.some((later) => later.supersedesId === entry.id)) return "correction";
+  const standing = currentDeathStepEntry(steps, entry.step);
+  if (standing && standing.id !== entry.id && !steps.some((s) => s.supersedesId === entry.id)) {
+    // Not the standing entry and not linked: an older entry the latest one replaced.
+    return "later_entry";
+  }
+  return null;
+}
+
 /** The death record as the API returns it. */
 export function deathItem(row: DeathRow, read: Awaited<ReturnType<typeof readDeath>>, now: Date) {
   const { view, steps, notifications } = read;
@@ -204,7 +221,8 @@ export function deathItem(row: DeathRow, read: Awaited<ReturnType<typeof readDea
         notificationId: kind ? (notifications.get(kind)?.id ?? null) : null,
         notificationStatus: s.notificationStatus,
         reason: s.reason,
-        entryId: currentDeathStepEntry(steps, s.step)?.id ?? null,
+        // Settled in the notification centre: nothing here to correct (H-950).
+        entryId: kind ? null : (currentDeathStepEntry(steps, s.step)?.id ?? null),
       };
     }),
     history: steps.map((s) => ({
@@ -218,7 +236,8 @@ export function deathItem(row: DeathRow, read: Awaited<ReturnType<typeof readDea
       recordedBy: s.recordedBy,
       supersedesId: s.supersedesId,
       correctionReason: s.correctionReason,
-      superseded: steps.some((later) => later.supersedesId === s.id),
+      superseded: supersededHow(steps, s) !== null,
+      supersededBy: supersededHow(steps, s),
     })),
     review: {
       // The due date fixed when the record opened, as stored.

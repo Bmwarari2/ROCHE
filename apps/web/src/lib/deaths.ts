@@ -40,6 +40,8 @@ export const POLICE_STEPS: readonly DeathStepKey[] = [
 /** A reason or review text's shortest length: the domain's own rule, so web and API agree. */
 export const DEATH_TEXT_MIN = DEATH_REASON_MIN;
 export const DEATH_NOTE_MAX = 2_000;
+/** A correction's reason, as the API and the database bound it (section 5.5). */
+export { DEATH_CORRECTION_REASON_MAX, DEATH_CORRECTION_REASON_MIN };
 export const DEATH_REFERENCE_MAX = 100;
 export const DEATH_REVIEW_MAX = 10_000;
 export const JUDGED_BY_MAX = 200;
@@ -268,9 +270,19 @@ export function readDeathStep(
   };
 }
 
-/** A history entry a later correction superseded: struck through, and said in words. */
-export function supersededChip(t: Translator): SafetyChip {
-  return { status: "notApplicable", icon: "circle-minus", label: t("deaths.history.superseded") };
+/**
+ * A history entry a later one replaced: struck through, and said in words; by a correction naming
+ * it (section 5.5), or, before corrections existed, by a later entry for the same step.
+ */
+export function supersededChip(
+  how: "correction" | "later_entry" | null,
+  t: Translator,
+): SafetyChip {
+  return {
+    status: "notApplicable",
+    icon: "circle-minus",
+    label: t(how === "later_entry" ? "deaths.history.replaced" : "deaths.history.superseded"),
+  };
 }
 
 /** A history entry that corrects an earlier one (section 5.5). */

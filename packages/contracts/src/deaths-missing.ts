@@ -97,6 +97,8 @@ export const DeathView = z
         correctionReason: z.string().nullable(),
         /** Superseded by a later correction: shown struck through, never removed. */
         superseded: z.boolean(),
+        /** By a correction naming it, or (before migration 0158) by a later entry for the step. */
+        supersededBy: z.enum(["correction", "later_entry"]).nullable(),
       }),
     ),
     review: z.object({
@@ -138,7 +140,7 @@ export const RecordDeathStep = z
     reference: text(100).min(1).nullable().optional(),
     /** A correction: the step's standing entry it supersedes, and why (10 to 500 characters). */
     supersedesId: uuid.nullable().optional(),
-    correctionReason: text(500).nullable().optional(),
+    correctionReason: z.string().trim().min(10).max(500).nullable().optional(),
   })
   .meta({ id: "RecordDeathStep" });
 

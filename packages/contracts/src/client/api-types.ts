@@ -70554,6 +70554,8 @@ export interface components {
         supersedesId: string | null;
         correctionReason: string | null;
         superseded: boolean;
+        /** @enum {string|null} */
+        supersededBy: "correction" | "later_entry" | null;
       }[];
       review: {
         /** Format: date-time */

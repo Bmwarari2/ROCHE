@@ -1,8 +1,13 @@
-import { DEATH_CORRECTION_REASON_MAX } from "@harbour/domain";
+"use client";
 
-("use client");
-
-import { Button, DateTimeInput, RadioGroup, TextArea, TextField } from "@harbour/ui";
+import {
+  Button,
+  DateTimeInput,
+  dateTimePartsAt,
+  RadioGroup,
+  TextArea,
+  TextField,
+} from "@harbour/ui";
 import { CircleCheck, FilePlus, Save, Stethoscope } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -16,6 +21,7 @@ import {
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
 import {
+  DEATH_CORRECTION_REASON_MAX,
   DEATH_NOTE_MAX,
   DEATH_REFERENCE_MAX,
   DEATH_REVIEW_MAX,
@@ -106,6 +112,7 @@ export function DeathStepForm({
   step,
   missingFacts,
   supersedesId,
+  current,
 }: {
   readonly id: string;
   readonly step: DeathStepKey;
@@ -113,6 +120,13 @@ export function DeathStepForm({
   readonly missingFacts: readonly string[];
   /** Correcting the step's standing entry, which is kept and shown struck through (section 5.5). */
   readonly supersedesId?: string | null;
+  /** The entry being corrected: the form starts from it, so only what changes is retyped. */
+  readonly current?: {
+    readonly outcome: "done" | "not_needed";
+    readonly at: string;
+    readonly note: string | null;
+    readonly reference: string | null;
+  } | null;
 }) {
   const ids = useFieldIds(["outcome", "at", "note", "reference", "correctionReason"]);
   // The step's own id, kept until it is saved: a retry after an unknown outcome sends the same id,
@@ -122,10 +136,20 @@ export function DeathStepForm({
   const { submit, result, pending } = useSubmit(
     (form) => readDeathStep(form, t, { id: entryId, step, missingFacts, supersedesId }),
     (body) => recordDeathStep(id, body),
-    // Saved, the step is settled and its form leaves the page.
-    () => setEntryId(uuidv7()),
-    t("deaths.step.done"),
+    (_, form) => {
+      // A new id for the next entry. A first entry's form leaves the page; a correction's stays,
+      // so it is cleared, closed and focus returns to its summary (WCAG 2.4.3).
+      setEntryId(uuidv7());
+      if (supersedesId) {
+        form.reset();
+        const disclosure = form.closest("details");
+        disclosure?.removeAttribute("open");
+        disclosure?.querySelector("summary")?.focus();
+      }
+    },
+    supersedesId ? undefined : t("deaths.step.done"),
   );
+
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       {supersedesId ? (
@@ -144,6 +168,7 @@ export function DeathStepForm({
         id={ids.outcome}
         name="outcome"
         legend={t("deaths.step.outcome")}
+        {...(current ? { defaultValue: current.outcome } : {})}
         options={[
           { value: "done", label: t("deaths.step.outcomeOption", { outcome: "done" }) },
           ...(allowNotNeeded
@@ -162,6 +187,7 @@ export function DeathStepForm({
         id={ids.at}
         name="at"
         legend={t("deaths.step.at")}
+        defaultValue={current ? dateTimePartsAt(Date.parse(current.at)) : null}
         hint={t("care.when.hint")}
         labels={dateTimeLabels(t)}
         repeated={ukRepeatedTime}
@@ -172,6 +198,7 @@ export function DeathStepForm({
         id={ids.note}
         name="note"
         label={t("deaths.step.note")}
+        defaultValue={current?.note ?? ""}
         hint={t("deaths.step.noteHint")}
         rows={2}
         maxLength={DEATH_NOTE_MAX}
@@ -183,6 +210,7 @@ export function DeathStepForm({
           id={ids.reference}
           name="reference"
           label={t("deaths.step.reference")}
+          defaultValue={current?.reference ?? ""}
           maxLength={DEATH_REFERENCE_MAX}
           autoComplete="off"
           error={errorFor(result, "reference")}
@@ -195,7 +223,11 @@ export function DeathStepForm({
             : t(supersedesId ? "deaths.step.correctSubmit" : "deaths.step.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success={t("deaths.step.done")} fieldIds={ids} />
+      <FormFeedback
+        result={result}
+        success={t(supersedesId ? "deaths.step.corrected" : "deaths.step.done")}
+        fieldIds={ids}
+      />
     </form>
   );
 }

@@ -16,5 +16,11 @@ slice 83 guides review found (a pre-pilot blocker against master prompt section 
 - **Web**: a recorded step offers "Correct" with its reason; the history strikes superseded entries
   through, says "Corrected later" and "Correction" in words, and shows why. The outbreak line list
   shows each correction's reason beside the row.
-- **Docs**: safety.md, data-standards.md, the export catalogue, HZ-013, human actions H-1573 and
-  H-1574.
+- **Review fixes**: the death forms stay a client component (a formatter moved the directive);
+  the trigger locks the record and refuses any step on a closed or withdrawn record; the
+  correction form starts from the entry it corrects, closes and returns focus once saved, and keeps
+  the police reference; a police step is never not needed after a may-be-unnatural judgement;
+  entries from before corrections show as replaced by a later entry; replays compare the
+  correction; database refusals are said in words; the line list names whom a correction is about.
+- **Docs**: safety.md, data-standards.md, records of processing, the export catalogue, HZ-013
+  (cause and control), human actions H-1573 to H-1577.

@@ -1047,7 +1047,7 @@ rows from H-1543). Each open question takes its recommended answer until the tes
 | H-1562 | Decide whether the incident record asks when the person was found for absconding too, or the episode's found entry stays the only found time for both types. Recommended answer: the episode's found entry (the incident's found time only drives post-fall observations) | CSO | HZ-127; `apps/web/src/lib/incident-forms.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 | H-1563 | Confirm that absconding (which can be a capacitous person choosing to leave) gets the same police call target (`missing_person.police_call_minutes`) and immediate-risk alert as going missing, or ask for a separate rate key. Recommended answer: the same target; staff call at once when worried | CSO | HZ-127; [rates.md](../specs/rates.md) | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 
-## Guide gaps from the slice 83 review: corrections (H-1573 to H-1574)
+## Guide gaps from the slice 83 review: corrections (H-1573 to H-1577)
 
 Logged by the death step corrections PR (lead's list of 07/11/2026, item 3; block H-1561 to H-1580).
 
@@ -1055,6 +1055,9 @@ Logged by the death step corrections PR (lead's list of 07/11/2026, item 3; bloc
 | --- | --- | --- | --- | --- | --- |
 | H-1573 | Confirm that a recorded step of a death is corrected only by a new entry superseding it with a reason of 10 to 500 characters, and that entries recorded before migration 0158 (where the latest for a step counted) stand as recorded, without superseding links | CSO | HZ-013; migration 0158; `deathStepCorrectionProblems` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 | H-1574 | Decide whether the outbreak line list's correction reason minimum (3 characters, slice 63) should match the death step's (10). Recommended answer: raise it to 10 in a later migration | CSO | HZ-013; `outbreak_case_correction` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1575 | Confirm that once the clinician judged a death may be unnatural or suspicious, no police step can be marked not needed, by a first entry or a correction (as built), rather than allowed with a Registered Manager review | CSO | HZ-013; `deathStepProblems` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1576 | Decide how a step on a closed or withdrawn death record is corrected (today it cannot be: the database refuses any step there): reopen the record, an addendum, or not at all. Recommended answer: not at all until a reopen workflow is specified | CSO | HZ-013; migration 0158 | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1577 | Confirm that correcting the police told keeps the police reference unless a new one is given (the API refuses a correction without it when the entry had one), and that entries from before corrections show as replaced by a later entry | CSO | HZ-013; `apps/api/src/routes/deaths-missing.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 
 ## Per tenant at onboarding
 

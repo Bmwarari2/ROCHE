@@ -155,8 +155,8 @@ export default async function DeathPage({ params }: { params: Promise<{ id: stri
                       )}
                     </div>
                   ) : null}
-                  {/* A settled step (done, or not needed) has no form, so a form that succeeds
-                      always leaves the page and focus moves to the heading. */}
+                  {/* A step not yet settled has a form that leaves the page once saved, and focus
+                      moves to the heading; a settled step offers a correction instead. */}
                   {manage &&
                   recordableHere(s.step) &&
                   s.state !== "done" &&
@@ -182,6 +182,7 @@ export default async function DeathPage({ params }: { params: Promise<{ id: stri
                           step={s.step}
                           missingFacts={data.missingFacts}
                           supersedesId={s.entryId}
+                          current={data.history.find((h) => h.id === s.entryId) ?? null}
                         />
                       </div>
                     </details>
@@ -245,7 +246,7 @@ export default async function DeathPage({ params }: { params: Promise<{ id: stri
                     })}
                   </span>
                   {h.superseded ? (
-                    <SafetyChip chip={supersededChip(t)} />
+                    <SafetyChip chip={supersededChip(h.supersededBy, t)} />
                   ) : h.supersedesId ? (
                     <SafetyChip chip={correctionChip(t)} />
                   ) : null}

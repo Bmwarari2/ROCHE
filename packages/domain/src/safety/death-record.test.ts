@@ -286,6 +286,14 @@ describe("hazard HZ-013 the police steps stand until the clinician's judgement (
       { step: "family_informed", outcome: "not_needed", at: NOW, note: enough },
       [],
     ],
+    [
+      "police told, not needed, judged may be unnatural",
+      { ...unjudged, expected: false, possiblyUnnatural: true },
+      { step: "police_informed", outcome: "not_needed", at: NOW, note: enough },
+      [
+        "The clinician judged this death may be unnatural or suspicious, so this police step cannot be marked not needed.",
+      ],
+    ],
   ])("%s", (_name, facts, step, problems) => {
     expect(
       deathStepProblems(deathRecordPlan(facts, rates), DIED, step, NOW, {
@@ -341,10 +349,10 @@ describe("hazard HZ-013 a recorded step is corrected by a new entry, never chang
     const entries = [
       { id: A, step: "police_informed", supersedesId: null },
       { id: B, step: "police_informed", supersedesId: A },
-      { id: "c", step: "next_of_kin_informed", supersedesId: null },
+      { id: "c", step: "family_informed", supersedesId: null },
     ];
     expect(currentDeathStepEntry(entries, "police_informed")?.id).toBe(B);
-    expect(currentDeathStepEntry(entries, "next_of_kin_informed")?.id).toBe("c");
-    expect(currentDeathStepEntry(entries, "coroner_informed")).toBeNull();
+    expect(currentDeathStepEntry(entries, "family_informed")?.id).toBe("c");
+    expect(currentDeathStepEntry(entries, "preserve_room_and_equipment")).toBeNull();
   });
 });

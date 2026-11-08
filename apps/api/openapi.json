@@ -22018,6 +22018,17 @@
                 },
                 "superseded": {
                   "type": "boolean"
+                },
+                "supersededBy": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "correction",
+                    "later_entry",
+                    null
+                  ]
                 }
               },
               "required": [
@@ -22031,7 +22042,8 @@
                 "recordedBy",
                 "supersedesId",
                 "correctionReason",
-                "superseded"
+                "superseded",
+                "supersededBy"
               ]
             }
           },
@@ -22239,6 +22251,7 @@
               "string",
               "null"
             ],
+            "minLength": 10,
             "maxLength": 500
           }
         },

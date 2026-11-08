@@ -136,7 +136,7 @@ export function deathRecordPlan(
 /** The record as it stands: each step's state, what is missing, and what closing needs. */
 export function deathRecordView(input: {
   readonly facts: DeathRecordFacts;
-  /** Steps recorded here, oldest first: the latest for a step counts. */
+  /** The step entries that stand (none a later correction superseded), oldest first. */
   readonly recorded: readonly RecordedDeathStep[];
   /** The notifications counted for this death, by kind. */
   readonly notifications: Readonly<Partial<Record<StatutoryNotificationKind, NotificationStatus>>>;
@@ -245,6 +245,17 @@ export function deathStepProblems(
   ) {
     problems.push(
       "The clinician's judgement is not recorded yet, so this police step cannot be marked not needed. Record the judgement first.",
+    );
+  }
+  // A death the clinician judged may be unnatural or suspicious keeps its police steps: none is
+  // marked not needed, by a first entry or a correction (slice 83 guides review; H-1575).
+  if (
+    judgement?.possiblyUnnatural === true &&
+    POLICE_DEATH_STEPS.includes(step.step) &&
+    step.outcome === "not_needed"
+  ) {
+    problems.push(
+      "The clinician judged this death may be unnatural or suspicious, so this police step cannot be marked not needed.",
     );
   }
   if (step.step === "mortality_review") {

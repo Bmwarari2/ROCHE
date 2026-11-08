@@ -683,3 +683,74 @@ test("hazard HZ-013 a death drafts its notifications, which the checklist links 
     version: held?.version,
   });
 });
+
+/** Fills a date and time field's boxes, found by the field's legend, in UK time. */
+async function fillWhen(scope: Locator, legend: string, at: Date) {
+  const group = scope.getByRole("group", { name: legend, exact: true });
+  const uk = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const part = (type: string) => uk.find((p) => p.type === type)?.value ?? "";
+  await group.getByLabel("Day").fill(part("day"));
+  await group.getByLabel("Month").fill(part("month"));
+  await group.getByLabel("Year").fill(part("year"));
+  await group.getByLabel("Hour").fill(part("hour"));
+  await group.getByLabel("Minute").fill(part("minute"));
+}
+
+test("hazard HZ-013 a recorded step of a death is corrected by a new entry, the first kept struck through", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await signIn(page, "manager@example.invalid");
+  const { id } = await admit(page, "Gwen");
+  await openLeaving(page, id);
+  const death = main(page).getByRole("form", { name: "Record a death" });
+  await death.getByRole("radio", { name: "Yes, it was expected" }).check();
+  await death
+    .getByRole("group", { name: /learning disability/ })
+    .getByRole("radio", { name: "No" })
+    .check();
+  await clickAndWait(
+    page,
+    death.getByRole("button", { name: "Record the death" }),
+    "Death recorded.",
+  );
+  // The safety module opens the death record from the death (the worker's outbox relay, once).
+  execFileSync("pnpm", ["outbox:run"], { cwd: API_DIR, stdio: "ignore" });
+  const deaths = await call<{ items: { id: string; personId: string }[] }>(
+    page,
+    "GET",
+    "/v1/deaths",
+  );
+  const record = deaths.items.find((d) => d.personId === id);
+  expect(record, "the death record the worker opened").toBeTruthy();
+  await page.goto(`/deaths/${record?.id}`);
+  const card = main(page)
+    .getByRole("article")
+    .filter({ has: page.getByRole("heading", { name: "Verification of death", exact: true }) });
+  await card.getByRole("radio", { name: "Done", exact: true }).check();
+  await fillWhen(card, "When", new Date(Date.now() - 30 * 60_000));
+  await card.getByRole("button", { name: "Record step" }).click();
+  await expect(status(page)).toContainText("Step recorded");
+
+  // Correcting it: opened by keyboard, the reason asked for, then saved as a new entry.
+  const summary = card.getByText("Correct this step: Verification of death", { exact: true });
+  await summary.focus();
+  await page.keyboard.press("Enter");
+  await card.getByRole("button", { name: "Save the correction" }).click();
+  await expect(card.getByText(/Say why this needs correcting/).first()).toBeVisible();
+  await card.getByLabel("Why this needs correcting").fill("The time recorded was not right.");
+  await card.getByRole("button", { name: "Save the correction" }).click();
+  await expect(main(page).getByText("Reason: The time recorded was not right.")).toBeVisible();
+  // The first entry stays, struck through and said in words; the correction says it corrects.
+  await expect(main(page).getByText("Corrected later", { exact: true })).toBeVisible();
+  await expect(main(page).getByText("Correction", { exact: true })).toBeVisible();
+  await checkBothThemes(page, "death record with a corrected step");
+});

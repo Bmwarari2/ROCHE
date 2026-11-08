@@ -7021,6 +7021,8 @@
     "deaths.step.correctionReasonHint",
     "deaths.step.correctionReasonError",
     "deaths.step.correctSubmit",
+    "deaths.step.corrected",
+    "deaths.history.replaced",
     "deaths.history.superseded",
     "deaths.history.correction",
     "deaths.history.correctionReason",
