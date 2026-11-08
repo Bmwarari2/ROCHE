@@ -246,6 +246,73 @@ async function seedDemoFlags(client: pg.PoolClient): Promise<void> {
   }
 }
 
+/**
+ * Medicines competence for the demo owner, manager and nurse, as the API's development port has it
+ * (`demoCompetence`), so a phone on the local stack, which judges competence from these synced
+ * rows (HZ-119), agrees with the API. Signed off 30 days ago, valid until the day before the rate table's refresh, each
+ * observed by someone else. Kept out of `seedDemoTenant`, which the database tests count. Safe to run again.
+ */
+export async function seedDemoCompetence(ownerPool: pg.Pool): Promise<void> {
+  const client = await ownerPool.connect();
+  const pairs = [
+    ["0194d000-0000-7000-8a00-000000000001", DEMO.users.owner.id, DEMO.users.manager.id],
+    ["0194d000-0000-7000-8a00-000000000002", DEMO.users.manager.id, DEMO.users.owner.id],
+    ["0194d000-0000-7000-8a00-000000000003", DEMO.users.nurse.id, DEMO.users.manager.id],
+  ] as const;
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    for (const [id, worker, observer] of pairs) {
+      await client.query(
+        `INSERT INTO competence_sign_off (id, tenant_id, worker_id, competence, observed_on, observer_id, valid_until)
+         VALUES ($1, $2, $3, 'medicines_administration', CURRENT_DATE - 30, $4,
+                 ((CURRENT_DATE - 30) + make_interval(months => app.quality_rate(
+                   'competence.medicines.refresh_months', (CURRENT_DATE - 30)::timestamptz)::int))::date - 1)
+         ON CONFLICT DO NOTHING`,
+        [id, DEMO.tenantId, worker, observer],
+      );
+    }
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Controlled drug recording released at the demo home only (H-1517), so the demo and the journeys
+ * record in Harbour's register; real homes start with it off. Kept out of `seedDemoTenant`, which
+ * the API tests share, so they prove the default. Safe to run repeatedly.
+ */
+export async function seedDemoCdRecording(ownerPool: pg.Pool): Promise<void> {
+  const client = await ownerPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await client.query(
+      `INSERT INTO feature_flag (flag_key, location_id, enabled)
+       SELECT 'medicines.cd_recording', $1, true
+        WHERE NOT EXISTS (SELECT 1 FROM feature_flag
+                           WHERE flag_key = 'medicines.cd_recording' AND location_id = $1)`,
+      [DEMO.locationId],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 /** The demo organisation's escalation policy for NEWS2 (care.md rule 5): a title and reference only. */
 export const DEMO_ESCALATION_POLICY = {
   toolKey: "news2",

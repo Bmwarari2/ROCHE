@@ -99,7 +99,7 @@ security on every table; the policies in section 3.
 | `competence_withdrawal` | `sign_off_id` (one each), `reason` (at least 10 characters), `withdrawn_by` | Append-only; by a holder of `workforce.competence.observe` or `workforce.training.manage`, never the worker |
 | `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. Its notes are in `supervision_note` |
 | `supervision_note` (slice 57, migration 0114, ADR-0114) | `supervision_id`, `worker_id` (the supervision's), `discussion` (10 to 4,000 characters), `actions` (optional, up to 2,000), `supersedes_id` (the note it corrects), `written_by` | Append-only; written by whoever held the supervision, in their own name, never about themselves; a correction is a new note superseding the one in force (one original per supervision, each corrected once). Read by its writer, the member (`workforce.self.read`) and a supervisor for the member (`app.supervises_member`: organisation-wide HR, or a holder at a location where the member works), never by training, competence or staff file readers or by tenant-wide roles for that alone. Hidden from every reader, the system (exports, subject access) included, once its supervision record is soft-deleted (`app.supervision_in_force`). Likely special category |
-| `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done; `confirmer_id` (who is to confirm, named by HR; migration 0153) | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker; the confirmation only by the named confirmer (rule 8; migration 0154) |
+| `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done; `confirmer_id` (who is to confirm, named by HR; migration 0156) | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker; the confirmation only by the named confirmer (rule 8; migration 0157) |
 
 Competences (`COMPETENCES` in `packages/domain/src/workforce/competence-port.ts`):
 `medicines_administration`, `controlled_drugs`, `insulin_administration`,
@@ -256,7 +256,7 @@ Slice 29 adds no permission. Induction and leaving are the staff file's: read wi
 a holder of `.manage` or of `workforce.competence.observe`, and observed only by a holder of
 `workforce.competence.observe`, never the worker; the observation needs no staff file permission
 (workforce guides' review, 07/11/2026: the database's update policy names the observe permission
-alone, migration 0154). An assessor reads Care Certificate progress across the organisation, from
+alone, migration 0157). An assessor reads Care Certificate progress across the organisation, from
 the member's training record (`GET /v1/workforce/members/{memberId}/care-certificate`), but
 nothing else of the staff file. Ending a leaver's access at once
 needs `.manage`; the sweep does it as the system.
@@ -344,7 +344,7 @@ whatever the clock change.
    them. Review and confirmation are separate duties: the reviewer never confirms and the named
    confirmer never reviews (a line manager, or HR, ideally an NMC registrant, as the NMC's
    revalidation guidance sets out; enforced by the domain, the API and the database, migration
-   0154; security review of 07/11/2026). The nurse stays responsible for revalidating with the NMC; Thapsus Care only tracks it
+   0157; security review of 07/11/2026). The nurse stays responsible for revalidating with the NMC; Thapsus Care only tracks it
    (H-693, recommended answer applied 31/10/2026). The NMC registration records the part of the
    register (`nmcPart`: nurse, midwife or nursing associate); only the nurse part counts as a
    registered nurse on duty, and a nursing associate never does (H-835).
@@ -667,7 +667,7 @@ never notes, the exit interview summary or the requester. The routes are under
 | `POST .../induction/items/{kind}` | `.manage` | Tick an item, in the caller's name |
 | `POST .../induction/shadow-shifts`; `POST .../induction/probation-reviews`; `POST .../induction/probation-decision` | `.manage` | Rule 21 |
 | `PUT .../care-certificate/{standardId}` | knowledge: `.manage` or `workforce.competence.observe`; observation: `workforce.competence.observe` alone | Assess knowledge, then observe (observers only, no staff file permission needed; anyone else 403, audited); returns the Care Certificate alone |
-| `GET /v1/workforce/members/{memberId}/care-certificate` | `.read`, `.manage` or `workforce.competence.observe` | The member's Care Certificate alone with their staff file's id (found by `app.care_certificate_profile`, migration 0154), so an observer records it from the training record; 404 without a staff file |
+| `GET /v1/workforce/members/{memberId}/care-certificate` | `.read`, `.manage` or `workforce.competence.observe` | The member's Care Certificate alone with their staff file's id (found by `app.care_certificate_profile`, migration 0157), so an observer records it from the training record; 404 without a staff file |
 | `GET`, `POST .../leaving` | `.read`; `.manage` | The leaving; recording it sets `left_on` and the keep-until date |
 | `POST .../leaving/items/{kind}`; `PUT .../leaving/exit-interview`; `POST .../leaving/end-access` | `.manage` | Rule 22 |
 | `POST .../references`; `PATCH .../references/{referenceId}` | `.manage` | A reference request and its answer |

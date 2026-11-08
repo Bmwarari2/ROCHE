@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { seedDemoEscalationPolicies, seedDemoTenant, seedReferenceData } from "../src/seed/demo";
+import {
+  seedDemoCdRecording,
+  seedDemoCompetence,
+  seedDemoEscalationPolicies,
+  seedDemoTenant,
+  seedReferenceData,
+} from "../src/seed/demo";
 import {
   findOverlaps,
   parseBankHolidays,
@@ -33,6 +39,8 @@ try {
     const demo = await seedDemoTenant(pool);
     console.log(demo.created ? "Demo tenant created" : "Demo tenant already present");
     await seedDemoEscalationPolicies(pool);
+    await seedDemoCdRecording(pool);
+    await seedDemoCompetence(pool);
   }
 } finally {
   await pool.end();

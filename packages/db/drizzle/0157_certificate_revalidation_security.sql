@@ -47,7 +47,7 @@ REVOKE CREATE ON SCHEMA app FROM harbour_workforce_definer;
 --> statement-breakpoint
 
 -- 2. NMC revalidation (rule 8, H-693), separation of duties: HR (workforce.training.manage) names
--- the confirmer (confirmer_id, migration 0153), never the nurse and never themselves; only the
+-- the confirmer (confirmer_id, migration 0156), never the nurse and never themselves; only the
 -- named confirmer, acting for themselves, records the confirmation, after HR's review. HR keeps
 -- the rest of the planner and may still take a confirmation back. Whoever reviewed a cycle never
 -- confirms it, and only a holder of workforce.training.manage or .supervision.manage is named

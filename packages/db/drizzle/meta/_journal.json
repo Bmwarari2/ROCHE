@@ -971,15 +971,36 @@
     {
       "idx": 153,
       "version": "7",
-      "when": 1794042692327,
-      "tag": "0153_revalidation_confirmer",
+      "when": 1794040761143,
+      "tag": "0153_device_keys",
       "breakpoints": true
     },
     {
       "idx": 154,
       "version": "7",
-      "when": 1794042709387,
-      "tag": "0154_certificate_revalidation_security",
+      "when": 1794040821143,
+      "tag": "0154_signed_dpia_features",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1794040822143,
+      "tag": "0155_absence_postponed_dates",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1794040823143,
+      "tag": "0156_revalidation_confirmer",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1794040824143,
+      "tag": "0157_certificate_revalidation_security",
       "breakpoints": true
     }
   ]

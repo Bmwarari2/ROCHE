@@ -13,8 +13,10 @@ import {
 } from "@harbour/db";
 import {
   type AiProvider,
+  DPIA_MONITORING_FLAGS,
   type DpiaBasis,
   type DpiaConfig,
+  type DpiaMonitoringFlag,
   dpiaBasis,
   dpiaState,
   type FlagKey,
@@ -41,20 +43,64 @@ export async function tenantFlags(
   tx: Transaction,
   tenantId: string,
 ): Promise<Record<FlagKey, boolean>> {
-  const overrides = await tx.execute<{
+  return flags.evaluateAll({ tenantId, locationId: null, overrides: await flagRows(tx) });
+}
+
+/** The organisation's feature flag rows, for evaluating a flag at a location. */
+async function flagRows(tx: Transaction) {
+  const rows = await tx.execute<{
     flag_key: string;
     location_id: string | null;
     enabled: boolean;
   }>(sql`SELECT flag_key, location_id, enabled FROM feature_flag WHERE deleted_at IS NULL`);
-  return flags.evaluateAll({
+  return rows.rows.map((r) => ({
+    flagKey: r.flag_key,
+    locationId: r.location_id,
+    enabled: r.enabled,
+  }));
+}
+
+/**
+ * Whether the organisation's signed DPIA covers an employee-monitoring flag (H-1555), read in the
+ * request's transaction. The DPIA's row-level security shows it only to holders of a DPIA
+ * permission, and this is asked for whoever clocks in or checks in, so it is answered by
+ * `app.signed_dpia_covers(flag)` (migration 0154): the signed version's id when its basis lists
+ * the flag, else null, and nothing else (never the basis or its other features). `dpiaId` is the
+ * signed version relied on, or null when it does not cover the flag.
+ */
+export async function signedDpiaCovers(
+  tx: Transaction,
+  flag: DpiaMonitoringFlag,
+): Promise<{ readonly covered: boolean; readonly dpiaId: string | null }> {
+  const found = await tx.execute<{ dpia_id: string | null }>(
+    sql`SELECT app.signed_dpia_covers(${flag}) AS dpia_id`,
+  );
+  const dpiaId = found.rows[0]?.dpia_id ?? null;
+  return { covered: dpiaId !== null, dpiaId };
+}
+
+/**
+ * An employee-monitoring flag in use at a location (H-527, H-1033, H-1555): switched on there (its
+ * location row, else the organisation's) AND covered by the organisation's signed DPIA. Rows in
+ * `feature_flag` are set directly, so this is checked wherever the monitoring is used, not only
+ * where it is set. `flagOn` is the flag alone; `dpiaId` the signed version relied on.
+ */
+export async function monitoringInUse(
+  flags: FlagService,
+  tx: Transaction,
+  tenantId: string,
+  locationId: string | null,
+  flag: DpiaMonitoringFlag,
+): Promise<{ readonly on: boolean; readonly flagOn: boolean; readonly dpiaId: string | null }> {
+  const evaluated = await flags.evaluateAll({
     tenantId,
-    locationId: null,
-    overrides: overrides.rows.map((r) => ({
-      flagKey: r.flag_key,
-      locationId: r.location_id,
-      enabled: r.enabled,
-    })),
+    locationId,
+    overrides: await flagRows(tx),
   });
+  const flagOn = evaluated[flag] === true;
+  if (!flagOn) return { on: false, flagOn, dpiaId: null };
+  const { covered, dpiaId } = await signedDpiaCovers(tx, flag);
+  return { on: covered, flagOn, dpiaId };
 }
 
 /** The DPIA's open and signed versions. */
@@ -118,9 +164,10 @@ export function dpiaVersionSha256(
 }
 
 /**
- * The organisation's configuration as the prefill reads it. Modules come from the flags in force;
- * an AI provider chosen counts the AI module as planned, so its addendum is signed before the
- * module is switched on (rule 22).
+ * The organisation's configuration as the prefill reads it. Modules come from the flags in force,
+ * with the employee-monitoring flags on for the organisation or at any location; an AI provider
+ * chosen counts the AI module as planned, so its addendum is signed before the module is switched
+ * on (rule 22).
  */
 export async function dpiaConfigFor(
   tx: Transaction,
@@ -142,6 +189,16 @@ export async function dpiaConfigFor(
   const features = Object.entries(flags)
     .filter(([key, on]) => on && key.startsWith("module."))
     .map(([key]) => key as FlagKey);
+  // Employee monitoring (H-1555): on for the organisation, or switched on at any location, counts
+  // as a feature, so the prefill lists it and signing covers it; switching one on after signing
+  // flags the signed DPIA for review.
+  const locationRows = await flagRows(tx);
+  for (const flag of DPIA_MONITORING_FLAGS) {
+    const atALocation = locationRows.some(
+      (r) => r.flagKey === flag && r.locationId !== null && r.enabled,
+    );
+    if (flags[flag] === true || atALocation) features.push(flag);
+  }
   if (t.aiProvider && !features.includes("module.ai" as FlagKey)) {
     features.push("module.ai" as FlagKey);
   }

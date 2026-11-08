@@ -21,7 +21,8 @@ import { type AiProvider, subProcessorsInUse } from "./sub-processors";
  * protection officer or named lead signs it in-app before go-live, and cannot be one of the people
  * who prepared it. A signed DPIA is flagged for re-review when the processing changes (a purpose,
  * sub-processor, data category, feature or standard risk it did not cover) and yearly
- * (`dpia.review_interval_months`).
+ * (`dpia.review_interval_months`). Its features are the modules and the employee-monitoring flags
+ * (`DPIA_MONITORING_FLAGS`), which are used only while the signed DPIA lists them (H-1555).
  */
 
 /** What a signed DPIA covered; compared with the current configuration to find what is new. */
@@ -57,7 +58,10 @@ export interface DpiaConfig {
     readonly regulatorLocationId: string | null;
   }[];
   readonly serviceTypes: readonly string[];
-  /** Modules switched on, plus any the tenant plans to switch on (the AI addendum comes first). */
+  /**
+   * Modules and employee-monitoring flags switched on, plus any the tenant plans to switch on (the
+   * AI addendum comes first).
+   */
   readonly features: readonly FlagKey[];
   readonly optional: Readonly<Record<OptionalProcessingSetting, boolean>>;
   readonly capabilities: { readonly mobilePush: boolean; readonly sms: boolean };
@@ -73,9 +77,41 @@ function processingConfig(config: DpiaConfig) {
   return { sector: config.tenant.sector, features: config.features, optional: config.optional };
 }
 
-/** The features a DPIA must cover: every module (the other flags change no processing). */
+/**
+ * The flags that switch on employee monitoring (H-527, H-1033, H-1555): lone-worker location and
+ * location or NFC clock-in evidence. Each is used only while the organisation's signed DPIA lists
+ * it (`monitoringCovered`), and switching one on flags the signed DPIA for review.
+ */
+export const DPIA_MONITORING_FLAGS = [
+  "scheduling.lone_worker.location",
+  "scheduling.clock.location_evidence",
+] as const satisfies readonly FlagKey[];
+export type DpiaMonitoringFlag = (typeof DPIA_MONITORING_FLAGS)[number];
+
+export function isDpiaMonitoringFlag(flag: string): flag is DpiaMonitoringFlag {
+  return (DPIA_MONITORING_FLAGS as readonly string[]).includes(flag);
+}
+
+/**
+ * The features a DPIA must cover: every module and every employee-monitoring flag (the other
+ * flags change no processing).
+ */
 function dpiaFeatures(features: readonly FlagKey[]): string[] {
-  return [...new Set(features.filter((f) => f.startsWith("module.")))].sort();
+  return [
+    ...new Set(features.filter((f) => f.startsWith("module.") || isDpiaMonitoringFlag(f))),
+  ].sort();
+}
+
+/**
+ * Whether the organisation's signed DPIA covers an employee-monitoring flag: true only when a
+ * signed basis lists it. No signed DPIA, or one signed before the flag was switched on, covers
+ * nothing, so the monitoring is not used until the DPIA is reviewed and signed again (H-1555).
+ */
+export function monitoringCovered(
+  flag: DpiaMonitoringFlag,
+  signedBasis: Pick<DpiaBasis, "features"> | null,
+): boolean {
+  return signedBasis?.features.includes(flag) ?? false;
 }
 
 export function dpiaBasis(config: DpiaConfig): DpiaBasis {
@@ -293,10 +329,15 @@ const PHASE_1_RISKS: readonly DpiaRisk[] = [
 
 /**
  * The Phase 2 processing's risks (dpia-template.md sections 6, 7 and 7B; plan slice 84): staff
- * vetting records, silos for speaking up and casework, location at clock-in, subject access
- * bundles, breaches, adapter providers, imports, single sign-on, staff surveys and applicants.
- * Standard for every tenant once Phase 2 ships; R22, R25 and R28 cover processing still being
- * built, which section 7B says, and a tenant records what it does not use there.
+ * vetting and employment records, silos for speaking up and casework, location and NFC evidence
+ * at clock-in and lone working, subject access bundles and disclosures, breaches, adapter
+ * providers, imports, single sign-on, staff surveys and applicants. All of it is built; R22's
+ * location and NFC evidence is off until the employee-monitoring DPIA (H-527), and R25's adapters
+ * are off by default with mocks only until each provider is assessed (H-793). Standard for every
+ * tenant, whose DPO records in section 7B.6 what it does not use. As with the Phase 1 risks, the
+ * prefill carries each risk's id, wording and initial rating; the measures, evidence and residual
+ * guidance are the template's section 7B, and a test keeps the wording and ratings in step with
+ * sections 6 and 7B.3.
  */
 const PHASE_2_RISKS: readonly DpiaRisk[] = [
   {
@@ -432,7 +473,8 @@ export function prefillDpia(config: DpiaConfig, generatedAt: Date): DpiaDraft {
         specialCategoryLargeScale: true,
         vulnerablePeople: true,
         newTechnology: true,
-        systematicMonitoring: has("module.domiciliary"),
+        systematicMonitoring:
+          has("module.domiciliary") || DPIA_MONITORING_FLAGS.some((flag) => has(flag)),
         aiProcessing: has("module.ai"),
         childrensData: config.serviceTypes.includes("childrens_home"),
       },
@@ -706,8 +748,8 @@ export function dpiaReviewDueAt(
 
 /**
  * What has changed since the DPIA was signed. Removing processing never triggers a review. A
- * standard risk Harbour has added since (for example the Phase 2 risks R20 to R29) does: the
- * signed version never assessed it.
+ * standard risk added since (for example the Phase 2 risks R20 to R29) does: the signed version
+ * never assessed it.
  */
 export function dpiaReviewTriggers(
   signed: { readonly signedAt: Date; readonly basis: DpiaBasis },
@@ -768,7 +810,11 @@ export function dpiaState(
   return { state: "not_started", triggers: [] };
 }
 
-/** Modules that may be switched on only after a signed DPIA covers them (master prompt 16). */
+/**
+ * Modules that may be switched on only after a signed DPIA covers them (master prompt 16). The
+ * employee-monitoring flags (`DPIA_MONITORING_FLAGS`) are not gated here: their rows are set
+ * directly, so they are checked where they are used (`monitoringCovered`) instead.
+ */
 export const DPIA_GATED_FEATURES: readonly FlagKey[] = ["module.ai"];
 
 export type FeatureEnableCheck =
@@ -792,5 +838,8 @@ export function checkFeatureEnable(
       message: "Sign the DPIA with its AI addendum before switching the AI module on.",
     };
   }
-  return { ok: true, reviewTriggered: flag.startsWith("module.") && !covered };
+  return {
+    ok: true,
+    reviewTriggered: (flag.startsWith("module.") || isDpiaMonitoringFlag(flag)) && !covered,
+  };
 }

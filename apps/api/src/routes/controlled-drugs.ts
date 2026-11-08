@@ -5,6 +5,8 @@ import {
   CdPageList,
   CdPageSummary,
   CdRecorderList,
+  CdRecordingChange,
+  CdRecordingState,
   CdWaitingAssertions,
   OpenCdPage,
   RecordCdEntry,
@@ -16,6 +18,8 @@ import {
   controlledDrugPage,
   controlledDrugStockCheck,
   controlledDrugWitnessAssertion,
+  featureFlag,
+  location,
   medication,
   type Transaction,
   tenantUser,
@@ -41,12 +45,15 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
+import { flagsAt } from "../services/care-planning";
 import {
   assertionProblem,
+  CD_RECORDING_FLAG,
   cdEntryOf,
   type PageRow,
   pageEntries,
   pageFor,
+  requireCdRecording,
   type StockCheckRow,
   stockCheckOut,
   witnessPolicyFor,
@@ -65,6 +72,7 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
+import { requireReach } from "./operations";
 
 /**
  * The controlled drugs register (Phase 2 slice 34; MEDS-005; medicines.md section 14; ADR-0083).
@@ -225,48 +233,58 @@ export const controlledDrugsRouter = createRouter()
         200: jsonBody(CdPageSummary, "The page"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
       const access = await requirePermission(c, ADMINISTER);
       const { id: personId } = c.req.valid("param");
       const { entryId } = c.req.valid("json");
-      const out = await withTenant(c, async (tx) => {
-        const person = await loadPerson(tx, personId);
-        await lockPerson(tx, personId);
-        const stored = (await personEntries(tx, personId)).find((s) => s.entry.id === entryId);
-        if (!stored) throw problems.notFound();
-        const [row] = await tx
-          .select({ cd: medication.cdSchedule })
-          .from(medication)
-          .where(eq(medication.id, entryId));
-        if (!row?.cd) {
-          throw problems.invalid(
-            "This medicine is not a controlled drug, so it has no register page.",
-          );
-        }
-        const { page, opened } = await pageFor(tx, stored.entry, access.tenantUserId);
-        if (opened) {
-          await audit(c, tx, access, {
+      const out = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const person = await loadPerson(tx, personId);
+          await lockPerson(tx, personId);
+          // Nothing goes in Thapsus Care's register until recording is released here (H-1517).
+          await requireCdRecording(tx, person.locationId, {
             action: "medicines.cd.page_opened",
-            resourceType: "controlled_drug_page",
-            resourceId: page.id,
+            resourceType: "medication",
+            resourceId: entryId,
             scope: { personId },
           });
-        }
-        const rates = await medicinesRates(
-          tx,
-          access.tenantId,
-          person.nation,
-          ukIsoDate(new Date()),
-        );
-        return summary(
-          tx,
-          page,
-          await witnessPolicyFor(tx, person.locationId),
-          rates.cdStockCheckIntervalDays,
-        );
-      });
+          const stored = (await personEntries(tx, personId)).find((s) => s.entry.id === entryId);
+          if (!stored) throw problems.notFound();
+          const [row] = await tx
+            .select({ cd: medication.cdSchedule })
+            .from(medication)
+            .where(eq(medication.id, entryId));
+          if (!row?.cd) {
+            throw problems.invalid(
+              "This medicine is not a controlled drug, so it has no register page.",
+            );
+          }
+          const { page, opened } = await pageFor(tx, stored.entry, access.tenantUserId);
+          if (opened) {
+            await audit(c, tx, access, {
+              action: "medicines.cd.page_opened",
+              resourceType: "controlled_drug_page",
+              resourceId: page.id,
+              scope: { personId },
+            });
+          }
+          const rates = await medicinesRates(
+            tx,
+            access.tenantId,
+            person.nation,
+            ukIsoDate(new Date()),
+          );
+          return summary(
+            tx,
+            page,
+            await witnessPolicyFor(tx, person.locationId),
+            rates.cdStockCheckIntervalDays,
+          );
+        }),
+      );
       return c.json(out, 200);
     },
   )
@@ -502,6 +520,7 @@ export const controlledDrugsRouter = createRouter()
         201: jsonBody(WitnessAssertionOut, "Signed"),
         ...errorResponses,
         ...notFoundResponse,
+        ...conflictResponse,
       },
     }),
     async (c) => {
@@ -516,6 +535,12 @@ export const controlledDrugsRouter = createRouter()
         withTenant(c, async (tx) => {
           requireStepUp(access, "medicines.cd.witness_asserted", pageId);
           const page = await lockedPage(tx, pageId);
+          await requireCdRecording(tx, (await loadPerson(tx, page.personId)).locationId, {
+            action: "medicines.cd.witness_asserted",
+            resourceType: "controlled_drug_page",
+            resourceId: pageId,
+            scope: { personId: page.personId },
+          });
           if (competence !== "current") {
             throw new AuditedRefusal(
               refusal([
@@ -613,6 +638,12 @@ export const controlledDrugsRouter = createRouter()
           requireStepUp(access, "medicines.cd.entry_recorded", pageId);
           const page = await lockedPage(tx, pageId);
           const person = await loadPerson(tx, page.personId);
+          await requireCdRecording(tx, person.locationId, {
+            action: "medicines.cd.entry_recorded",
+            resourceType: "controlled_drug_page",
+            resourceId: pageId,
+            scope: { personId: page.personId, movement: body.movement },
+          });
           const occurredAt = body.occurredAt ? new Date(body.occurredAt) : now;
           const deny = (issues: readonly { problem: string; message: string }[]) =>
             new AuditedRefusal(refusal(issues), {
@@ -723,6 +754,12 @@ export const controlledDrugsRouter = createRouter()
           requireStepUp(access, "medicines.cd.stock_checked", pageId);
           const page = await lockedPage(tx, pageId);
           const person = await loadPerson(tx, page.personId);
+          await requireCdRecording(tx, person.locationId, {
+            action: "medicines.cd.stock_checked",
+            resourceType: "controlled_drug_page",
+            resourceId: pageId,
+            scope: { personId: page.personId },
+          });
           const policy = await witnessPolicyFor(tx, person.locationId);
           const entries = (await pageEntries(tx, page.id)).map((r) => cdEntryOf(page, r));
           const result = cdStockCheck(entries, body.counted);
@@ -803,5 +840,108 @@ export const controlledDrugsRouter = createRouter()
         }),
       );
       return c.json(out, 201);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "put",
+      path: "/v1/locations/{id}/controlled-drugs/recording",
+      tags,
+      summary: "Turn controlled drug recording on or off at a home",
+      description:
+        "Owner or Registered Manager: `medicines.record.manage` and `platform.location.manage` at the home, with a fresh second sign-in step (H-1517, H-1518; HZ-115, HZ-008). One register is the record: turning it on says the paper register is counted, witnessed and closed now, that each balance is carried into Thapsus Care's register before the next dose, and that the home's phones are updated; turning it off needs a reason and says the paper register is restarted with each balance. The reason is kept with the setting, not in the audit trail. Audited either way, and so is every refusal once the request is well formed. Elsewhere 404.",
+      security,
+      request: {
+        params: PersonParam,
+        body: { content: { "application/json": { schema: CdRecordingChange } }, required: true },
+      },
+      responses: {
+        200: jsonBody(CdRecordingState, "Recording as it now stands at the home"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "medicines.record.manage");
+      // Both permissions through their own checks (MFA, step-up rules, audited refusal).
+      await requirePermission(c, "platform.location.manage");
+      const { id: locationId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const action = "medicines.cd_recording.changed";
+      await requireReach(c, access, "medicines.record.manage", locationId, action);
+      await requireReach(c, access, "platform.location.manage", locationId, action);
+      const denied = (problem: HttpProblem, code: string) =>
+        new AuditedRefusal(problem, {
+          action,
+          outcome: "denied",
+          resourceType: "location",
+          resourceId: locationId,
+          scope: { problems: [code], enabled: body.enabled },
+        });
+      const out = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          if (!stepUpFresh(access)) throw denied(problems.stepUp(), "step_up_required");
+          // One change at a time per home: the location row is the lock.
+          const [home] = await tx
+            .select({ id: location.id })
+            .from(location)
+            .where(and(eq(location.id, locationId), isNull(location.deletedAt)))
+            .for("update");
+          if (!home) throw denied(problems.notFound(), "not_found");
+          // What is in force, as the register's own check reads it: the home's row, else the
+          // organisation's (security review H1), so "off" is never a silent no-op.
+          const was = (await flagsAt(tx, locationId))(CD_RECORDING_FLAG);
+          if (was === body.enabled) return { locationId, enabled: was, changed: false };
+          // The home's own row, deleted or not (the scope key ignores deletion): set it here.
+          const [own] = await tx
+            .select({ id: featureFlag.id })
+            .from(featureFlag)
+            .where(
+              and(
+                eq(featureFlag.locationId, locationId),
+                eq(featureFlag.flagKey, CD_RECORDING_FLAG),
+              ),
+            );
+          // Why it was turned off is kept with the setting, versioned and retained with it, never
+          // in the append-only audit trail (security review M2).
+          const value = body.enabled ? null : { reason: body.reason };
+          if (own) {
+            await tx
+              .update(featureFlag)
+              .set({
+                enabled: body.enabled,
+                value,
+                deletedAt: null,
+                updatedBy: access.tenantUserId,
+              })
+              .where(eq(featureFlag.id, own.id));
+          } else {
+            await tx.insert(featureFlag).values({
+              tenantId: access.tenantId,
+              locationId,
+              flagKey: CD_RECORDING_FLAG,
+              enabled: body.enabled,
+              value,
+              createdBy: access.tenantUserId,
+              updatedBy: access.tenantUserId,
+            });
+          }
+          await audit(c, tx, access, {
+            action,
+            resourceType: "location",
+            resourceId: locationId,
+            scope: body.enabled
+              ? {
+                  enabled: true,
+                  paperRegisterClosed: true,
+                  balancesToCarryForward: true,
+                  phonesUpdated: true,
+                }
+              : { enabled: false, reasonGiven: true, paperRegisterRestarted: true },
+          });
+          return { locationId, enabled: body.enabled, changed: true };
+        }),
+      );
+      return c.json(out, 200);
     },
   );

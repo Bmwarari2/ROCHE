@@ -305,7 +305,12 @@ const MASTER = (section: string) =>
 // Rules
 
 const NEAR_MISS: readonly IncidentType[] = ["near_miss"];
-const MISSING: readonly IncidentType[] = ["missing_person", "absconding"];
+/**
+ * The incident types a missing person episode belongs to: a missing person, or someone leaving
+ * without staff knowing (HZ-127). The API, the web and the rules below read this one list.
+ */
+export const MISSING_INCIDENT_TYPES: readonly IncidentType[] = ["missing_person", "absconding"];
+const MISSING = MISSING_INCIDENT_TYPES;
 const SERVICE_TYPES: readonly IncidentType[] = [
   "environmental",
   "fire_setting",

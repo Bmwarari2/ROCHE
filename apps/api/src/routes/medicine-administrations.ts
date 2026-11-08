@@ -6,9 +6,11 @@ import {
   CheckDosingRecord,
   ConflictRaised,
   CorrectAdministration,
+  DEVICE_HEADER,
   DosingRecordList,
   DosingRecordOut,
   MedicineRound,
+  type PointOfCare,
   RecordAdministration,
   RecordDosingRecord,
   RoundQuery,
@@ -35,6 +37,9 @@ import {
   type MarEntry,
   type MedicinesCompetence,
   marEntryDoses,
+  POINT_OF_CARE_WORDS,
+  type PointOfCareIssue,
+  pointOfCareIssues,
   recordDosingRecord,
   ukIsoDate,
   variableDoseFor,
@@ -57,9 +62,25 @@ import {
   type CdWitnessInput,
   pageEntries,
   pageFor,
+  requireCdRecording,
   witnessPolicyFor,
   writeCdEntry,
 } from "../services/controlled-drugs";
+import {
+  type DeviceSignaturesInput,
+  deviceSignatureProblems,
+  deviceWitnessAssertion,
+} from "../services/device-signatures";
+import { offlineWindowDaysOf } from "../services/devices";
+import { dmdGtinMatches } from "../services/dmd";
+
+/** The time in a UUIDv7 (its first 48 bits, in milliseconds), or null for another version. */
+function uuidV7Time(id: string): Date | null {
+  const hex = id.replace(/-/g, "");
+  if (hex.length !== 32 || hex[12] !== "7") return null;
+  return new Date(Number.parseInt(hex.slice(0, 12), 16));
+}
+
 import {
   type AdministrationRow,
   administrationOut,
@@ -96,6 +117,7 @@ import {
 } from "../services/medicines";
 import { authorityMarks } from "../services/medicines-authority";
 import { loadPerson } from "../services/people";
+import { rateNumber } from "../services/rates";
 import {
   conflictResponse,
   createRouter,
@@ -150,10 +172,12 @@ async function competenceOf(
   tenantId: string,
   memberId: string,
   at: Date,
+  /** The request's own transaction, when called inside one, so no second connection opens. */
+  tx?: Transaction,
 ): Promise<Competence> {
   const port = c.get("services").medicines.competence;
   return {
-    competence: await port.forMember(tenantId, memberId, at),
+    competence: await port.forMember(tenantId, memberId, at, tx),
     override: await port.overrideFor(tenantId, memberId, at),
   };
 }
@@ -310,6 +334,8 @@ async function store(
     readonly correctionReason: string | null;
     readonly cdEntryId?: string | null;
     readonly covert: boolean;
+    /** Identity and pack checks from the phone (ADR-0081), kept as they were sent. */
+    readonly scanEvidence?: PointOfCare | null;
     readonly now: Date;
   },
 ) {
@@ -364,6 +390,7 @@ async function store(
         supersedesId: args.supersedesId,
         correctionReason: args.correctionReason,
         cdEntryId: args.cdEntryId ?? null,
+        scanEvidence: args.scanEvidence ?? null,
       })
       .returning(),
   );
@@ -482,13 +509,68 @@ export const medicineAdministrationsRouter = createRouter()
           if (kept) return { status: 202 as const, conflict: kept };
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
+          // The phone's identity and pack checks (ADR-0081; HZ-001): a dose given needs both. A
+          // phone's upload (it names its device) must carry them; a web record carries none yet,
+          // and its empty scan_evidence reads "not checked at the point of care" (security review
+          // of slice 69, H1).
+          const fromDevice = Boolean(c.req.header(DEVICE_HEADER));
+          const pointOfCare =
+            body.pointOfCare ?? (fromDevice ? { identity: null, pack: null } : null);
+          const pointOfCareProblems: PointOfCareIssue[] = pointOfCare
+            ? pointOfCareIssues(body.outcome === "given", {
+                identity: pointOfCare.identity,
+                pack: pointOfCare.pack?.method ?? null,
+                packOverride: pointOfCare.pack?.override ?? null,
+              })
+            : [];
+          const scanned = pointOfCare?.pack?.method === "scanned" ? pointOfCare.pack : null;
+          if (scanned && !scanned.gtin) pointOfCareProblems.push("pack_not_checked");
+          // A scanned pack is matched here too, through dm+d, never on the phone's word alone
+          // (security review of slice 69, M3): its GTIN in force today names a pack of the entry's
+          // product (its AMP, or for a generic entry its VMP), and the AMPP the phone sent.
+          if (scanned?.gtin && body.outcome === "given") {
+            const packs = await dmdGtinMatches(tx, scanned.gtin, ukIsoDate(now));
+            const product = entry.product;
+            const fits = packs.some(
+              (p) =>
+                (product.ampId ? p.amp.id === product.ampId : p.vmp.id === product.vmpId) &&
+                (scanned.amppId === null || p.pack.id === scanned.amppId),
+            );
+            if (!fits) {
+              throw deny([
+                {
+                  problem: "pack_mismatch",
+                  message:
+                    "The pack scanned is not this medicine in the medicines data. Do not give it: check the pack with the nurse in charge.",
+                },
+              ]);
+            }
+          }
+          if (pointOfCareProblems.length > 0) {
+            throw deny(
+              pointOfCareProblems.map((p) => ({ problem: p, message: POINT_OF_CARE_WORDS[p] })),
+            );
+          }
           // A controlled drug given moves stock: its register entry is written with the record, with
           // a fresh step-up and the witness's signature (slice 34; ADR-0084).
           const isCd = await isControlledDrug(tx, entry.id);
           if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
           const cd = isCd && body.outcome === "given" ? { cdEntryId: randomUUID() } : null;
           if (cd) {
-            requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
+            // Refused before anything else where the register is not released here (H-1517).
+            await requireCdRecording(
+              tx,
+              (await loadPerson(tx, personId)).locationId,
+              deny([]).audit,
+            );
+            requireCdSignatures(
+              access,
+              body.controlledDrug,
+              body.id,
+              personId,
+              deny,
+              Boolean(c.req.header(DEVICE_HEADER)),
+            );
             // The giver records a controlled drug themselves, so the witness is a second person
             // to both (security review H2).
             if (body.givenBy && body.givenBy !== access.tenantUserId) {
@@ -536,13 +618,43 @@ export const medicineAdministrationsRouter = createRouter()
               { problem: "given_at_in_future", message: "Record what has happened, at its time." },
             ]);
           }
+          // A phone's record is judged at the time the phone recorded it (drift-corrected), not when
+          // it arrived: a dose given offline is a round record, not one made after a delay. The time
+          // must agree with the record's own UUIDv7 time and not be in the future (clinical review
+          // of slice 69, B1); the server's time is still stored as recorded_at.
+          let judgedAt = now;
+          if (body.deviceRecordedAt) {
+            const driftMs = facts.rates.clockDriftMinutes * 60_000;
+            const deviceRecorded = driftCorrectedTime(
+              new Date(body.deviceRecordedAt),
+              body.deviceOffsetMs,
+              facts.rates,
+            ).at;
+            const idTime = uuidV7Time(body.id);
+            if (
+              !c.req.header(DEVICE_HEADER) ||
+              !idTime ||
+              Math.abs(idTime.getTime() - new Date(body.deviceRecordedAt).getTime()) > driftMs ||
+              deviceRecorded.getTime() > now.getTime() + driftMs ||
+              deviceRecorded.getTime() < at.getTime()
+            ) {
+              throw deny([
+                {
+                  problem: "device_recorded_at_invalid",
+                  message:
+                    "The time this phone recorded the dose cannot be used. Check the phone's clock.",
+                },
+              ]);
+            }
+            judgedAt = deviceRecorded.getTime() > now.getTime() ? now : deviceRecorded;
+          }
           // Who gave it: the recorder, or (recorded after giving) the member named, whose
           // competence then the rules check; the recorder's competence now is checked too.
           const giverId = gbr ? (body.givenBy ?? access.tenantUserId) : access.tenantUserId;
           const giver = {
             id: giverId,
             ...(at.getTime() !== now.getTime()
-              ? await competenceOf(c, access.tenantId, giverId, at)
+              ? await competenceOf(c, access.tenantId, giverId, at, tx)
               : me),
           };
           const { input, versionIds } = inputFor({
@@ -551,14 +663,14 @@ export const medicineAdministrationsRouter = createRouter()
             entries: facts.entries,
             body,
             at,
-            recordedAt: now,
+            recordedAt: judgedAt,
             administrator: giver,
             competenceAtRecording:
               giverId === access.tenantUserId
                 ? me.competence
                 : await c
                     .get("services")
-                    .medicines.competence.forMember(access.tenantId, giverId, now),
+                    .medicines.competence.forMember(access.tenantId, giverId, now, tx),
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,
@@ -627,6 +739,7 @@ export const medicineAdministrationsRouter = createRouter()
             correctionReason: null,
             cdEntryId: cd?.cdEntryId ?? null,
             covert: body.covert,
+            scanEvidence: body.pointOfCare,
             now,
           });
           // Slice 42's stock hook (medicines.md section 15 rule 3): a given dose moves the person's
@@ -671,6 +784,8 @@ export const medicineAdministrationsRouter = createRouter()
               administrationId: body.id,
               givenBy: giverId,
               now,
+              toleranceMs: facts.rates.clockDriftMinutes * 60_000,
+              deviceGivenAt: body.givenAt,
             });
           }
           return {
@@ -770,7 +885,7 @@ export const medicineAdministrationsRouter = createRouter()
           const giverId = body.givenBy ?? original.administeredBy;
           const giver = {
             id: giverId,
-            ...(await competenceOf(c, access.tenantId, giverId, at)),
+            ...(await competenceOf(c, access.tenantId, giverId, at, tx)),
           };
           const { input, versionIds } = inputFor({
             personId,
@@ -782,7 +897,7 @@ export const medicineAdministrationsRouter = createRouter()
             administrator: giver,
             competenceAtRecording: await c
               .get("services")
-              .medicines.competence.forMember(access.tenantId, giverId, now),
+              .medicines.competence.forMember(access.tenantId, giverId, now, tx),
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,
@@ -823,7 +938,16 @@ export const medicineAdministrationsRouter = createRouter()
           if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
           const cdMove = isCd ? registerMoveForCorrection(original, body, at) : null;
           if (cdMove) {
-            requireCdSignatures(access, body.controlledDrug, body.id, personId, deny);
+            // Refused before anything else where the register is not released here (H-1517).
+            await requireCdRecording(tx, facts.person.locationId, deny([]).audit);
+            requireCdSignatures(
+              access,
+              body.controlledDrug,
+              body.id,
+              personId,
+              deny,
+              Boolean(c.req.header(DEVICE_HEADER)),
+            );
             // The witness is never the giver or the recorder: the signature check and the
             // register trigger compare both (security review H2).
           }
@@ -1310,7 +1434,7 @@ export async function isControlledDrug(tx: Transaction, entryId: string): Promis
   return Boolean(row?.cd);
 }
 
-type Deny = (issues: readonly { problem: string; message: string }[]) => Error;
+type Deny = (issues: readonly { problem: string; message: string }[]) => AuditedRefusal;
 
 /**
  * A controlled drug taken by the person themselves or given by family is not recorded here until
@@ -1332,10 +1456,11 @@ function refuseUnheldCdOutcome(outcome: string, deny: Deny) {
 /** A controlled drug's stock moves only with a fresh step-up and a second signature (ADR-0084). */
 function requireCdSignatures(
   access: TenantAccess,
-  witness: CdWitnessInput | null,
+  witness: CdWitnessInput | { readonly deviceSignatures: DeviceSignaturesInput } | null,
   recordId: string,
   personId: string,
   deny: Deny,
+  fromDevice = false,
 ) {
   // Moving controlled drug stock needs medicines.cd.administer (security review H1).
   if (!can(access.effective, "medicines.cd.administer")) {
@@ -1347,7 +1472,18 @@ function requireCdSignatures(
       scope: { personId, problems: ["missing_permission"] },
     });
   }
-  if (!stepUpFresh(access)) {
+  // On a phone offline the recorder's own signature, verified with the witness's when the record
+  // arrives, stands for the step-up (ADR-0084; slice 70); it is accepted only from a device.
+  const deviceSigned = witness !== null && "deviceSignatures" in witness;
+  if (deviceSigned && !fromDevice) {
+    throw deny([
+      {
+        problem: "device_signatures_from_device",
+        message: "Signatures made on a phone are sent by that phone.",
+      },
+    ]);
+  }
+  if (!deviceSigned && !stepUpFresh(access)) {
     throw new AuditedRefusal(problems.stepUp(), {
       action: "medicines.cd.entry_recorded",
       outcome: "denied",
@@ -1426,13 +1562,84 @@ async function writeRegisterEntry(
     readonly corrects: "quantity" | "detail" | null;
     readonly reason: string | null;
     readonly occurredAt: Date;
-    readonly witness: CdWitnessInput;
+    readonly witness: CdWitnessInput | { readonly deviceSignatures: DeviceSignaturesInput };
     readonly administrationId: string;
     readonly givenBy: string;
     readonly now: Date;
+    /** The clock-drift figure, for signatures made on a phone (slice 70). */
+    readonly toleranceMs?: number;
+    /** When the phone says the dose was given, as it sent it (the signed statement's). */
+    readonly deviceGivenAt?: string | null;
   },
 ) {
+  // Nothing goes in Thapsus Care's register until recording is released here (H-1517): the dose
+  // is refused, audited as the caller's action, and recorded on paper instead.
+  await requireCdRecording(tx, e.locationId, deny([]).audit);
   const { page, opened } = await pageFor(tx, e.entry, access.tenantUserId);
+  // Offline on one phone (ADR-0084; slice 70): both signatures are verified here, and the
+  // witness's becomes the register's own assertion, used at once by the entry below.
+  let witness: CdWitnessInput;
+  if ("deviceSignatures" in e.witness) {
+    const deviceId = c.req.header(DEVICE_HEADER)?.toLowerCase() ?? "";
+    const person = await loadPerson(tx, e.entry.personId);
+    const minutes = await rateNumber(
+      tx,
+      access.tenantId,
+      "medicines.cd.witness_assertion_minutes",
+      person.nation,
+    );
+    const port = c.get("services").medicines.competence;
+    const signed = e.witness.deviceSignatures;
+    const witnessId = signed.witness?.witnessId ?? "";
+    const windowDays = await offlineWindowDaysOf(tx, access.tenantId);
+    const problems = await deviceSignatureProblems(
+      tx,
+      {
+        tenantId: access.tenantId,
+        deviceId,
+        recorderId: access.tenantUserId,
+        personId: e.entry.personId,
+        entryId: e.entry.id,
+        administrationId: e.administrationId,
+        quantity: e.quantity,
+        unitCode: e.unitCode ?? page.unitCode,
+        locationId: e.locationId,
+        vmpId: e.entry.product.vmpId,
+        givenAt: e.deviceGivenAt ?? "",
+        recordTime: uuidV7Time(e.administrationId),
+      },
+      signed,
+      {
+        now: e.now,
+        toleranceMs: e.toleranceMs ?? 0,
+        apartMs: minutes * 60_000,
+        windowMs: windowDays * 86_400_000,
+        witnessCompetent: async (at) =>
+          (await port.forMember(access.tenantId, witnessId, at, tx)) === "current",
+      },
+    );
+    if (!e.deviceGivenAt) {
+      problems.push({ problem: "given_at_required", message: "Say when the dose was given." });
+    }
+    if (problems.length > 0) throw deny(problems);
+    witness = signed.witness
+      ? {
+          witnessAssertionId: await deviceWitnessAssertion(tx, {
+            personId: e.entry.personId,
+            pageId: page.id,
+            quantity: e.quantity,
+            administrationId: e.administrationId,
+            recorderId: access.tenantUserId,
+            witness: signed.witness,
+            expiresAt: new Date(e.now.getTime() + minutes * 60_000),
+          }),
+        }
+      : // A lone worker where the policy allows it: why there was no witness; the register
+        // refuses it where a witness is required, and flags it for manager review otherwise.
+        { noWitnessReason: signed.noWitnessReason ?? "" };
+  } else {
+    witness = e.witness;
+  }
   if (opened) {
     await audit(c, tx, access, {
       action: "medicines.cd.page_opened",
@@ -1467,7 +1674,7 @@ async function writeRegisterEntry(
     reference: late
       ? "Recorded after it was given: the time given is on the administration record"
       : null,
-    witness: e.witness,
+    witness,
     administrationId: e.administrationId,
     recordedBy: access.tenantUserId,
     givenBy: e.givenBy,

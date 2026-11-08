@@ -16,7 +16,7 @@ workforce guides' review.
     observation (403 and audited otherwise). New `GET /v1/workforce/members/{memberId}/care-certificate`
     returns the Care Certificate alone to holders of the staff file read or manage permission or
     the observe permission.
-  - Database (migration 0154): the update policy on `care_certificate_progress` now names the
+  - Database (migration 0157): the update policy on `care_certificate_progress` now names the
     observe permission alone, as the API does. The new definer `app.care_certificate_profile`
     finds a member's staff file for observers without letting them read it. It is owned by
     `harbour_workforce_definer`.
@@ -28,8 +28,8 @@ workforce guides' review.
     or themselves, and cannot change the confirmer once the cycle is confirmed.
   - Only the named confirmer, acting for themselves, can record the confirmation, and only after
     HR's review. Anyone else gets 403 `not_the_confirmer`, which is audited.
-  - Migration 0153 adds `revalidation_evidence.confirmer_id`, with a check that it is never the
-    worker. Migration 0154 extends `app.revalidation_guard` to enforce the rule in the database.
+  - Migration 0156 adds `revalidation_evidence.confirmer_id`, with a check that it is never the
+    worker. Migration 0157 extends `app.revalidation_guard` to enforce the rule in the database.
   - The planner's HR form no longer has a confirmation checkbox. HR is offered "Name the
     confirmer". Only the named confirmer is offered "Record your confirmation", with a date and a
     confirmation box. The plan shows who is to confirm, or who confirmed and when.
@@ -56,7 +56,7 @@ workforce guides' review.
 - The picker now comes from the new `GET .../revalidation/confirmers`, through the definer
   `app.revalidation_confirmer_candidates`. It leaves out the nurse, the caller and the reviewer.
   The earlier widening of `GET /v1/workforce/colleagues` is withdrawn.
-- These changes are in migration 0154, which is not yet merged and is edited in place. Database,
+- These changes are in migration 0157, which is not yet merged and is edited in place. Database,
   API and domain tests cover each rule.
 - New Playwright journeys in `apps/web/e2e/training.spec.ts`:
   - "a clinical lead without the staff file records a Care Certificate observation". The demo

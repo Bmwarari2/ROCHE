@@ -59,6 +59,14 @@ const location = new Table({
   nation: column.text,
 });
 
+/** The services a home runs, for the controlled drugs witness policy (medicines.md rule 27). */
+const location_service = new Table({
+  tenant_id: column.text,
+  location_id: column.text,
+  service_type: column.text,
+  status: column.text,
+});
+
 /** Local-only bookkeeping: last successful sync, queued writes, clock drift (hazard HZ-002, HZ-006). */
 const sync_meta = new Table(
   {
@@ -650,6 +658,11 @@ const medication = new Table(
     replaced_by_id: column.text,
     replaced_from: column.text,
     stop_at: column.text,
+    /** 'transcribed' | 'reconciliation' | 'import': an unchecked import is held (HZ-005). */
+    origin: column.text,
+    corrected_part_way_through: column.text,
+    earlier_doses_due_on: column.text,
+    earlier_doses_due_reason: column.text,
   },
   { indexes: { by_person: ["person_id"], by_medicine: ["medicine_id"] } },
 );
@@ -713,10 +726,16 @@ const medication_administration = new Table(
     unit_code: column.text,
     given_at: column.text,
     administered_by: column.text,
+    recorded_by: column.text,
     recorded_at: column.text,
     supersedes_id: column.text,
     covert: column.integer,
     flags: column.text,
+    /**
+     * Local only (never in a stream): the request a dose recorded on this phone will send
+     * (slice 69). Set until the server's row replaces it, so the round says "not synced yet".
+     */
+    request: column.text,
   },
   { indexes: { by_medication: ["medication_id"], by_person: ["person_id"] } },
 );
@@ -732,6 +751,8 @@ const competence_sign_off = new Table({
 const competence_withdrawal = new Table({
   tenant_id: column.text,
   sign_off_id: column.text,
+  /** When it was withdrawn: a withdrawal is about the member from that UK day (competenceDecision). */
+  created_at: column.text,
 });
 
 /**
@@ -793,6 +814,7 @@ export const AppSchema = new Schema({
   lone_worker_outbox,
   elearning_outbox,
   medication,
+  location_service,
   medication_schedule,
   medication_dosing_record,
   covert_medication_record,
@@ -849,6 +871,7 @@ export const NEVER_EVICT_TABLES = [
   "person",
   "allergy",
   "location",
+  "location_service",
   "person_care_profile",
   "care_plan",
   "care_plan_section",
@@ -887,6 +910,10 @@ export const ROUND_AND_HANDOVER_TABLES = [
  */
 export const ROUND_WRITABLE_TABLES = ["task", "handover_acknowledgement"] as const;
 export type RoundWritableTable = (typeof ROUND_WRITABLE_TABLES)[number];
+
+/** What the phone sends for a dose recorded on the round (slice 69): to the administrations route. */
+export const MEDICINES_WRITABLE_TABLES = ["medication_administration"] as const;
+export type MedicinesWritableTable = (typeof MEDICINES_WRITABLE_TABLES)[number];
 
 /** What the phone sends for a course taken offline (slice 72): to the e-learning routes. */
 export const TRAINING_WRITABLE_TABLES = ["elearning_outbox"] as const;

@@ -371,7 +371,7 @@ describe("workforce reminder tasks reach their permission's holders (workforce.m
   });
 });
 
-describe("H-693 only the named confirmer records the revalidation confirmation (rule 8; migration 0154)", () => {
+describe("H-693 only the named confirmer records the revalidation confirmation (rule 8; migration 0157)", () => {
   const CYCLE = "2027-03-31";
   const update =
     (set: string, params: unknown[] = []) =>
@@ -472,7 +472,7 @@ describe("H-693 only the named confirmer records the revalidation confirmation (
   });
 });
 
-describe("review and confirmation are separate duties (security advisory a; migration 0154)", () => {
+describe("review and confirmation are separate duties (security advisory a; migration 0157)", () => {
   const CYCLE = "2027-09-30";
   const asHr2 = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
     inContext(app(), ctx(TENANT_A, HR2, "none"), fn);

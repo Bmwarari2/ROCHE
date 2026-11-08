@@ -1,4 +1,5 @@
 import { button } from "@harbour/ui/tokens";
+import Check from "lucide-react-native/icons/check";
 import type { Ref } from "react";
 import {
   ActivityIndicator,
@@ -42,6 +43,12 @@ export interface ButtonProps {
   readonly fullWidth?: boolean;
   readonly style?: StyleProp<ViewStyle>;
   readonly testID?: string;
+  /**
+   * A choice in a group (`radio`) or a tick box (`checkbox`): the state is exposed to assistive
+   * technology and shown with a check icon and the filled style, never by fill alone (WCAG 1.4.1,
+   * 4.1.2).
+   */
+  readonly selection?: { readonly kind: "radio" | "checkbox"; readonly selected: boolean };
 }
 
 /** Pill button from the tokens: 44 pt minimum target, 8 x 16 padding, 17 pt label. */
@@ -61,10 +68,15 @@ export function Button({
   fullWidth = false,
   style,
   testID,
+  selection,
 }: ButtonProps) {
   const theme = useTheme();
   const haptics = useHaptics();
   const inactive = disabled || loading;
+  if (selection) {
+    variant = selection.selected ? "primary" : "secondary";
+    if (selection.selected) Icon = Check;
+  }
 
   const palette = theme.colors;
   const background =
@@ -93,10 +105,14 @@ export function Button({
   return (
     <Pressable
       ref={focusRef}
-      accessibilityRole="button"
+      accessibilityRole={selection?.kind ?? "button"}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled: inactive, busy: loading }}
+      accessibilityState={{
+        disabled: inactive,
+        busy: loading,
+        ...(selection ? { checked: selection.selected, selected: selection.selected } : {}),
+      }}
       disabled={inactive}
       onPress={handlePress}
       onLongPress={handleLongPress}

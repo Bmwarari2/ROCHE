@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixedCompetence } from "../src/integrations/medicines-ports";
 import { outboxHandlers, relayOutbox } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { ageSession, createHarness, type Harness } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * The controlled drugs register API (Phase 2 slice 34; MEDS-005; medicines.md section 14): the
@@ -496,5 +496,385 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
       expect(actions.has(a), [...actions].join(", ")).toBe(true);
     }
     expect(JSON.stringify(rows)).not.toMatch(/Morphine|tablet|Example Pharmacy|cupboard/);
+  });
+});
+
+describe("hazard HZ-115 nothing goes in the register where controlled drug recording is not turned on (H-1517)", () => {
+  const setRecording = (enabled: boolean) =>
+    asDemo((c) =>
+      c.query(
+        "UPDATE feature_flag SET enabled = $2 WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+        [DEMO.locationId, enabled],
+      ),
+    );
+  const refusedFor = async (r: Response) => {
+    expect(r.status, await r.clone().text()).toBe(409);
+    expect((await json<{ code: string }>(r)).code).toBe("cd_recording_not_enabled");
+  };
+
+  it("refuses every write with 409 cd_recording_not_enabled, audited, and takes them again once released", async () => {
+    // A page opened while recording is released, then recording turned off at the home.
+    const entryId = await morphineEntry(BEN);
+    const opened = await send("manager", `/v1/people/${BEN}/controlled-drugs/pages`, {
+      method: "POST",
+      body: { entryId },
+    });
+    expect(opened.status, await opened.clone().text()).toBe(200);
+    const pageId = (await json<{ id: string }>(opened)).id;
+    const registerRows = () =>
+      asDemo(
+        async (c) =>
+          (
+            await c.query(
+              `SELECT (SELECT count(*) FROM controlled_drug_page)::int AS pages,
+                      (SELECT count(*) FROM controlled_drug_entry)::int AS entries,
+                      (SELECT count(*) FROM controlled_drug_stock_check)::int AS checks`,
+            )
+          ).rows[0],
+      );
+    // A receipt and a dose given while released, so there is something to correct later.
+    const receipt = await send("manager", `/v1/controlled-drugs/pages/${pageId}/entries`, {
+      method: "POST",
+      body: {
+        movement: "receipt",
+        quantity: 28,
+        counterparty: "Example Pharmacy",
+        reference: "Delivery note 2002",
+        witness: { witnessAssertionId: await witness(pageId, "receipt", 28) },
+      },
+    });
+    expect(receipt.status, await receipt.clone().text()).toBe(201);
+    const dueRound = await json<{ doses: { entryId: string; dueAt: string; state: string }[] }>(
+      await send("manager", `/v1/people/${BEN}/medicine-round`),
+    );
+    const givenDue = dueRound.doses.find((d) => d.entryId === entryId && d.state !== "late")
+      ?.dueAt as string;
+    const givenId = randomUUID();
+    const gave = await send("manager", `/v1/people/${BEN}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: givenId,
+        entryId,
+        dueAt: givenDue,
+        outcome: "given",
+        amount: { quantity: 1, unitCode: TABLET.code },
+        controlledDrug: {
+          witnessAssertionId: await witness(pageId, "administration", 1, givenId),
+        },
+      },
+    });
+    expect(gave.status, await gave.clone().text()).toBe(201);
+    const givenAt = (await json<{ administration: { givenAt: string } }>(gave)).administration
+      .givenAt;
+    const before = await registerRows();
+    await setRecording(false);
+    try {
+      // Opening a page.
+      const another = await morphineEntry(BEN);
+      await refusedFor(
+        await send("manager", `/v1/people/${BEN}/controlled-drugs/pages`, {
+          method: "POST",
+          body: { entryId: another },
+        }),
+      );
+      // Signing as a witness.
+      await refusedFor(
+        await send("carer", `/v1/controlled-drugs/pages/${pageId}/witness-assertions`, {
+          method: "POST",
+          body: {
+            movement: "receipt",
+            quantity: 28,
+            administrationId: null,
+            recorderId: DEMO.users.manager.id,
+          },
+        }),
+      );
+      // A receipt (any movement or correction goes through the same route).
+      await refusedFor(
+        await send("manager", `/v1/controlled-drugs/pages/${pageId}/entries`, {
+          method: "POST",
+          body: {
+            movement: "receipt",
+            quantity: 28,
+            counterparty: "Example Pharmacy",
+            reference: "Delivery note 2001",
+            witness: { witnessAssertionId: randomUUID() },
+          },
+        }),
+      );
+      // A stock count.
+      await refusedFor(
+        await send("manager", `/v1/controlled-drugs/pages/${pageId}/stock-checks`, {
+          method: "POST",
+          body: { counted: 0, reason: null, witness: { witnessAssertionId: randomUUID() } },
+        }),
+      );
+      // A controlled drug given, which would write its register entry.
+      const round = await json<{ doses: { entryId: string; dueAt: string }[] }>(
+        await send("manager", `/v1/people/${BEN}/medicine-round`),
+      );
+      const dueAt = round.doses.find((d) => d.entryId === entryId)?.dueAt;
+      await refusedFor(
+        await send("manager", `/v1/people/${BEN}/medicine-administrations`, {
+          method: "POST",
+          body: {
+            id: randomUUID(),
+            entryId,
+            dueAt,
+            outcome: "given",
+            amount: { quantity: 1, unitCode: TABLET.code },
+            controlledDrug: { witnessAssertionId: randomUUID() },
+          },
+        }),
+      );
+      // Correcting the amount of the controlled drug given while recording was released.
+      await refusedFor(
+        await send("manager", `/v1/medicine-administrations/${givenId}/corrections`, {
+          method: "POST",
+          body: {
+            id: randomUUID(),
+            correctionReason: "Two tablets were given, not one",
+            entryId,
+            dueAt: givenDue,
+            outcome: "given",
+            // A different amount moves the register's balance, so it would write a margin entry.
+            amount: { quantity: 2, unitCode: TABLET.code },
+            amountDifferenceReason: "Two tablets were given by mistake",
+            givenAt: givenAt,
+          },
+        }),
+      );
+      // Nothing reached the register.
+      expect(await registerRows()).toEqual(before);
+      // Each refusal is audited as denied, with its code.
+      const denied = await asDemo(async (c) =>
+        (
+          await c.query(
+            `SELECT action FROM audit_event
+              WHERE outcome = 'denied' AND scope::text LIKE '%cd_recording_not_enabled%'`,
+          )
+        ).rows.map((r) => r.action as string),
+      );
+      expect(new Set(denied)).toEqual(
+        new Set([
+          "medicines.cd.page_opened",
+          "medicines.cd.witness_asserted",
+          "medicines.cd.entry_recorded",
+          "medicines.cd.stock_checked",
+          "medicines.administration.recorded",
+          "medicines.administration.corrected",
+        ]),
+      );
+    } finally {
+      await setRecording(true);
+    }
+    // Released again: the page opens as before.
+    const again = await send("manager", `/v1/people/${BEN}/controlled-drugs/pages`, {
+      method: "POST",
+      body: { entryId },
+    });
+    expect(again.status).toBe(200);
+  });
+});
+
+describe("hazard HZ-115 hazard HZ-008 turning controlled drug recording on and off at a home (H-1518)", () => {
+  const path = `/v1/locations/${DEMO.locationId}/controlled-drugs/recording`;
+  const on = {
+    enabled: true,
+    paperRegisterClosed: true,
+    balancesToCarryForward: true,
+    phonesUpdated: true,
+  };
+  const off = {
+    enabled: false,
+    reason: "Phones at the home are being replaced this week",
+    paperRegisterRestarted: true,
+  };
+  const flag = () =>
+    asDemo(
+      async (c) =>
+        (
+          await c.query<{ enabled: boolean }>(
+            "SELECT enabled FROM feature_flag WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+            [DEMO.locationId],
+          )
+        ).rows[0]?.enabled ?? false,
+    );
+  const audits = (outcome: string) =>
+    asDemo(
+      async (c) =>
+        (
+          await c.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM audit_event
+              WHERE action = 'medicines.cd_recording.changed' AND resource_id = $1 AND outcome = $2`,
+            [DEMO.locationId, outcome],
+          )
+        ).rows[0]?.n ?? 0,
+    );
+
+  it("lets the Registered Manager turn it off with a reason, refuses register writes, and turn it on again", async () => {
+    const before = await audits("success");
+    const turnedOff = await send("manager", path, { method: "PUT", body: off });
+    expect(turnedOff.status, await turnedOff.clone().text()).toBe(200);
+    expect(await json(turnedOff)).toEqual({
+      locationId: DEMO.locationId,
+      enabled: false,
+      changed: true,
+    });
+    expect(await flag()).toBe(false);
+    try {
+      const entryId = await morphineEntry(ADA);
+      const refused = await send("manager", `/v1/people/${ADA}/controlled-drugs/pages`, {
+        method: "POST",
+        body: { entryId },
+      });
+      expect(refused.status).toBe(409);
+      expect((await json<{ code: string }>(refused)).code).toBe("cd_recording_not_enabled");
+    } finally {
+      const turnedOn = await send("manager", path, { method: "PUT", body: on });
+      expect(turnedOn.status, await turnedOn.clone().text()).toBe(200);
+    }
+    expect(await flag()).toBe(true);
+    expect(await audits("success")).toBe(before + 2);
+    // Asking for what is already so changes nothing and writes no audit.
+    const again = await send("manager", path, { method: "PUT", body: on });
+    expect((await json<{ changed: boolean }>(again)).changed).toBe(false);
+    expect(await audits("success")).toBe(before + 2);
+  });
+
+  it.each([
+    [
+      "turning it on without saying the paper register is closed",
+      { ...on, paperRegisterClosed: false },
+    ],
+    [
+      "turning it on without the balances to carry forward",
+      { ...on, balancesToCarryForward: undefined },
+    ],
+    ["turning it off without a reason", { ...off, reason: " " }],
+    [
+      "turning it off without restarting the paper register",
+      { ...off, paperRegisterRestarted: false },
+    ],
+  ])("refuses %s", async (_case, body) => {
+    const r = await send("manager", path, { method: "PUT", body });
+    expect(r.status).toBe(422);
+    expect(await flag()).toBe(true);
+  });
+
+  it("keeps why it was turned off with the setting, never in the audit trail", async () => {
+    const turnedOff = await send("manager", path, { method: "PUT", body: off });
+    expect(turnedOff.status, await turnedOff.clone().text()).toBe(200);
+    try {
+      const stored = await asDemo(async (c) => ({
+        value: (
+          await c.query<{ value: { reason?: string } | null }>(
+            "SELECT value FROM feature_flag WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+            [DEMO.locationId],
+          )
+        ).rows[0]?.value,
+        audited: (
+          await c.query<{ scope: string }>(
+            `SELECT scope::text AS scope FROM audit_event
+              WHERE action = 'medicines.cd_recording.changed' AND resource_id = $1
+              ORDER BY occurred_at DESC LIMIT 1`,
+            [DEMO.locationId],
+          )
+        ).rows[0]?.scope,
+      }));
+      expect(stored.value?.reason).toBe(off.reason);
+      expect(stored.audited).toContain("reasonGiven");
+      expect(stored.audited).not.toContain(off.reason);
+    } finally {
+      await send("manager", path, { method: "PUT", body: on });
+    }
+  });
+
+  it("turns it off at the home even where the organisation turned it on for every home", async () => {
+    await asDemo(async (c) => {
+      await c.query(
+        "UPDATE feature_flag SET deleted_at = now() WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+        [DEMO.locationId],
+      );
+      await c.query(
+        `INSERT INTO feature_flag (tenant_id, location_id, flag_key, enabled)
+         VALUES ($1, NULL, 'medicines.cd_recording', true)`,
+        [DEMO.tenantId],
+      );
+    });
+    try {
+      const r = await send("manager", path, { method: "PUT", body: off });
+      expect(r.status, await r.clone().text()).toBe(200);
+      expect((await json<{ changed: boolean; enabled: boolean }>(r)).changed).toBe(true);
+      expect(await flag()).toBe(false);
+      const entryId = await morphineEntry(ADA);
+      const refused = await send("manager", `/v1/people/${ADA}/controlled-drugs/pages`, {
+        method: "POST",
+        body: { entryId },
+      });
+      expect(refused.status).toBe(409);
+    } finally {
+      await asDemo((c) =>
+        c.query(
+          "DELETE FROM feature_flag WHERE flag_key = 'medicines.cd_recording' AND location_id IS NULL",
+        ),
+      );
+      const back = await send("manager", path, { method: "PUT", body: on });
+      expect(back.status, await back.clone().text()).toBe(200);
+    }
+    expect(await flag()).toBe(true);
+  });
+
+  it.each([
+    ["another home the manager does not manage", LODGE.locationId],
+    ["another organisation's home", OTHER.locationId],
+  ])("does not change %s, and audits the refusal", async (_case, locationId) => {
+    const before = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM audit_event
+              WHERE action = 'medicines.cd_recording.changed' AND resource_id = $1 AND outcome = 'denied'`,
+            [locationId],
+          )
+        ).rows[0]?.n ?? 0,
+    );
+    const r = await send("manager", `/v1/locations/${locationId}/controlled-drugs/recording`, {
+      method: "PUT",
+      body: off,
+    });
+    expect(r.status).toBe(404);
+    const after = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM audit_event
+              WHERE action = 'medicines.cd_recording.changed' AND resource_id = $1 AND outcome = 'denied'`,
+            [locationId],
+          )
+        ).rows[0]?.n ?? 0,
+    );
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it("is not for a care worker or a nurse, and refuses a stale second sign-in step, audited", async () => {
+    for (const user of ["carer", "nurse"]) {
+      const r = await send(user, path, { method: "PUT", body: off });
+      expect([403, 404], `${user}: ${r.status}`).toContain(r.status);
+    }
+    expect(await flag()).toBe(true);
+    const deniedBefore = await audits("denied");
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.manager?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      const r = await send("manager", path, { method: "PUT", body: off });
+      expect(r.status).toBe(403);
+      expect((await json<{ code: string }>(r)).code).toBe("step_up_required");
+    } finally {
+      await ageSession(auth, session, 0);
+    }
+    expect(await flag()).toBe(true);
+    expect(await audits("denied")).toBeGreaterThan(deniedBefore);
   });
 });

@@ -253,7 +253,7 @@ describe("the Care Certificate (rule 20)", () => {
   });
 
   // Row-level security agrees with the API: the observation (the table's only update) needs
-  // workforce.competence.observe and no staff file permission (migration 0154).
+  // workforce.competence.observe and no staff file permission (migration 0157).
   it.each([
     ["an assessor with workforce.competence.observe alone", "assessor", 1],
     ["HR with the staff file's permissions but not the observe permission", "hr", 0],
@@ -300,7 +300,7 @@ describe("the Care Certificate (rule 20)", () => {
     ["an assessor with workforce.competence.observe alone", "assessor", PROFILE],
     ["HR", "hr", PROFILE],
     ["the worker, for themselves", "worker", PROFILE],
-  ] as const)("names the worker's file to %s (migration 0154)", async (_name, who, expected) => {
+  ] as const)("names the worker's file to %s (migration 0157)", async (_name, who, expected) => {
     const run = { assessor: asAssessor, hr: asHr, worker: asWorker }[who];
     const { rows } = await run((c) =>
       c.query<{ id: string | null }>("SELECT app.care_certificate_profile($1) AS id", [a.carer]),

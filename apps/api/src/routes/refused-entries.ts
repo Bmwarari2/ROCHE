@@ -71,15 +71,22 @@ export function createRefusedEntriesRouter() {
         }
         // A handed-over copy is checked against the hold like the entry it is, and admitted in
         // the copy's transaction (#25 review round 3, low).
-        const admission = handover
-          ? await planHandedOverEntry(c, handover, {
-              table: body.table,
-              entryId: body.entryId,
-              personId: body.personId?.toLowerCase() ?? null,
-              occurredAt: body.payload.occurredAt,
-              deviceTime: body.payload.deviceTime,
-            })
-          : null;
+        // A dose's copy is sent by the phone that recorded it, never through a hand-over (slice 70).
+        if (handover && body.table === "medication_administration") {
+          throw problems.invalid(
+            "A dose recorded on a phone is not handed over: send it from that phone.",
+          );
+        }
+        const admission =
+          handover && body.table !== "medication_administration"
+            ? await planHandedOverEntry(c, handover, {
+                table: body.table,
+                entryId: body.entryId,
+                personId: body.personId?.toLowerCase() ?? null,
+                occurredAt: body.payload.occurredAt,
+                deviceTime: body.payload.deviceTime,
+              })
+            : null;
         const result = await copyRefusedEntry(c.get("services").db, access, body, {
           author: handover?.ownerTenantUserId ?? access.tenantUserId,
           deviceId: access.deviceId,

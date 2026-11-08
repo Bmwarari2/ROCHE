@@ -86,7 +86,7 @@ import { audit, dbCode } from "./people-shared";
  * worker's own with workforce.self.read); written with .manage, never on one's own file; Care
  * Certificate observations only by holders of workforce.competence.observe, which needs no staff
  * file permission (the knowledge assessment by them or by .manage). The database enforces the
- * same (migrations 0091 and 0154). Audit events carry opaque ids and codes only: never notes, the exit
+ * same (migrations 0091 and 0157). Audit events carry opaque ids and codes only: never notes, the exit
  * interview summary or a requester's name.
  */
 

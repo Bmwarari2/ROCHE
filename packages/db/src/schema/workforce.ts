@@ -538,7 +538,7 @@ export const revalidationEvidence = pgTable(
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     /**
      * Who is to confirm this cycle, named by HR (never the nurse, never the one naming them):
-     * only they record the confirmation (rule 8, separation of duties; migration 0153).
+     * only they record the confirmation (rule 8, separation of duties; migration 0156).
      */
     confirmerId: uuid("confirmer_id"),
     /** The confirmer, in their own name and never the nurse (NMC revalidation guidance). */

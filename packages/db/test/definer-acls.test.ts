@@ -55,6 +55,8 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.pay_run_status(uuid)": ["harbour_app", "harbour_owner"],
   "app.claim_invitation(text)": ["harbour_app"],
   "app.pulse_survey_results(uuid)": ["harbour_app"],
+  // Whether the signed DPIA covers employee monitoring, for whoever clocks in (H-1555, 0153).
+  "app.signed_dpia_covers(text)": ["harbour_app"],
   "app.submit_pulse_response(uuid, jsonb)": ["harbour_app"],
   "app.evidence_pack_link_for_token(text)": ["harbour_app"],
   "app.family_can_see(uuid, text, text, timestamp with time zone)": [
@@ -90,9 +92,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Induction and leavers (migration 0091): the profile's member, read-and-sign counts, ending a
   // leaver's access.
   "app.staff_profile_worker(uuid)": ["harbour_app", "harbour_owner"],
-  // The Care Certificate from a member's training record, for observers (migration 0154).
+  // The Care Certificate from a member's training record, for observers (migration 0157).
   "app.care_certificate_profile(uuid)": ["harbour_app"],
-  // Who may be named a nurse's revalidation confirmer, and the picker (migration 0154).
+  // Who may be named a nurse's revalidation confirmer, and the picker (migration 0157).
   "app.member_may_confirm_revalidation(uuid)": ["harbour_app"],
   "app.revalidation_confirmer_candidates()": ["harbour_app"],
   "app.induction_policy_signing(uuid)": ["harbour_app"],

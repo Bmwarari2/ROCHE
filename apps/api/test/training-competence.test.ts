@@ -2,6 +2,7 @@ import { createDatabase, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { addUkDays, addUkMonths, ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { workforceCompetence } from "../src/integrations/medicines-ports";
 import { remindDevelopmentExpiry } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { competencePort } from "../src/services/competence-port";
@@ -813,5 +814,59 @@ describe("H-693 a nurse enters their own revalidation; HR reviews; only a confir
     );
     expect(stored).toEqual({ confirmed_by: DEMO.users.manager.id, confirmation: true });
     expect((await nameConfirmer("owner", DEMO.users.manager.id)).status).toBe(409);
+  });
+});
+
+describe("hazard HZ-119 medicines reads competence from the workforce sign-offs (H-1532)", () => {
+  const medicines = () => workforceCompetence(createDatabase(h.db.pool("harbour_app")));
+  const OWNER = DEMO.users.owner.id;
+  const MANAGER = DEMO.users.manager.id;
+
+  it("answers not held for a member with no sign-off", async () => {
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, new Date())).toBe("not_held");
+  });
+
+  it("answers current for a sign-off in date, and expired for one past it", async () => {
+    const signed = await as("nurse", `${dev(MANAGER)}/competences`, {
+      method: "POST",
+      body: { competence: "medicines_administration", observedOn: today() },
+    });
+    expect(signed.status, await signed.clone().text()).toBe(200);
+    expect(await medicines().forMember(DEMO.tenantId, MANAGER, new Date())).toBe("current");
+    const old = await as("manager", `${dev(OWNER)}/competences`, {
+      method: "POST",
+      body: {
+        competence: "medicines_administration",
+        observedOn: ukIsoDate(addUkMonths(new Date(), -13)),
+      },
+    });
+    expect(old.status, await old.clone().text()).toBe(200);
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, new Date())).toBe("expired");
+  });
+
+  it("answers not held once withdrawn, which no override clears, and has no override yet", async () => {
+    const record = (await (await as("owner", `${dev(MANAGER)}/development`)).json()) as Development;
+    const withdrawn = await as(
+      "owner",
+      `${dev(MANAGER)}/competences/${record.signOffs[0]?.id}/withdraw`,
+      {
+        method: "POST",
+        body: { reason: "Observed an error at the medicines round" },
+      },
+    );
+    expect(withdrawn.status, await withdrawn.clone().text()).toBe(200);
+    expect(await medicines().forMember(DEMO.tenantId, MANAGER, new Date())).toBe("not_held");
+    expect(await medicines().overrideFor(DEMO.tenantId, MANAGER, new Date())).toBeNull();
+  });
+
+  it("judges a record on the day of the event it records, never later than today (clinical review H1)", async () => {
+    // The owner's sign-off, 13 months old, was in date a year ago: a dose given then and synced
+    // now is not refused because it lapsed since.
+    const aYearAgo = addUkMonths(new Date(), -12);
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, aYearAgo)).toBe("current");
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, new Date())).toBe("expired");
+    // A time in the future is held to today, so it can never stretch a sign-off.
+    const later = addUkMonths(new Date(), 6);
+    expect(await medicines().forMember(DEMO.tenantId, OWNER, later)).toBe("expired");
   });
 });

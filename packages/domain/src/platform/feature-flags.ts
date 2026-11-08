@@ -90,9 +90,20 @@ export const FLAGS = {
     licensed: false,
   },
   // Lone-worker location (SCHED-012, H-527): evidence only, captured with a check-in, help or
-  // duress event and never as a track; off until the employee-monitoring DPIA allows it.
+  // duress event and never as a track; used only while the organisation's signed DPIA covers it
+  // (H-1555), and switching it on flags the DPIA for review.
   "scheduling.lone_worker.location": {
     description: "Attach the device's location to lone-worker check-ins and alarms (evidence only)",
+    defaultEnabled: false,
+    licensed: false,
+  },
+  // Location or NFC clock-in evidence (H-527, H-1555): the organisation's intention to use it,
+  // which is employee monitoring. Switching it on lists it in the DPIA's features and flags the
+  // signed DPIA for review; a location's clock setting asks for evidence, and clock-ins keep it,
+  // only while this is on there and the organisation's signed DPIA covers it.
+  "scheduling.clock.location_evidence": {
+    description:
+      "Location or NFC evidence at clock-in (employee monitoring; needs the signed DPIA to cover it)",
     defaultEnabled: false,
     licensed: false,
   },
@@ -114,6 +125,15 @@ export const FLAGS = {
   "care.mobile_care_mode": {
     description:
       "Care mode on the phone: sign-in, sync and uploads (off until a clinical safety case covers the app)",
+    defaultEnabled: false,
+    licensed: false,
+  },
+  // Controlled drug recording in Harbour's register (H-1517, HZ-115, HZ-008): off at every location
+  // until controlled drugs are recorded on both the web and the phone there, so one register is
+  // the record. Until then the paper register is, and the register screens say so. Set per location.
+  "medicines.cd_recording": {
+    description:
+      "Controlled drugs recorded in Thapsus Care's register at this location (off until both the web and the phone record them; H-1517)",
     defaultEnabled: false,
     licensed: false,
   },

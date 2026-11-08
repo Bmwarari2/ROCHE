@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { defaultPreferences, parseAppMode, parsePreferences } from "./preferences-model";
+import {
+  defaultPreferences,
+  mayChangeDeviceMode,
+  mayChangeLockTime,
+  parseAppMode,
+  parsePreferences,
+} from "./preferences-model";
 
 describe("parsePreferences", () => {
   it.each([null, "", "not json", "[]", "42"])("falls back to defaults for %j", (raw) => {
@@ -44,5 +50,25 @@ describe("parseAppMode", () => {
     [null, null],
   ])("%s -> %s", (raw, expected) => {
     expect(parseAppMode(raw)).toBe(expected);
+  });
+});
+
+describe("hazard HZ-001 only a manager who may withdraw devices sets the device mode (guides review, H-1530)", () => {
+  it.each([
+    ["a care worker", ["care.note.write"], false],
+    ["a manager", ["platform.device.revoke", "care.note.write"], true],
+    ["no session", undefined, false],
+  ] as const)("%s", (_case, permissions, may) => {
+    expect(mayChangeDeviceMode(permissions)).toBe(may);
+  });
+});
+
+describe("hazard HZ-001 anyone may make a shared phone lock sooner; only a manager makes it later (security review M2)", () => {
+  it.each([
+    ["a care worker choosing a shorter lock", ["care.note.write"], 300_000, 60_000, true],
+    ["a care worker choosing a longer lock", ["care.note.write"], 60_000, 300_000, false],
+    ["a manager choosing a longer lock", ["platform.device.revoke"], 60_000, 300_000, true],
+  ] as const)("%s", (_case, permissions, current, choice, may) => {
+    expect(mayChangeLockTime(permissions, current, choice)).toBe(may);
   });
 });

@@ -62,6 +62,17 @@ export const AbsenceItem = z
      * only there ("Managed in the HR platform"; integrations.md section 11.5 rule 2).
      */
     source: z.enum(["harbour", "thapsus_hr"]),
+    /** For leave given on new dates when a request was postponed (H-970): that request. */
+    postponedFromId: uuid.nullable(),
+    /** For a postponed request: the leave given on the new dates. */
+    postponedTo: z.object({ id: uuid, startsOn: isoDate, endsOn: isoDate }).nullable(),
+    /**
+     * For a carer's or parental leave request still to decide, to holders of
+     * scheduling.rota.approve at the home: the statutory limits on postponing it, from the rate
+     * table (null otherwise, or where the nation has no rows). `latestStartsOn` is the latest first
+     * day the new dates may have; `noticeBy` the last day the postponement may be given.
+     */
+    postponement: z.object({ latestStartsOn: isoDate, noticeBy: isoDate }).nullable(),
   })
   .meta({ id: "AbsenceItem" });
 export type AbsenceItem = z.infer<typeof AbsenceItem>;
@@ -98,10 +109,22 @@ export const DecideAbsence = z
     version,
     /**
      * `decline` is refused for statutory leave (H-970); `postpone` is for carer's and unpaid
-     * parental leave only, with a reason (the member asks again for the later dates).
+     * parental leave only, with a reason and the new dates, which the approver gives as approved
+     * leave (Carer's Leave Regulations 2024 reg 8; Maternity and Parental Leave etc. Regulations
+     * 1999 Sch 2 para 6).
      */
     decision: z.enum(["approve", "decline", "postpone"]),
     reason: reason.optional(),
+    /** With `postpone`: the new first day. */
+    startsOn: isoDate.optional(),
+    /** With `postpone`: the new last day; the same number of days as asked for. */
+    endsOn: isoDate.optional(),
+    /**
+     * With `postpone` of parental leave: the approver confirms the leave does not start on the
+     * child's birth or placement for adoption, and the new dates end before the child's 18th
+     * birthday (Thapsus Care holds neither date).
+     */
+    confirmsPostponable: z.boolean().optional(),
   })
   .meta({ id: "DecideAbsence" });
 
