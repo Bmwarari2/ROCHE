@@ -226,6 +226,7 @@ export async function developmentRecord(
     ...signOffs.flatMap((r) => [r.s.observerId, r.w?.withdrawnBy]),
     ...supervisions.map((s) => s.heldBy),
     evidence?.reviewedBy,
+    evidence?.confirmerId,
     evidence?.confirmedBy,
     ...notes.map((n) => n.writtenBy),
   ]).catch(() => NO_STAFF);
@@ -361,6 +362,7 @@ export async function developmentRecord(
             confirmation: evidence.confirmation,
             reviewState: evidence.reviewState as "draft" | "submitted" | "reviewed",
             reviewedBy: evidence.reviewedBy ? names(evidence.reviewedBy) : null,
+            confirmer: evidence.confirmerId ? names(evidence.confirmerId) : null,
             confirmedBy: evidence.confirmedBy ? names(evidence.confirmedBy) : null,
             confirmedOn: evidence.confirmedOn,
             daysLeft: plan.daysLeft,

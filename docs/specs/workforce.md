@@ -99,7 +99,7 @@ security on every table; the policies in section 3.
 | `competence_withdrawal` | `sign_off_id` (one each), `reason` (at least 10 characters), `withdrawn_by` | Append-only; by a holder of `workforce.competence.observe` or `workforce.training.manage`, never the worker |
 | `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. Its notes are in `supervision_note` |
 | `supervision_note` (slice 57, migration 0114, ADR-0114) | `supervision_id`, `worker_id` (the supervision's), `discussion` (10 to 4,000 characters), `actions` (optional, up to 2,000), `supersedes_id` (the note it corrects), `written_by` | Append-only; written by whoever held the supervision, in their own name, never about themselves; a correction is a new note superseding the one in force (one original per supervision, each corrected once). Read by its writer, the member (`workforce.self.read`) and a supervisor for the member (`app.supervises_member`: organisation-wide HR, or a holder at a location where the member works), never by training, competence or staff file readers or by tenant-wide roles for that alone. Hidden from every reader, the system (exports, subject access) included, once its supervision record is soft-deleted (`app.supervision_in_force`). Likely special category |
-| `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker |
+| `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done; `confirmer_id` (who is to confirm, named by HR; migration 0156) | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker; the confirmation only by the named confirmer (rule 8; migration 0157) |
 
 Competences (`COMPETENCES` in `packages/domain/src/workforce/competence-port.ts`):
 `medicines_administration`, `controlled_drugs`, `insulin_administration`,
@@ -194,6 +194,9 @@ has no routes); the matrix the API slices use:
 | Record DBS risk assessment before clearance | `workforce.recruitment.manage` | Signed by a Registered Manager (role check in slice 11) |
 | Manage the training matrix and records | `workforce.training.manage` | |
 | Sign off observed competence | `workforce.competence.observe` | Never for oneself; the observer must hold a valid sign-off for the same competence where the tenant requires it |
+| Observe a Care Certificate standard in practice (rule 20) | `workforce.competence.observe` | Alone: no staff file permission is needed, so team leaders and clinical leads observe; never on one's own file. The knowledge assessment before it: `workforce.staff_file.manage` or `workforce.competence.observe` |
+| Name a nurse's revalidation confirmer (rule 8) | `workforce.training.manage` | Only a member holding `workforce.training.manage` or `workforce.supervision.manage`; never on one's own record, never the nurse, oneself or the cycle's reviewer; not once confirmed |
+| Record the revalidation confirmation (rule 8) | The confirmer named on the cycle, holding `workforce.training.manage` or `workforce.supervision.manage` | Separation of duties: only the named confirmer, acting for themselves and in their own name, after HR's review; HR keeps the rest of the planner and is refused unless someone else named them |
 | Schedule and record supervision, appraisal and spot checks | `workforce.supervision.manage` | |
 | See own file, training, competence and revalidation dates | `workforce.self.read` | |
 | Roster a worker missing a required check (override) | `workforce.recruitment.manage` with a typed justification | Logged and reported (section 12 rule); scheduling reads the result through the published port (ADR-0085, slice 17) |
@@ -251,8 +254,11 @@ Slice 29 adds no permission. Induction and leaving are the staff file's: read wi
 `workforce.staff_file.read` (and the worker's own with `workforce.self.read`), written with
 `workforce.staff_file.manage`, never on one's own file. A Care Certificate standard is assessed by
 a holder of `.manage` or of `workforce.competence.observe`, and observed only by a holder of
-`workforce.competence.observe`, never the worker; an assessor reads Care Certificate progress
-across the organisation but nothing else of the staff file. Ending a leaver's access at once
+`workforce.competence.observe`, never the worker; the observation needs no staff file permission
+(workforce guides' review, 07/11/2026: the database's update policy names the observe permission
+alone, migration 0157). An assessor reads Care Certificate progress across the organisation, from
+the member's training record (`GET /v1/workforce/members/{memberId}/care-certificate`), but
+nothing else of the staff file. Ending a leaver's access at once
 needs `.manage`; the sweep does it as the system.
 
 Staff files are the organisation's employment records, not people's care records, and HR functions
@@ -330,10 +336,15 @@ whatever the clock change.
    health and character declaration, professional indemnity and confirmation; reminders at the
    document-expiry days. The nurse enters their own evidence (`PUT /v1/me/revalidation`: counts
    and declarations, never the reflective text) and sends it for review; HR
-   (`workforce.training.manage`) reviews it, after which the counts are fixed; the confirmation is
-   recorded only by the confirmer, in their own name, never the nurse (HR or a line manager holding
-   `workforce.supervision.manage`, ideally an NMC registrant, as the NMC's revalidation guidance
-   sets out). The nurse stays responsible for revalidating with the NMC; Thapsus Care only tracks it
+   (`workforce.training.manage`) reviews it, after which the counts are fixed; HR names the
+   confirmer: only a member holding `workforce.training.manage` or `workforce.supervision.manage`
+   (`app.member_may_confirm_revalidation`), never the nurse, never themselves and never whoever
+   reviewed the cycle; the confirmation is recorded only by that named confirmer, acting for
+   themselves and in their own name, never the nurse and never HR unless someone else named
+   them. Review and confirmation are separate duties: the reviewer never confirms and the named
+   confirmer never reviews (a line manager, or HR, ideally an NMC registrant, as the NMC's
+   revalidation guidance sets out; enforced by the domain, the API and the database, migration
+   0157; security review of 07/11/2026). The nurse stays responsible for revalidating with the NMC; Thapsus Care only tracks it
    (H-693, recommended answer applied 31/10/2026). The NMC registration records the part of the
    register (`nmcPart`: nurse, midwife or nursing associate); only the nurse part counts as a
    registered nurse on duty, and a nursing associate never does (H-835).
@@ -455,8 +466,9 @@ whatever the clock change.
     H-531, H-871). Each is first assessed for knowledge, then the worker is observed competent in
     practice; each step by someone other than the worker, in their own name, never before the
     start date or after today, never twice; the observation only by a holder of
-    `workforce.competence.observe`, never before the knowledge assessment. Complete once all 16
-    are competent, on the last observation's date.
+    `workforce.competence.observe`, which needs no staff file permission (`mayRecordStandardStep`),
+    never before the knowledge assessment. Complete once all 16 are competent, on the last
+    observation's date.
 21. **Shadow shifts and probation** (`checkSupervisedEntry`, `checkProbationDecision`). A shadow
     shift is with a colleague, never the worker; a probation review and the decision are by
     someone other than the worker, never before the start date. Probation is passed, extended to a
@@ -562,7 +574,11 @@ Slice 17 (training, competence, supervision, revalidation; members by `tenant_us
 | `POST /v1/workforce/members/{memberId}/competences` | `workforce.competence.observe` | Sign off an observed competence in the caller's name; publishes `workforce.competence.changed` |
 | `POST /v1/workforce/members/{memberId}/competences/{signOffId}/withdraw` | `workforce.competence.observe` or `workforce.training.manage` | Withdraw a sign-off with a reason; publishes `workforce.competence.changed` |
 | `POST /v1/workforce/members/{memberId}/supervisions` | `workforce.supervision.manage` | Record a supervision, appraisal or spot check held by the caller |
-| `PUT /v1/workforce/members/{memberId}/revalidation` | `workforce.training.manage` | Record revalidation evidence for a cycle |
+| `PUT /v1/workforce/members/{memberId}/revalidation` | `workforce.training.manage` | Record revalidation evidence for a cycle (never the confirmation) |
+| `POST /v1/workforce/members/{memberId}/revalidation/review` | `workforce.training.manage` | Mark the evidence reviewed (`expectedVersion`), never on one's own record (403 `own_development_record`) and never by the named confirmer (403 `confirmer_reviews`); audited |
+| `GET /v1/workforce/members/{memberId}/revalidation/confirmers` | `workforce.training.manage` | Who may be named (`cycleDueOn` optional): members holding `.training.manage` or `.supervision.manage`, by name and job title, without the nurse, the caller or the cycle's reviewer; audited as `workforce.revalidation.confirmers_listed` |
+| `PUT /v1/workforce/members/{memberId}/revalidation/confirmer` | `workforce.training.manage` | Name who confirms a cycle (`expectedVersion`): never the nurse or oneself (422 `names_worker`, `names_self`), never the reviewer (422 `names_reviewer`), only someone who may confirm (422 `confirmer_not_permitted`), never once confirmed (409); each refusal audited (rule 8) |
+| `POST /v1/workforce/members/{memberId}/revalidation/confirmation` | the named confirmer, holding `workforce.training.manage` or `workforce.supervision.manage` | Record their own confirmation after HR's review; anyone else, HR included, 403 `not_the_confirmer` (audited as `workforce.revalidation.confirmed`, denied). Naming is audited as `workforce.revalidation.confirmer_named` |
 | `GET /v1/me/development` | `workforce.self.read` | The member's own development record |
 
 The competence port (ADR-0085): `competencePort(tx, memberId, competence, at)` in
@@ -650,13 +666,14 @@ never notes, the exit interview summary or the requester. The routes are under
 | `PUT .../induction` | `.manage` | The plan: probation end date, Care Certificate already held |
 | `POST .../induction/items/{kind}` | `.manage` | Tick an item, in the caller's name |
 | `POST .../induction/shadow-shifts`; `POST .../induction/probation-reviews`; `POST .../induction/probation-decision` | `.manage` | Rule 21 |
-| `PUT .../care-certificate/{standardId}` | `.manage` or `workforce.competence.observe` | Assess knowledge, then observe (observers only); returns the Care Certificate alone |
+| `PUT .../care-certificate/{standardId}` | knowledge: `.manage` or `workforce.competence.observe`; observation: `workforce.competence.observe` alone | Assess knowledge, then observe (observers only, no staff file permission needed; anyone else 403, audited); returns the Care Certificate alone |
+| `GET /v1/workforce/members/{memberId}/care-certificate` | `.read`, `.manage` or `workforce.competence.observe` | The member's Care Certificate alone with their staff file's id (found by `app.care_certificate_profile`, migration 0157), so an observer records it from the training record; 404 without a staff file |
 | `GET`, `POST .../leaving` | `.read`; `.manage` | The leaving; recording it sets `left_on` and the keep-until date |
 | `POST .../leaving/items/{kind}`; `PUT .../leaving/exit-interview`; `POST .../leaving/end-access` | `.manage` | Rule 22 |
 | `POST .../references`; `PATCH .../references/{referenceId}` | `.manage` | A reference request and its answer |
 
 Audit actions: `workforce.induction.viewed`, `.plan_set`, `.item_ticked`, `.shadow_shift`,
-`.probation_review`, `.probation_decided`, `workforce.care_certificate.recorded`,
+`.probation_review`, `.probation_decided`, `workforce.care_certificate.recorded`, `.viewed`,
 `workforce.leaving.viewed`, `.recorded`, `.item_ticked`, `.exit_interview`, `.access_ended`
 (by the sweep with no actor), `workforce.reference.requested`, `.answered`. The
 `leaver-access` job runs hourly at 7 past.
@@ -671,7 +688,7 @@ offer. No form is offered on one's own record.
 | --- | --- | --- | --- |
 | Training matrix | `/training` | any of `workforce.training.manage`, `.competence.observe`, `.supervision.manage`, `.staff_file.read` | Every member of staff whose roles need training, a column per topic, each state an icon and a word (up to date, due soon, lapsed, not done; not needed for their roles). Filter by location, role and those needing attention (a GET form, ids and codes only); find by name in the browser, so no name enters an address |
 | Training requirements | `/training/requirements` | `workforce.training.manage` | Each role's topics, refresh and Oliver McGowan tier; set one role's requirement for a topic |
-| Training record | `/training/{memberId}` | as the matrix | The member's required training today and their records (record, correct); observed competences and sign-offs (sign off in one's own name, withdraw with a reason and a confirmation); supervisions and appraisals with the next due, and their notes where the viewer may read them (add or correct by whoever held it, earlier notes struck through); the NMC revalidation planner (H-693's default: HR records the evidence) |
+| Training record | `/training/{memberId}` | as the matrix | The member's required training today and their records (record, correct); observed competences and sign-offs (sign off in one's own name, withdraw with a reason and a confirmation); supervisions and appraisals with the next due, and their notes where the viewer may read them (add or correct by whoever held it, earlier notes struck through); the Care Certificate's standards, assessed and observed here by observers without the staff file (rule 20); the NMC revalidation planner (H-693's default: HR records the evidence and names the confirmer; the confirmation is offered only to the named confirmer, never to HR unless named, rule 8) |
 
 - **Routes added:**
   - `GET /v1/workforce/training-matrix` uses the same permissions as one member's record. It
@@ -700,7 +717,7 @@ the permission again in the API; the web only decides what to offer.
 | Vacancies | `/workforce/vacancies`, `/workforce/vacancies/{id}` | `workforce.recruitment.manage` | Add and open vacancies; the applications, each stage as an icon and a word; add an application; change status; equality counts, withheld below the minimum |
 | Application | `/workforce/applications/{id}` | `workforce.recruitment.manage` | Shortlist against each criterion, record an interview (panel from the colleagues list, each answer scored 1 to 4, the total shown, never a decision), make an offer, record the response, close it (with confirmation) |
 | Staff | `/workforce/staff` | `workforce.staff_file.read` or `.manage` | Each member's file state, with links to their induction and leaving |
-| Induction | `/workforce/staff/{id}/induction` | as Staff; assessors for the Care Certificate | Checklist ticks, plan, shadow shifts, probation reviews and decision, each Care Certificate standard assessed and observed |
+| Induction | `/workforce/staff/{id}/induction` | as Staff | Checklist ticks, plan, shadow shifts, probation reviews and decision, each Care Certificate standard assessed and observed |
 | Leaving | `/workforce/staff/{id}/leaving` | as Staff | Record a leaving, the checklist, end access now (confirmation and step-up), exit interview, references |
 | Employee relations | `/workforce/cases`, `/workforce/cases/{id}` | the case's members; opening a case to `workforce.casework.manage` | My cases; members, hearings, suspension, referrals, outcome, appeal, timeline and notes, each action offered only to the part that may take it |
 

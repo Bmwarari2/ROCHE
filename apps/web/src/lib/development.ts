@@ -1,4 +1,6 @@
+import { checkRevalidationConfirmation } from "@harbour/domain";
 import type { MessageKey, Translator } from "@harbour/i18n";
+import enGB from "@harbour/i18n/messages/en-GB.json";
 import type { SafetyChip } from "@/lib/incidents";
 
 /**
@@ -33,6 +35,50 @@ export function developmentActions(permissions: readonly string[], self: boolean
     revalidation: may(TRAINING),
   };
 }
+
+/**
+ * The revalidation planner's confirmation (workforce.md rule 8, separation of duties): HR names
+ * the confirmer until the cycle is confirmed (never on their own record); the confirmation is
+ * offered only to the confirmer named on the cycle, acting for themselves, once HR has reviewed
+ * it. HR never sees the tick unless someone else named them. The API and the database refuse
+ * everyone else too.
+ */
+export function revalidationConfirmActions(input: {
+  readonly permissions: readonly string[];
+  readonly me: string;
+  readonly memberId: string;
+  readonly plan: {
+    readonly confirmerId: string | null;
+    readonly reviewedById: string | null;
+    readonly reviewState: string;
+    readonly confirmation: boolean;
+  } | null;
+}): { nameConfirmer: boolean; confirm: boolean } {
+  const { plan } = input;
+  if (!plan || input.me === input.memberId) return { nameConfirmer: false, confirm: false };
+  return {
+    nameConfirmer: has(input.permissions, TRAINING) && !plan.confirmation,
+    confirm: checkRevalidationConfirmation({
+      actorId: input.me,
+      actorPermissions: input.permissions,
+      workerId: input.memberId,
+      confirmerId: plan.confirmerId,
+      reviewedBy: plan.reviewedById,
+      reviewState: plan.reviewState as "draft" | "submitted" | "reviewed",
+      confirmed: plan.confirmation,
+    }).ok,
+  };
+}
+
+/**
+ * The keys the training pages may say as done (`?done=<key>`): their own catalogue entries, and
+ * the Care Certificate's, whose section (shared with the induction) is also on the training
+ * record. Only a known catalogue key, so the address never puts words of its own on the page.
+ */
+export const developmentArrivalKey = (key: string): key is MessageKey =>
+  (/^development\.[A-Za-z0-9_.]+$/.test(key) ||
+    /^workforce\.careCertificate\.[A-Za-z0-9_.]+$/.test(key)) &&
+  key in enGB;
 
 export type DevelopmentValues = Readonly<Record<string, string | boolean | null>>;
 

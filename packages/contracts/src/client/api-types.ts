@@ -30477,6 +30477,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/members/{memberId}/care-certificate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's Care Certificate
+     * @description workforce.staff_file.read, workforce.staff_file.manage or workforce.competence.observe. The Care Certificate alone, with the staff file's id to record against, so an observer (a team leader or clinical lead) can find and observe it without any staff file permission; 404 when the member has no staff file. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The Care Certificate */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CareCertificateView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/staff-files/{id}/care-certificate/{standardId}": {
     parameters: {
       query?: never;
@@ -30487,7 +30564,7 @@ export interface paths {
     get?: never;
     /**
      * Record a Care Certificate standard's assessment or observation
-     * @description workforce.staff_file.manage or workforce.competence.observe, never on one's own file, in the caller's own name: the knowledge assessment, then the observation in practice (observers only). Audited.
+     * @description Never on one's own file, in the caller's own name: the knowledge assessment (workforce.staff_file.manage or workforce.competence.observe), then the observation in practice (workforce.competence.observe only; no staff file permission needed). Audited.
      */
     put: {
       parameters: {
@@ -32345,6 +32422,175 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/members/{memberId}/revalidation/confirmer": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Name who confirms a nurse's revalidation
+     * @description workforce.training.manage, never for oneself, against expectedVersion. A colleague other than the nurse and other than the caller (so nobody makes themselves the confirmer); never once confirmed. Only the named confirmer records the confirmation (rule 8, H-693). Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NameRevalidationConfirmer"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/revalidation/confirmers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Who may be named a nurse's revalidation confirmer
+     * @description workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.
+     */
+    get: {
+      parameters: {
+        query?: {
+          cycleDueOn?: string;
+        };
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Who may be named */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ColleagueList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/members/{memberId}/revalidation/confirmation": {
     parameters: {
       query?: never;
@@ -32356,7 +32602,7 @@ export interface paths {
     put?: never;
     /**
      * Record that you confirmed a nurse's revalidation
-     * @description The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.
+     * @description Only the confirmer named on the cycle (PUT .../revalidation/confirmer), acting for themselves and in their own name, after HR's review; never the nurse, and never HR unless named (separation of duties). The confirmer holds workforce.training.manage or workforce.supervision.manage, ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out (rule 8, H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.
      */
     post: {
       parameters: {
@@ -73910,6 +74156,7 @@ export interface components {
       /** @enum {string} */
       reviewState: "draft" | "submitted" | "reviewed";
       reviewedBy: components["schemas"]["StaffName"];
+      confirmer: components["schemas"]["StaffName"];
       confirmedBy: components["schemas"]["StaffName"];
       /** Format: date */
       confirmedOn: string | null;
@@ -73977,6 +74224,13 @@ export interface components {
       expectedVersion: number;
       /** Format: date */
       cycleDueOn: string;
+    };
+    NameRevalidationConfirmer: {
+      expectedVersion: number;
+      /** Format: date */
+      cycleDueOn: string;
+      /** Format: uuid */
+      confirmerId: string;
     };
     ConfirmRevalidation: {
       expectedVersion: number;
