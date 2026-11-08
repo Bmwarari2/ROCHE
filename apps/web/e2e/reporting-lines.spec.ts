@@ -71,8 +71,11 @@ async function chooseByName(select: Locator, name: string) {
   await select.selectOption(value ?? "");
 }
 
-const done = (page: Page, words: string) =>
-  expect(main(page).getByRole("status").filter({ hasText: words })).toBeVisible();
+/** A save said in words, with focus moved to the page's heading. */
+async function done(page: Page, words: string) {
+  await expect(main(page).getByRole("status").filter({ hasText: words })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
+}
 
 test("HR names, changes and ends the demo carer's line manager", async ({ page }) => {
   test.setTimeout(180_000);
@@ -99,14 +102,15 @@ test("HR names, changes and ends the demo carer's line manager", async ({ page }
   await expect(
     page.getByRole("heading", { level: 1, name: "Line manager for Cat Carer" }),
   ).toBeVisible();
+  await expect(page).toHaveTitle(/Line manager for Cat Carer/);
   const path = new URL(page.url()).pathname;
 
   // A line an earlier run left open is ended first, after any date this run uses.
-  const leftOpen = form(page, "End the line");
+  const leftOpen = form(page, "End line management");
   if ((await leftOpen.count()) > 0) {
     await fillDate(leftOpen, "Ends from", 13);
-    await leftOpen.getByRole("button", { name: "End line" }).click();
-    await done(page, "The line has ended.");
+    await leftOpen.getByRole("button", { name: "End line management" }).click();
+    await done(page, "Line management has ended.");
   }
   await bothThemes(page, "line manager, none yet");
 
@@ -118,6 +122,7 @@ test("HR names, changes and ends the demo carer's line manager", async ({ page }
   await expect(alert).toBeFocused();
   await expect(alert).toContainText("Line manager: choose one");
   await expect(name.getByLabel("Line manager")).toHaveAttribute("aria-invalid", "true");
+  await bothThemes(page, "line manager, an error");
 
   await chooseByName(name.getByLabel("Line manager"), "Mo Manager");
   await fillDate(name, "From", 10);
@@ -142,7 +147,7 @@ test("HR names, changes and ends the demo carer's line manager", async ({ page }
   await expect(before.getByText("Ended").first()).toBeVisible();
 
   // Ending the line with the keyboard only: the date, then the button.
-  const end = form(page, "End the line");
+  const end = form(page, "End line management");
   const endDay = ukDay(12);
   const group = end.getByRole("group", { name: "Ends from", exact: true });
   await group.getByLabel("Day").focus();
@@ -155,9 +160,9 @@ test("HR names, changes and ends the demo carer's line manager", async ({ page }
   await page.keyboard.press("Control+A");
   await page.keyboard.type(endDay.year);
   await page.keyboard.press("Tab");
-  await expect(end.getByRole("button", { name: "End line" })).toBeFocused();
+  await expect(end.getByRole("button", { name: "End line management" })).toBeFocused();
   await page.keyboard.press("Enter");
-  await done(page, "The line has ended.");
+  await done(page, "Line management has ended.");
   await expect(now.getByText("No line manager is recorded.")).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`${path}`));
   await bothThemes(page, "line manager ended");
@@ -176,7 +181,23 @@ test("HR adds a team, its members and its lead, then archives it", async ({ page
   await add.getByLabel("Home").selectOption({ label: "Harbour House" });
   await add.getByRole("button", { name: "Add team" }).click();
   await done(page, "The team is added.");
+  const other = form(page, "Add a team");
+  await other.getByLabel("Team name").fill(`${TEAM} days`);
+  await other.getByRole("button", { name: "Add team" }).click();
+  await done(page, "The team is added.");
   await main(page).getByRole("link", { name: TEAM, exact: true }).click();
+  await expect(page).toHaveTitle(new RegExp(TEAM));
+
+  // A name already in use is refused (409) in words at its field, with focus on the summary.
+  const rename = form(page, "Rename or move the team");
+  await rename.getByLabel("Team name").fill(`${TEAM} days`);
+  await rename.getByRole("button", { name: "Save team" }).click();
+  const taken = main(page).getByRole("alert");
+  await expect(taken).toBeFocused();
+  await expect(taken).toContainText("Choose another name for the team");
+  await expect(rename.getByLabel("Team name")).toHaveAttribute("aria-invalid", "true");
+  await bothThemes(page, "team rename refused");
+  await page.reload();
   await expect(page.getByRole("heading", { level: 1, name: TEAM })).toBeVisible();
   await expect(main(page).getByText("In use")).toBeVisible();
 
@@ -196,7 +217,7 @@ test("HR adds a team, its members and its lead, then archives it", async ({ page
   await bothThemes(page, "team with a lead");
 
   // The carer becomes the lead too, then leaves the team.
-  await form(page, "Make Cat Carer the team lead")
+  await form(page, "Cat Carer as team lead")
     .getByRole("button", { name: "Make Cat Carer the team lead" })
     .click();
   await done(page, "Who leads the team is saved.");

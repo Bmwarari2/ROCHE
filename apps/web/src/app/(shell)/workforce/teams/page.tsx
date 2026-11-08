@@ -54,6 +54,7 @@ export default async function TeamsPage() {
             headingLevel={2}
             icon={<UsersRound size={32} strokeWidth={1.5} aria-hidden="true" />}
             title={t("workforce.teams.empty")}
+            description={t(maintains ? "workforce.teams.emptyHr" : "workforce.teams.emptyOthers")}
           />
         </Card>
       ) : (

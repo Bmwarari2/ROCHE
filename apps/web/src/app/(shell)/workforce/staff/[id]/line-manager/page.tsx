@@ -19,7 +19,20 @@ import {
 import { ukToday } from "@/lib/uk-time";
 import { staffShown, ukDate } from "@/lib/workforce";
 
-export const metadata: Metadata = { title: t("workforce.lineManager.title") };
+/** The tab says whose line manager it is, as the heading does. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  if (!isUuid(id)) return { title: t("workforce.lineManager.title") };
+  const files = await (await tenantApi()).GET("/v1/workforce/staff-files").catch(() => null);
+  const name = files?.data?.items.find((f) => f.id === id)?.member?.displayName;
+  return {
+    title: name ? t("workforce.lineManager.heading", { name }) : t("workforce.lineManager.title"),
+  };
+}
 
 /**
  * A member's line manager (ADR-0137): who it is now and since when, and the lines before, each

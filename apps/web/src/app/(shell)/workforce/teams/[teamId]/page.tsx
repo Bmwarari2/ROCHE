@@ -29,7 +29,18 @@ import {
 import { ukToday } from "@/lib/uk-time";
 import { ukDate } from "@/lib/workforce";
 
-export const metadata: Metadata = { title: t("workforce.teams.teamTitle") };
+/** The tab names the team, as the heading does. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ teamId: string }>;
+}): Promise<Metadata> {
+  const { teamId } = await params;
+  if (!isUuid(teamId)) return { title: t("workforce.teams.teamTitle") };
+  const teams = await (await tenantApi()).GET("/v1/workforce/teams").catch(() => null);
+  const team = teams?.data?.teams.find((x) => x.id === teamId);
+  return { title: team ? team.name : t("workforce.teams.teamTitle") };
+}
 
 /**
  * One staff team (ADR-0137): its members, the lead first, then those who have left the team. HR
@@ -118,15 +129,16 @@ export default async function TeamPage({ params }: { params: Promise<{ teamId: s
                   <div className="flex flex-col gap-4">
                     <WorkforceForm
                       headingLevel={4}
-                      title={t("workforce.teams.leadToggle", {
-                        lead: member.isLead ? "yes" : "no",
-                        name: member.name,
-                      })}
+                      title={t("workforce.teams.leadHeading", { name: member.name })}
                       path={path}
                       submit={t("workforce.teams.leadToggle", {
                         lead: member.isLead ? "yes" : "no",
                         name: member.name,
                       })}
+                      {...(member.isLead
+                        ? { intro: t("workforce.teams.leadRemoveIntro", { name: member.name }) }
+                        : {})}
+                      destructive={member.isLead}
                       done="workforce.teams.leadSaved"
                       action={setTeamLead.bind(
                         null,
@@ -140,6 +152,9 @@ export default async function TeamPage({ params }: { params: Promise<{ teamId: s
                     <WorkforceForm
                       headingLevel={4}
                       title={t("workforce.teams.endMember", { name: member.name })}
+                      {...(member.isLead
+                        ? { intro: t("workforce.teams.endLeadIntro", { name: member.name }) }
+                        : {})}
                       path={path}
                       submit={t("workforce.teams.endMemberSubmit", { name: member.name })}
                       done="workforce.teams.memberEnded"
@@ -238,11 +253,7 @@ export default async function TeamPage({ params }: { params: Promise<{ teamId: s
               submit={t("workforce.teams.archiveSubmit")}
               done="workforce.teams.archivedDone"
               destructive
-              action={archiveTeam.bind(null, teamId, {
-                name: team.name,
-                locationId: team.locationId,
-                version: team.version,
-              })}
+              action={archiveTeam.bind(null, teamId, team.version)}
               fields={[
                 {
                   kind: "checkbox",
