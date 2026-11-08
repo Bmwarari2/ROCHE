@@ -8753,8 +8753,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       ends_on: { description: "The last UK date; empty while a sickness is open." },
       state: { description: "requested, approved, declined, postponed, cancelled or recorded." },
       decided_by: { description: "Who approved, declined or postponed it (tenant_user.id)." },
-      decided_at: { description: "When it was approved or declined (UTC)." },
-      decision_reason: { description: "Why it was declined or cancelled, in words." },
+      decided_at: { description: "When it was approved, declined or postponed (UTC)." },
+      decision_reason: {
+        description: "Why it was declined, postponed or cancelled, in words.",
+      },
       self_certified_at: {
         description: "When the member's own statement for a sickness's first days was taken (UTC).",
       },
@@ -8763,6 +8765,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       source: { description: "Where it came from: harbour, or thapsus_hr for a read-only copy." },
       hr_id: { description: "Thapsus-HR's identifier for the absence it copies." },
+      postponed_from_id: {
+        description:
+          "For carer's or parental leave given on new dates when a request was postponed: that request (absence.id).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
