@@ -1,5 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
-import { addDemoPasskey, demoPerson, expectAccessible, openModules, signIn } from "./support";
+import {
+  addDemoPasskey,
+  demoPerson,
+  expectAccessible,
+  openModules,
+  signIn,
+  signInWithDemoPasskey,
+} from "./support";
 
 /**
  * Controlled drug recording at a home (H-1517, H-1518; HZ-115, HZ-008), against the demo tenant,
@@ -14,6 +21,7 @@ import { addDemoPasskey, demoPerson, expectAccessible, openModules, signIn } fro
 const HOME = "0194d000-0000-7000-8000-000000000101";
 const FRANK = demoPerson(6);
 const PAGE = `/medicines-settings/${HOME}`;
+const HOME_NAME = "Harbour House";
 const TITLE = "Controlled drug recording";
 
 test.describe.configure({ mode: "serial" });
@@ -29,6 +37,21 @@ async function bothThemes(page: Page, name: string) {
   await page.emulateMedia({ colorScheme: "light" });
 }
 
+/**
+ * Whatever happened above, the demo home ends with recording on, as the seed left it, so a failed
+ * step never leaves the next journeys (and a retry) with the paper register as the record.
+ */
+test.afterAll(async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signInWithDemoPasskey(page, "manager");
+  await page.goto(PAGE);
+  const on = card(page).getByRole("button", { name: "Turn on controlled drug recording" });
+  if ((await on.count()) === 0) return;
+  for (const box of await card(page).getByRole("checkbox").all()) await box.check();
+  await on.click();
+  await expect(main(page).getByText("Controlled drug recording is turned on.")).toBeVisible();
+});
+
 test("hazard HZ-115 hazard HZ-008 the Registered Manager turns controlled drug recording off with a reason and step-up, then on with each confirmation", async ({
   page,
 }) => {
@@ -39,10 +62,11 @@ test("hazard HZ-115 hazard HZ-008 the Registered Manager turns controlled drug r
   // Found in the navigation, not only by its address.
   const nav = await openModules(page);
   await nav.getByRole("link", { name: TITLE }).click();
-  await page.waitForURL((url) => url.pathname.startsWith("/medicines-settings"));
-  if (!page.url().includes(HOME)) {
-    await main(page).getByRole("link", { name: /.+/ }).first().click();
-  }
+  // With every home shown, the person chooses the home by its name.
+  await page.waitForURL((url) => url.pathname === "/medicines-settings");
+  await expect(page.getByRole("heading", { level: 1, name: TITLE })).toBeVisible();
+  await bothThemes(page, "controlled drug recording, choose the home");
+  await main(page).getByRole("link", { name: HOME_NAME, exact: true }).click();
   await page.waitForURL((url) => url.pathname === PAGE);
   await expect(page.getByRole("heading", { level: 1, name: TITLE })).toBeVisible();
   await expect(card(page).getByText("Thapsus Care's register is the record")).toBeVisible();
@@ -54,23 +78,21 @@ test("hazard HZ-115 hazard HZ-008 the Registered Manager turns controlled drug r
   });
   await off.click();
   const errors = main(page).getByRole("alert");
+  await expect(errors).toBeFocused();
   await expect(errors).toContainText("Say why recording is being turned off.");
   await expect(errors).toContainText("Confirm the paper register is restarted with each balance.");
+  const reason = card(page).getByLabel("Why recording is being turned off");
+  const restarted = card(page).getByLabel(
+    "The register pages are printed and the paper register is restarted with each balance",
+  );
+  await expect(reason).toHaveAttribute("aria-invalid", "true");
+  await expect(restarted).toHaveAttribute("aria-invalid", "true");
   await bothThemes(page, "controlled drug recording, turning off refused");
 
-  const fillOff = async () => {
-    await card(page)
-      .getByLabel("Why recording is being turned off")
-      .fill("The phones at the home are being replaced this week");
-    await card(page)
-      .getByLabel(
-        "The register pages are printed and the paper register is restarted with each balance",
-      )
-      .check();
-    await off.click();
-  };
   // A password session has no fresh second step: the API refuses and nothing changes.
-  await fillOff();
+  await reason.fill("The phones at the home are being replaced this week");
+  await restarted.check();
+  await off.click();
   const stepUp = main(page).getByRole("alert").filter({ hasText: "Confirm it is you" });
   await expect(stepUp).toContainText("Nothing has changed yet.");
   await expect(stepUp).toBeFocused();
@@ -81,12 +103,21 @@ test("hazard HZ-115 hazard HZ-008 the Registered Manager turns controlled drug r
   await page.waitForURL((url) => url.pathname === PAGE);
   await expect(card(page).getByText("Thapsus Care's register is the record")).toBeVisible();
 
-  await fillOff();
-  await expect(
-    main(page).getByRole("status").filter({
-      hasText: "Controlled drug recording is turned off. The paper register is the record again.",
-    }),
-  ).toBeVisible();
+  // Again, with the keyboard only: the reason, the restart and the button, in that order.
+  await reason.focus();
+  await page.keyboard.type("The phones at the home are being replaced this week");
+  await page.keyboard.press("Tab");
+  await expect(restarted).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(restarted).toBeChecked();
+  await page.keyboard.press("Tab");
+  await expect(off).toBeFocused();
+  await page.keyboard.press("Enter");
+  const turnedOff = main(page).getByText(
+    "Controlled drug recording is turned off. The paper register is the record again.",
+  );
+  await expect(turnedOff).toBeVisible();
+  await expect(turnedOff).toBeFocused();
   await page.reload();
   await expect(card(page).getByText("The paper register is the record")).toBeVisible();
   await bothThemes(page, "controlled drug recording, turned off");
@@ -105,6 +136,7 @@ test("hazard HZ-115 hazard HZ-008 the Registered Manager turns controlled drug r
   }
   await on.click();
   const missing = main(page).getByRole("alert");
+  await expect(missing).toBeFocused();
   await expect(missing).toContainText(
     "Confirm the paper register is counted, witnessed and closed.",
   );
@@ -126,11 +158,11 @@ test("hazard HZ-115 hazard HZ-008 the Registered Manager turns controlled drug r
     )
     .check();
   await on.click();
-  await expect(
-    main(page).getByRole("status").filter({
-      hasText: "Controlled drug recording is turned on. Carry each balance across now, witnessed.",
-    }),
-  ).toBeVisible();
+  const turnedOn = main(page).getByText(
+    "Controlled drug recording is turned on. Carry each balance across now, witnessed.",
+  );
+  await expect(turnedOn).toBeVisible();
+  await expect(turnedOn).toBeFocused();
   await page.reload();
   await expect(card(page).getByText("Thapsus Care's register is the record")).toBeVisible();
   await bothThemes(page, "controlled drug recording, turned on again");

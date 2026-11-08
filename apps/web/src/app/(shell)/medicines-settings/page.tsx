@@ -25,6 +25,9 @@ export default async function MedicinesSettingsIndexPage() {
         title={title}
         description={t("medicines.cdRecording.choose")}
       />
+      {me.locations.length === 0 ? (
+        <p className="m-0">{t("medicines.cdRecording.chooseNone")}</p>
+      ) : null}
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {me.locations.map((location) => (
           <li key={location.id}>

@@ -870,6 +870,7 @@
     "errors.reference",
     "errors.stepUpRequired",
     "medicines.cdRecording.choose",
+    "medicines.cdRecording.chooseNone",
     "medicines.errors.answer",
     "medicines.errors.backToIncident",
     "medicines.errors.cdPresumed",
