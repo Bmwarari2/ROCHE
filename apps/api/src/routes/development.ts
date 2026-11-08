@@ -10,6 +10,8 @@ import {
   PutTrainingRequirement,
   ReviewRevalidation,
   SaveSupervisionNote,
+  SupervisionsDue,
+  SupervisionsDueQuery,
   TrainingMatrix,
   TrainingMatrixQuery,
   TrainingRequirementItem,
@@ -54,6 +56,7 @@ import {
   developmentRecord,
   endDevelopmentReminders,
   memberNation,
+  supervisionsDueFor,
   trainingMatrixFor,
 } from "../services/development";
 import { staffNames } from "../services/staff";
@@ -86,6 +89,7 @@ const SOURCE = "development";
 const A = {
   viewed: "workforce.development.viewed",
   matrix: "workforce.training_matrix.viewed",
+  supervisionsDue: "workforce.supervisions_due.viewed",
   requirement: "workforce.training_requirement.saved",
   trained: "workforce.training.recorded",
   corrected: "workforce.training.corrected",
@@ -352,6 +356,45 @@ export const developmentRouter = createRouter()
         return found;
       });
       return c.json(matrix, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/workforce/supervisions-due",
+      tags: ["workforce"],
+      summary: "Supervisions and appraisals due across staff",
+      description:
+        "workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read, as the training matrix. Every member of staff by name and job title, with their next supervision and appraisal (upcoming, due within supervision.due_window_days, overdue, or none recorded) by the rules of the member's record, and their last spot check. Filter by location (roles held there) or attention (a meeting not upcoming). At most 2,000 members; truncated says when more match. Audited without names.",
+      security,
+      request: { query: SupervisionsDueQuery },
+      responses: {
+        200: jsonBody(SupervisionsDue, "Supervisions and appraisals due"),
+        ...errorResponses,
+      },
+    }),
+    async (c) => {
+      const access = await requireAnyPermission(c, [
+        TRAINING,
+        OBSERVE,
+        SUPERVISION,
+        STAFF_FILE_READ,
+      ]);
+      const query = c.req.valid("query");
+      const due = await withTenant(c, async (tx) => {
+        const found = await supervisionsDueFor(tx, access.tenantId, new Date(), {
+          ...(query.locationId ? { locationId: query.locationId } : {}),
+          attention: query.attention === "true",
+        });
+        if (!found) throw problems.forbidden();
+        await audit(c, tx, access, {
+          action: A.supervisionsDue,
+          resourceType: SOURCE,
+          scopeExtra: { locationId: query.locationId ?? null, members: found.members.length },
+        });
+        return found;
+      });
+      return c.json(due, 200);
     },
   )
   .openapi(

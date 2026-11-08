@@ -31525,6 +31525,75 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/supervisions-due": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Supervisions and appraisals due across staff
+     * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read, as the training matrix. Every member of staff by name and job title, with their next supervision and appraisal (upcoming, due within supervision.due_window_days, overdue, or none recorded) by the rules of the member's record, and their last spot check. Filter by location (roles held there) or attention (a meeting not upcoming). At most 2,000 members; truncated says when more match. Audited without names.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          attention?: "true" | "false";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Supervisions and appraisals due */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SupervisionsDue"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/members/{memberId}/development": {
     parameters: {
       query?: never;
@@ -74043,6 +74112,31 @@ export interface components {
       status: "valid" | "due_soon" | "expired" | "missing";
       /** Format: date */
       validUntil: string | null;
+    };
+    SupervisionsDue: {
+      /** Format: date */
+      asOf: string;
+      dueWindowDays: number;
+      members: components["schemas"]["SupervisionsDueMember"][];
+      truncated: boolean;
+    };
+    SupervisionsDueMember: {
+      member: components["schemas"]["StaffName"];
+      roles: string[];
+      locationIds: string[];
+      meetings: components["schemas"]["MeetingDueItem"][];
+      /** Format: date */
+      lastSpotCheckOn: string | null;
+    };
+    MeetingDueItem: {
+      /** @enum {string} */
+      kind: "supervision" | "appraisal";
+      /** Format: date */
+      lastHeldOn: string | null;
+      /** Format: date */
+      dueOn: string | null;
+      /** @enum {string} */
+      state: "upcoming" | "due" | "overdue" | "none_recorded";
     };
     PutTrainingRequirement: {
       expectedVersion?: number;

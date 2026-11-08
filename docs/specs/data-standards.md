@@ -1275,6 +1275,7 @@ is exported.
 | `competence_sign_off.observed_on`, `valid_until` | Thapsus Care | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
 | `competence_withdrawal.reason` | Thapsus Care | Plain text, 10 to 500 characters | |
 | `supervision_record.kind` | Thapsus Care | `supervision`, `appraisal`, `spot_check` | |
+| Next meeting state (`GET /v1/workforce/supervisions-due`, `MeetingDueItem.state`; computed, not stored) | Thapsus Care | `upcoming`, `due` (within `supervision.due_window_days`), `overdue`, `none_recorded` | WORK-009: dates and states only, never notes or what a spot check found |
 | `supervision_note.discussion`, `.actions` | Thapsus Care | Free text: 10 to 4,000 characters; actions optional, 2 to 2,000 | Likely special category (ADR-0114); read only by the writer, the member and a supervisor for the member; never in audit, outbox, search or sync |
 | `supervision_note.supersedes_id` | Thapsus Care | `supervision_note.id` | A correction; the earlier note is kept and shown struck through |
 | `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |

@@ -6,7 +6,7 @@ import { workforceCompetence } from "../src/integrations/medicines-ports";
 import { remindDevelopmentExpiry } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { competencePort } from "../src/services/competence-port";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, OTHER } from "./support/harness";
 
 /**
  * Training, competence, supervision and revalidation through the API (workforce.md sections 2b,
@@ -484,6 +484,88 @@ describe("the organisation's training matrix (slice 57)", () => {
   it("is audited without names", async () => {
     const events = await sql<{ scope: unknown }>(
       "SELECT scope FROM audit_event WHERE action = 'workforce.training_matrix.viewed'",
+    );
+    expect(events.length).toBeGreaterThan(0);
+    expect(JSON.stringify(events)).not.toContain(DEMO.users.carer.name);
+  });
+});
+
+describe("WORK-009 supervisions and appraisals due across staff", () => {
+  type Due = {
+    dueWindowDays: number;
+    members: {
+      member: { id: string; displayName: string };
+      meetings: { kind: string; lastHeldOn: string | null; dueOn: string | null; state: string }[];
+      lastSpotCheckOn: string | null;
+    }[];
+    truncated: boolean;
+  };
+  const read = async (who: string, query = "") => {
+    const response = await as(who, `/v1/workforce/supervisions-due${query}`);
+    expect(response.status, await response.clone().text()).toBe(200);
+    return (await response.json()) as Due;
+  };
+
+  it("shows each member's next supervision and appraisal by the record's rules, to workforce readers only", async () => {
+    const due = await read("manager");
+    expect(due.dueWindowDays).toBeGreaterThan(0);
+    const carer = due.members.find((m) => m.member.id === CARER);
+    // The same next meetings as each member's own record shows; none held is never a guessed date.
+    for (const id of [CARER, NURSE]) {
+      const shown = due.members.find((m) => m.member.id === id);
+      const record = (await (await as("manager", `${dev(id)}/development`)).json()) as {
+        nextSupervision: { dueOn: string; state: string } | null;
+        nextAppraisal: { dueOn: string; state: string } | null;
+      };
+      for (const [i, next] of [record.nextSupervision, record.nextAppraisal].entries()) {
+        const meeting = shown?.meetings[i];
+        if (next) expect(meeting).toMatchObject({ dueOn: next.dueOn, state: next.state });
+        else
+          expect(meeting).toMatchObject({ lastHeldOn: null, dueOn: null, state: "none_recorded" });
+      }
+    }
+    // The carer's supervision was recorded today above: the next is a whole interval away.
+    expect(carer?.meetings[0]).toMatchObject({
+      kind: "supervision",
+      lastHeldOn: today(),
+      state: "upcoming",
+    });
+    expect((carer?.meetings[0]?.dueOn ?? "") > today()).toBe(true);
+    expect(Object.keys(carer?.member ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
+    expect((await as("carer", "/v1/workforce/supervisions-due")).status).toBe(403);
+  });
+
+  it("filters by location and to those needing attention", async () => {
+    const elsewhere = await read("manager", "?locationId=0194d000-0000-7000-8000-00000000ffff");
+    expect(elsewhere.members).toEqual([]);
+    const attention = await read("manager", "?attention=true");
+    for (const m of attention.members) {
+      expect(m.meetings.some((x) => x.state !== "upcoming")).toBe(true);
+    }
+  });
+
+  it("never shows another organisation's staff, and is refused for an organisation the caller is not in", async () => {
+    const response = await h.request("/v1/workforce/supervisions-due", {
+      token: h.tokens.rae,
+      tenant: OTHER.tenantId,
+    });
+    if (response.status === 200) {
+      const theirs = (await response.json()) as Due;
+      const ids = theirs.members.map((m) => m.member.id);
+      for (const id of [CARER, NURSE, DEMO.users.manager.id]) expect(ids).not.toContain(id);
+    } else {
+      expect(response.status).toBe(403);
+    }
+    const crossed = await h.request("/v1/workforce/supervisions-due", {
+      token: h.tokens.manager,
+      tenant: OTHER.tenantId,
+    });
+    expect(crossed.status).not.toBe(200);
+  });
+
+  it("is audited without names", async () => {
+    const events = await sql<{ scope: unknown }>(
+      "SELECT scope FROM audit_event WHERE action = 'workforce.supervisions_due.viewed'",
     );
     expect(events.length).toBeGreaterThan(0);
     expect(JSON.stringify(events)).not.toContain(DEMO.users.carer.name);

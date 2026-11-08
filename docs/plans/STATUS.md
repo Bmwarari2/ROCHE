@@ -4,7 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 2% done** (4 of 234 register rows `done`; 115 `partial`, 115 `todo`). Rows become `done`
+**Overall: 2% done** (4 of 234 register rows `done`; 119 `partial`, 111 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 **Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
@@ -143,6 +143,13 @@ episode, and the DPIA section 7B for Phase 2).
 and slices S.1 to S.6 for Care are on branch `claude/thapsus-systems-dev-plan-2rkfaj`, with no
 pull request. Nothing is scheduled until the owner approves the plans.
 
+**WORK-009 slice 1 (08/11/2026, `feat/workforce-supervisions-due`):** supervisions and appraisals
+due across staff, on `/training/supervisions` with `GET /v1/workforce/supervisions-due` and the
+rate key `supervision.due_window_days`; WORK-005, 008, 009 and 012 corrected from `todo` to
+`partial`. Next: slice 2, the reminder tasks for supervisions and appraisals due. **Follow-up:**
+an ADR on whether development reads (the training matrix and the supervisions list) follow
+attribute scope (location, team) rather than organisation-wide HR (migration 0073); a
+least-privilege question the lead kept out of WORK-009 (08/11/2026).
 **Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
 handling of a 409) in #205; its web journey and a navigation entry for the page in
 `feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More

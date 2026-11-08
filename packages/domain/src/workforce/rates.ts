@@ -13,6 +13,7 @@ export const WORKFORCE_RATE_KEYS = {
   competenceDefaultRefreshMonths: "competence.default_refresh_months",
   supervisionsPerYear: "supervision.per_year",
   appraisalsPerYear: "appraisal.per_year",
+  supervisionDueWindowDays: "supervision.due_window_days",
   reminderDaysFirst: "document_expiry.reminder_days.first",
   reminderDaysSecond: "document_expiry.reminder_days.second",
   reminderDaysThird: "document_expiry.reminder_days.third",
