@@ -7,6 +7,7 @@ import { getShellContext } from "@/lib/api";
 import { approvalsShown } from "@/lib/approvals";
 import { accentStyle, brandingShown, logoSrc } from "@/lib/branding";
 import { breakGlassReportShown } from "@/lib/break-glass-report";
+import { devicesShown } from "@/lib/care-devices";
 import { complaintsShown } from "@/lib/complaints";
 import { cdRecordingSettingsShown } from "@/lib/controlled-drugs";
 import { readNotifications } from "@/lib/dashboard-data";
@@ -171,6 +172,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           : undefined,
         pir: dashboardShown(me.permissions) ? t("shell.nav.pir") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
+        devices: devicesShown(me.permissions) ? t("shell.nav.devices") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         hrLink: hrLinkNavShown(me) ? t("shell.nav.hrLink") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,

@@ -57,6 +57,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShieldEllipsis,
+  Smartphone,
   Stamp,
   Timer,
   TriangleAlert,
@@ -180,6 +181,7 @@ export interface ShellFrameLabels {
   readonly rota?: string | undefined;
   readonly myShifts?: string | undefined;
   readonly dependency?: string | undefined;
+  readonly devices?: string | undefined;
   readonly dataProtection?: string | undefined;
   readonly dataRights?: string | undefined;
   /** The branding settings (PLAT-002), for platform.tenant.manage. */
@@ -275,6 +277,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/staff")) return "staff-files";
   if (pathname.startsWith("/settings/team")) return "team";
+  if (pathname.startsWith("/settings/devices")) return "devices";
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/import")) return "import";
   if (pathname.startsWith("/settings/retention")) return "retention";
@@ -736,6 +739,16 @@ export function ShellFrame({
             label: labels.team,
             href: "/settings/team",
             icon: <UserPlus {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.devices
+      ? [
+          {
+            id: "devices",
+            label: labels.devices,
+            href: "/settings/devices",
+            icon: <Smartphone {...icon} />,
           },
         ]
       : []),

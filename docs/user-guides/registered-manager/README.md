@@ -59,6 +59,7 @@ statutory notification as submitted or not required, which needs an acting-up gr
 - [How to tag a record as evidence](tag-a-record-as-evidence.md)
 - [How to turn controlled drug recording on or off](turn-controlled-drug-recording-on-or-off.md)
 - [How to update the statement of purpose](update-the-statement-of-purpose.md)
+- [How to withdraw a lost or unused phone](withdraw-a-lost-phone.md)
 - [How to write and approve a letter template](write-a-letter-template.md)
 - [How to write and publish a policy](write-and-publish-a-policy.md)
 
