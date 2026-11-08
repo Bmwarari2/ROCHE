@@ -44,6 +44,18 @@ no screen yet. Gaps, hard-coded strings and what the guides found on screen (sha
 with device biometrics; switching user offline deletes unsent entries): see
 `docs/changelog-dev/2026-11-08-docs-guides-mobile-care-mode.md`.
 
+## User guides: Phase 2 gaps (08/11/2026)
+
+`docs/guides-phase-2-gaps`, from `main` at ea6fc04d: 24 new guides for screens that merged after
+their guides were written (branding, documents, tasks and approvals, legal holds and destruction,
+personal details, About me, sharing, enquiries, pre-admission, admission, property, discharge and
+transfer, duty of candour, investigations and trends, evidence packs, the statement of purpose,
+the home page and memberships), the inspector's evidence pack guide rewritten for its page, and
+about 20 guides brought up to `main` (an absconding incident opens a missing person episode, #191;
+the phone's Training tab, #184; the controlled drugs banner and round notices, #187). Linked from
+the indexes, the guides README and the register's user docs column; no status changed. Gaps still
+open and findings: `docs/changelog-dev/2026-11-08-docs-guides-phase-2-gaps.md`.
+
 ## Retention registry (08/11/2026)
 
 `feat/platform-retention-registry` (retention sweeps plan slices 2 and 3, on #193 and slice 1): the
@@ -127,6 +139,14 @@ pull request. Nothing is scheduled until the owner approves the plans.
 **Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
 phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
 and 1 once #193 has its numbers.
+
+## Doses recorded twice and corrections on the web (08/11/2026)
+
+`feat/meds-web-cd-conflicts-corrections`: the three web screens the phone sends staff to (HZ-004;
+medicines.md 15.4): deciding a dose recorded twice (a controlled drug's included, with step-up and
+someone who took no part), correcting the record that stands, and correcting a controlled drug's
+record with a witness who signs, in their own session, for exactly that correction. H-1605's
+stop-gap stays until this merges. Additive API fields only; no migration.
 
 ## Retention sweeps: plan (07/11/2026)
 

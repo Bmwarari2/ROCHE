@@ -39,6 +39,8 @@ files, recruitment, training and casework; you do not see care notes.
 - [How to handle a lost or stolen phone](../all-staff/handle-a-lost-or-stolen-phone.md)
 - [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
 - [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)
+- [How to read and sign an organisation document](../all-staff/read-and-sign-an-organisation-document.md)
+- [How to read your home page](../all-staff/read-your-home-page.md)
 - [How to set up a passkey or an authenticator app](../all-staff/set-up-a-second-sign-in-step.md)
 - [How to sign in](../all-staff/sign-in.md)
 - [How to speak up anonymously](../all-staff/speak-up-anonymously.md)

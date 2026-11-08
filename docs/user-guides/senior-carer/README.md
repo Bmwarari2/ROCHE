@@ -5,16 +5,19 @@ at your home, and the tasks below.
 
 ## Your guides
 
+- [How to create a task](create-a-task.md)
 - [How to declare and close an outage](declare-and-close-an-outage.md)
 - [How to give a controlled drug on the phone](../nurse/give-a-controlled-drug-on-the-phone.md)
 - [How to print the downtime pack](print-the-downtime-pack.md)
 - [How to publish a family update](publish-a-family-update.md)
 - [How to record a death](record-a-death.md)
 - [How to record a dependency category](record-a-dependency-category.md)
+- [How to record a person's property and keys](record-property-and-keys.md)
 - [How to respond to a lone-working alarm](respond-to-a-lone-working-alarm.md)
 - [How to send someone to hospital](send-someone-to-hospital.md)
 - [How to sign off a competence you observed](sign-off-a-competence.md)
 - [How to withdraw a competence sign-off](withdraw-a-competence-sign-off.md)
+- [How to work through approvals](work-through-approvals.md)
 
 ## Everyone
 
@@ -23,6 +26,8 @@ at your home, and the tasks below.
 - [How to handle speak-up cases](../all-staff/handle-speak-up-cases.md)
 - [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
 - [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)
+- [How to read and sign an organisation document](../all-staff/read-and-sign-an-organisation-document.md)
+- [How to read your home page](../all-staff/read-your-home-page.md)
 - [How to search for a person](../all-staff/search-for-a-person.md)
 - [How to see the history of a record](../all-staff/view-a-records-history.md)
 - [How to set up a passkey or an authenticator app](../all-staff/set-up-a-second-sign-in-step.md)
@@ -66,6 +71,7 @@ at your home, and the tasks below.
 - [How to raise a safeguarding concern](../care-worker/raise-a-safeguarding-concern.md)
 - [How to read and acknowledge the shift handover](../care-worker/read-and-acknowledge-the-handover.md)
 - [How to read and acknowledge the shift handover on the phone](../care-worker/read-and-acknowledge-the-handover-on-the-phone.md)
+- [How to read incident trends](../care-worker/read-incident-trends.md)
 - [How to read the staff privacy notice and choose how your photo is used](../care-worker/check-your-privacy-choices.md)
 - [How to read the sync banner on the phone](../care-worker/read-the-sync-banner-on-the-phone.md)
 - [How to record a chart entry (fluids, food, repositioning, bowel, weight)](../care-worker/record-a-chart-entry.md)
@@ -90,6 +96,7 @@ at your home, and the tasks below.
 - [How to thank a colleague](../care-worker/thank-a-colleague.md)
 - [How to use a shared phone or tablet](../care-worker/use-a-shared-phone-or-tablet.md)
 - [How to witness a controlled drug on the phone](../care-worker/witness-a-controlled-drug-on-the-phone.md)
+- [How to work through your tasks](../care-worker/work-through-your-tasks.md)
 - [How to write a daily note](../care-worker/write-a-daily-note.md)
 - [How to write a daily note on the phone](../care-worker/write-a-daily-note-on-the-phone.md)
 

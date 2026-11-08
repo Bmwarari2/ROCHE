@@ -41,6 +41,10 @@ anything.
   in charge.
 - If you see "You can read this record but cannot record in it", tell the person in charge of the
   shift what needs recording.
-- Adding people, and changing their details, allergies or photo, is not on the web yet.
+- Managers change personal details and contacts on the **Personal details** tab (see
+  [How to change a person's details and contacts](../registered-manager/change-a-persons-details-and-contacts.md)),
+  and new people start as an enquiry (see
+  [How to record an enquiry](../registered-manager/record-an-enquiry.md)). Changing allergies or
+  the photo is not on the web yet.
 - On the phone, see
   [How to check the person before you give care on the phone](check-the-person-before-you-act-on-the-phone.md).

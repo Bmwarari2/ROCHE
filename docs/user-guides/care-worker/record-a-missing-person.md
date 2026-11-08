@@ -33,10 +33,12 @@ the incident but cannot open the missing person episode: tell the person in char
 ## What happens next
 
 - Open the missing person episode straight away from the **Missing person** or **Left without
-  agreement** incident: choose **Record the missing person episode for** the person affected. The episode shows the latest time to call the police and
-  keeps the search log (see
-  [How to keep a missing person's timeline](keep-a-missing-person-timeline.md)). If you cannot
-  see the button, tell the person in charge.
+  agreement** incident: choose **Record the missing person episode for** and the person's name.
+  The episode shows the latest time to call the police and keeps the search log (see
+  [How to keep a missing person's timeline](keep-a-missing-person-timeline.md)).
+- The button shows for each resident recorded on the incident as the person affected, never for
+  a witness, and only while the incident is open. If you cannot see it, tell the person in
+  charge.
 - Thapsus Care drafts **Missing person: Herbert Protocol profile to the police** on the incident.
   Its time is Thapsus Care's target, not a legal deadline: do it as soon as possible all the
   same.

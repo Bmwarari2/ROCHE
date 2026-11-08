@@ -4,6 +4,6 @@ For inspectors and auditors.
 
 ## Your guides
 
-- [Evidence packs for inspectors](open-an-evidence-pack.md)
+- [How to open an evidence pack](open-an-evidence-pack.md)
 
 Back to [all user guides](../README.md).

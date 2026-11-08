@@ -205,6 +205,14 @@ and handover reuse the task engine. A second record of a dose from a device is k
 to decide; Thapsus Care never picks which record is right, and a dose found given twice raises an
 incident for people to investigate. Nothing suggests a dose, a change or a treatment.
 
+**Doses recorded twice and dose record corrections on the web (Phase 2, 08/11/2026)**: re-checked;
+still inside the boundary. The screens show both records in words and whether they agree, and
+offer only the decisions the records allow (a fixed rule about what the records say, not about the
+person); they never suggest which record is right. A correction records what a person says
+happened, with why. What a controlled drug's correction does to the register (a dose given, or a
+correction by the change in amount) is arithmetic on the two records, shown so the witness signs
+for exactly that; it says nothing about the medicine or its dose.
+
 **Controlled drugs register (Phase 2, slice 34)**: re-checked; still inside the boundary. The
 register records movements people make and checks arithmetic and signatures (the running balance,
 a witness who is a second person, a count against the page); it says nothing about the medicine,

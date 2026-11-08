@@ -20,10 +20,10 @@ person in charge.
 
 ## Open the episode
 
-1. Record the missing person incident first (see
+1. Record the incident first, as **Missing person** or **Left without agreement** (see
    [How to record a missing person](record-a-missing-person.md)).
-2. On the incident, choose **Record the missing person episode**. The button carries the person's
-   name.
+2. On the incident, choose **Record the missing person episode for** and the person's name. It
+   shows for the resident recorded as the person affected, while the incident is open.
 3. On **Open a missing person episode**, check the name at the top is the right person.
 4. Enter **When they were noticed missing**. The police call target starts from this time.
 5. Enter **When they were last seen**. Leave it empty if nobody knows.

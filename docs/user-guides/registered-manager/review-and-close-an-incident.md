@@ -27,13 +27,16 @@ cannot.
   another manager.
 - **Before it can close** lists what is left: a notification still a draft or ready, or questions
   still to answer. Each item links to it.
-- **The duty of candour record is still open.** The candour record has no web screen yet. Ask
-  the person who manages Thapsus Care for your organisation to complete it through the system, then
-  close the incident.
+- **The duty of candour record is still open.** The page says "Finish the duty of candour record
+  below, or record that it is not notifiable". Finish it under **Duty of candour** (see
+  [How to keep a duty of candour record](../nurse/keep-a-duty-of-candour-record.md)), then close
+  the incident.
 
 ## Good to know
 
 - A closed incident cannot be changed.
 - Someone may have changed it since you opened the page. If Thapsus Care says so, reload the page and
   try again if it is still needed.
-- Investigations, root cause and lessons learned have no web screen yet (register row SAFE-010).
+- Investigations, root cause and lessons learned are recorded under **Investigation** on the
+  incident, and can carry on after it closes (see
+  [How to record an incident investigation](../nurse/record-an-incident-investigation.md)).

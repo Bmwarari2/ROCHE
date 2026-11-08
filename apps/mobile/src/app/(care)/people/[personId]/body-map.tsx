@@ -55,7 +55,7 @@ export default function BodyMapScreen() {
     !params.correct && typeof params.task === "string" ? params.task : null,
     { table: "body_map_mark" },
   );
-  const { submit, saving, saveFailed } = useSaveAndReturn();
+  const { submit, saving, saveFailed } = useSaveAndReturn(id);
 
   const [view, setView] = useState<BodyView>("front");
   const [zone, setZone] = useState<ViewerZone | null>(null);

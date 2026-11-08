@@ -198,6 +198,8 @@ export const MedicineEntry = z
     withdrawn: Actor.extend({ reason: z.string() }).nullable(),
     /** What the MAR says now, in words (never colour alone), and whether a dose may be given. */
     status: z.object({ words: z.string(), mayGive: z.boolean(), notice: z.string().nullable() }),
+    /** The product has a controlled drug schedule: its doses move the register, witnessed. */
+    controlledDrug: z.boolean(),
   })
   .meta({ id: "MedicineEntry" });
 export type MedicineEntry = z.infer<typeof MedicineEntry>;

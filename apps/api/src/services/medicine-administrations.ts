@@ -282,6 +282,7 @@ export function administrationOut(
           method: w.method as "step_up" | "device_factor",
         }
       : null,
+    inCdRegister: r.cdEntryId !== null,
   };
 }
 
@@ -536,3 +537,5 @@ export async function raiseOutstandingDoseTasks(
 }
 
 const LOOKBACK_MS = 3 * 86_400_000;
+
+export { isControlledDrug } from "./medicines";

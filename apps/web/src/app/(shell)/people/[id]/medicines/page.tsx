@@ -1,5 +1,13 @@
 import { Button, ButtonLink, Card, EmptyState, SelectField, StatusChip } from "@harbour/ui";
-import { ClipboardList, ListChecks, Pill, Plus, Printer, TriangleAlert } from "lucide-react";
+import {
+  ClipboardList,
+  History,
+  ListChecks,
+  Pill,
+  Plus,
+  Printer,
+  TriangleAlert,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NoAccess } from "@/components/care/NoAccess";
@@ -7,6 +15,7 @@ import { Notice } from "@/components/care/Notice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { WarningArrival } from "@/components/care/WarningArrival";
 import { StartReconciliationForm } from "@/components/medicines/ReconciliationForms";
+import { administrationsHref } from "@/lib/administration-corrections";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -76,6 +85,15 @@ async function MedicinesTab({
               icon={<ListChecks size={18} strokeWidth={1.5} aria-hidden="true" />}
             >
               {t("medicines.round.openRound")}
+            </ButtonLink>
+          ) : null}
+          {medicinesRoundShown(me.permissions) ? (
+            <ButtonLink
+              href={administrationsHref(id)}
+              variant="secondary"
+              icon={<History size={18} strokeWidth={1.5} aria-hidden="true" />}
+            >
+              {t("medicines.administrations.open")}
             </ButtonLink>
           ) : null}
           {writer ? (
