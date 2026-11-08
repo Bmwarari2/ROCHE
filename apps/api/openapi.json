@@ -9899,7 +9899,8 @@
             "type": "string",
             "enum": [
               "off",
-              "report"
+              "report",
+              "propose"
             ]
           },
           "report": {
@@ -10024,6 +10025,232 @@
           "recordClass",
           "reason",
           "counts"
+        ]
+      },
+      "DestructionBatchList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DestructionBatch"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "DestructionBatch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "cancelled"
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "object",
+            "properties": {
+              "recordClass": {
+                "type": "string"
+              },
+              "period": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unit": {
+                "type": "string"
+              },
+              "trigger": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "recordClass",
+              "period",
+              "unit",
+              "trigger",
+              "origin"
+            ]
+          },
+          "itemCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "proposedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelledAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cancelledBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "cancelReason": {
+            "$ref": "#/components/schemas/DestructionBatchCancelReason"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "recordClass",
+          "rule",
+          "itemCount",
+          "tables",
+          "proposedAt",
+          "cancelledAt",
+          "cancelledBy",
+          "cancelReason",
+          "version"
+        ],
+        "description": "Records of one class proposed for destruction, for a person to review"
+      },
+      "DestructionBatchCancelReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "records_still_needed",
+          "rule_under_review",
+          "proposed_in_error",
+          "other",
+          null
+        ]
+      },
+      "DestructionBatchItemList": {
+        "type": "object",
+        "properties": {
+          "batch": {
+            "$ref": "#/components/schemas/DestructionBatch"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DestructionBatchItem"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "batch",
+          "items",
+          "nextCursor"
+        ]
+      },
+      "DestructionBatchItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableName": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "triggerOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "dueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "subjectKind": {
+            "type": "string",
+            "enum": [
+              "person",
+              "applicant",
+              "none"
+            ]
+          },
+          "subjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "tableName",
+          "recordId",
+          "recordClass",
+          "triggerOn",
+          "dueOn",
+          "subjectKind",
+          "subjectIds"
+        ]
+      },
+      "CancelDestructionBatch": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DestructionBatchCancelReason"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reason"
         ]
       },
       "SignatureRequestItem": {
@@ -75843,6 +76070,268 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RetentionDue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/retention/batches": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Destruction batches the retention sweep proposed",
+        "description": "Newest first, a page at a time (pass nextCursor back as cursor); optionally by status. A batch is a proposal only: nothing is destroyed or hidden. Tenant-wide holders of platform.retention.manage, with step-up.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "proposed",
+                "cancelled"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Batches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestructionBatchList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/retention/batches/{id}/items": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "A destruction batch and the records it proposes",
+        "description": "The batch and its items (table, record id, class, dates, whom it is about), a page at a time in the order proposed. Tenant-wide holders of platform.retention.manage, with step-up; audited with the batch id.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch and its items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestructionBatchItemList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/retention/batches/{id}/cancel": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Cancel a proposed destruction batch",
+        "description": "With expectedVersion and a reason code. The batch stays, cancelled, with who and when; its records are kept and may be proposed again by a later sweep. A stale version is refused (409), and so is a batch already decided. Tenant-wide holders of platform.retention.manage, with step-up.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelDestructionBatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestructionBatch"
                 }
               }
             }

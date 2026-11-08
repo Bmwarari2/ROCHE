@@ -258,6 +258,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
 | competence.default_refresh_months | 12 | months | 2000-01-01 | - | all | Thapsus Care default for observed competences other than medicines (no statutory figure; tenant may set sooner; H-690) | to-verify |
 | retention.staff_file.birthday_age | 75 | years | 2000-01-01 | - | all | NHS Records Management Code of Practice (staff records to the 75th birthday); retention.md staff_file.to_75th_birthday | master-prompt |
+| retention.batch.max_records | 5000 | count | 2000-01-01 | - | all | Thapsus Care default, not a statutory figure: the most records in one proposed destruction batch, oldest due first; the rest wait for the next batch of the class (retention sweeps plan 5.4, slice 6) | to-verify |
 | supervision.per_year | 6 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | appraisal.per_year | 1 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | supervision.due_window_days | 14 | days | 2000-01-01 | - | all | Thapsus Care default, not a statutory figure: how many days before a supervision or appraisal falls due it shows as due soon on the training screens (workforce.md rule 7; WORK-009); tenant default | to-verify |

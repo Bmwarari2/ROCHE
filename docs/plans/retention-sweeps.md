@@ -493,6 +493,35 @@ bounded context, so each PR stays small.
 - **Propose mode** also writes a `destruction_batch` (status `proposed`) per class with its
   `destruction_batch_item` rows (table, record id, class, trigger date, due date, subject reference).
   Items are append-only. A record already in an open batch is skipped. Batch size from the rate table.
+  As built in slice 6 (08/11/2026):
+  - **Mode.** A second organisation-wide flag, `platform.retention.sweep_propose` (off by default),
+    on top of `platform.retention.sweep_report`: report on gives `report`, both on give `propose`,
+    propose on without report gives `off` (one step at a time, never skipped). Proposals destroy
+    nothing, so propose mode covers every class; the mode per class comes with `destroy` (slices 10
+    and 11). No in-app switch yet: Thapsus sets the flag on the organisation's written request, as
+    for report mode (provisional, H-1620).
+  - **What is proposed.** Only records that report mode decides (`kind: "read"` plans) and that
+    `sweepDecision` finds `due`: never a held record (an unreleased legal hold on the record or the
+    person), a `not_evaluated` or `never_offered` table (H-1613), a `tenant_policy` class (H-1585),
+    a record waiting for its trigger or kept to a later date. Until slice 12 (H-1612, H-1586): a
+    record about a person with an open DSAR case (about them or one of their contacts), an open
+    complaint about them or an open safeguarding concern about them is skipped, as if held; a
+    record about a member of staff (its subject, or a further subject) is never proposed, because
+    employee relations cases are readable only by their members and cannot be checked; a record
+    whose subject is found only through its parent is never proposed (provisional, H-1621).
+  - **Batches.** One `destruction_batch` per organisation and resolved class, holding at most
+    `retention.batch.max_records` items (rate table), oldest due first. While a class has a batch
+    `proposed`, no new batch is proposed for it; a record already in a proposed batch is skipped.
+    The batch is a mutable aggregate (`version`, `expected_version` on every change, `touch_mutable`
+    and `capture_version`): `proposed`, then `cancelled` in this slice (approval, soft delete and
+    purge add states in slices 9 and 10). A guard trigger allows only that move, with a reason code,
+    the person and the time, and never a delete. `destruction_batch_item` is append-only: table,
+    record id, class, trigger and due dates, and the subject's kind and id (a person or an applicant).
+  - **Routes.** `GET /v1/retention/batches`, `GET /v1/retention/batches/{id}/items` (pages, by id)
+    and `POST /v1/retention/batches/{id}/cancel` (`expectedVersion`, reason code), each for
+    tenant-wide holders of `platform.retention.manage` with step-up, audited.
+  - **Keeping.** Batches and items are kept permanently, as proof of records management, like
+    destruction certificates (provisional, H-1622).
 - **Destroy mode** adds the purge of batches whose grace period has ended (5.6).
 - Each batch is processed in its own transaction under the organisation's retention lock (the same
   advisory lock key the documents route and the hold routes take), so a hold placed meanwhile waits and
@@ -593,7 +622,7 @@ tenant's data.
 | 3 | Registry, parts 2 to 4 | Workforce and scheduling; medicines; safety, quality and comms. Fix the catalogue's medicines, audit and payroll classes. The allow-list ends empty. **Built 08/11/2026** (`feat/platform-retention-registry`): 238 entries (the 135 Phase 2 tables, 96 Phase 0 and 1 tables and 6 sign-in tables) and 76 tables listed as holding no personal data; no allow-list was needed; 45 catalogue `retention` values corrected | No |
 | 4 | Report-only sweep (`feat/platform-retention-report`) | `retention-sweep` queue in report mode, `retention_report` table (counts only, forced RLS), `GET /v1/retention/due`, audit event, tests with a clock. **Built 08/11/2026**: flag `platform.retention.sweep_report` (off by default; off and report only), migration 0160, `packages/domain/src/platform/retention-report.ts`, `apps/api/src/services/retention-report.ts`; tables whose class or dates follow a parent, a linked record, a value or a derived rule (and the four the application role cannot read) are counted as `not_evaluated` with the reason until a later slice reads them; holds are those of today (a person or a record), the wider scopes and implicit holds wait for slice 12 | No (writes reports only) |
 | 5 | Report screen | `/settings/retention` "Due for destruction" counts per class, with axe tests | No |
-| 6 | Batches (`feat/platform-retention-batches`) | `destruction_batch`, `destruction_batch_item` (append-only), propose mode, list and cancel routes, step-up; no soft delete yet | No (proposals only) |
+| 6 | Batches (`feat/platform-retention-batches`) | `destruction_batch`, `destruction_batch_item` (append-only), propose mode, list and cancel routes, step-up; no soft delete yet. **Built 08/11/2026**: flag `platform.retention.sweep_propose` (on top of report), migration 0161, `packages/domain/src/platform/retention-batches.ts`, `apps/api/src/services/retention-batches.ts`, `apps/api/src/routes/retention-batches.ts`; see 5.4 for what is never proposed (H-1620 to H-1622) | No (proposals only) |
 | 7 | Retention role and exception | Bootstrap role `harbour_retention_owner`; `app.retention_tables()`; `forbid_mutation` exception; grants; definer ACL tests; bootstrap before migration in every environment | No (capability only) |
 | 8 | Retention column, by context (3 or 4 PRs) | `retention_deleted_at` expand migrations, the restrictive SELECT policy, sync stream filters | No |
 | 9 | Soft delete and restore | `app.retention_soft_delete`, `app.retention_restore`, approve route with step-up, hold-on-grace restores, screen | Yes: hides rows |

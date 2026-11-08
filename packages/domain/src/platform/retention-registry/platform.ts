@@ -63,6 +63,11 @@ export const PLATFORM_REGISTRY: RegistryContext = {
       },
     ),
     entry("destruction_certificate", PERMANENT, {}, NO_SUBJECT, { method: NEVER }),
+    entry("destruction_batch_item", PERMANENT, {}, NO_SUBJECT, {
+      method: NEVER,
+      provisional: ["H-1622"],
+      note: "A record proposed for destruction (plan 5.4, slice 6): its table, id and the ids of the person or applicant it is about. Kept as proof of records management, like certificates",
+    }),
     entry(
       "device_binding",
       classes("audit_event"),

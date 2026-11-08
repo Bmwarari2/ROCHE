@@ -42,6 +42,21 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Destruction batches (08/11/2026)
+
+`feat/platform-retention-batches` (retention sweeps plan slice 6), from `main` at 89d118d0: propose
+mode, behind a second flag `platform.retention.sweep_propose` on top of the report flag (off by
+default; never without report). The nightly sweep, after its report, proposes per class one
+`destruction_batch` (at most `retention.batch.max_records`, oldest due first) with append-only
+`destruction_batch_item` rows naming the records due: never a held record, a record about a person
+with an open DSAR case, complaint or safeguarding concern, a record about a member of staff, a
+`tenant_policy` class or a table the report does not decide (H-1612, H-1613, H-1621). Routes
+`GET /v1/retention/batches`, `GET /v1/retention/batches/{id}/items` and
+`POST /v1/retention/batches/{id}/cancel` (`platform.retention.manage`, step-up, `expectedVersion`,
+reason code), audited. Nothing is hidden or destroyed. Migration 0161 (renumber at merge if
+needed). Provisional decisions H-1620 to H-1622. See
+`docs/changelog-dev/2026-11-08-feat-platform-retention-batches.md`.
+
 ## Retention report (08/11/2026)
 
 `feat/platform-retention-report` (retention sweeps plan slice 4), from `main` at 8d9b4cc8: the

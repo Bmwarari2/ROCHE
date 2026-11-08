@@ -295,8 +295,8 @@ export type RetentionReportLine = z.infer<typeof RetentionReportLine>;
 
 export const RetentionDue = z
   .object({
-    /** The sweep's mode: off (the default) or report; nothing is destroyed in either. */
-    mode: z.enum(["off", "report"]),
+    /** The sweep's mode: off (the default), report or propose; nothing is destroyed in any. */
+    mode: z.enum(["off", "report", "propose"]),
     report: z
       .object({
         id: uuid,
@@ -314,3 +314,80 @@ export const RetentionDue = z
     description: "The latest retention report: counts per table and class, no record ids",
   });
 export type RetentionDue = z.infer<typeof RetentionDue>;
+
+/** A cancel reason: a code, never free text (retention sweeps plan 5.4, slice 6). */
+export const DestructionBatchCancelReason = z
+  .enum(["records_still_needed", "rule_under_review", "proposed_in_error", "other"])
+  .meta({ id: "DestructionBatchCancelReason" });
+export type DestructionBatchCancelReason = z.infer<typeof DestructionBatchCancelReason>;
+
+export const DestructionBatch = z
+  .object({
+    id: uuid,
+    /** Proposed by the nightly sweep, or cancelled by a reviewer; nothing is destroyed in either. */
+    status: z.enum(["proposed", "cancelled"]),
+    recordClass: z.string(),
+    rule: z.object({
+      recordClass: z.string(),
+      period: z.number().int().min(0),
+      unit: z.string(),
+      trigger: z.string(),
+      origin: z.string(),
+    }),
+    itemCount: z.number().int().min(1),
+    /** Records proposed per table: counts only. */
+    tables: z.record(z.string(), z.number().int().min(0)),
+    proposedAt: isoDateTime,
+    cancelledAt: isoDateTime.nullable(),
+    cancelledBy: uuid.nullable(),
+    cancelReason: DestructionBatchCancelReason.nullable(),
+    version: z.number().int(),
+  })
+  .meta({
+    id: "DestructionBatch",
+    description: "Records of one class proposed for destruction, for a person to review",
+  });
+export type DestructionBatch = z.infer<typeof DestructionBatch>;
+
+export const DestructionBatchList = z
+  .object({
+    items: z.array(DestructionBatch),
+    /** Pass as `cursor` for the next page; null on the last. */
+    nextCursor: z.string().nullable(),
+  })
+  .meta({ id: "DestructionBatchList" });
+export type DestructionBatchList = z.infer<typeof DestructionBatchList>;
+
+export const DestructionBatchItem = z
+  .object({
+    id: uuid,
+    tableName: z.string(),
+    recordId: uuid,
+    recordClass: z.string(),
+    /** The date the retention period ran from, when the rule has one (dd/mm/yyyy on screen). */
+    triggerOn: z.iso.date().nullable(),
+    dueOn: z.iso.date(),
+    subjectKind: z.enum(["person", "applicant", "none"]),
+    subjectIds: z.array(uuid),
+  })
+  .meta({ id: "DestructionBatchItem" });
+export type DestructionBatchItem = z.infer<typeof DestructionBatchItem>;
+
+export const DestructionBatchItemList = z
+  .object({
+    batch: DestructionBatch,
+    items: z.array(DestructionBatchItem),
+    /** Pass as `cursor` for the next page; null on the last. */
+    nextCursor: z.string().nullable(),
+  })
+  .meta({ id: "DestructionBatchItemList" });
+export type DestructionBatchItemList = z.infer<typeof DestructionBatchItemList>;
+
+export const CancelDestructionBatch = z
+  .object({
+    /** The batch's version as read: a stale cancel is refused (409). */
+    expectedVersion: z.number().int().min(1),
+    reason: DestructionBatchCancelReason,
+  })
+  .meta({ id: "CancelDestructionBatch" });
+export type CancelDestructionBatch = z.infer<typeof CancelDestructionBatch>;

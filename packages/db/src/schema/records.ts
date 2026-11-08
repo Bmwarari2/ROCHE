@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -217,7 +218,7 @@ export const retentionReport = pgTable(
   {
     id: id(),
     tenantId: tenantId(),
-    /** The sweep's mode for the run: `report` only, until propose mode lands (plan slice 6). */
+    /** The sweep's mode for the run: `report`, or `propose` (plan slice 6). */
     mode: text("mode").notNull(),
     /** The clock the run decided against. */
     asOf: timestamp("as_of", { withTimezone: true }).notNull(),
@@ -231,10 +232,106 @@ export const retentionReport = pgTable(
   },
   (t) => [
     index("retention_report_latest_idx").on(t.tenantId, t.asOf),
-    check("retention_report_mode", sql`${t.mode} IN ('report')`),
+    check("retention_report_mode", sql`${t.mode} IN ('report', 'propose')`),
     check(
       "retention_report_counts",
       sql`${t.durationMs} >= 0 AND ${t.tablesRead} >= 0 AND ${t.tablesSkipped} >= 0`,
+    ),
+  ],
+);
+
+/**
+ * A destruction batch (retention sweeps plan 5.4 propose mode and 5.5, slice 6; ADR-0135): the
+ * records of one class that the nightly sweep proposes for destruction, for a person to review.
+ * A mutable aggregate (`version`, expected on every change): `proposed`, then `cancelled` with a
+ * reason code; approval, soft delete and purge come with slices 9 and 10. Never deleted. Holds the
+ * class, its rule and counts per table; the records themselves are its items.
+ */
+export const destructionBatch = pgTable(
+  "destruction_batch",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    status: text("status").notNull().default("proposed"),
+    /** The class whose rule made the records due (the longest of a record's classes). */
+    recordClass: text("record_class").notNull(),
+    /** The rule as resolved when proposed: period, unit, trigger and origin (tenant or global). */
+    rule: jsonb("rule").notNull(),
+    itemCount: integer("item_count").notNull(),
+    /** Items per table, counts only. */
+    tables: jsonb("tables").notNull(),
+    /** The sweep's clock when it proposed the batch. */
+    proposedAt: timestamp("proposed_at", { withTimezone: true }).notNull(),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelledBy: uuid("cancelled_by"),
+    /** A code (`BATCH_CANCEL_REASONS`), never free text. */
+    cancelReason: text("cancel_reason"),
+    ...createdColumns(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").default(sql`app.current_user_id()`),
+    version: integer("version").notNull().default(1),
+  },
+  (t) => [
+    unique("destruction_batch_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "destruction_batch_cancelled_by_fk",
+      columns: [t.tenantId, t.cancelledBy],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    index("destruction_batch_list_idx").on(t.tenantId, t.status, t.id),
+    // One proposed batch per class at a time: the next waits until it is decided.
+    uniqueIndex("destruction_batch_one_proposed")
+      .on(t.tenantId, t.recordClass)
+      .where(sql`status = 'proposed'`),
+    check("destruction_batch_status", sql`${t.status} IN ('proposed', 'cancelled')`),
+    check("destruction_batch_count", sql`${t.itemCount} > 0`),
+    check(
+      "destruction_batch_cancelled",
+      sql`(${t.status} = 'cancelled') = (${t.cancelledAt} IS NOT NULL)
+        AND (${t.cancelledAt} IS NULL) = (${t.cancelledBy} IS NULL)
+        AND (${t.cancelledAt} IS NULL) = (${t.cancelReason} IS NULL)
+        AND (${t.cancelReason} IS NULL OR ${t.cancelReason} IN ('records_still_needed', 'rule_under_review', 'proposed_in_error', 'other'))`,
+    ),
+  ],
+);
+
+/**
+ * One record proposed in a destruction batch (plan 5.4): its table and id, the class and dates
+ * that made it due, and whom it is about (a person or an applicant, by id), so holds can be
+ * checked again at approval. Append-only: a later decision about an item is a new row (slice 9).
+ */
+export const destructionBatchItem = pgTable(
+  "destruction_batch_item",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    batchId: uuid("batch_id").notNull(),
+    tableName: text("table_name").notNull(),
+    recordId: uuid("record_id").notNull(),
+    recordClass: text("record_class").notNull(),
+    /** The trigger date (care ended, closed, created...), when the rule has one. */
+    triggerOn: date("trigger_on", { mode: "string" }),
+    dueOn: date("due_on", { mode: "string" }).notNull(),
+    /** `person`, `applicant` or `none`. */
+    subjectKind: text("subject_kind").notNull(),
+    subjectIds: uuid("subject_ids").array().notNull().default(sql`'{}'::uuid[]`),
+    ...createdColumns(),
+  },
+  (t) => [
+    foreignKey({
+      name: "destruction_batch_item_batch_fk",
+      columns: [t.tenantId, t.batchId],
+      foreignColumns: [destructionBatch.tenantId, destructionBatch.id],
+    }),
+    unique("destruction_batch_item_record_key").on(t.batchId, t.tableName, t.recordId),
+    index("destruction_batch_item_record_idx").on(t.tenantId, t.tableName, t.recordId),
+    check(
+      "destruction_batch_item_subject_kind",
+      sql`${t.subjectKind} IN ('person', 'applicant', 'none')`,
+    ),
+    check(
+      "destruction_batch_item_subject_ids",
+      sql`${t.subjectKind} <> 'none' OR cardinality(${t.subjectIds}) = 0`,
     ),
   ],
 );

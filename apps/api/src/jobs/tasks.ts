@@ -82,6 +82,7 @@ import { generatePlanTasks } from "../services/plan-tasks";
 import { expireImportBatches } from "../services/platform-imports";
 import { raisePolicyReminders } from "../services/policies";
 import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
+import { proposeBatches } from "../services/retention-batches";
 import { reportRetention } from "../services/retention-report";
 import { roleHolders, toldOf } from "../services/role-holders";
 import {
@@ -530,15 +531,19 @@ export async function eachTenant(
 export const RETENTION_SWEEP_QUEUE = "retention-sweep";
 
 /**
- * The retention sweep in report mode (plan 5.4, slice 4): for each organisation whose sweep is in
- * report mode, one `retention_report` row and one audit event, counts only. Reads every registry
- * table and changes none; an organisation with the flag off is skipped. One organisation's
+ * The retention sweep (plan 5.4): for each organisation whose sweep is in report mode, one
+ * `retention_report` row and one audit event, counts only (slice 4); in propose mode, also the
+ * destruction batches of records due, for a person to review (slice 6). Reads every registry
+ * table and changes no record; an organisation with its flags off is skipped. One organisation's
  * failure never stops the others' (`eachTenant`), and is audited as the system.
  */
 export async function sweepRetentionReports(deps: TaskDeps, now = new Date()): Promise<number> {
-  const reported = await eachTenant(deps, RETENTION_SWEEP_QUEUE, async (tx, tenantId) =>
-    (await reportRetention(tx, tenantId, now)) ? 1 : 0,
-  );
+  const reported = await eachTenant(deps, RETENTION_SWEEP_QUEUE, async (tx, tenantId) => {
+    const report = await reportRetention(tx, tenantId, now);
+    if (!report) return 0;
+    if (report.mode === "propose") await proposeBatches(tx, tenantId, now, report.lines);
+    return 1;
+  });
   if (reported > 0) deps.logger.info({ reported }, "retention reports written");
   return reported;
 }
