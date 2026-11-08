@@ -18,8 +18,10 @@ Registered Manager does that.
 - [How to count controlled drugs stock](count-controlled-drugs-stock.md)
 - [How to declare an outbreak](declare-an-outbreak.md)
 - [How to dispose of medicines with a witness](dispose-of-medicines-with-a-witness.md)
+- [How to fill in a pre-admission assessment](fill-in-a-pre-admission-assessment.md)
 - [How to fill in the outbreak report](fill-in-the-outbreak-report.md)
 - [How to keep a death record](keep-a-death-record.md)
+- [How to keep a duty of candour record](keep-a-duty-of-candour-record.md)
 - [How to keep an outbreak line list](keep-an-outbreak-line-list.md)
 - [How to log a disclosure request](log-a-disclosure-request.md)
 - [How to order medicines for the next cycle](order-medicines-for-the-next-cycle.md)
@@ -31,6 +33,7 @@ Registered Manager does that.
 - [How to record a mortality review](record-a-mortality-review.md)
 - [How to record a ReSPECT plan or DNACPR decision](record-a-resuscitation-decision.md)
 - [How to record a review or a change in need](record-a-review.md)
+- [How to record an incident investigation](record-an-incident-investigation.md)
 - [How to release and hand over a disclosure pack](release-and-hand-over-a-disclosure-pack.md)
 - [How to review the records for a disclosure request](review-records-for-a-disclosure-request.md)
 - [How to run MUST, Waterlow or Braden, or ask the falls questions](run-a-validated-tool.md)
@@ -38,6 +41,7 @@ Registered Manager does that.
 - [How to set food and drink levels and the fluid target](set-food-and-drink-levels.md)
 - [How to stop a medicine](stop-a-medicine.md)
 - [How to write a Herbert Protocol profile](write-a-herbert-protocol-profile.md)
+- [How to write About me](write-about-me.md)
 - [How to write and publish a care plan](write-and-publish-a-care-plan.md)
 
 ## Everyone
@@ -46,6 +50,8 @@ Registered Manager does that.
 - [How to handle speak-up cases](../all-staff/handle-speak-up-cases.md)
 - [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
 - [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)
+- [How to read and sign an organisation document](../all-staff/read-and-sign-an-organisation-document.md)
+- [How to read your home page](../all-staff/read-your-home-page.md)
 - [How to search for a person](../all-staff/search-for-a-person.md)
 - [How to see the history of a record](../all-staff/view-a-records-history.md)
 - [How to set up a passkey or an authenticator app](../all-staff/set-up-a-second-sign-in-step.md)
@@ -79,6 +85,7 @@ Registered Manager does that.
 - [How to print the MAR chart](../care-worker/print-the-mar-chart.md)
 - [How to raise a safeguarding concern](../care-worker/raise-a-safeguarding-concern.md)
 - [How to read and acknowledge the shift handover](../care-worker/read-and-acknowledge-the-handover.md)
+- [How to read incident trends](../care-worker/read-incident-trends.md)
 - [How to read the staff privacy notice and choose how your photo is used](../care-worker/check-your-privacy-choices.md)
 - [How to record a chart entry (fluids, food, repositioning, bowel, weight)](../care-worker/record-a-chart-entry.md)
 - [How to record a medicines fridge or room temperature](../care-worker/record-a-medicines-fridge-or-room-temperature.md)
@@ -92,19 +99,23 @@ Registered Manager does that.
 - [How to take a training course offline on the phone](../care-worker/take-a-training-course-offline-on-the-phone.md)
 - [How to take an e-learning course](../care-worker/take-an-e-learning-course.md)
 - [How to thank a colleague](../care-worker/thank-a-colleague.md)
+- [How to work through your tasks](../care-worker/work-through-your-tasks.md)
 - [How to write a daily note](../care-worker/write-a-daily-note.md)
 
 ## From the senior carer guides
 
+- [How to create a task](../senior-carer/create-a-task.md)
 - [How to declare and close an outage](../senior-carer/declare-and-close-an-outage.md)
 - [How to print the downtime pack](../senior-carer/print-the-downtime-pack.md)
 - [How to publish a family update](../senior-carer/publish-a-family-update.md)
 - [How to record a death](../senior-carer/record-a-death.md)
 - [How to record a dependency category](../senior-carer/record-a-dependency-category.md)
+- [How to record a person's property and keys](../senior-carer/record-property-and-keys.md)
 - [How to respond to a lone-working alarm](../senior-carer/respond-to-a-lone-working-alarm.md)
 - [How to send someone to hospital](../senior-carer/send-someone-to-hospital.md)
 - [How to sign off a competence you observed](../senior-carer/sign-off-a-competence.md)
 - [How to withdraw a competence sign-off](../senior-carer/withdraw-a-competence-sign-off.md)
+- [How to work through approvals](../senior-carer/work-through-approvals.md)
 
 ## From the Registered Manager guides
 

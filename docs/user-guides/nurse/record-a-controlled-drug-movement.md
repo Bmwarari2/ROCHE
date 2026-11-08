@@ -12,10 +12,12 @@ witness controlled drugs.
 
 **Depends on**: H-1202 (controlled drug doses taken by the person themselves or given by family), still open (H-1541).
 
-> **Until your home's electronic controlled drugs register is turned on**, keep every controlled
-> drug record for your home (receipts, doses given, counts and returns) in the paper controlled
-> drugs register, and do not use these screens. One register is the record, so its balance is
-> never split between paper and Thapsus Care (H-1517).
+> **If the page says "Controlled drug recording is not turned on for this home"**, the paper
+> controlled drugs register is the record at your home. The page still shows what Thapsus Care
+> holds, which may be incomplete, but none of the forms in these steps, and Thapsus Care refuses
+> anything recorded there. Record every receipt, dose given, transfer, disposal and stock count in
+> the paper register, with a witness, as your home's policy says. One register is the record, so
+> its balance is never split between paper and Thapsus Care (H-1517).
 
 ## Steps
 
@@ -60,6 +62,8 @@ always needs a witness.
   [How to correct a controlled drugs register entry](correct-a-controlled-drugs-register-entry.md)
   (HZ-115).
 - Only a controlled drug can have a register page. Thapsus Care says if the medicine is not one.
-- Giving a controlled drug to the person cannot be recorded on the web. Until both the web and
-  the phone record controlled drugs for your home, every controlled drug record stays in the paper
-  register, with a witness, and the paper MAR (medicines administration record) (H-1517).
+- Giving a controlled drug to the person cannot be recorded on the web. Until controlled drug
+  recording is turned on for your home, the paper controlled drugs register is the record, with a
+  witness, alongside the paper MAR (medicines administration record). It is turned on for a home
+  only once both the web and the phone record controlled drugs there (H-1517). There is no
+  setting for it on screen: ask your Registered Manager.

@@ -29,6 +29,7 @@ For care and support workers, and agency or bank workers. You see the people ass
 - [How to print the MAR chart](print-the-mar-chart.md)
 - [How to raise a safeguarding concern](raise-a-safeguarding-concern.md)
 - [How to read and acknowledge the shift handover](read-and-acknowledge-the-handover.md)
+- [How to read incident trends](read-incident-trends.md)
 - [How to read the staff privacy notice and choose how your photo is used](check-your-privacy-choices.md)
 - [How to record a chart entry (fluids, food, repositioning, bowel, weight)](record-a-chart-entry.md)
 - [How to record a medicines fridge or room temperature](record-a-medicines-fridge-or-room-temperature.md)
@@ -42,6 +43,7 @@ For care and support workers, and agency or bank workers. You see the people ass
 - [How to take a training course offline on the phone](take-a-training-course-offline-on-the-phone.md)
 - [How to take an e-learning course](take-an-e-learning-course.md)
 - [How to thank a colleague](thank-a-colleague.md)
+- [How to work through your tasks](work-through-your-tasks.md)
 - [How to write a daily note](write-a-daily-note.md)
 
 ## Everyone
@@ -50,6 +52,8 @@ For care and support workers, and agency or bank workers. You see the people ass
 - [How to handle speak-up cases](../all-staff/handle-speak-up-cases.md)
 - [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
 - [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)
+- [How to read and sign an organisation document](../all-staff/read-and-sign-an-organisation-document.md)
+- [How to read your home page](../all-staff/read-your-home-page.md)
 - [How to search for a person](../all-staff/search-for-a-person.md)
 - [How to see the history of a record](../all-staff/view-a-records-history.md)
 - [How to set up a passkey or an authenticator app](../all-staff/set-up-a-second-sign-in-step.md)
