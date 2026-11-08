@@ -160,6 +160,21 @@ describe("hazard HZ-011 disclosure requests (migration 0103)", () => {
         [id],
       ),
     );
+    // And the coroner's extension of the response (migration 0158), never on or before the report.
+    await asHome((c) =>
+      c.query(
+        "UPDATE disclosure_request SET prevention_extended_to = current_date + 90 WHERE id = $1",
+        [id],
+      ),
+    );
+    await expect(
+      asHome((c) =>
+        c.query(
+          "UPDATE disclosure_request SET prevention_extended_to = prevention_report_on WHERE id = $1",
+          [id],
+        ),
+      ),
+    ).rejects.toThrow(/disclosure_request_prevention_extension/);
     // H-958: the pack is downloaded once and its hand-over recorded once, each in one's own name,
     // by a secure route only; neither is changed afterwards.
     await expect(

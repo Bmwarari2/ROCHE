@@ -117,29 +117,34 @@ export function itemDecisionChip(decision: string, t: Translator): SafetyChip {
 
 /** The Regulation 28 response as an icon and words. */
 export function preventionChip(
-  prevention: { readonly state: string; readonly responseDueOn: string },
+  prevention: {
+    readonly state: string;
+    readonly responseDueOn: string;
+    readonly extendedTo?: string | null;
+  },
   t: Translator,
   formatDate: (iso: string) => string | null,
 ): SafetyChip {
   const date = formatDate(prevention.responseDueOn) ?? "";
+  const extended = prevention.extendedTo ? "yes" : "no";
   switch (prevention.state) {
     case "responded":
       return {
         status: "neutral",
         icon: "circle-check",
-        label: t("disclosures.prevention.state", { state: "responded", date }),
+        label: t("disclosures.prevention.state", { state: "responded", date, extended }),
       };
     case "overdue":
       return {
         status: "overdue",
         icon: "circle-alert",
-        label: t("disclosures.prevention.state", { state: "overdue", date }),
+        label: t("disclosures.prevention.state", { state: "overdue", date, extended }),
       };
     case "due":
       return {
         status: "due",
         icon: "clock",
-        label: t("disclosures.prevention.state", { state: "due", date }),
+        label: t("disclosures.prevention.state", { state: "due", date, extended }),
       };
     default:
       return {
@@ -393,7 +398,12 @@ export function readPreventionReport(
   form: FormLike,
   t: Translator,
   options: { readonly expectedVersion: number },
-): Read<{ reportOn: string; respondedOn?: string | null; expectedVersion: number }> {
+): Read<{
+  reportOn: string;
+  respondedOn?: string | null;
+  extendedTo?: string | null;
+  expectedVersion: number;
+}> {
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
   const report = readDateField(form, "reportOn", {
@@ -413,15 +423,29 @@ export function readPreventionReport(
     errors.respondedOn = (responded as TimeProblem).message;
     parts.respondedOn = (responded as TimeProblem).parts;
   }
+  const extended = readDateField(form, "extendedTo", {
+    subject: t("disclosures.prevention.extendedSubject"),
+    t,
+    optional: true,
+  });
+  if (!extended.ok) {
+    errors.extendedTo = (extended as TimeProblem).message;
+    parts.extendedTo = (extended as TimeProblem).parts;
+  }
   const reportOn = report.ok ? report.date : null;
   const respondedOn = responded.ok ? responded.date : null;
+  const extendedTo = extended.ok ? extended.date : null;
   if (reportOn && respondedOn && respondedOn < reportOn) {
     errors.respondedOn = t("disclosures.prevention.beforeReport");
+  }
+  // The API checks it is later than the usual due date (rate table); here, after the report.
+  if (reportOn && extendedTo && extendedTo <= reportOn) {
+    errors.extendedTo = t("disclosures.prevention.extendedBeforeReport");
   }
   if (Object.keys(errors).length > 0 || !reportOn) return failed(errors, parts);
   return {
     ok: true,
-    body: { reportOn, respondedOn, expectedVersion: options.expectedVersion },
+    body: { reportOn, respondedOn, extendedTo, expectedVersion: options.expectedVersion },
   };
 }
 

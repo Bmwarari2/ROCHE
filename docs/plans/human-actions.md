@@ -1047,6 +1047,18 @@ rows from H-1543). Each open question takes its recommended answer until the tes
 | H-1562 | Decide whether the incident record asks when the person was found for absconding too, or the episode's found entry stays the only found time for both types. Recommended answer: the episode's found entry (the incident's found time only drives post-fall observations) | CSO | HZ-127; `apps/web/src/lib/incident-forms.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 | H-1563 | Confirm that absconding (which can be a capacitous person choosing to leave) gets the same police call target (`missing_person.police_call_minutes`) and immediate-risk alert as going missing, or ask for a separate rate key. Recommended answer: the same target; staff call at once when worried | CSO | HZ-127; [rates.md](../specs/rates.md) | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 
+## Guide gaps from the slice 83 review: Regulation 28 (H-1570 to H-1572)
+
+Logged by the Regulation 28 PR (lead's list of 07/11/2026, item 5; block H-1561 to H-1580). The
+legal check of the 56 days stays with H-822 and H-1547 (reg 29(4): within 56 days of the date the
+report is sent, so due 56 days after it, as built).
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1570 | At each pilot tenant, check Regulation 28 entries saved before this change: they were entered as the date the report was received and are now read as the date it was sent, so a report that arrived late shows a due date too late. Recommended answer: the Registered Manager checks each against the coroner's report | Pilot tenants' Registered Managers | safety.md rule 43; migration 0158 | First release with this change at a pilot | open |
+| H-1571 | Confirm that only a later date the coroner allowed counts as an extension (one on or before the usual due date is refused), that an extension may be recorded after the request is released, refused or withdrawn, and whether clearing Regulation 28 dates on a closed request should be blocked | DPO | safety.md rule 43; migration 0158 | None | provisional: owner-accepted recommendation, pending review at the testing phase |
+| H-1572 | Decide whether a missed or wrongly dated Regulation 28 response is a clinical hazard (widen HZ-013 or a new hazard for prevention of future deaths actions not taken) or record no clinical hazard with the reason, and name the hazard the SAFE-016 tests carry | CSO | `packages/domain/src/safety/disclosure.ts` (`preventionResponse`) | None | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
