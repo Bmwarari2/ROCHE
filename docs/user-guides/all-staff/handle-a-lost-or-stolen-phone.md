@@ -47,8 +47,7 @@ support to sign the phone out.
   example on paper**, not send them. Otherwise sign in to send them: see
   [How to send unsent entries after signing in again on the phone](../care-worker/send-unsent-entries-after-signing-in-again-on-the-phone.md).
 
-## Not on screen yet
+## Withdrawing the phone
 
-Managers cannot yet withdraw a lost phone from Thapsus Care on the web. There is no screen for this
-yet. A manager asks Thapsus Care support to withdraw it. Signing out of the device, as above, is how
-to remove the care records from it today.
+A manager can also withdraw the phone itself, so it can no longer reach Thapsus Care whoever signs
+in on it. See [How to withdraw a lost or unused phone](../registered-manager/withdraw-a-lost-phone.md).
