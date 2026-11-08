@@ -17,6 +17,7 @@ import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import {
   canManageDeaths,
+  correctionChip,
   deathStatusChip,
   deathStepChip,
   deathsShown,
@@ -25,6 +26,7 @@ import {
   recordableHere,
   reviewChip,
   stepsToShow,
+  supersededChip,
 } from "@/lib/deaths";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -161,6 +163,29 @@ export default async function DeathPage({ params }: { params: Promise<{ id: stri
                   s.state !== "not_needed" ? (
                     <DeathStepForm id={data.id} step={s.step} missingFacts={data.missingFacts} />
                   ) : null}
+                  {/* A settled step is corrected by a new entry that supersedes it, with why
+                      (section 5.5); the entry it replaces stays in the history, struck through. */}
+                  {manage &&
+                  data.status === "open" &&
+                  recordableHere(s.step) &&
+                  s.entryId &&
+                  (s.state === "done" || s.state === "not_needed") ? (
+                    <details>
+                      <summary className="inline-flex min-h-target cursor-pointer items-center underline">
+                        {t("deaths.step.correct", {
+                          step: t("deaths.step.name", { step: s.step }),
+                        })}
+                      </summary>
+                      <div className="mt-3">
+                        <DeathStepForm
+                          id={data.id}
+                          step={s.step}
+                          missingFacts={data.missingFacts}
+                          supersedesId={s.entryId}
+                        />
+                      </div>
+                    </details>
+                  ) : null}
                 </div>
               </Card>
             );
@@ -212,12 +237,24 @@ export default async function DeathPage({ params }: { params: Promise<{ id: stri
           <ol className="m-0 flex list-none flex-col gap-3 p-0">
             {data.history.map((h) => (
               <li key={h.id} className="flex flex-col gap-1">
-                <p className="m-0 font-semibold">
-                  {t("deaths.history.entry", {
-                    step: t("deaths.step.name", { step: h.step }),
-                    outcome: h.outcome,
-                  })}
+                <p className="m-0 flex flex-wrap items-center gap-2">
+                  <span className={h.superseded ? "font-semibold line-through" : "font-semibold"}>
+                    {t("deaths.history.entry", {
+                      step: t("deaths.step.name", { step: h.step }),
+                      outcome: h.outcome,
+                    })}
+                  </span>
+                  {h.superseded ? (
+                    <SafetyChip chip={supersededChip(t)} />
+                  ) : h.supersedesId ? (
+                    <SafetyChip chip={correctionChip(t)} />
+                  ) : null}
                 </p>
+                {h.correctionReason ? (
+                  <p className="m-0 text-body-dense">
+                    {t("deaths.history.correctionReason", { reason: h.correctionReason })}
+                  </p>
+                ) : null}
                 <p className="m-0 text-body-dense">
                   {t("deaths.history.when", {
                     at: formatDateTime(h.at) ?? "",

@@ -206,6 +206,30 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
     expect(
       (await step({ id: newId(), step: "family_informed", outcome: "done", at: ago(HOUR) })).status,
     ).toBe(200);
+    // Section 5.5 (HZ-013): a recorded step changes only by a correction that supersedes its
+    // standing entry and says why; the entry it replaces stays, marked superseded.
+    view = await json<DeathView>(await as("manager", `/v1/deaths/${view.id}`));
+    const standing = view.steps.find((s) => s.step === "verification_of_death")?.entryId;
+    expect(standing).toBe(verification.id);
+    const silent = await step({ ...verification, id: newId(), at: ago(3 * HOUR) });
+    expect(silent.status).toBe(422);
+    expect((await json<ProblemDetails>(silent)).detail).toMatch(/already recorded: correct/);
+    const correctedAt = ago(3 * HOUR);
+    const corrected = await step({
+      ...verification,
+      id: newId(),
+      at: correctedAt,
+      supersedesId: standing,
+      correctionReason: "Verified earlier than first recorded.",
+    });
+    expect(corrected.status, await corrected.clone().text()).toBe(200);
+    view = await json<DeathView>(corrected);
+    const history = view.history.filter((h) => h.step === "verification_of_death");
+    expect(history.map((h) => [h.superseded, h.correctionReason])).toEqual([
+      [true, null],
+      [false, "Verified earlier than first recorded."],
+    ]);
+    expect(view.steps.find((s) => s.step === "verification_of_death")?.at).toBe(correctedAt);
     // Not yet: the notifications and the mortality review are still to do.
     view = await json<DeathView>(await as("manager", `/v1/deaths/${view.id}`));
     const early = await as("manager", `/v1/deaths/${view.id}/close`, {
@@ -268,6 +292,7 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
         "safety.death.open",
         "safety.death.judgement",
         "safety.death.step",
+        "safety.death.step_corrected",
         "safety.death.review",
         "safety.death.close",
       ]),

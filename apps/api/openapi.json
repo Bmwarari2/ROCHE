@@ -21941,6 +21941,13 @@
                     "string",
                     "null"
                   ]
+                },
+                "entryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
                 }
               },
               "required": [
@@ -21949,7 +21956,8 @@
                 "at",
                 "notificationId",
                 "notificationStatus",
-                "reason"
+                "reason",
+                "entryId"
               ]
             }
           },
@@ -21994,6 +22002,22 @@
                     "null"
                   ],
                   "format": "uuid"
+                },
+                "supersedesId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "correctionReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "superseded": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -22004,7 +22028,10 @@
                 "note",
                 "reference",
                 "recordedAt",
-                "recordedBy"
+                "recordedBy",
+                "supersedesId",
+                "correctionReason",
+                "superseded"
               ]
             }
           },
@@ -22199,6 +22226,20 @@
             ],
             "minLength": 1,
             "maxLength": 100
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "correctionReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
           }
         },
         "required": [
@@ -84278,7 +84319,7 @@
           "safety"
         ],
         "summary": "Record a step of the death as done, or not needed with the reason",
-        "description": "Append-only: the latest for a step counts. A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.",
+        "description": "Append-only: a step already recorded changes only by a correction that names its standing entry (supersedesId, the step's entryId) and says why (correctionReason, 10 to 500 characters); the superseded entry stays in the history, marked superseded (section 5.5). A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.",
         "security": [
           {
             "bearerAuth": []

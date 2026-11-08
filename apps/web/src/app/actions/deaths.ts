@@ -41,9 +41,12 @@ export async function recordDeathStep(
     at: string;
     note: string | null;
     reference: string | null;
+    supersedesId?: string | null;
+    correctionReason?: string | null;
   },
 ): Promise<ActionResult<unknown>> {
   if (!isUuid(id) || !isUuid(body.id)) return notFound();
+  if (body.supersedesId && !isUuid(body.supersedesId)) return notFound();
   if (!recordableHere(body.step)) return refused(t("deaths.step.notHere"));
   return sendAndRevalidate(["/deaths"], (api) =>
     api.POST("/v1/deaths/{id}/steps", { params: { path: { id } }, body }),

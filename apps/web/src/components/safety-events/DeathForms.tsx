@@ -1,4 +1,6 @@
-"use client";
+import { DEATH_CORRECTION_REASON_MAX } from "@harbour/domain";
+
+("use client");
 
 import { Button, DateTimeInput, RadioGroup, TextArea, TextField } from "@harbour/ui";
 import { CircleCheck, FilePlus, Save, Stethoscope } from "lucide-react";
@@ -103,19 +105,22 @@ export function DeathStepForm({
   id,
   step,
   missingFacts,
+  supersedesId,
 }: {
   readonly id: string;
   readonly step: DeathStepKey;
   /** The judgement facts still missing: a police step cannot be "not needed" until recorded. */
   readonly missingFacts: readonly string[];
+  /** Correcting the step's standing entry, which is kept and shown struck through (section 5.5). */
+  readonly supersedesId?: string | null;
 }) {
-  const ids = useFieldIds(["outcome", "at", "note", "reference"]);
+  const ids = useFieldIds(["outcome", "at", "note", "reference", "correctionReason"]);
   // The step's own id, kept until it is saved: a retry after an unknown outcome sends the same id,
   // so the API returns the step already recorded instead of a second one (HZ-029).
   const [entryId, setEntryId] = useState(uuidv7);
   const allowNotNeeded = notNeededAllowed(step, missingFacts);
   const { submit, result, pending } = useSubmit(
-    (form) => readDeathStep(form, t, { id: entryId, step, missingFacts }),
+    (form) => readDeathStep(form, t, { id: entryId, step, missingFacts, supersedesId }),
     (body) => recordDeathStep(id, body),
     // Saved, the step is settled and its form leaves the page.
     () => setEntryId(uuidv7()),
@@ -123,6 +128,18 @@ export function DeathStepForm({
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      {supersedesId ? (
+        <TextArea
+          id={ids.correctionReason}
+          name="correctionReason"
+          label={t("deaths.step.correctionReason")}
+          hint={t("deaths.step.correctionReasonHint")}
+          rows={2}
+          maxLength={DEATH_CORRECTION_REASON_MAX}
+          formatCount={(remaining) => characterCount(remaining)}
+          error={errorFor(result, "correctionReason")}
+        />
+      ) : null}
       <RadioGroup
         id={ids.outcome}
         name="outcome"
@@ -173,7 +190,9 @@ export function DeathStepForm({
       ) : null}
       <div>
         <Button type="submit" variant="secondary" icon={<Save {...icon} />} disabled={pending}>
-          {pending ? t("common.saving") : t("deaths.step.submit")}
+          {pending
+            ? t("common.saving")
+            : t(supersedesId ? "deaths.step.correctSubmit" : "deaths.step.submit")}
         </Button>
       </div>
       <FormFeedback result={result} success={t("deaths.step.done")} fieldIds={ids} />

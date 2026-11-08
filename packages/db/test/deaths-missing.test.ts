@@ -111,6 +111,46 @@ describe("hazard HZ-013 the death record (migration 0099)", () => {
     }
   });
 
+  it("hazard HZ-013 corrects a recorded step only by a new entry that supersedes it, with why (section 5.5)", async () => {
+    const first = await asManager(async (c) =>
+      one<{ id: string }>(
+        c,
+        `SELECT id FROM death_step WHERE death_record_id = $1 AND step = 'verification_of_death'`,
+        [deathId],
+      ),
+    );
+    const insert = (
+      supersedes: string | null,
+      reason: string | null,
+      step = "verification_of_death",
+    ) =>
+      asManager((c) =>
+        c.query(
+          `INSERT INTO death_step (death_record_id, person_id, step, outcome, at, supersedes_id, correction_reason)
+           VALUES ($1, $2, $3, 'done', now(), $4, $5)`,
+          [deathId, a.personBen, step, supersedes, reason],
+        ),
+      );
+    // A second entry for a recorded step is a correction, never a silent replacement.
+    await expect(insert(null, null)).rejects.toThrow(/death_step_correction_needed/);
+    // A correction says why, in 10 to 500 characters, and names an entry of the same step.
+    await expect(insert(first?.id ?? null, null)).rejects.toThrow(/death_step_correction/);
+    await expect(insert(first?.id ?? null, "Too short")).rejects.toThrow(/death_step_correction/);
+    await expect(
+      insert(first?.id ?? null, "Recorded against the wrong time.", "family_informed"),
+    ).rejects.toThrow(/death_step_supersedes_other/);
+    await insert(first?.id ?? null, "Recorded against the wrong time.");
+    // Superseded once only, and the superseded entry is never changed.
+    await expect(insert(first?.id ?? null, "A second correction of it.")).rejects.toThrow(
+      /death_step_superseded_once/,
+    );
+    await expect(
+      asManager((c) =>
+        c.query("UPDATE death_step SET note = 'changed' WHERE id = $1", [first?.id]),
+      ),
+    ).rejects.toThrow();
+  });
+
   it("refuses a step not needed without a reason, and a review without findings and lessons", async () => {
     await expect(
       asManager((c) =>

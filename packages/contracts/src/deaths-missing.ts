@@ -78,6 +78,8 @@ export const DeathView = z
         notificationId: uuid.nullable(),
         notificationStatus: z.enum(["draft", "ready", "submitted", "not_required"]).nullable(),
         reason: z.string().nullable(),
+        /** The step's standing entry, the one a correction names; null when none is recorded. */
+        entryId: uuid.nullable(),
       }),
     ),
     history: z.array(
@@ -90,6 +92,11 @@ export const DeathView = z
         reference: z.string().nullable(),
         recordedAt: isoDateTime,
         recordedBy: uuid.nullable(),
+        /** A correction: the entry it supersedes and why (section 5.5). */
+        supersedesId: uuid.nullable(),
+        correctionReason: z.string().nullable(),
+        /** Superseded by a later correction: shown struck through, never removed. */
+        superseded: z.boolean(),
       }),
     ),
     review: z.object({
@@ -129,6 +136,9 @@ export const RecordDeathStep = z
     at: isoDateTime,
     note: text(2000).min(1).nullable().optional(),
     reference: text(100).min(1).nullable().optional(),
+    /** A correction: the step's standing entry it supersedes, and why (10 to 500 characters). */
+    supersedesId: uuid.nullable().optional(),
+    correctionReason: text(500).nullable().optional(),
   })
   .meta({ id: "RecordDeathStep" });
 

@@ -160,6 +160,13 @@ export default async function OutbreakPage({ params }: { params: Promise<{ id: s
                     </span>
                     <SafetyChip chip={caseRowChip(row.current, t)} />
                   </p>
+                  {row.correctionReason ? (
+                    <p className="m-0 text-body-dense">
+                      {t("outbreaks.lineList.correctionReason", { reason: row.correctionReason })}
+                    </p>
+                  ) : row.supersedesId ? (
+                    <p className="m-0 text-body-dense">{t("outbreaks.lineList.update")}</p>
+                  ) : null}
                   <p className="m-0 text-body-dense">
                     {t("outbreaks.lineList.summary", {
                       onset: formatDate(row.onsetOn) ?? "",

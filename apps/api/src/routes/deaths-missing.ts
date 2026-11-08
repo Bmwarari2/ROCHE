@@ -29,9 +29,11 @@ import {
   type Transaction,
 } from "@harbour/db";
 import {
+  currentDeathStepEntry,
   type DeathStep as DeathStepKey,
   deathRecordPlan,
   deathReviewProblems,
+  deathStepCorrectionProblems,
   deathStepProblems,
   herbertProfileProblems,
   herbertReviewDueOn,
@@ -44,7 +46,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
@@ -309,7 +311,7 @@ export const deathsMissingRouter = createRouter()
       tags: ["safety"],
       summary: "Record a step of the death as done, or not needed with the reason",
       description:
-        "Append-only: the latest for a step counts. A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.",
+        "Append-only: a step already recorded changes only by a correction that names its standing entry (supersedesId, the step's entryId) and says why (correctionReason, 10 to 500 characters); the superseded entry stays in the history, marked superseded (section 5.5). A notification step (the regulator's death notification, the medical examiner information, LeDeR) is settled only in the notification centre, where a not-required decision has its own permission, reason and checks: here it is refused, done or not needed (H-950). Not needed takes a reason of at least 20 characters. The mortality review is recorded on its own.",
       security,
       request: {
         params: IdParam,
@@ -362,7 +364,22 @@ export const deathsMissingRouter = createRouter()
           new Date(now.getTime() + FUTURE_TOLERANCE_MS),
           { expected: row.expected, possiblyUnnatural: row.possiblyUnnatural },
         );
-        if (stepProblems.length > 0) throw problems.invalid(stepProblems.join(" "));
+        // A step already recorded changes only by a correction that supersedes its standing entry,
+        // with why (section 5.5; HZ-013); the superseded entry is kept and shown struck through.
+        const recorded = await tx
+          .select({ id: deathStep.id, step: deathStep.step, supersedesId: deathStep.supersedesId })
+          .from(deathStep)
+          .where(eq(deathStep.deathRecordId, id))
+          .orderBy(asc(deathStep.recordedAt), asc(deathStep.id));
+        const correctionProblems = deathStepCorrectionProblems(
+          currentDeathStepEntry(recorded, body.step),
+          {
+            supersedesId: body.supersedesId ?? null,
+            correctionReason: body.correctionReason ?? null,
+          },
+        );
+        const allProblems = [...stepProblems, ...correctionProblems];
+        if (allProblems.length > 0) throw problems.invalid(allProblems.join(" "));
         await tx.insert(deathStep).values({
           id: body.id,
           deathRecordId: id,
@@ -372,12 +389,19 @@ export const deathsMissingRouter = createRouter()
           at: new Date(body.at),
           note: body.note ?? null,
           reference: body.reference ?? null,
+          supersedesId: body.supersedesId ?? null,
+          correctionReason: body.supersedesId ? (body.correctionReason?.trim() ?? null) : null,
         });
         await audit(c, tx, access, {
-          action: "safety.death.step",
+          action: body.supersedesId ? "safety.death.step_corrected" : "safety.death.step",
           resourceType: "death_record",
           resourceId: id,
-          scope: { stepId: body.id, step: body.step, outcome: body.outcome },
+          scope: {
+            stepId: body.id,
+            step: body.step,
+            outcome: body.outcome,
+            ...(body.supersedesId ? { supersedesId: body.supersedesId } : {}),
+          },
         });
         return deathItem(row, await readDeath(tx, access.tenantId, row, now), now);
       });

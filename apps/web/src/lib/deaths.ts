@@ -1,5 +1,9 @@
 import type { DeathView } from "@harbour/contracts";
-import { DEATH_REASON_MIN } from "@harbour/domain";
+import {
+  DEATH_CORRECTION_REASON_MAX,
+  DEATH_CORRECTION_REASON_MIN,
+  DEATH_REASON_MIN,
+} from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import type { SafetyChip } from "./incidents";
 import { type FormLike, readDateTimeField, type TimeProblem } from "./uk-time";
@@ -81,6 +85,7 @@ export function stepsToShow(view: Pick<DeathView, "steps" | "missingFacts">): De
           notificationId: null,
           notificationStatus: null,
           reason: null,
+          entryId: null,
         });
       }
     }
@@ -188,6 +193,8 @@ export function readDeathStep(
     readonly now?: Date;
     /** The judgement facts still missing (`DeathView.missingFacts`). */
     readonly missingFacts?: readonly string[];
+    /** Correcting the step's standing entry: it is superseded, and the reason is needed. */
+    readonly supersedesId?: string | null;
   },
 ): Read<{
   id: string;
@@ -196,6 +203,8 @@ export function readDeathStep(
   at: string;
   note: string | null;
   reference: string | null;
+  supersedesId?: string | null;
+  correctionReason?: string | null;
 }> {
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
@@ -230,6 +239,18 @@ export function readDeathStep(
   if (reference.length > DEATH_REFERENCE_MAX) {
     errors.reference = t("deaths.step.referenceError", { max: DEATH_REFERENCE_MAX });
   }
+  // A correction says why (section 5.5), in the API's bounds.
+  const correctionReason = options.supersedesId ? text(form, "correctionReason") : "";
+  if (
+    options.supersedesId &&
+    (correctionReason.length < DEATH_CORRECTION_REASON_MIN ||
+      correctionReason.length > DEATH_CORRECTION_REASON_MAX)
+  ) {
+    errors.correctionReason = t("deaths.step.correctionReasonError", {
+      min: DEATH_CORRECTION_REASON_MIN,
+      max: DEATH_CORRECTION_REASON_MAX,
+    });
+  }
   if (Object.keys(errors).length > 0 || !at.ok || !at.instant) {
     return { ok: false, errors, ...(Object.keys(parts).length > 0 ? { parts } : {}) };
   }
@@ -242,8 +263,19 @@ export function readDeathStep(
       at: at.instant,
       note: note || null,
       reference: reference || null,
+      ...(options.supersedesId ? { supersedesId: options.supersedesId, correctionReason } : {}),
     },
   };
+}
+
+/** A history entry a later correction superseded: struck through, and said in words. */
+export function supersededChip(t: Translator): SafetyChip {
+  return { status: "notApplicable", icon: "circle-minus", label: t("deaths.history.superseded") };
+}
+
+/** A history entry that corrects an earlier one (section 5.5). */
+export function correctionChip(t: Translator): SafetyChip {
+  return { status: "info", icon: "file-pen", label: t("deaths.history.correction") };
 }
 
 /** The mortality review: findings and lessons, in words. */

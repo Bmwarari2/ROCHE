@@ -2,6 +2,7 @@ import type { DeathView } from "@harbour/contracts";
 import { describe, expect, it } from "vitest";
 import {
   canManageDeaths,
+  correctionChip,
   deathStatusChip,
   deathStepChip,
   deathsShown,
@@ -17,6 +18,7 @@ import {
   recordableHere,
   reviewChip,
   stepsToShow,
+  supersededChip,
 } from "./deaths";
 import { t } from "./i18n";
 
@@ -47,6 +49,7 @@ const step = (s: DeathView["steps"][number]["step"]): DeathView["steps"][number]
   notificationId: null,
   notificationStatus: null,
   reason: null,
+  entryId: null,
 });
 
 describe("the death record screens", () => {
@@ -227,5 +230,44 @@ describe("the death record screens", () => {
       now: NOW,
     });
     expect(short).toMatchObject({ ok: false, errors: { note: "deaths.step.reasonError" } });
+  });
+});
+
+describe("correcting a recorded step (section 5.5; HZ-013)", () => {
+  const SUPERSEDES = "0199f000-0000-7000-8000-00000000d001";
+  const at = when("at", ["31", "10", "2026", "10", "00"]);
+
+  it("hazard HZ-013 sends the correction with the entry it supersedes and why", () => {
+    const read = readDeathStep(
+      form({ outcome: "done", correctionReason: "Recorded against the wrong time.", ...at }),
+      t,
+      { id: ID, step: "verification_of_death", now: NOW, supersedesId: SUPERSEDES },
+    );
+    expect(read).toMatchObject({
+      ok: true,
+      body: { supersedesId: SUPERSEDES, correctionReason: "Recorded against the wrong time." },
+    });
+  });
+
+  it("hazard HZ-013 refuses a correction without its reason, and sends none on a first entry", () => {
+    const bare = readDeathStep(form({ outcome: "done", ...at }), t, {
+      id: ID,
+      step: "verification_of_death",
+      now: NOW,
+      supersedesId: SUPERSEDES,
+    });
+    expect(bare.ok).toBe(false);
+    if (!bare.ok) expect(Object.keys(bare.errors)).toEqual(["correctionReason"]);
+    const first = readDeathStep(form({ outcome: "done", ...at }), t, {
+      id: ID,
+      step: "verification_of_death",
+      now: NOW,
+    });
+    expect(first.ok && "supersedesId" in first.body).toBe(false);
+  });
+
+  it("says a superseded entry and a correction in words, never by colour alone", () => {
+    expect(supersededChip(t)).toMatchObject({ icon: "circle-minus", label: "Corrected later" });
+    expect(correctionChip(t)).toMatchObject({ icon: "file-pen", label: "Correction" });
   });
 });
