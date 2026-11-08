@@ -31,8 +31,9 @@ managers.
 - **Waiting to upload** means the note is saved on this phone but is not yet in Thapsus Care.
   Colleagues on other phones or the web cannot see it until the phone connects and sends it. If
   something is urgent, tell the person in charge as well (HZ-006).
-- Never switch off or reset the phone, delete the app or sign out while notes are waiting to
-  upload. They would be lost (HZ-006, HZ-040).
+- Never sign out, delete the app, reset the phone to factory settings, or change its passcode, face
+  or fingerprint while entries are waiting to upload or need attention: they would be lost. If the
+  phone switches off, nothing is lost, but nothing is sent until it is back on (HZ-006, HZ-040).
 - If the note is not accepted, it shows under **Not saved: needs attention** with the reason. See
   [How to deal with an entry that was not saved on the phone](deal-with-an-entry-not-saved-on-the-phone.md).
 - If you see **The entry could not be saved on this device. Try again.**, nothing was saved. Choose
@@ -43,7 +44,9 @@ managers.
 ## Good to know
 
 - A note written later than the time it describes is marked **Late entry**. If the phone's clock was
-  wrong, it is marked **Device clock was wrong**. Do not change the phone's clock.
+  wrong, it is marked **Device clock was wrong**. Do not change the phone's clock. Choose
+  **Earlier** with the right time for anything you write after it happened, so nobody takes it for
+  a record made at the time (HZ-017).
 - If you see **You can read this record but cannot record in it. If something needs recording, tell
   the person in charge of this shift or your manager.**, your role does not let you record for this
   person.

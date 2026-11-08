@@ -28,9 +28,15 @@ managers.
 - The correction is on this phone only until it is sent. Until then, colleagues still see the
   original as it was (HZ-006).
 - Correct an entry only for the person it is about. If you recorded something for the wrong person,
-  tell the person in charge.
+  tell the person in charge. Record it again on the right person's record, and correct the wrong
+  one: under **Why are you correcting it?**, write "Entered for the wrong person".
+- Keep the time of the original unless that time was wrong, so nobody takes the correction for
+  care given at a different time (HZ-017).
 - The phone holds only the last few days of entries. To correct an older entry, use Thapsus Care on
   the web.
+- Never sign out, delete the app, reset the phone to factory settings, or change its passcode, face
+  or fingerprint while entries are waiting to upload or need attention: they would be lost. If the
+  phone switches off, nothing is lost, but nothing is sent until it is back on (HZ-006, HZ-040).
 
 ## Good to know
 

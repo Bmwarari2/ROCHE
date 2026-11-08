@@ -4,8 +4,8 @@ Sometimes Thapsus Care does not accept something the phone sends: a note, a char
 mark, a task you marked or a handover acknowledgement. The phone keeps it under **Not saved: needs
 attention**, with the reason, until someone deals with it. It is never dropped on its own.
 
-**Who can do this**: everyone who uses Care mode on the phone. Tell the nurse or senior in charge
-before you remove anything.
+**Who can do this**: everyone who uses Care mode on the phone. Tell the person in charge before you
+remove anything.
 
 **Register rows**: MOB-002, MOB-006.
 
@@ -18,7 +18,7 @@ before you remove anything.
    - what it is and who it is for, for example "Chart entry for Ada Example"
    - **Reason:** the reason Thapsus Care gave
    - **What was recorded:** the details you entered.
-3. Tell the nurse or senior in charge what it says. If it shows **Thapsus Care has a copy for the
+3. Tell the person in charge what it says. If it shows **Thapsus Care has a copy for the
    nurse in charge to review.**, they can see it on the web too.
 4. If the care still needs recording, record it again, on the phone or on the web, or ask the
    person in charge to.
@@ -29,8 +29,8 @@ before you remove anything.
    recorded**. If you choose **Other**, say why under **The reason in your own words**.
 7. Choose **Remove from this device**. The phone asks **Remove this entry?** Choose **Remove from
    this device** again.
-8. Confirm it is you with your face, fingerprint or passcode. The phone asks "Confirm it is you to
-   delete unsent entries".
+8. Confirm it is you with your face, fingerprint or passcode. The phone asks **Confirm it is you to
+   delete unsent entries**.
 
 ## When a task or the handover changed first
 
@@ -52,9 +52,11 @@ Do what it says, then remove the item as above.
 - An entry under **Not saved: needs attention** is not in Thapsus Care, unless the item says
   Thapsus Care has a copy. Until someone records it again, the care is not on the person's record
   (HZ-006).
-- Remove it only once it has been recorded again or the nurse in charge knows. Once removed it
+- Remove it only once it has been recorded again or the person in charge knows. Once removed it
   cannot be got back. The removal and its reason are recorded.
-- Never switch off or reset the phone, or sign out, to clear these items (HZ-040).
+- Never sign out, delete the app, reset the phone to factory settings, or change its passcode, face
+  or fingerprint while entries are waiting to upload or need attention: they would be lost. If the
+  phone switches off, nothing is lost, but nothing is sent until it is back on (HZ-006, HZ-040).
 
 ## Good to know
 

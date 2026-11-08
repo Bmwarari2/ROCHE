@@ -118,6 +118,75 @@ Not in the catalogue, so quoted rather than bold:
 - Today shows the people and sync only: tasks, alerts and the handover are not on it (the screen's
   own comment says they join later).
 
+## Reviews
+
+A clinical safety review and an accessibility review of the 19 guides, applied on 8 November 2026.
+Each behaviour a new sentence claims was checked in `apps/mobile/src`.
+
+- **Shared devices (C1 to C3)**: the shared-device guide says not to unlock, record on or sign out a
+  device that shows someone else's name ("Signed in as ..."), to keep a device that cannot send
+  with you or with the person in charge, that it unlocks with any enrolled face, fingerprint or
+  passcode and reopens on the last screen, and never to change a face, fingerprint or passcode while
+  anyone is signed in. The keystore warning moved into Important in the safety guide and joined the
+  sync banner guide. "The kiosk features in the design are not built" became "These are not on the
+  phone yet:".
+- **The round (C4, C5)**: step 5 says the phone's task card shows only the name and communication
+  needs (`RoundTaskCard.tsx`), so open the person from **People** first; **Overdue: escalated** no
+  longer says the person in charge has been told. HZ-029 became HZ-002 for a colleague still seeing
+  the task as open.
+- **Lost phone (C6)**: if found, tell the person in charge before signing in; delete entries
+  recorded again elsewhere with **Recorded again elsewhere, for example on paper** (the catalogue's
+  full label; there is no shorter one). It says what to do without the web (the person in charge
+  contacts support), what the second-sign-in-step link is for, and that a manager asks support to
+  withdraw a device.
+- **NEWS2 (C7)**: the phone cannot open the escalation policy yet (`News2Panel.tsx` has only the RCP
+  link); the wording is the RCP's and Thapsus Care adds no advice; **A single reading scored 3.**
+  added.
+- **Body map (C8, A1)**: both views' orientation, matching `mobile.bodyMap.drawingHint`; "category
+  2 or worse" now names unstageable and deep tissue injury (as `packages/domain/src/care/body-map.ts`
+  counts them); consider an incident for any injury even without a prompt.
+- **Accessibility (A2 to A6)**: the reset notice says unsent entries were lost; the IDDSI line says
+  the nurse in charge is not told until the entry is sent; checking name and date of birth when
+  there is no photo; a plain definition of syncing. The definition says syncing happens while
+  Thapsus Care is open, because the app registers no background task; for the same reason the lock
+  guide no longer says sending carries on in the background.
+- **One "Never" sentence** replaces the seven variants and joins the correction and handover guides.
+  Switching off loses nothing because the store is on disk.
+- **Rooted phones**: the safety guide says the phone does not check and will not warn, and no longer
+  says medicines are off because of the check.
+- **Hazard ids**: HZ-015 and HZ-016 in checking the person, HZ-017 in the note and correction
+  guides, HZ-010 for the clock, HZ-001 in the shared-device guide; the one id inside a step (the lock
+  guide's reset notice) moved to Important.
+- **Other**: wrong-person corrections ("Entered for the wrong person", typed under **Why are you
+  correcting it?**, which is free text); the **People** list has no resuscitation flag (only
+  **Today** passes it); "about 15 minutes" for stale data; "in red" dropped; "session" replaced with
+  "Thapsus Care signs you out"; "encrypted" glossed as "scrambled so only Thapsus Care can read it"
+  at its first use in each guide; "the person in charge" except where the app's words or the
+  reviewers' own replacement text name the nurse; the sign-out connection line; the manager guide's
+  partial-send line and the whole of `mobile.held.ownerUnknown` in bold; the web vital-signs link
+  text and the run-a-round line break; **Confirm it is you to delete unsent entries** in bold.
+  "Forearm" stays quoted (a `@harbour/domain` name) and the lock screen's **Sign out** stays bold
+  (`mobile.signOut.button`).
+- **CSO decisions**: `H-NEW-M1` to `H-NEW-M8` in `docs/plans/human-actions.md` (numbered at merge):
+  shared devices (M1), sign-out with unsent entries (M2), the keystore reset (M3), root and jailbreak
+  detection (M4), round cards (M5), NEWS2 on the phone (M6), the "nurse in charge knows" deletion
+  reason (M7) and the training control and stale threshold (M8).
+
+Product fixes the reviews ask for (not in this branch):
+
+- PIN sign-in and kiosk mode before any shared device, with a new hazard for a colleague unlocking,
+  recording in or signing out someone else's session (M1).
+- The owner's or a manager's sign-in to sign out with unsent entries, and corrected HZ-040
+  residual-risk text (M2).
+- Unsent entries kept recoverable through a keystore reset, or a warning before it, as an HZ-006
+  cause with a test (M3).
+- A native root and jailbreak check with attestation before eMAR on the phone (M4).
+- Photo, allergies and resuscitation decision on the round card before general release (M5).
+- The escalation-policy link (H-73) and wording for homes without nurses (H-127) before the pilot
+  (M6).
+- Remove the deletion reason **The nurse in charge knows and will make sure the care is recorded**
+  (M7); the guides that offer it change when it goes.
+
 ## What is next
 
 - Write the kiosk, incident, conflict review, device withdrawal and activity or visit guides with

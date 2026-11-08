@@ -15,7 +15,7 @@ managers.
 2. Under **Record care**, choose **Record a chart**.
 3. Under **Choose a chart**, choose **Drink**, **Fluid output**, **Food**, **Repositioning**,
    **Bowel movement** or **Weight**. (For **Vital signs**, see
-   [How to record vital signs on the phone](record-vital-signs-on-the-phone.md).)
+   [How to record vital signs and read the NEWS2 result on the phone](record-vital-signs-on-the-phone.md).)
 4. Fill in the entry:
    - **Drink**: **Amount in millilitres**, what the drink was (optional), the **IDDSI drink level
      given**, and **Drink offered but refused** if they refused it.
@@ -36,17 +36,18 @@ managers.
 - The person's prescribed level is marked "(prescribed)" in the list, and the line under the
   question says, for example, "Prescribed: Level 6 Soft and bite-sized (blue)".
 - If you choose a different level, the phone asks for the **Reason for giving a different level**.
-  If the level may not be safe, it says so, and the nurse in charge or a manager is told when the
-  entry is sent. Tell them now if you can.
+  If the level may not be safe, the phone says so. Tell the nurse in charge straight away: they are
+  not told until the phone sends the entry.
 - If the phone says **Food and drink levels are not on this device. Have you checked this level with
-  the nurse in charge?**, check with the nurse in charge before you give it, then answer.
+  the nurse in charge?**, check before you give it, then answer.
 
 ## Important
 
 - **Waiting to upload** means the entry is on this phone only. It is not in Thapsus Care, and
   colleagues cannot see it, until the phone connects and sends it (HZ-006).
-- Never switch off or reset the phone, delete the app or sign out while entries are waiting to
-  upload (HZ-006, HZ-040).
+- Never sign out, delete the app, reset the phone to factory settings, or change its passcode, face
+  or fingerprint while entries are waiting to upload or need attention: they would be lost. If the
+  phone switches off, nothing is lost, but nothing is sent until it is back on (HZ-006, HZ-040).
 - If an entry is not accepted, it shows under **Not saved: needs attention**. See
   [How to deal with an entry that was not saved on the phone](deal-with-an-entry-not-saved-on-the-phone.md).
 - **Some details need checking. Look for the messages below each question.** means nothing was

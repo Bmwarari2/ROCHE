@@ -4,6 +4,9 @@ The banner at the top of every screen says whether the phone is connected, when 
 the care record, and whether everything you recorded has reached Thapsus Care. **Today** spells it
 out in full.
 
+Syncing is when the phone sends what you recorded to Thapsus Care and gets the latest records from
+it. It happens on its own whenever Thapsus Care is open and the phone has a connection.
+
 **Who can do this**: everyone who uses Care mode on the phone.
 
 **Register rows**: MOB-002, MOB-006.
@@ -11,7 +14,7 @@ out in full.
 ## Steps
 
 1. Look at the banner at the top of the screen. Its first word says where the phone is:
-   - "Up to date": connected, and everything has been sent.
+   - "Up to date": connected, and everything has been sent. Check the line under it as well.
    - "Syncing": sending and receiving now.
    - "Offline": no connection. You can keep working. What you record is kept on the phone.
    - "Sync failed": the phone could not reach Thapsus Care. Choose "Retry".
@@ -36,8 +39,11 @@ out in full.
 - "Changes waiting to upload" are saved on this phone but are not yet in Thapsus Care. Nobody else
   can see them. Connect as soon as you can, and tell the person in charge about anything urgent
   (HZ-006).
-- Never switch off or reset the phone, delete the app or sign out while changes are waiting to
-  upload, or while an entry needs attention. They would be lost (HZ-006, HZ-040).
+- Never sign out, delete the app, reset the phone to factory settings, or change its passcode, face
+  or fingerprint while entries are waiting to upload or need attention: they would be lost. If the
+  phone switches off, nothing is lost, but nothing is sent until it is back on (HZ-006, HZ-040).
+  Changing a face or fingerprint, or the passcode, makes the phone remove everything on it,
+  including unsent entries.
 - "Data may be out of date. Check important details before you act." means the phone has not
   synced for about 15 minutes. What you see may have changed since. Check important details, such
   as allergies, food and drink levels and the handover, with the person in charge before you act

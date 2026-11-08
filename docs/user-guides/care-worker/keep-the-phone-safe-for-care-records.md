@@ -1,7 +1,7 @@
 # How to keep the phone safe for care records
 
-The phone holds care records about real people. Thapsus Care encrypts them, locks itself and blocks
-screenshots, but some things only you can do.
+The phone holds care records about real people. Thapsus Care encrypts them (scrambles them so only
+Thapsus Care can read them), locks itself and blocks screenshots, but some things only you can do.
 
 **Who can do this**: everyone who uses Care mode on the phone.
 
@@ -30,19 +30,20 @@ tell the person in charge or use Thapsus Care on the web.
 
 - A rooted or jailbroken phone has had its security removed, so the care records on it are not safe.
   It cannot be used for care.
-- If the phone shows **This device may be rooted or jailbroken, so it is not safe for care records.
-  Medicines features stay switched off. Tell your manager.**, stop using it for care and tell your
-  manager.
-- The phone does not check for this yet. Under "About" in **Settings**, "Device check:" says
-  "Device integrity checks are not available in this version." Until it does, medicines recording
-  stays off on every phone.
+- The phone does not check for rooting or jailbreaking yet and will not warn you. If the phone did
+  not come from your organisation, ask your manager to check it before you use it for care.
+
+## Important
+
+- If the phone's screen lock, face or fingerprints change, the phone may no longer be able to open
+  the care records, so Thapsus Care removes them and downloads them again. Anything not yet sent
+  cannot be opened either, and is lost. Before you change any of them, make sure **Today** shows
+  **No changes waiting to upload** and nothing under **Not saved: needs attention** (HZ-006).
+- Do not change the phone's date, time or time zone. Entries are recorded at the phone's time, and
+  a wrong clock puts care at the wrong time on the person's record (HZ-010).
 
 ## Good to know
 
 - Under "About" in **Settings**, "Local database:" should say "Encrypted (SQLCipher, AES-256)". If it
   says anything else, stop using the phone for care and tell your manager.
-- If the phone's screen lock, face or fingerprints change, the phone may no longer be able to open
-  the care records, so Thapsus Care removes them and downloads them again. Anything not yet sent
-  cannot be opened either, and is lost. Make sure **No changes waiting to upload** shows on **Today**
-  before you change any of them (HZ-006).
 - How the lock works: see [How to lock and unlock Thapsus Care on the phone](lock-and-unlock-the-phone.md).

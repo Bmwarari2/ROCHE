@@ -42,8 +42,8 @@ Lock it whenever you put the phone down, even for a moment.
 - If the screen says "This device's security settings changed, so the data stored on it was
   reset.", the care records were removed from the phone because its screen lock, face or
   fingerprints changed. They download again when you are online. Anything recorded on the phone
-  but not yet sent may have been lost with them: tell the nurse in charge what you recorded
-  (HZ-006). Choose "Dismiss" once you have read it.
+  but not yet sent was lost with them. Tell the nurse or senior in charge what you recorded, so it
+  can be recorded again. Choose "Dismiss" once you have read it.
 
 ## Important
 
@@ -51,6 +51,11 @@ Lock it whenever you put the phone down, even for a moment.
   recorded but not yet sent would be deleted with the care records (HZ-040). If the app has just
   been opened, the phone cannot even count them, and says **This device may hold entries that have
   not reached the server. They will be deleted.** Unlock instead, or ask the person in charge.
-- The care records stay on the phone while it is locked, and sending carries on in the background.
+- If the phone's screen lock, face or fingerprints change, the care records and anything not yet
+  sent are removed from the phone (HZ-006). See
+  [How to keep the phone safe for care records](keep-the-phone-safe-for-care-records.md).
+- The care records stay on the phone while it is locked. The phone sends entries only while
+  Thapsus Care is open, not when the app is closed. Check **Today** shows **No changes waiting to
+  upload** before you rely on it.
 - While you are signed in, the app's preview in the phone's app switcher is hidden, and screenshots
   of care records are blocked. See [How to keep the phone safe for care records](keep-the-phone-safe-for-care-records.md).

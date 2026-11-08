@@ -31,16 +31,21 @@ managers.
 
 ## Important
 
-- **Follow your organisation's escalation policy for this score.** Thapsus Care shows the score as
-  the published NEWS2 charts give it. It does not diagnose or tell you what treatment to give.
-- If a reading needs a response, tell the nurse or senior in charge straight away. Do not wait for
+- **Follow your organisation's escalation policy for this score.** The phone cannot open that
+  policy yet: know where it is kept before your shift. The score, the clinical risk, the response
+  and the monitoring are the published RCP NEWS2 wording. Thapsus Care adds no advice of its own,
+  does not diagnose and does not decide what to do. Your organisation's policy and the nurse or
+  senior in charge decide.
+- If it says **A single reading scored 3.**, follow your policy for that, even if the total is low.
+- If a reading needs a response, tell the person in charge straight away. Do not wait for
   the phone to send the entry: until it connects, nobody else can see it (HZ-006).
 - If the phone says "NEWS2 is not totalled here: this person's SpO2 scale is not on this device.",
   the score is worked out when the entry is sent. Follow your escalation policy for the readings you
   took.
 - **Enter every reading to see the NEWS2 score.** means a reading is missing.
-- Never switch off or reset the phone, or sign out, while entries are waiting to upload (HZ-006,
-  HZ-040).
+- Never sign out, delete the app, reset the phone to factory settings, or change its passcode, face
+  or fingerprint while entries are waiting to upload or need attention: they would be lost. If the
+  phone switches off, nothing is lost, but nothing is sent until it is back on (HZ-006, HZ-040).
 
 ## Good to know
 

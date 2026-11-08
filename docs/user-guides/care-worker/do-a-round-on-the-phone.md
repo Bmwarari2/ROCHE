@@ -20,8 +20,11 @@ deputy managers.
 4. Each task shows what it is, who it is for, when it is due and its status: **Overdue**,
    **Overdue: escalated**, **Due now** or **Later**. Some show **Urgent** or the person's
    communication needs.
-5. Before you act, go to the person and check their photo, allergies and food and drink levels.
-   See [How to check the person before you give care on the phone](check-the-person-before-you-act-on-the-phone.md).
+5. The task card on a phone shows only the person's name and communication needs, not their
+   photo, allergies or resuscitation decision. Before you choose **Done** or **Record the entry**,
+   open the person from **People**. Check their photo, allergies, resuscitation decision and food
+   and drink levels, and make sure the person in front of you is the one on the card. See
+   [How to check the person before you give care on the phone](check-the-person-before-you-act-on-the-phone.md).
 6. For each task:
    - When it is done, choose **Done**.
    - If the task needs a record, it says **Record the entry this task asks for.** Choose **Record
@@ -39,7 +42,7 @@ deputy managers.
 | Later | Not due yet. |
 | Due now | Do it now. |
 | Overdue | The time has passed. Do it, or mark it not done with a reason. |
-| Overdue: escalated | The person in charge has been told. |
+| Overdue: escalated | Thapsus Care has escalated it as your organisation set. This does not mean anyone has seen it. Do it, or tell the person in charge. |
 | Urgent | The task is marked urgent. |
 | From an earlier plan: check the current plan | The care plan has changed. Check it before you act. |
 | Waiting to upload | Marked on this phone, not yet in Thapsus Care. Do not mark it again. |
@@ -51,7 +54,7 @@ deputy managers.
   and tasks due before the days it holds, are not shown (HZ-028). **No tasks on this phone** does
   not mean nothing is due. The whole round is in Thapsus Care on the web.
 - **Waiting to upload** means only this phone knows. A colleague on another phone or the web may
-  still see the task as open, so tell them if they might do it again (HZ-029).
+  still see the task as open, so tell them if they might do it again (HZ-002).
 - A note never completes a task. If a task needs a record, record the chart entry or body map mark
   it asks for, or mark it **Not done** with the reason.
 - Medicines are not on this round: **Medicines are recorded in Thapsus Care on the web until
@@ -60,8 +63,9 @@ deputy managers.
   under **Not saved: needs attention**, for example "This task was already marked done before your
   change reached Thapsus Care, so your change was not recorded." Check the round and tell the
   person in charge if the record is wrong.
-- Never switch off or reset the phone, or sign out, while tasks are waiting to upload (HZ-006,
-  HZ-040).
+- Never sign out, delete the app, reset the phone to factory settings, or change its passcode, face
+  or fingerprint while entries are waiting to upload or need attention: they would be lost. If the
+  phone switches off, nothing is lost, but nothing is sent until it is back on (HZ-006, HZ-040).
 
 ## Good to know
 

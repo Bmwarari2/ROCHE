@@ -25,7 +25,7 @@ carers, clinical leads or nurses, Registered Managers and deputy managers.
 4. The first time, the phone asks you to "Choose how you will use Thapsus Care". Choose "Care".
    (Manage and Family say they are coming in a later release.)
 5. When the phone asks, confirm with your face, fingerprint or passcode. This opens the encrypted
-   care records on the phone.
+   care records on the phone (scrambled so only Thapsus Care can read them).
 6. **Today** opens. Under **Sync**, wait until it shows the time of the last successful sync, for
    example "Last successful sync 08/11/2026 at 07:02". Your people then show below it.
 
@@ -43,7 +43,7 @@ carers, clinical leads or nurses, Registered Managers and deputy managers.
 - "Set a screen lock (passcode, PIN or pattern) on this device to use Thapsus Care. Care records are
   only stored on locked devices." Set a screen lock in the phone's own settings.
 - If the sign-in screen shows a card starting **Sign in again to send**, entries from an earlier
-  session are still on the phone. See
+  sign-in are still on the phone. See
   [How to send unsent entries after signing in again on the phone](send-unsent-entries-after-signing-in-again-on-the-phone.md).
 
 ## Important

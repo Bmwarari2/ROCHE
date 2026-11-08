@@ -16,18 +16,23 @@ from it.
    [How to sign in](sign-in.md).
 3. Go to **Settings** in the menu, or open your account menu and choose **Sign-in and security**.
 4. Under **Where you are signed in**, find the lost phone and choose **Sign out of this device**.
-   If you are not sure which it is, choose **Sign out of all other devices**. See
+   If you are not sure which it is, choose **Sign out of all other devices**. To set up a new
+   second sign-in step afterwards, see
    [How to set up a passkey or an authenticator app](set-up-a-second-sign-in-step.md).
 5. If the phone belongs to your organisation, your manager also follows your organisation's
    lost-device process, for example wiping it through its device management.
 
+If you cannot get to Thapsus Care on the web, tell the person in charge. They contact Thapsus Care
+support to sign the phone out.
+
 ## What happens on the phone
 
-- The next time the lost phone connects, Thapsus Care tells it the session has ended. It removes
+- The next time the lost phone connects, Thapsus Care tells it you have been signed out. It removes
   the care records and shows "You were signed out of Thapsus Care on this device, so the care
   records stored on it have been removed."
-- Anything recorded on it but not yet sent is kept, encrypted, so it is not lost. Only the person
-  who wrote it, or a manager, can sign in on that phone to send or delete it.
+- Anything recorded on it but not yet sent is kept, encrypted (scrambled so only Thapsus Care can
+  read it), so it is not lost. Only the person who wrote it, or a manager, can sign in on that phone
+  to send or delete it.
 - Until the phone connects, the care records stay on it, encrypted and locked to your face,
   fingerprint or passcode.
 
@@ -35,13 +40,15 @@ from it.
 
 - Tell the person in charge at once. The sooner the phone is signed out, the sooner the records
   come off it.
-- Care entries on the lost phone that were not sent are not in Thapsus Care. Tell the nurse in
+- Care entries on the lost phone that were not sent are not in Thapsus Care. Tell the person in
   charge what you recorded but may not have sent, so the care can be recorded again (HZ-006).
-- If you find the phone again, do not delete its unsent entries to use it. Sign in again: see
+- If you find the phone again, tell the person in charge before you sign in. If the care was
+  recorded again elsewhere, delete those entries with the reason **Recorded again elsewhere, for
+  example on paper**, not send them. Otherwise sign in to send them: see
   [How to send unsent entries after signing in again on the phone](../care-worker/send-unsent-entries-after-signing-in-again-on-the-phone.md).
 
 ## Not on screen yet
 
-Managers cannot yet withdraw a lost phone from Thapsus Care on the web. Withdrawing a device exists
-in Thapsus Care, but has no screen. Signing out of the device, as above, is how to remove the care
-records from it today.
+Managers cannot yet withdraw a lost phone from Thapsus Care on the web. There is no screen for this
+yet. A manager asks Thapsus Care support to withdraw it. Signing out of the device, as above, is how
+to remove the care records from it today.

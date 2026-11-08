@@ -23,7 +23,7 @@ example **2 entries have not reached the server and will be deleted.**
 
 1. Choose **Cancel**. Connect, wait for them to be sent, and sign out again. This is almost always
    the right choice.
-2. Only if the care has been recorded another way, or the nurse in charge knows: under **Why are
+2. Only if the care has been recorded another way, or the person in charge knows: under **Why are
    these entries being deleted?**, choose the reason, then choose **Sign out and delete 2 unsent
    entries**.
 3. The phone asks **Delete 2 unsent entries?** Choose **Delete for good**, then confirm it is you
@@ -33,15 +33,16 @@ example **2 entries have not reached the server and will be deleted.**
 
 - Never sign out, reset the phone or delete the app to get past a problem while entries are
   waiting. Deleted entries cannot be recovered, and the care they record is lost from
-  the person's record (HZ-006, HZ-040). Tell the nurse in charge instead.
+  the person's record (HZ-006, HZ-040). Tell the person in charge instead.
 - The lock screen has **Sign out** too. Unlock first, then sign out from **Settings**, so you can
   see what is waiting. If the app has just been opened, the lock screen cannot count it, and says
   **This device may hold entries that have not reached the server. They will be deleted.**
-- Signing out needs a connection to sign in again. With no connection, you cannot use Care mode on
-  the phone until you are back online.
+- You need a connection to sign in again, so with no connection you cannot use Care mode until you
+  are back online.
 
 ## Good to know
 
-- If Thapsus Care ends your session (for example, your access changed), the phone removes the care
-  records but keeps anything not yet sent, encrypted, for you to send when you sign in again. See
+- If Thapsus Care signs you out (for example, your access changed), the phone removes the care
+  records but keeps anything not yet sent, encrypted (scrambled so only Thapsus Care can read it),
+  for you to send when you sign in again. See
   [How to send unsent entries after signing in again on the phone](send-unsent-entries-after-signing-in-again-on-the-phone.md).

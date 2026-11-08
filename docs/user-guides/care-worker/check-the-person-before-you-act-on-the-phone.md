@@ -13,7 +13,8 @@ team leaders or senior carers, clinical leads or nurses, Registered Managers and
 
 1. Go to **Today** or **People** and choose the person.
 2. At the top of their record, check:
-   - the photo matches the person in front of you
+   - the photo matches the person in front of you. If there is no photo, only initials, check
+     their name and date of birth with them or a colleague who knows them
    - the name they like to be called, their full name, their date of birth ("Born 02/04/1938", for
      example), their NHS number and their room
    - their allergies, for example "Allergies (2)", "No known allergies" or "Allergies not recorded"
@@ -37,9 +38,9 @@ team leaders or senior carers, clinical leads or nurses, Registered Managers and
 - "Allergies (details not on device)" means allergies are recorded but have not reached the phone.
   Check the full record on the web or with the person in charge.
 - **Resuscitation: not recorded** means no ReSPECT or DNACPR decision is on the phone. Check the
-  paper record and tell the nurse or senior in charge.
+  paper record and tell the person in charge.
 - **Resuscitation: records disagree** means the records on the phone do not match. Check the
-  documents and tell the nurse or senior in charge.
+  documents and tell the person in charge.
 - **Food and drink levels are not on this device. Check with the nurse in charge.** Do not guess a
   texture.
 
@@ -47,6 +48,9 @@ team leaders or senior carers, clinical leads or nurses, Registered Managers and
 
 - Check the photo and the allergies every time, before every entry and every piece of care (HZ-001,
   HZ-007).
+- The resuscitation decision and the food and drink levels are what the phone held at the last
+  sync. If they are not recorded, disagree or are not on the phone, check before you act (HZ-015,
+  HZ-016).
 - The details are what the phone held at the last sync. If the banner says the data may be out of
   date, check with the person in charge before you act (HZ-002).
 - If the care plan says **There is no published care plan for this person on this device. Ask the

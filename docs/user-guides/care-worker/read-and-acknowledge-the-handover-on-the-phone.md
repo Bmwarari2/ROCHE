@@ -42,6 +42,9 @@ the people you may see. If you do not see **Handover**, your role does not take 
   you have not read the handover.
 - If the person in charge tells you something that is not on the phone, follow what they say and
   tell them the phone did not show it.
+- Never sign out, delete the app, reset the phone to factory settings, or change its passcode, face
+  or fingerprint while entries are waiting to upload or need attention: they would be lost. If the
+  phone switches off, nothing is lost, but nothing is sent until it is back on (HZ-006, HZ-040).
 
 ## Good to know
 

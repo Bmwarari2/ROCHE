@@ -1,7 +1,8 @@
 # How to send or delete another person's unsent entries on a phone
 
-When a colleague's session ends before their entries reach Thapsus Care, the phone keeps those
-entries, encrypted, until they sign in again. If they cannot (for example, they have left, or the
+When Thapsus Care signs a colleague out (for example, their access changed) before their entries
+reach it, the phone keeps those entries, encrypted (scrambled so only Thapsus Care can read them),
+until they sign in again. If they cannot (for example, they have left, or the
 phone was withdrawn), a manager can sign in on that phone to send the entries in their name, or
 delete them with a reason.
 
@@ -24,7 +25,7 @@ The member of staff who wrote the entries can also delete their own.
 
 ## Delete them
 
-Delete them only when the care has been recorded another way, or the nurse in charge knows and
+Delete them only when the care has been recorded another way, or the person in charge knows and
 will make sure it is.
 
 1. On the card, choose **Delete 3 unsent entries**.
@@ -45,12 +46,13 @@ will make sure it is.
 - Deleting another member of staff's entries needs a connection, so Thapsus Care records the
   deletion first. If the phone says **Connect to the internet and try again.**, nothing has been
   deleted.
-- If only part was sent, the phone says how many are left, protected. Tell the Registered Manager,
-  and send them again when the phone is online.
+- If only part was sent, the phone says how many are left, protected. Tell the data protection lead
+  or your Registered Manager, and send them again when the phone is online.
 
 ## Good to know
 
-- If the card says **This device cannot tell whose they are, so only a manager can resolve them.**,
+- If the card says **Entries from another member of staff are waiting to be sent. This device cannot
+  tell whose they are, so only a manager can resolve them.**,
   the entries cannot be sent in anyone's name. A manager can only delete them, with a reason.
 - On a phone a manager withdrew, the member of staff who wrote the entries can send them here too.
 - The colleague's own steps: [How to send unsent entries after signing in again on the phone](../care-worker/send-unsent-entries-after-signing-in-again-on-the-phone.md).

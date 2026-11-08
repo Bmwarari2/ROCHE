@@ -1,7 +1,8 @@
 # How to see your people for the shift on the phone
 
 **Today** and **People** list the people whose records are on the phone. The records stay on the
-phone, encrypted, so you can read them and record care with no connection.
+phone, encrypted (scrambled so only Thapsus Care can read them), so you can read them and record
+care with no connection.
 
 **Who can do this**: care and support workers and agency or bank workers (the people assigned to
 you), team leaders or senior carers, clinical leads or nurses, Registered Managers and deputy
@@ -16,7 +17,7 @@ managers (everyone receiving care at their home).
    - the time of the last successful sync, for example "Last successful sync 08/11/2026 at 07:02",
      or **Not synced yet. Connect to the internet to download your people.**
    - how many changes are waiting to upload, for example "2 changes waiting to upload"
-   - how many entries were not saved and need attention, if any, in red
+   - how many entries were not saved and need attention, if any
    - how many days of entries the phone keeps, for example "Entries from the last 7 days are kept
      on this device."
 3. If **Not saved: needs attention** shows under it, deal with it first. See
@@ -25,7 +26,8 @@ managers (everyone receiving care at their home).
    person shows their photo or initials, the name they like to be called, their room, and their
    allergy, communication and resuscitation flags.
 5. Choose a person to open their record. Or go to **People** at the bottom of the screen for the
-   same list.
+   same people. The **People** list shows the allergy and communication flags but not the
+   resuscitation flag: that shows only on **Today**, and on the person's record.
 
 ## What is on the phone
 
@@ -44,8 +46,8 @@ managers (everyone receiving care at their home).
   was a while ago, a colleague may have recorded something you cannot see. Check the time of the
   last sync before you act on what you read (HZ-002).
 - "Data may be out of date. Check important details before you act." on the banner means the phone
-  has not synced for a while. Connect if you can. Check important details with the person in charge
-  before you give care.
+  has not synced for about 15 minutes. Connect if you can. Check important details with the person
+  in charge before you give care.
 - The phone's history is not the whole record (HZ-028). For anything older, use Thapsus Care on the
   web.
 - If someone you support is missing from the list, sync again. If they are still missing, ask the
