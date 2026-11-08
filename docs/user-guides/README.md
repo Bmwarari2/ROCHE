@@ -99,7 +99,7 @@ docs column links the same guides.
 | COMMS-006 | [Read and acknowledge the handover](care-worker/read-and-acknowledge-the-handover.md) |
 | COMMS-007 | [Write a letter template](registered-manager/write-a-letter-template.md), [Make a letter](registered-manager/make-a-letter.md) |
 | MEDS-001 | [Add a medicine to the MAR](nurse/add-a-medicine-to-the-mar.md), [Reconcile medicines](nurse/reconcile-medicines.md), [Second-check a medicine](nurse/second-check-a-medicine.md), [Stop a medicine](nurse/stop-a-medicine.md) |
-| MEDS-002 | [Give a when-required (PRN) medicine in the browser](care-worker/give-a-when-required-medicine-in-the-browser.md), [Give medicines in the browser round](care-worker/give-medicines-in-the-browser-round.md) |
+| MEDS-002 | [Decide a dose recorded twice](nurse/decide-a-dose-recorded-twice.md), [Give a when-required (PRN) medicine in the browser](care-worker/give-a-when-required-medicine-in-the-browser.md), [Give medicines in the browser round](care-worker/give-medicines-in-the-browser-round.md) |
 | MEDS-003 | [Give a when-required (PRN) medicine in the browser](care-worker/give-a-when-required-medicine-in-the-browser.md), [Read the medicines reports](registered-manager/read-the-medicines-reports.md) |
 | MEDS-004 | [Give medicines in the browser round](care-worker/give-medicines-in-the-browser-round.md) |
 | MEDS-005 | [Correct a controlled drugs register entry](nurse/correct-a-controlled-drugs-register-entry.md), [Count controlled drugs stock](nurse/count-controlled-drugs-stock.md), [Record a controlled drug received, returned, disposed of or destroyed](nurse/record-a-controlled-drug-movement.md), [Sign as a controlled drugs witness in the browser](care-worker/sign-as-a-controlled-drugs-witness.md) |

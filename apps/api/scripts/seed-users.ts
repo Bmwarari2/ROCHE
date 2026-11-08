@@ -682,6 +682,7 @@ try {
             WHERE NOT EXISTS (SELECT 1 FROM medication_schedule WHERE medication_id = $1)`,
           [morphine, frank],
         );
+        await seedDemoConflicts(client, frank);
       }
       await client.query("COMMIT");
       console.log(
@@ -705,4 +706,112 @@ try {
 } finally {
   await close();
   await owner.end();
+}
+
+/**
+ * Doses recorded twice on Frank Dummy's MAR, for the web journeys that decide them (HZ-004;
+ * medicines.md 15.4): paracetamol recorded the same on two phones yesterday; paracetamol refused on
+ * one phone and given on the other two days ago; and oxycodone, a controlled drug, not given on one
+ * phone and given on the other yesterday. Each dose is at 08:00 UK time, as prescribed. Invented
+ * and end-to-end only; the journeys resolve them, so a rerun needs a fresh database.
+ */
+async function seedDemoConflicts(
+  client: { query: (sql: string, values?: unknown[]) => Promise<unknown> },
+  frank: string,
+) {
+  const paracetamol = "0194d000-0000-7000-8900-000000000002";
+  const oxycodone = "0194d000-0000-7000-8900-000000000003";
+  const meds: [string, string, string, string | null, string, string][] = [
+    [paracetamol, "90000081000001117", "Paracetamol 500mg tablets", null, "428673006", "tablet"],
+    [oxycodone, "90000081000001125", "Oxycodone 5mg capsules", "2", "428641000", "capsule"],
+  ];
+  for (const [id, vmp, name, cd, unitCode, unitName] of meds) {
+    await client.query(
+      `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+         route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+         source_reference, transcribed_by, transcribed_at, cd_schedule)
+       VALUES ($1, $2, $1, 1, 'transcribed', $3, $4, '26643006', 'Oral', 'regular', 'every_day',
+         'Dr A Example', now() - interval '5 days', 'prescription', 'Prescription (demo)', $5,
+         now() - interval '5 days', $6)
+       ON CONFLICT (id) DO NOTHING`,
+      [id, frank, vmp, name, DEMO.users.manager.id, cd],
+    );
+    await client.query(
+      `INSERT INTO medication_schedule (medication_id, person_id, position, time, dose_kind,
+         quantity, unit_code, unit_name)
+       SELECT $1, $2, 0, '08:00', 'amount', 1, $3, $4
+        WHERE NOT EXISTS (SELECT 1 FROM medication_schedule WHERE medication_id = $1)`,
+      [id, frank, unitCode, unitName],
+    );
+  }
+  const carer = DEMO.users.carer.id;
+  const nurse = DEMO.users.nurse.id;
+  // [conflict, standing record, upload id, medicine, days ago, standing outcome, upload outcome, unit]
+  const doses: [string, string, string, string, number, string, string, string][] = [
+    [
+      "0194d000-0000-7000-8a00-000000000001",
+      "0194d000-0000-7000-8a00-000000000011",
+      "0194d000-0000-7000-8a00-000000000021",
+      paracetamol,
+      1,
+      "given",
+      "given",
+      "428673006",
+    ],
+    [
+      "0194d000-0000-7000-8a00-000000000002",
+      "0194d000-0000-7000-8a00-000000000012",
+      "0194d000-0000-7000-8a00-000000000022",
+      paracetamol,
+      2,
+      "refused",
+      "given",
+      "428673006",
+    ],
+    [
+      "0194d000-0000-7000-8a00-000000000003",
+      "0194d000-0000-7000-8a00-000000000013",
+      "0194d000-0000-7000-8a00-000000000023",
+      oxycodone,
+      1,
+      "omitted",
+      "given",
+      "428641000",
+    ],
+  ];
+  for (const [conflict, standing, upload, med, days, outcome, uploaded, unit] of doses) {
+    const due = `((date_trunc('day', now() AT TIME ZONE 'Europe/London') - interval '${days} days'
+      + time '08:00') AT TIME ZONE 'Europe/London')`;
+    const given = outcome === "given";
+    await client.query(
+      `INSERT INTO medication_administration (id, person_id, medication_id, due_at, outcome,
+         reason_code, quantity, unit_code, given_at, administered_by, recorded_by, recorded_at)
+       VALUES ($1, $2, $3, ${due}, $4, $5, $6, $7, ${due} + interval '5 minutes', $8, $8,
+         ${due} + interval '5 minutes')
+       ON CONFLICT (id) DO NOTHING`,
+      [
+        standing,
+        frank,
+        med,
+        outcome,
+        outcome === "refused" ? "declined" : outcome === "omitted" ? "asleep" : null,
+        given ? 1 : null,
+        given ? unit : null,
+        carer,
+      ],
+    );
+    await client.query(
+      `INSERT INTO medication_administration_conflict (id, person_id, client_record_id,
+         medication_id, due_at, standing_id, uploaded, problems, device_at, uploaded_by, received_at)
+       SELECT $1, $2, $3::uuid, $4::uuid, ${due}, $5,
+         jsonb_build_object('id', $3::text, 'entryId', $4::text, 'outcome', $6::text,
+           'amount', jsonb_build_object('quantity', 1, 'unitCode', $7::text),
+           'givenAt', to_char((${due} + interval '10 minutes') AT TIME ZONE 'UTC',
+             'YYYY-MM-DD"T"HH24:MI:SS.000"Z"')),
+         ARRAY['already_recorded'], ${due} + interval '10 minutes', $8::uuid,
+         now() - interval '1 hour'
+       ON CONFLICT (id) DO NOTHING`,
+      [conflict, frank, upload, med, standing, uploaded, unit, nurse],
+    );
+  }
 }

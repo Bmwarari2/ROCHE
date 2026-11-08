@@ -469,6 +469,7 @@ export const controlledDrugsRouter = createRouter()
             id: controlledDrugWitnessAssertion.id,
             movement: controlledDrugWitnessAssertion.movement,
             quantity: controlledDrugWitnessAssertion.quantity,
+            administrationId: controlledDrugWitnessAssertion.administrationId,
             expiresAt: controlledDrugWitnessAssertion.expiresAt,
             witnessName: tenantUser.displayName,
           })
@@ -489,6 +490,7 @@ export const controlledDrugsRouter = createRouter()
             typeof CdWaitingAssertions
           >["assertions"][number]["movement"],
           quantity: Number(r.quantity),
+          administrationId: r.administrationId,
           witnessName: r.witnessName,
           expiresAt: r.expiresAt.toISOString(),
         }));

@@ -203,6 +203,8 @@ export const CdWaitingAssertions = z
         id: uuid,
         movement: z.union([CdMovement, z.literal("stock_check")]),
         quantity: z.number(),
+        /** The administration the witness saw (its client id), for a dose; null otherwise. */
+        administrationId: uuid.nullable(),
         witnessName: z.string(),
         expiresAt: isoDateTime,
       }),

@@ -1364,6 +1364,33 @@ becomes an administration record without a person's decision.
 The table is append-only, apart from the resolution, which is set once. It has forced RLS and
 person scope, and its retention class is `mar_chart`.
 
+Each conflict also carries `current`, the latest record for the dose (the record that stands, or
+the correction now in force), and `controlledDrug`; each administration carries `inCdRegister`,
+whether it wrote a register entry; a waiting witness signature carries the `administrationId` it
+was signed for. All are additive.
+
+**On the web (HZ-004; H-1605 closed).** The phone sends staff here for three things, now built:
+- *Doses recorded twice* (`/medicines-round/{locationId}/conflicts`, linked from the home's
+  medicines round): each conflict with the person, the medicine, both records in words side by
+  side, whether they agree and whether one member recorded both. Its page offers only the
+  decisions the records allow (the rules above), asks what was found out, and asks again before
+  "given twice" raises a medication incident. A controlled drug says it needs a fresh sign-in and
+  someone who took no part in the dose; a refusal is shown in the API's words, and a step-up
+  refusal links to sign in again and back. Decided by holders of `medicines.record.manage`.
+- *Correcting the record that stands*: from the conflict, the correction form for its latest
+  record (the corrections route, section 13), which comes back to the conflict with "corrected"
+  chosen; the record corrected is struck through beside the correction.
+- *Correcting a controlled drug's record* (`/people/{id}/medicines/administrations`, the person's
+  last seven days of records, each in force with "Correct this record"): the same form. When the
+  correction moves the register, the page says exactly what the witness signs for (a dose given of
+  the amount, or a correction by the signed change, as `registerMoveForCorrection`) and gives a
+  link to the register page with that prefilled, for the correction's own client id, fixed in the
+  page's address. The witness opens it signed in as themselves and signs; the recorder checks for
+  the signature and chooses it, or, where the page's policy allows, says why there was no witness.
+  A signature for a dose record's correction is never offered for another register entry. Until
+  controlled drugs recording is turned on at the home the banner says the paper register is the
+  record, and a refusal (`cd_recording_not_enabled`) removes the form.
+
 ### 15.5 Audit and outbox
 
 - Audit actions, carrying ids only: `medicines.round.viewed` (with the person ids shown),

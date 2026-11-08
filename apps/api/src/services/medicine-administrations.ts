@@ -282,6 +282,7 @@ export function administrationOut(
           method: w.method as "step_up" | "device_factor",
         }
       : null,
+    inCdRegister: r.cdEntryId !== null,
   };
 }
 
