@@ -31530,7 +31530,7 @@ export interface paths {
     };
     /**
      * The organisation's training matrix
-     * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. Every member of staff whose roles need training, by name and job title, with each required topic's state today (valid, due soon, expired or missing), by the rules of the member's record. Filter by location (roles held there), role key, or attention (only members with a topic not valid). At most 2,000 members; truncated says when more match. Audited without names.
+     * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. Every member of staff in the caller's scope (organisation-wide, or those who work at the caller's homes; ADR-0136) whose roles need training, by name and job title, with each required topic's state today (valid, due soon, expired or missing), by the rules of the member's record. Filter by location (roles held there), role key, or attention (only members with a topic not valid). At most 2,000 members; truncated says when more match. Audited without names.
      */
     get: {
       parameters: {
@@ -31600,7 +31600,7 @@ export interface paths {
     };
     /**
      * Supervisions and appraisals due across staff
-     * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read, as the training matrix. Every member of staff by name and job title, with their next supervision and appraisal (upcoming, due within supervision.due_window_days, overdue, or none recorded) by the rules of the member's record, and their last spot check. Filter by location (roles held there) or attention (a meeting not upcoming). At most 2,000 members; truncated says when more match. Audited without names.
+     * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read, as the training matrix. Every member of staff in the caller's scope, as the matrix, by name and job title, with their next supervision and appraisal (upcoming, due within supervision.due_window_days, overdue, or none recorded) by the rules of the member's record, and their last spot check. Filter by location (roles held there) or attention (a meeting not upcoming). At most 2,000 members; truncated says when more match. Audited without names.
      */
     get: {
       parameters: {
@@ -32656,7 +32656,7 @@ export interface paths {
     };
     /**
      * Who may be named a nurse's revalidation confirmer
-     * @description workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.
+     * @description workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage in a scope that covers the nurse (as app.revalidation_confirmer_candidates counts them; ADR-0136), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.
      */
     get: {
       parameters: {
