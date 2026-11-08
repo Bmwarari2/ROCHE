@@ -38,6 +38,8 @@ Branch `fix/platform-dsar-array-subjects`, PR to follow. Label `data-protection`
   add a GIN index) if its table is classed personal, or say why not. Applicants are not yet a DSAR
   subject kind.
 - H-1624: whether DSARs answered before this fix are re-checked.
+- Items decided before this change hash differently once cut to the subject's part, so they go
+  back to pending for review (the #149 M3 rule); none exist before go-live.
 
 ## Human actions logged
 
@@ -49,4 +51,34 @@ Branch `fix/platform-dsar-array-subjects`, PR to follow. Label `data-protection`
   never secret or non-personal, the real catalogue's searched lists).
 - `packages/db/src/export-catalogue.test.ts`: one test per `uuid[]` column (26), plus two.
 - `apps/api/test/dsar.test.ts`: a person named only in `incident.person_ids` gets that incident
-  collected (fails without the `@>` match).
+  collected (fails without the `@>` match); security review: four more (downtime pack page, staff
+  lists and the `redacted_by` regression, another organisation's row, a record found twice).
+- `apps/api/test/disclosures.test.ts`: a disclosure shows only the person's downtime pack page.
+- `packages/domain/src/platform/dsar.test.ts`: security review, 14 more (`dsarRecordForSubject`).
+
+## Security review
+
+Nothing blocking on injection, tenancy or row-level security. Fixed on top of bd99eaa8:
+
+- Medium: `downtime_pack.person_ids` made a resident's DSAR (and a disclosure, which shares the
+  collector) collect every pack at their home, each holding every resident's emergency page in one
+  `content` column that field redaction cannot split. `recordsOf` now takes the subject's id and
+  applies `dsarRecordForSubject` (domain, pure): a downtime pack keeps only the subject's pages,
+  warnings and exclusion, and counts of their own warnings, so a member of staff found through
+  `generated_by` sees no pages. Same review for the other searched tables: an interview found
+  through its panel drops `scores`, `notes` and `recommendation` (the applicant's assessment, not
+  the panel member's data); an evidence pack holds metadata only (its id lists are cut, below); an
+  evidence pack item hides other redactors in `fields`. A saved earlier version (`record_version`)
+  is cut by its own table's rules.
+- Low: every declared id list is cut to the subject's own id (empty when they are not in it).
+- Low: API tests for a staff list (`compliment.staff_ids`), the `evidence_pack_item.redacted_by`
+  regression, another organisation's incident naming the same person (not collected), the
+  downtime pack page and the same through a disclosure (`apps/api/test/disclosures.test.ts`).
+- Low: `collectRecords` no longer counts a record found by two columns twice against the item
+  limit (each later query of a table leaves out the ids already found).
+- Info: migration 0162 says why its GIN indexes are built inside the transaction, not
+  `CONCURRENTLY` (small tables before go-live; a live rebuild would use `CONCURRENTLY`).
+- Info: `import_commit.record_ids` describes itself precisely (people are the only import type).
+- Records of processing (B13 note) and platform.md rule 3 say what a DSAR now shows of these
+  records. No new human action: the projection is option (a).
+

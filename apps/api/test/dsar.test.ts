@@ -1,8 +1,9 @@
 import { createDatabase, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { touchesCareRecords } from "@harbour/domain";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { recordsOf } from "../src/services/dsar";
+import { collectRecords, DSAR_ITEM_LIMIT, recordsOf } from "../src/services/dsar";
 import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
@@ -643,7 +644,7 @@ describe("#149 re-check L1: earlier versions show only what their table's export
     const records = await withRequestContext(
       createDatabase(h.db.pool("harbour_app")),
       { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
-      (tx) => recordsOf(tx, "record_version", [versionId]),
+      (tx) => recordsOf(tx, "record_version", [versionId], ada),
     );
     const data = records.get(versionId)?.data as Record<string, unknown>;
     expect(data).not.toHaveProperty("bundle_storage_key");
@@ -684,7 +685,7 @@ describe("#149 re-check L1: earlier versions show only what their table's export
     const records = await withRequestContext(
       createDatabase(h.db.pool("harbour_app")),
       { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
-      (tx) => recordsOf(tx, "invitation", [invitationId]),
+      (tx) => recordsOf(tx, "invitation", [invitationId], invitedId),
     );
     const record = records.get(invitationId);
     expect(record).toHaveProperty("tenant_user_id", invitedId);
@@ -714,5 +715,200 @@ describe("id arrays declared in the catalogue are searched (migration 0162)", ()
     expect(items).toContainEqual(
       expect.objectContaining({ tableName: "incident", recordId: incident?.id }),
     );
+  });
+});
+
+/** Runs `text` as the organisation in `tenantId`, optionally in a member's name. */
+async function ownerAs<T = Record<string, unknown>>(
+  tenantId: string,
+  userId: string | null,
+  text: string,
+  values: unknown[] = [],
+) {
+  const client = await h.db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true),
+              set_config('app.user_id', COALESCE($2, ''), true)`,
+      [tenantId, userId],
+    );
+    const result = await client.query(text, values);
+    await client.query("COMMIT");
+    return result.rows as T[];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function collectedItems(body: Record<string, unknown>): Promise<{ c: Case; items: Item[] }> {
+  const c = await newCase(body);
+  expect((await post(`/v1/dsar-cases/${c.id}/collect`, {})).status).toBe(200);
+  const items = ((await (await get(`/v1/dsar-cases/${c.id}/items`)).json()) as { items: Item[] })
+    .items;
+  return { c, items };
+}
+
+describe("security review of migration 0162: only the subject's part of a shared record", () => {
+  it("shows a resident only their own page of a downtime pack, never another resident's", async () => {
+    const [where] = await owner<{ location_id: string }>(
+      "SELECT location_id FROM person WHERE id = $1",
+      [ada],
+    );
+    const [other] = await owner<{ id: string }>(
+      `SELECT id FROM person WHERE location_id = $1 AND id <> $2 AND deleted_at IS NULL LIMIT 1`,
+      [where?.location_id, ada],
+    );
+    expect(other?.id).toBeTruthy();
+    const page = (personId: string, allergies: string, name: string) => ({
+      personId,
+      displayName: name,
+      content: { allergies },
+    });
+    const [pack] = await owner<{ id: string }>(
+      `INSERT INTO downtime_pack (location_id, source, generated_at, as_at, valid_until, content, warnings)
+       VALUES ($1, 'server_nightly', now(), now(), now() + interval '36 hours', $2::jsonb, $3::jsonb)
+       RETURNING id`,
+      [
+        where?.location_id,
+        JSON.stringify({
+          pages: [
+            page(ada, "No known allergies", "Example, Ada"),
+            page(other?.id as string, "Peanut (fixture)", "Neighbour, Fixture"),
+          ],
+          warnings: [{ personId: other?.id, kind: "stale", section: "allergies", message: "Old." }],
+        }),
+        JSON.stringify({ stale: 1 }),
+      ],
+    );
+    const { c, items } = await collectedItems({});
+    const item = items.find((i) => i.tableName === "downtime_pack" && i.recordId === pack?.id);
+    expect(item).toBeTruthy();
+    const detail = (await (await get(`/v1/dsar-cases/${c.id}/items/${item?.id}`)).json()) as {
+      record: { person_ids: string[]; content: { pages: { personId: string }[] } };
+    };
+    expect(detail.record.person_ids).toEqual([ada]);
+    expect(detail.record.content.pages.map((p) => p.personId)).toEqual([ada]);
+    const shown = JSON.stringify(detail.record);
+    expect(shown).not.toContain("Peanut (fixture)");
+    expect(shown).not.toContain("Neighbour, Fixture");
+    expect(shown).not.toContain(other?.id as string);
+  });
+
+  it("finds a member of staff by evidence_pack_item.redacted_by, compared as a list (regression)", async () => {
+    const staff = DEMO.users.manager.id;
+    const [where] = await owner<{ location_id: string }>(
+      "SELECT location_id FROM person WHERE id = $1",
+      [ada],
+    );
+    const fields = (redactedBy?: string) =>
+      JSON.stringify([
+        { key: "type", label: "Type", kind: "organisational", outcome: "included", reason: null },
+        {
+          key: "description",
+          label: "Description",
+          kind: "free_text",
+          ...(redactedBy
+            ? { outcome: "redacted", reason: "free_text_redacted_by_hand", redactedBy }
+            : { outcome: "withheld", reason: "free_text_not_reviewed" }),
+        },
+      ]);
+    const [pack] = await ownerAs<{ id: string }>(
+      DEMO.tenantId,
+      staff,
+      `INSERT INTO evidence_pack (recipient_name, recipient_organisation, recipient_email, purpose,
+         date_from, date_to, location_ids, person_ids, watermark)
+       VALUES ('Ivy Inspector', 'Care Quality Commission', 'ivy.inspector@example.invalid',
+         'Evidence of safe care for the planned inspection', '2026-09-01', '2026-09-30', $1, $2,
+         'Prepared for Ivy Inspector. Do not share further.') RETURNING id`,
+      [[where?.location_id], [ada]],
+    );
+    const insertItem = (supersedes: string | null, f: string) =>
+      ownerAs<{ id: string }>(
+        DEMO.tenantId,
+        staff,
+        `INSERT INTO evidence_pack_item (pack_id, supersedes_id, record_type, record_id,
+           record_version, title, occurred_at, fields)
+         VALUES ($1, $2, 'incident', $3, 1, 'Incident (fall)', '2026-09-10T10:00:00Z',
+           $4::jsonb) RETURNING id`,
+        [pack?.id, supersedes, "0199f000-0000-7000-8000-0000000000f1", f],
+      );
+    const [first] = await insertItem(null, fields());
+    const [redacted] = await insertItem(first?.id as string, fields(staff));
+    const { c, items } = await collectedItems({
+      subjectKind: "staff",
+      subjectPersonId: null,
+      subjectStaffId: staff,
+    });
+    expect(items).toContainEqual(
+      expect.objectContaining({ tableName: "evidence_pack_item", recordId: redacted?.id }),
+    );
+    expect(items.some((i) => i.recordId === first?.id)).toBe(false);
+    const item = items.find((i) => i.recordId === pack?.id && i.tableName === "evidence_pack");
+    const detail = (await (await get(`/v1/dsar-cases/${c.id}/items/${item?.id}`)).json()) as {
+      record: { person_ids: string[] };
+    };
+    // A member of staff's request never discloses the ids of the people in the pack.
+    expect(detail.record.person_ids).toEqual([]);
+  });
+
+  it("never collects a row of another organisation whose list holds the same id", async () => {
+    const [mine] = await owner<{ id: string }>(
+      `INSERT INTO incident (location_id, type, occurred_at, description, raised_by, person_ids)
+       VALUES ($1, 'fall', now() - interval '1 hour', 'Fixture incident.', $2, $3) RETURNING id`,
+      [DEMO.locationId, DEMO.users.carer.id, [ada]],
+    );
+    // Written by the database superuser, past row-level security, as a corrupt or hostile row
+    // would be: another organisation's incident whose list holds this person's id.
+    const url = new URL(process.env.HARBOUR_TEST_ADMIN_URL ?? "");
+    url.pathname = `/${h.db.name}`;
+    const admin = new pg.Client({ connectionString: url.toString() });
+    await admin.connect();
+    let theirs = "";
+    try {
+      theirs = (
+        await admin.query<{ id: string }>(
+          `INSERT INTO incident (tenant_id, location_id, type, occurred_at, description, raised_by,
+             person_ids)
+           VALUES ($1, $2, 'fall', now() - interval '1 hour', 'Other organisation.', $3, $4)
+           RETURNING id`,
+          [OTHER.tenantId, OTHER.locationId, OTHER.managerId, [ada]],
+        )
+      ).rows[0]?.id as string;
+    } finally {
+      await admin.end();
+    }
+    const { items } = await collectedItems({});
+    const ids = items.filter((i) => i.tableName === "incident").map((i) => i.recordId);
+    expect(ids).toContain(mine?.id);
+    expect(ids).not.toContain(theirs);
+  });
+
+  it("finds a member of staff in a compliment's staff list, and counts it once when found twice", async () => {
+    const staff = DEMO.users.manager.id;
+    const [compliment] = await owner<{ id: string }>(
+      `INSERT INTO compliment (location_id, from_name, from_relationship, received_at, summary,
+         recorded_by, staff_ids)
+       VALUES ($1, 'Sam Example', 'family_or_friend', now(), 'Thank you for the birthday tea.',
+         $2, $3) RETURNING id`,
+      [DEMO.locationId, staff, [staff, DEMO.users.carer.id]],
+    );
+    const found = await withRequestContext(
+      createDatabase(h.db.pool("harbour_app")),
+      { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) => collectRecords(tx, "staff", staff, DSAR_ITEM_LIMIT),
+    );
+    const keys = found.found.map(([t, id]) => `${t}:${id}`);
+    expect(keys.filter((k) => k === `compliment:${compliment?.id}`)).toHaveLength(1);
+    expect(new Set(keys).size).toBe(keys.length);
+    const records = await withRequestContext(
+      createDatabase(h.db.pool("harbour_app")),
+      { tenantId: DEMO.tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) => recordsOf(tx, "compliment", [compliment?.id as string], staff),
+    );
+    expect(records.get(compliment?.id as string)?.staff_ids).toEqual([staff]);
   });
 });

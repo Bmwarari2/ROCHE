@@ -1387,7 +1387,11 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
    matched with `@>` on a GIN index (migration 0162). An id array is read from its declaration,
    never guessed from its name; every `uuid[]` column must declare whose ids it holds, or why it
    holds no one's, and a declared array a DSAR searches must be GIN-indexed
-   (`packages/db/src/export-catalogue.test.ts`). A new table joins the map by its catalogue entry; a table with
+   (`packages/db/src/export-catalogue.test.ts`). A record is shown cut to the subject's part
+   (`dsarRecordForSubject`, for the workbench and disclosures alike): declared id lists hold only
+   the subject's id; a downtime pack only the subject's page, warnings and exclusion; an interview
+   found through its panel no scores, notes or recommendation; an evidence pack item no other
+   redactor. A record found by two columns is collected once. A new table joins the map by its catalogue entry; a table with
    personal data but no column naming this kind of subject (worked out for each request: a
    contact request lists every table that names no contact), and a searched table whose read policy depends on the member
    reading it (`DSAR_MEMBER_SCOPED_TABLES`, kept in step with the database by a test; none today), are
@@ -1455,6 +1459,8 @@ needs its fingerprint; H-881).
   person, contact and staff columns; tables with personal data and no subject column reported);
   `PLAT-022 the subject map searches id arrays declared in the catalogue` (declared kinds only, never
   by name, never secret or non-personal tables; the real catalogue's searched arrays listed);
+  `PLAT-022 a record shows only the subject's part of a shared list` (downtime pack pages,
+  interview, evidence pack item, id lists cut to the subject's id);
   `third-party names highlighted, nothing redacted`; `redaction decisions` (reason and fields
   required); `bundle readiness and redaction applied`; `erasure assessment` (held, within period,
   past period); `portability applies` (staff yes, person and contact no); `new case checks`

@@ -7,11 +7,12 @@
  */
 
 import { isRealDate } from "./data-rights";
-import type {
-  ColumnSpec,
-  ExportTableDefinition,
-  IdArrayDeclaration,
-  IdArraySubjectKind,
+import {
+  type ColumnSpec,
+  EXPORT_TABLES,
+  type ExportTableDefinition,
+  type IdArrayDeclaration,
+  type IdArraySubjectKind,
 } from "./export-catalogue";
 import { type RetentionRule, retentionDecision } from "./retention";
 
@@ -113,6 +114,84 @@ export function dsarSubjectMap(
     notSearched: notSearched.sort(),
     personalTables: personalTables.sort(),
   };
+}
+
+type DsarRecord = Readonly<Record<string, unknown>>;
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+
+/** UUIDs compared as the database writes them, whatever case the caller used. */
+const sameId = (a: unknown, b: string): boolean =>
+  typeof a === "string" && a.toLowerCase() === b.toLowerCase();
+
+const aboutSubject = (list: unknown, subjectId: string): unknown =>
+  Array.isArray(list) ? list.filter((e) => isObject(e) && sameId(e.personId, subjectId)) : list;
+
+/**
+ * Records shared by many people whose columns cannot be redacted one person at a time, cut to the
+ * subject's own part before anyone reviews them (security review of migration 0162). The reviewer
+ * still sees, redacts and withholds what is left.
+ */
+const DSAR_RECORD_PROJECTIONS: Readonly<
+  Record<string, (record: Record<string, unknown>, subjectId: string) => Record<string, unknown>>
+> = {
+  // One page per person at the home: only the subject's page, warnings and exclusion, and counts
+  // of their own warnings (a member of staff who built the pack sees none of the pages).
+  downtime_pack: (record, subjectId) => {
+    if (!isObject(record.content)) return record;
+    const content = {
+      ...record.content,
+      pages: aboutSubject(record.content.pages, subjectId),
+      excluded: aboutSubject(record.content.excluded, subjectId),
+      warnings: aboutSubject(record.content.warnings, subjectId),
+    };
+    const counts: Record<string, number> = {};
+    for (const w of Array.isArray(content.warnings) ? content.warnings : []) {
+      const kind = String((w as Record<string, unknown>).kind);
+      counts[kind] = (counts[kind] ?? 0) + 1;
+    }
+    return { ...record, content, ...("warnings" in record ? { warnings: counts } : {}) };
+  },
+  // Found only through `redacted_by`: who else redacted a field stays out of a member's request.
+  evidence_pack_item: (record, subjectId) =>
+    Array.isArray(record.fields)
+      ? {
+          ...record,
+          fields: record.fields.map((f) =>
+            isObject(f) && "redactedBy" in f && !sameId(f.redactedBy, subjectId)
+              ? { ...f, redactedBy: null }
+              : f,
+          ),
+        }
+      : record,
+  // Found only through the panel: the scores, notes and recommendation are the applicant's
+  // assessment, not the panel member's own data; that they sat on the panel, and when, is.
+  interview: ({ scores: _s, notes: _n, recommendation: _r, ...rest }) => rest,
+};
+
+/**
+ * A record as a subject access request (or a disclosure about one person) shows it: every id list
+ * the catalogue declares as holding people cut to the subject's own id, and the shared records in
+ * `DSAR_RECORD_PROJECTIONS` cut to the subject's part. Pure; the record given is not changed.
+ */
+export function dsarRecordForSubject(
+  table: string,
+  record: DsarRecord,
+  subjectId: string,
+  tables: Readonly<Record<string, ExportTableDefinition>> = EXPORT_TABLES,
+): Record<string, unknown> {
+  let out: Record<string, unknown> = { ...record };
+  const columns = tables[`public.${table}`]?.columns ?? {};
+  for (const [column, spec] of Object.entries(columns)) {
+    const array = idArrayOf(spec);
+    if (array === undefined || array.holds === "no_subject" || !Array.isArray(out[column]))
+      continue;
+    out[column] = (out[column] as unknown[]).filter((id) => sameId(id, subjectId));
+  }
+  const projection = DSAR_RECORD_PROJECTIONS[table];
+  if (projection) out = projection(out, subjectId);
+  return out;
 }
 
 export interface NameHighlight {

@@ -563,3 +563,45 @@ describe("SAFE-016 rule 43: a coroner's Regulation 28 report", () => {
     expect(await codeOf(p)).toBe("not_a_coroner_request");
   });
 });
+
+describe("security review of migration 0162: a disclosure shows only the person's part", () => {
+  it("shows only the person's own page of a downtime pack, never another resident's", async () => {
+    const [where] = await owner<{ location_id: string }>(
+      "SELECT location_id FROM person WHERE id = $1",
+      [ada],
+    );
+    const [other] = await owner<{ id: string }>(
+      "SELECT id FROM person WHERE location_id = $1 AND id <> $2 AND deleted_at IS NULL LIMIT 1",
+      [where?.location_id, ada],
+    );
+    const [pack] = await owner<{ id: string }>(
+      `INSERT INTO downtime_pack (location_id, source, generated_at, as_at, valid_until, content)
+       VALUES ($1, 'server_nightly', now(), now(), now() + interval '36 hours', $2::jsonb)
+       RETURNING id`,
+      [
+        where?.location_id,
+        JSON.stringify({
+          pages: [
+            { personId: ada, content: { allergies: "No known allergies" } },
+            { personId: other?.id, content: { allergies: "Shellfish (fixture)" } },
+          ],
+        }),
+      ],
+    );
+    const req = await logRequest();
+    expect((await post(`/v1/disclosures/${req.id}/collect`, {})).status).toBe(200);
+    const items = (
+      (await (await get(`/v1/disclosures/${req.id}/items`)).json()) as {
+        items: (Item & { recordId: string })[];
+      }
+    ).items;
+    const item = items.find((i) => i.tableName === "downtime_pack" && i.recordId === pack?.id);
+    expect(item).toBeTruthy();
+    const detail = (await (await get(`/v1/disclosures/${req.id}/items/${item?.id}`)).json()) as {
+      record: { person_ids: string[]; content: { pages: { personId: string }[] } };
+    };
+    expect(detail.record.person_ids).toEqual([ada]);
+    expect(detail.record.content.pages.map((p) => p.personId)).toEqual([ada]);
+    expect(JSON.stringify(detail.record)).not.toContain("Shellfish (fixture)");
+  });
+});

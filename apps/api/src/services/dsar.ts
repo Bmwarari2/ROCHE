@@ -18,6 +18,7 @@ import {
   type DsarSubjectKind,
   dsarClock,
   dsarNotSearchedOf,
+  dsarRecordForSubject,
   dsarSubjectMap,
   type ErasureCandidate,
   EXPORT_TABLES,
@@ -308,6 +309,8 @@ export async function collectRecords(
   limit: number,
 ): Promise<{ found: [string, string][]; tablesSearched: number; truncated: boolean }> {
   const found: [string, string][] = [];
+  // A record found by two columns (a care note's person_id and an id list) counts once.
+  const seen = new Map<string, string[]>();
   const tables = new Set<string>();
   for (const { table, column, array } of SUBJECT_MAP[kind]) {
     if (!hasId(table)) continue;
@@ -318,22 +321,39 @@ export async function collectRecords(
     const match = array
       ? sql`t.${sql.identifier(column)} @> ARRAY[${subjectId}::uuid]`
       : sql`t.${sql.identifier(column)}::text = ${subjectId}`;
+    const already = seen.get(table) ?? [];
+    seen.set(table, already);
+    const notYet =
+      already.length === 0
+        ? sql``
+        : sql` AND t.id::text NOT IN (${sql.join(
+            already.map((i) => sql`${i}`),
+            sql`, `,
+          )})`;
     const result = await tx.execute<{ id: string }>(
       sql`SELECT t.id::text AS id FROM ${sql.identifier(table)} t
-          WHERE ${match}
+          WHERE ${match}${notYet}
           ORDER BY t.id LIMIT ${left + 1}`,
     );
-    for (const r of result.rows.slice(0, left)) found.push([table, r.id]);
+    for (const r of result.rows.slice(0, left)) {
+      already.push(r.id);
+      found.push([table, r.id]);
+    }
     if (result.rows.length > left) return { found, tablesSearched: tables.size, truncated: true };
   }
   return { found, tablesSearched: tables.size, truncated: false };
 }
 
-/** The records of one table by id, as the export shows them (disclosable columns only). */
+/**
+ * The records of one table by id, as the export shows them (disclosable columns only), cut to what
+ * concerns the subject (`dsarRecordForSubject`: id lists hold only the subject's id, and a shared
+ * record such as a downtime pack shows only their page).
+ */
 export async function recordsOf(
   tx: Transaction,
   table: string,
   ids: readonly string[],
+  subjectId: string,
 ): Promise<Map<string, Record<string, unknown>>> {
   const out = new Map<string, Record<string, unknown>>();
   if (ids.length === 0 || !hasId(table)) return out;
@@ -367,9 +387,13 @@ export async function recordsOf(
       const of = typeof r.row.table_name === "string" ? r.row.table_name : "";
       const allowed = disclosableColumns(of);
       const data = (r.row.data ?? {}) as Record<string, unknown>;
-      record.data = Object.fromEntries(Object.entries(data).filter(([k]) => allowed.includes(k)));
+      record.data = dsarRecordForSubject(
+        of,
+        Object.fromEntries(Object.entries(data).filter(([k]) => allowed.includes(k))),
+        subjectId,
+      );
     }
-    out.set(r.id, record);
+    out.set(r.id, dsarRecordForSubject(table, record, subjectId));
   }
   return out;
 }

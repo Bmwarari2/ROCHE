@@ -5704,7 +5704,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       record_ids: {
         idArray: { holds: "person" },
         description:
-          "Ids of the records the commit created (person.id for people), kept after an undo removed them.",
+          "The people the commit created (person.id each: people are the only import_batch.record_type), kept after an undo removed them.",
       },
       record_count: { description: "How many records the commit created.", unit: "records" },
       committed_by: { description: "Tenant user who committed the batch (tenant_user.id)." },

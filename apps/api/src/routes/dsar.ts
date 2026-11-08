@@ -247,6 +247,7 @@ async function buildBundle(
         tx,
         table,
         list.map((i) => i.recordId),
+        subjectIdOf(row),
       );
       for (const i of list.sort((a, b) => a.recordId.localeCompare(b.recordId))) {
         const record = found.get(i.recordId);
@@ -713,7 +714,10 @@ export const dsarRouter = createRouter()
         return { row: r, item: i, names: await staffNames(tx, [i.reviewedBy]) };
       });
       const { record, others } = await asOrganisation(c, access, async (tx) => ({
-        record: (await recordsOf(tx, item.tableName, [item.recordId])).get(item.recordId) ?? null,
+        record:
+          (await recordsOf(tx, item.tableName, [item.recordId], subjectIdOf(row))).get(
+            item.recordId,
+          ) ?? null,
         others: await thirdPartyNames(tx, row),
       }));
       const highlights = record
@@ -758,7 +762,8 @@ export const dsarRouter = createRouter()
       const { id, itemId } = c.req.valid("param");
       const input = c.req.valid("json");
       const body = await withTenant(c, async (tx) => {
-        requireOpen(await loadCase(tx, id));
+        const caseRow = await loadCase(tx, id);
+        requireOpen(caseRow);
         const [item] = await tx
           .select()
           .from(dsarItem)
@@ -769,7 +774,9 @@ export const dsarRouter = createRouter()
         if (item.version !== input.expectedVersion) throw caseProblem.stale();
         // The decision is about the record the reviewer saw (#149 M3).
         const current = await asOrganisation(c, access, async (otx) =>
-          (await recordsOf(otx, item.tableName, [item.recordId])).get(item.recordId),
+          (await recordsOf(otx, item.tableName, [item.recordId], subjectIdOf(caseRow))).get(
+            item.recordId,
+          ),
         );
         if (!current || recordSha256(current) !== input.contentSha256) {
           throw new HttpProblem(

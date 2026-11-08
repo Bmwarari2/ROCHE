@@ -393,6 +393,14 @@ indexes are added. Tables the catalogue classes as holding no personal data (an 
 records, a DPIA's or pay rule set's authors, a homely remedy's authorised staff, destruction
 certificates) are not searched, as before. Whether past DSAR responses need re-checking, and
 whether those tables should be searched, is for the DPO (H-1624, H-1625).
+What a DSAR or a disclosure shows of a record found this way (security review, 08/11/2026): only
+the subject's part. An id list shows only the subject's own id, never the other people or staff it
+names. A downtime pack shows only the subject's page, warnings and exclusion (one pack holds every
+resident's emergency page: photo, allergies, medicines, resuscitation status and about-me, which
+column redaction cannot separate), so a member of staff who built a pack sees none of the pages.
+An interview found through its panel shows the date and that the member sat on the panel, never
+the applicant's scores, notes or recommendation. An evidence pack item hides who else redacted a
+field. The reviewer still decides every record (`dsarRecordForSubject`).
 
 Quality dashboard and PIR prefill (slice 47, [quality.md](../specs/quality.md) section 22): counts
 of incidents, body map marks, care plans and risk assessments, bed occupancy and care notes at one

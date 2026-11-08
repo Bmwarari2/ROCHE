@@ -8,6 +8,7 @@ import {
   dsarBundleStorageKey,
   dsarNotSearched,
   dsarNotSearchedOf,
+  dsarRecordForSubject,
   dsarSubjectMap,
   erasureAssessment,
   findThirdPartyNames,
@@ -212,6 +213,126 @@ describe("PLAT-022 the subject map searches id arrays declared in the catalogue"
       const spec = EXPORT_TABLES[`public.${e.table}`]?.columns[e.column];
       expect(typeof spec === "object" && spec.idArray !== undefined, e.column).toBe(false);
     }
+  });
+});
+
+describe("PLAT-022 a record shows only the subject's part of a shared list (security review of migration 0162)", () => {
+  const ADA = "0199e000-0000-7000-8000-00000000a0a1";
+  const BEN = "0199e000-0000-7000-8000-00000000a0b2";
+  const MO = "0199e000-0000-7000-8000-00000000a0c3";
+  const pack = {
+    id: "p1",
+    person_ids: [ADA, BEN],
+    content: {
+      packId: "p1",
+      locationName: "Example House",
+      pages: [
+        { personId: ADA, displayName: "Example, Ada", content: { allergies: "None known" } },
+        { personId: BEN, displayName: "Sample, Ben", content: { allergies: "Penicillin" } },
+      ],
+      excluded: [{ personId: BEN, reason: "in_hospital" }],
+      warnings: [
+        { personId: ADA, kind: "stale", section: "medicines", message: "Out of date." },
+        { personId: BEN, kind: "missing", section: "allergies", message: "Not recorded." },
+        { personId: BEN, kind: "stale", section: "photo", message: "Out of date." },
+      ],
+    },
+    warnings: { stale: 2, missing: 1 },
+  };
+
+  it.each([
+    ["the person on the page", ADA, ["Example, Ada"], [ADA], { stale: 1 }],
+    ["another resident", BEN, ["Sample, Ben"], [BEN], { missing: 1, stale: 1 }],
+    ["a member of staff who built the pack", MO, [], [], {}],
+  ])("keeps only %s's page of a downtime pack", (_, subject, names, ids, counts) => {
+    const out = dsarRecordForSubject("downtime_pack", pack, subject) as typeof pack;
+    expect(out.content.pages.map((p) => p.displayName)).toEqual(names);
+    expect(out.content.warnings.every((w) => w.personId === subject)).toBe(true);
+    expect(out.content.excluded.every((e) => e.personId === subject)).toBe(true);
+    expect(out.content.locationName).toBe("Example House");
+    expect(out.person_ids).toEqual(ids);
+    expect(out.warnings).toEqual(counts);
+    expect(JSON.stringify(out)).not.toContain(subject === ADA ? "Penicillin" : "None known");
+  });
+
+  it("leaves a downtime pack with no readable content as it is, apart from its id list", () => {
+    const out = dsarRecordForSubject(
+      "downtime_pack",
+      { id: "p", person_ids: [ADA], content: null },
+      ADA,
+    );
+    expect(out).toEqual({ id: "p", person_ids: [ADA], content: null });
+  });
+
+  it("shows a panel member that they sat on the interview, never the applicant's scores, notes or recommendation", () => {
+    const out = dsarRecordForSubject(
+      "interview",
+      {
+        id: "i1",
+        held_on: "2026-11-01",
+        panel: [MO, BEN],
+        scores: { kindness: 4 },
+        notes: "Strong answers.",
+        recommendation: "proceed",
+      },
+      MO,
+    );
+    expect(out).toEqual({ id: "i1", held_on: "2026-11-01", panel: [MO] });
+  });
+
+  it("hides who else redacted a field of an evidence pack item, keeping the subject's own redaction", () => {
+    const out = dsarRecordForSubject(
+      "evidence_pack_item",
+      {
+        id: "e1",
+        redacted_by: [MO, BEN],
+        fields: [
+          { key: "a", outcome: "redacted", redactedBy: MO },
+          { key: "b", outcome: "redacted", redactedBy: BEN },
+          { key: "c", outcome: "included" },
+          "not an object",
+        ],
+      },
+      MO,
+    );
+    expect(out.redacted_by).toEqual([MO]);
+    expect(out.fields).toEqual([
+      { key: "a", outcome: "redacted", redactedBy: MO },
+      { key: "b", outcome: "redacted", redactedBy: null },
+      { key: "c", outcome: "included" },
+      "not an object",
+    ]);
+    expect(dsarRecordForSubject("evidence_pack_item", { id: "e2", fields: null }, MO)).toEqual({
+      id: "e2",
+      fields: null,
+    });
+  });
+
+  it.each([
+    ["incident", "person_ids", [ADA, BEN], ADA, [ADA]],
+    ["incident", "person_ids", [ADA, BEN], MO, []],
+    ["compliment", "staff_ids", [MO, BEN], MO, [MO]],
+    ["evidence_pack", "editor_ids", [BEN], MO, []],
+    ["evidence_pack", "person_ids", [BEN, ADA], ADA, [ADA]],
+    ["incident", "person_ids", [ADA, BEN], ADA.toUpperCase(), [ADA]],
+  ])("reduces %s.%s to the subject's own id", (table, column, value, subject, expected) => {
+    const out = dsarRecordForSubject(table, { id: "r", [column]: value }, subject);
+    expect(out[column]).toEqual(expected);
+  });
+
+  it("leaves lists of things, not people, and tables it does not know, as they are", () => {
+    const record = { id: "r", location_ids: [ADA, BEN] };
+    expect(dsarRecordForSubject("evidence_pack", record, ADA)).toEqual(record);
+    expect(dsarRecordForSubject("not_a_table", { id: "r", person_ids: [BEN] }, ADA)).toEqual({
+      id: "r",
+      person_ids: [BEN],
+    });
+  });
+
+  it("never changes the record it was given", () => {
+    const record = { id: "r", person_ids: [ADA, BEN] };
+    dsarRecordForSubject("incident", record, ADA);
+    expect(record.person_ids).toEqual([ADA, BEN]);
   });
 });
 

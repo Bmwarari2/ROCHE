@@ -705,7 +705,9 @@ export const disclosuresRouter = createRouter()
         return { row: r, item: i };
       });
       const { record, others } = await asOrganisation(c, access, async (tx) => ({
-        record: (await recordsOf(tx, item.tableName, [item.recordId])).get(item.recordId) ?? null,
+        record:
+          (await recordsOf(tx, item.tableName, [item.recordId], row.personId)).get(item.recordId) ??
+          null,
         others: await thirdPartyNames(tx, subjectCase(row.personId)),
       }));
       const highlights = record
@@ -760,14 +762,16 @@ export const disclosuresRouter = createRouter()
           .from(disclosureItem)
           .where(and(eq(disclosureItem.id, itemId), eq(disclosureItem.requestId, id)));
         if (!item) throw problems.notFound();
-        return item;
+        return { ...item, personId: row.personId };
       });
       const check = checkItemDecision(input, disclosableColumns(loaded.tableName));
       if (!check.ok) throw problems.invalid(check.problem);
       // The record as it is now, read as the organisation outside the member's transaction (one
       // connection at a time); the version check below binds the decision to the item read here.
       const current = await asOrganisation(c, access, async (otx) =>
-        (await recordsOf(otx, loaded.tableName, [loaded.recordId])).get(loaded.recordId),
+        (await recordsOf(otx, loaded.tableName, [loaded.recordId], loaded.personId)).get(
+          loaded.recordId,
+        ),
       );
       if (!current || recordSha256(current) !== input.contentSha256) {
         throw new HttpProblem(
@@ -955,6 +959,7 @@ export const disclosuresRouter = createRouter()
             tx,
             table,
             list.map((i) => i.recordId),
+            row.personId,
           );
           for (const i of list) {
             const record = found.get(i.recordId);
