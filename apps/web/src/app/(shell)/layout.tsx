@@ -33,6 +33,7 @@ import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { absencesShown, myTimeShown, payShown, timesheetsShown } from "@/lib/pay-time";
 import { dashboardShown } from "@/lib/quality-dashboard";
 import { auditsShown, frameworkShown } from "@/lib/quality-programme";
+import { teamsShown } from "@/lib/reporting-lines";
 import { retentionShown } from "@/lib/retention";
 import { myShiftsShown, rotaShown } from "@/lib/rota";
 import { roundShown } from "@/lib/round";
@@ -146,6 +147,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
         recruitment: recruitmentShown(me.permissions) ? t("shell.nav.recruitment") : undefined,
         staff: staffShown(me.permissions) ? t("shell.nav.staff") : undefined,
+        staffTeams: teamsShown(me.permissions) ? t("shell.nav.staffTeams") : undefined,
         // A restricted silo (ADR-0089): only holders of the silo permission see it here.
         cases: caseworkShown(me.permissions) ? t("shell.nav.cases") : undefined,
         evidencePacks: evidencePacksShown(me.permissions)

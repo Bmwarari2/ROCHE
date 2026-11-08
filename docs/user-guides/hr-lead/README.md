@@ -22,6 +22,7 @@ files, recruitment, training and casework; you do not see care notes.
 - [How to record a probation decision](decide-probation.md)
 - [How to record a sponsored worker](record-a-sponsored-worker.md)
 - [How to record a supervision, appraisal or spot check](record-a-supervision.md)
+- [How to set a line manager and keep staff teams](set-a-line-manager-and-keep-teams.md)
 - [How to record absences and report changes for a sponsored worker](report-a-change-for-a-sponsored-worker.md)
 - [How to record an interview](record-an-interview.md)
 - [How to record and answer a reference request](answer-a-reference-request.md)

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { t } from "@/lib/i18n";
+import { lineManagerHref } from "@/lib/reporting-lines";
 import { staffShown, ukDate } from "@/lib/workforce";
 
 export const metadata: Metadata = { title: t("workforce.staff.title") };
@@ -80,6 +81,14 @@ export default async function StaffPage() {
                       className="inline-flex min-h-target items-center underline"
                     >
                       {t("workforce.staff.leavingLink", {
+                        name: file.member?.displayName ?? t("workforce.someone"),
+                      })}
+                    </Link>
+                    <Link
+                      href={lineManagerHref(file.id)}
+                      className="inline-flex min-h-target items-center underline"
+                    >
+                      {t("workforce.staff.lineManagerLink", {
                         name: file.member?.displayName ?? t("workforce.someone"),
                       })}
                     </Link>

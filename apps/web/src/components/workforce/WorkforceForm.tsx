@@ -144,6 +144,7 @@ export function WorkforceForm({
                   {...(field.inputMode ? { inputMode: field.inputMode } : {})}
                   {...(field.type ? { type: field.type } : {})}
                   {...(field.autoComplete ? { autoComplete: field.autoComplete } : {})}
+                  {...(field.defaultValue ? { defaultValue: field.defaultValue } : {})}
                   {...hintProps}
                   {...errorProps}
                 />

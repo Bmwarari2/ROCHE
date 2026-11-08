@@ -51,6 +51,8 @@ export type WorkforceField =
   | (FieldBase & {
       readonly kind: "text";
       readonly maxLength?: number;
+      /** What the field starts with, such as the current name when renaming. */
+      readonly defaultValue?: string;
       readonly inputMode?: "numeric";
       readonly type?: "email" | "tel";
       readonly autoComplete?: string;

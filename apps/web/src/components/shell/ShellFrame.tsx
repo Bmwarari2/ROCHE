@@ -65,6 +65,7 @@ import {
   UserRoundCheck,
   UserSearch,
   Users,
+  UsersRound,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -135,6 +136,7 @@ export interface ShellFrameLabels {
   /** Workforce (plan slice 58): recruitment, staff (induction and leaving), employee relations. */
   readonly recruitment?: string | undefined;
   readonly staff?: string | undefined;
+  readonly staffTeams?: string | undefined;
   readonly cases?: string | undefined;
   /** Shown only to holders of quality.evidence_pack.compose or .release (QUAL-003). */
   readonly evidencePacks?: string | undefined;
@@ -261,6 +263,7 @@ function currentSection(pathname: string): string {
     return "recruitment";
   }
   if (pathname.startsWith("/workforce/staff")) return "staff";
+  if (pathname.startsWith("/workforce/teams")) return "staff-teams";
   if (pathname.startsWith("/workforce/cases")) return "cases";
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/documents")) return "documents";
@@ -618,6 +621,16 @@ export function ShellFrame({
       : []),
     ...(labels.staff
       ? [{ id: "staff", label: labels.staff, href: "/workforce/staff", icon: <IdCard {...icon} /> }]
+      : []),
+    ...(labels.staffTeams
+      ? [
+          {
+            id: "staff-teams",
+            label: labels.staffTeams,
+            href: "/workforce/teams",
+            icon: <UsersRound {...icon} />,
+          },
+        ]
       : []),
     ...(labels.cases
       ? [

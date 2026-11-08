@@ -171,8 +171,10 @@ reader's homes), in the API and in row-level security. **Reporting lines (08/11/
 `feat/workforce-team-line-manager-scope`, PR 1 of 2):** ADR-0137 (proposed; the owner confirms,
 H-1643) and migration 0162: HR keeps line managers and staff teams (`staff_line_manager`,
 `staff_team`, `staff_team_member`, dated and versioned), and a line manager's current reports and a
-team lead's current team widen the development scope they already hold; API routes for both. Next:
-PR 2, the screens on the staff file and a Teams page.
+team lead's current team widen the development scope they already hold; API routes for both.
+**PR 2 (08/11/2026, `feat/web-reporting-lines`):** the screens: a Line manager page on each staff
+file and a Staff teams page in the navigation, with forms for HR only and read only for others;
+a journey with axe and a guide for HR.
 **Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
 handling of a 409) in #205; its web journey and a navigation entry for the page in
 `feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
