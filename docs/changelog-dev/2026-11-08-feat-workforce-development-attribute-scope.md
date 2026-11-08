@@ -9,7 +9,7 @@ the lead assigned on 08/11/2026.
   Organisation-wide holders (HR's role with no person scope, a tenant-scoped role, a role or grant
   held organisation-wide) read every member; a holder at a home reads the members who work there,
   as `app.works_at` counts them; a member reads their own.
-- Migration 0162 (`development_attribute_scope`; number taken at merge):
+- Migration 0161 (`development_attribute_scope`; number taken at merge):
   - `app.holds_staff_permission_for(permission, member)`, a definer owned by
     `harbour_workforce_definer` (ADR-0133), executable by `harbour_app`, `harbour_owner` and
     `harbour_care_definer` (which evaluates the task policy), and `app.reads_development_of(member)`;

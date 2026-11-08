@@ -68,7 +68,7 @@ new data.
 - **The reminder tasks about a member** (`workforce.training_expiry`, `workforce.competence_expiry`,
   `workforce.supervision_due`: source `tenant_user`) are visible only to holders whose scope covers
   that member. A workforce task about no member keeps the rule of migration 0079.
-- **Enforced twice.** Migration 0162 adds `app.development_scope_members(permissions, members)` (a
+- **Enforced twice.** Migration 0161 adds `app.development_scope_members(permissions, members)` (a
   set-based definer owned by `harbour_workforce_definer`, ADR-0133: the reader's homes are found
   once), with `app.holds_staff_permission_for`, `app.reads_development_of` and
   `app.holds_staff_permission_everywhere` over it. It changes the read and write policies of the

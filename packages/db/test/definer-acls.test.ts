@@ -97,13 +97,13 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Who may be named a nurse's revalidation confirmer, and the picker (migration 0157).
   "app.member_may_confirm_revalidation(uuid)": ["harbour_app"],
   "app.revalidation_confirmer_candidates()": ["harbour_app"],
-  // The same, with the confirmer's scope covering the nurse (migration 0162, ADR-0136).
+  // The same, with the confirmer's scope covering the nurse (migration 0161, ADR-0136).
   "app.member_may_confirm_revalidation(uuid, uuid)": ["harbour_app"],
   "app.revalidation_confirmer_candidates(uuid)": ["harbour_app"],
   // The scope of any reader, asked only by the definers above, owned by the same role.
   "app.development_scope_members_for(uuid, text[], uuid[])": [],
   // The members in the caller's scope for development reads and writes and their reminder
-  // tasks (migration 0162, ADR-0136): the task policy is also evaluated by harbour_owner and by
+  // tasks (migration 0161, ADR-0136): the task policy is also evaluated by harbour_owner and by
   // the context definers that read tasks.
   "app.development_scope_members(text[], uuid[])": [
     "harbour_app",
@@ -111,7 +111,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     "harbour_owner",
     "harbour_platform_definer",
   ],
-  // HZ-119: the sign-off guard's withdrawal lookup (migration 0162).
+  // HZ-119: the sign-off guard's withdrawal lookup (migration 0161).
   "app.competence_withdrawn_after(uuid, text, date)": ["harbour_app", "harbour_owner"],
   "app.induction_policy_signing(uuid)": ["harbour_app"],
   "app.end_leaver_access(uuid)": ["harbour_app"],
@@ -371,7 +371,7 @@ const DEFINER_TABLE_GRANTS: Readonly<Record<(typeof DEFINER_ROLES)[number], read
     "public.access_grant: SELECT, UPDATE",
     "public.agency: SELECT",
     "public.casework_support_ticket: SELECT, UPDATE",
-    // The sign-off guard's withdrawal lookup (migration 0162, HZ-119).
+    // The sign-off guard's withdrawal lookup (migration 0161, HZ-119).
     "public.competence_sign_off: SELECT",
     "public.competence_withdrawal: SELECT",
     "public.employee_case: SELECT, INSERT",

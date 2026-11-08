@@ -4,7 +4,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
 
 /**
- * Development records follow attribute scope (ADR-0136, migration 0162; WORK-009 follow-up): an
+ * Development records follow attribute scope (ADR-0136, migration 0161; WORK-009 follow-up): an
  * organisation-wide holder (HR's role with no person scope, a tenant-scoped role) reads every
  * member's records and reminder tasks; a holder at a home (a role there, or an acting-up access
  * grant there) reads only the members who work there, as app.works_at counts it (a role in force

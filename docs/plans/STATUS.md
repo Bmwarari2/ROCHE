@@ -180,7 +180,7 @@ rate key `supervision.due_window_days`; WORK-005, 008, 009 and 012 corrected fro
 merges): one reminder task for HR's role per supervision or appraisal due or overdue, once for
 each due date, closed when one is held, on the hourly `development-expiry-reminders` job; no
 migration (#216). **Attribute scope (08/11/2026, `feat/workforce-development-attribute-scope`):**
-done. ADR-0136 (proposed; the owner confirms, H-1640) and migration 0162: development records,
+done. ADR-0136 (proposed; the owner confirms, H-1640) and migration 0161: development records,
 the training matrix, the supervisions list and the reminder tasks about a member follow the
 reader's scope (organisation-wide for HR and the owner, otherwise the members who work at the
 reader's homes), in the API and in row-level security. Open: no team or line-manager scope for

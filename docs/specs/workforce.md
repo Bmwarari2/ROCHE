@@ -215,7 +215,7 @@ Slice 11 adds four permissions so that HR data has its own (section 12.4), repla
 Slice 17 adds no permission. Training, competence, supervision and revalidation rows are read by
 holders of `workforce.training.manage`, `workforce.competence.observe`,
 `workforce.supervision.manage` or `workforce.staff_file.read` within the holder's scope
-(ADR-0136, migration 0162): organisation-wide for a role with no person scope (HR's), a
+(ADR-0136, migration 0161): organisation-wide for a role with no person scope (HR's), a
 tenant-scoped role or one held organisation-wide; otherwise only the members who work at the
 holder's homes, as `app.works_at` counts them (a role in force there or across the organisation,
 or that home on their staff profile; an access grant at a home counts as a role there). Members
@@ -749,7 +749,7 @@ offer. No form is offered on one's own record.
     uses the same window). With none held the state is `none_recorded` and no date is given: the
     start date is in the staff file, which these readers may not see. It lists everyone with a
     staff role in force, not only those with a training requirement. Only members in the reader's
-    scope are listed (ADR-0136, migration 0162), as for the matrix and each member's record; the
+    scope are listed (ADR-0136, migration 0161), as for the matrix and each member's record; the
     location filter narrows the list further. Only
     dates and states are shown: never a supervision note or what a spot check found.
   - `POST /v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes` adds or corrects a
@@ -1048,7 +1048,7 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Gap | Effect now | To close |
 | --- | --- | --- |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
-| Development reads (the training matrix and the supervisions list) were organisation-wide for their readers (migration 0073), and reminders about a member were seen at every home (migration 0079) | Closed by ADR-0136 (provisional, H-1640) and migration 0162: records, lists and reminder tasks about a member follow the reader's attribute scope | - |
+| Development reads (the training matrix and the supervisions list) were organisation-wide for their readers (migration 0073), and reminders about a member were seen at every home (migration 0079) | Closed by ADR-0136 (provisional, H-1640) and migration 0161: records, lists and reminder tasks about a member follow the reader's attribute scope | - |
 | No team or line-manager scope for staff | Scope kinds are tenant, location, assigned, self and none, so a team lead's scope for development reads is their home (ADR-0136) | A line-manager field on the staff file, then a scope that uses it |
 | LMS import is for organisation-wide holders only | A home's manager is refused (403 `lms_import_organisation_wide`, audited; ADR-0136): its learner links and rows name members at every home | Scope each row by its worker, if homes need to import their own staff |
 | Supervision and appraisal reminders go to HR's role, not the member's line manager | Shown on the training record (slice 57), across staff on `/training/supervisions` and raised as reminder tasks for holders of `workforce.supervision.manage` (WORK-009, 08/11/2026) | Address the reminder to the member's line manager once the staff file records one |
@@ -1402,7 +1402,7 @@ otherwise (H-520; ADR-0102). Nothing here is clinical: an imported completion is
 like any other (workforce.md rule 5), and it never creates a competence sign-off (HZ-119, HZ-124).
 
 LMS import is for organisation-wide holders of `workforce.training.manage` only (HR's role with no
-person scope, the owner, or a role held organisation-wide; ADR-0136, migration 0162): its learner
+person scope, the owner, or a role held organisation-wide; ADR-0136, migration 0161): its learner
 links and rows name members at every home. A home's manager is refused with 403
 `lms_import_organisation_wide`, audited as `workforce.lms_import.refused`, and the database holds
 the same rule.
