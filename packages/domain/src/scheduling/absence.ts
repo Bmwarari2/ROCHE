@@ -1,3 +1,4 @@
+import { addCalendarMonths } from "../platform/data-rights";
 import { type RateNation, RateNotFoundError, type RateRow, resolveRate } from "../platform/rates";
 import { DAYS_PER_WEEK, daysFrom, plusDays } from "./intervals";
 
@@ -39,7 +40,15 @@ export const STATUTORY_LEAVE_KINDS: readonly AbsenceKind[] = [
   "parental_leave",
 ];
 /** The statutory kinds an employer may postpone (never decline). */
-export const POSTPONABLE_KINDS: readonly AbsenceKind[] = ["carers_leave", "parental_leave"];
+export const POSTPONABLE_KINDS = [
+  "carers_leave",
+  "parental_leave",
+] as const satisfies readonly AbsenceKind[];
+export type PostponableKind = (typeof POSTPONABLE_KINDS)[number];
+
+export function isPostponable(kind: AbsenceKind): kind is PostponableKind {
+  return (POSTPONABLE_KINDS as readonly AbsenceKind[]).includes(kind);
+}
 
 /** Kinds a member asks for (sickness is recorded, never requested). */
 export const REQUESTABLE_KINDS: readonly AbsenceKind[] = ABSENCE_KINDS.filter(
@@ -77,7 +86,14 @@ export type AbsenceProblem =
   | "sickness_not_requested"
   | "leave_needs_end"
   | "not_declinable"
-  | "not_postponable";
+  | "not_postponable"
+  | "postpone_dates_required"
+  | "postpone_no_rate"
+  | "postpone_notice_passed"
+  | "postpone_not_later"
+  | "postpone_too_late"
+  | "postpone_duration"
+  | "postpone_unconfirmed";
 
 /** Whether a state change is allowed, and by whom (rule 1). */
 export function checkAbsenceMove(input: {
@@ -93,7 +109,7 @@ export function checkAbsenceMove(input: {
   if (input.to === "declined" && input.kind && STATUTORY_LEAVE_KINDS.includes(input.kind)) {
     return "not_declinable";
   }
-  if (input.to === "postponed" && !(input.kind && POSTPONABLE_KINDS.includes(input.kind))) {
+  if (input.to === "postponed" && !(input.kind && isPostponable(input.kind))) {
     return "not_postponable";
   }
   const decides = input.to === "approved" || input.to === "declined" || input.to === "postponed";
@@ -168,6 +184,125 @@ export function resolveAbsenceRates(
     piwMinDays: read(ABSENCE_RATE_KEYS.piwMinDays),
     piwLinkWeeks: read(ABSENCE_RATE_KEYS.piwLinkWeeks),
   };
+}
+
+/**
+ * The rate-table keys of the postponement limits (H-970): how many months after the first day
+ * asked for the postponed leave may start, and how many days after the request the employer's
+ * written notice may be given. Carer's Leave Regulations 2024 reg 8; Maternity and Parental Leave
+ * etc. Regulations 1999 Sch 2 para 6.
+ */
+export const POSTPONEMENT_RATE_KEYS = {
+  carers_leave: {
+    maxMonths: "carers_leave.postpone_max_months",
+    noticeDays: "carers_leave.postpone_notice_days",
+  },
+  parental_leave: {
+    maxMonths: "parental_leave.postpone_max_months",
+    noticeDays: "parental_leave.postpone_notice_days",
+  },
+} as const satisfies Record<PostponableKind, { maxMonths: string; noticeDays: string }>;
+
+export interface PostponementRates {
+  /** The postponed leave starts no later than this many months after the first day asked for. */
+  readonly maxMonths: number | null;
+  /** The employer's written notice is given no later than this many days after the request. */
+  readonly noticeDays: number | null;
+}
+
+/** The postponement limits in force on a day for one kind; null where the nation has no rows. */
+export function resolvePostponementRates(
+  rows: readonly RateRow[],
+  kind: PostponableKind,
+  nation: Exclude<RateNation, "uk" | "all">,
+  on: string,
+  tenantId: string | null,
+): PostponementRates {
+  const read = (key: string): number | null => {
+    try {
+      return Number(resolveRate(rows, key, nation, on, tenantId).value);
+    } catch (error) {
+      if (error instanceof RateNotFoundError) return null;
+      throw error;
+    }
+  };
+  const keys = POSTPONEMENT_RATE_KEYS[kind];
+  return { maxMonths: read(keys.maxMonths), noticeDays: read(keys.noticeDays) };
+}
+
+export interface PostponementLimits {
+  /** The latest first day the postponed leave may have. */
+  readonly latestStartsOn: string;
+  /** The last day on which the employer may give notice of the postponement. */
+  readonly noticeBy: string;
+}
+
+/**
+ * The limits on postponing a request (H-970): the latest new first day, `maxMonths` calendar
+ * months after the first day asked for (a day the month lacks becomes its last day); and the last
+ * day for the employer's written notice, `noticeDays` after the request, and for carer's leave no
+ * later than the day before the leave was due to start (reg 8). Null where the rates are missing.
+ */
+export function postponementLimits(
+  request: {
+    readonly kind: PostponableKind;
+    readonly startsOn: string;
+    /** The UK date the member's request (their notice) was received. */
+    readonly requestedOn: string;
+  },
+  rates: PostponementRates,
+): PostponementLimits | null {
+  if (rates.maxMonths === null || rates.noticeDays === null) return null;
+  const afterRequest = plusDays(request.requestedOn, rates.noticeDays);
+  const beforeStart = plusDays(request.startsOn, -1);
+  const noticeBy =
+    request.kind === "carers_leave" && beforeStart < afterRequest ? beforeStart : afterRequest;
+  return { latestStartsOn: addCalendarMonths(request.startsOn, rates.maxMonths), noticeBy };
+}
+
+/**
+ * Whether an employer may postpone a request to new dates (H-970; scheduling.md section 17
+ * rule 1a). Only carer's and unpaid parental leave; new dates of the same length, starting after
+ * the first day asked for and after today, and no later than the latest first day; the notice
+ * given by its last day. Parental leave also needs the approver's confirmation that it does not
+ * start on the child's birth or placement for adoption and that the new dates end before the
+ * child's 18th birthday (Sch 2 paras 4, 5 and 6(c)(iii)): Thapsus Care holds neither date.
+ */
+export function checkPostponement(
+  input: {
+    readonly kind: AbsenceKind;
+    readonly startsOn: string;
+    readonly endsOn: string | null;
+    readonly requestedOn: string;
+    /** The UK date of the decision: the day the notice of postponement is given. */
+    readonly decidedOn: string;
+    readonly newStartsOn: string | null;
+    readonly newEndsOn: string | null;
+    readonly confirmsPostponable: boolean;
+  },
+  rates: PostponementRates,
+): AbsenceProblem | null {
+  const { kind } = input;
+  if (!isPostponable(kind)) return "not_postponable";
+  if (input.newStartsOn === null || input.newEndsOn === null || input.endsOn === null) {
+    return "postpone_dates_required";
+  }
+  if (input.newEndsOn < input.newStartsOn) return "ends_before_start";
+  const limits = postponementLimits(
+    { kind, startsOn: input.startsOn, requestedOn: input.requestedOn },
+    rates,
+  );
+  if (limits === null) return "postpone_no_rate";
+  if (input.decidedOn > limits.noticeBy) return "postpone_notice_passed";
+  if (input.newStartsOn <= input.startsOn || input.newStartsOn <= input.decidedOn) {
+    return "postpone_not_later";
+  }
+  if (input.newStartsOn > limits.latestStartsOn) return "postpone_too_late";
+  if (daysFrom(input.newStartsOn, input.newEndsOn) !== daysFrom(input.startsOn, input.endsOn)) {
+    return "postpone_duration";
+  }
+  if (kind === "parental_leave" && !input.confirmsPostponable) return "postpone_unconfirmed";
+  return null;
 }
 
 export interface FitNoteCover {

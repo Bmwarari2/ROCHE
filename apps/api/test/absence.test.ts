@@ -585,15 +585,23 @@ describe("H-970 statutory leave is never declined; carer's and parental leave ma
     const noReason = await post("manager", `/v1/absences/${carers.id}/decision`, {
       version: carers.version,
       decision: "postpone",
+      startsOn: inDays(97),
+      endsOn: inDays(98),
     });
     expect(await codeOf(noReason)).toBe("absence_reason_required");
     const postponed = await post("manager", `/v1/absences/${carers.id}/decision`, {
       version: carers.version,
       decision: "postpone",
-      reason: "Two others are away that week; please ask again for the week after",
+      reason: "Two others are away that week",
+      startsOn: inDays(97),
+      endsOn: inDays(98),
     });
     expect(postponed.status).toBe(200);
-    expect(((await postponed.json()) as Absence).state).toBe("postponed");
+    const out = (await postponed.json()) as Absence & {
+      postponedTo: { id: string; startsOn: string; endsOn: string } | null;
+    };
+    expect(out.state).toBe("postponed");
+    expect(out.postponedTo).toMatchObject({ startsOn: inDays(97), endsOn: inDays(98) });
     // Annual leave cannot be postponed, only approved or declined; the database agrees.
     const annual = await ask("annual_leave", 95, 96);
     const wrong = await post("manager", `/v1/absences/${annual.id}/decision`, {
@@ -615,6 +623,125 @@ describe("H-970 statutory leave is never declined; carer's and parental leave ma
         h.db.name,
       ),
     ).rejects.toThrow(/absence_statutory/);
+  });
+
+  it("postpones only within the statutory limits from the rate table, giving the new dates as approved leave", async () => {
+    const [cl] = await sql<{ months: string; days: string }>(
+      `SELECT (SELECT value FROM rate_table WHERE key = 'carers_leave.postpone_max_months'
+                 AND nation = 'england' AND tenant_id IS NULL) AS months,
+              (SELECT value FROM rate_table WHERE key = 'carers_leave.postpone_notice_days'
+                 AND nation = 'england' AND tenant_id IS NULL) AS days`,
+    );
+    expect(Number(cl?.months)).toBeGreaterThan(0);
+    const carers = await ask("carers_leave", 60, 61);
+    // The approver is shown the limits.
+    const listed = (await (
+      await as("manager", `/v1/absences?memberId=${CARER}&from=${inDays(60)}`)
+    ).json()) as {
+      items: { id: string; postponement: { latestStartsOn: string; noticeBy: string } | null }[];
+    };
+    const limits = listed.items.find((i) => i.id === carers.id)?.postponement;
+    expect(limits?.noticeBy).toBe(inDays(Number(cl?.days)));
+    const latest = limits?.latestStartsOn as string;
+    const dayAfter = (d: string, n: number) => {
+      const x = new Date(`${d}T12:00:00Z`);
+      x.setUTCDate(x.getUTCDate() + n);
+      return x.toISOString().slice(0, 10);
+    };
+    const postpone = (body: Record<string, unknown>, version = carers.version) =>
+      post("manager", `/v1/absences/${carers.id}/decision`, {
+        version,
+        decision: "postpone",
+        reason: "Two others are away that week",
+        ...body,
+      });
+    expect(await codeOf(await postpone({}))).toBe("absence_postpone_dates_required");
+    expect(
+      await codeOf(await postpone({ startsOn: dayAfter(latest, 1), endsOn: dayAfter(latest, 2) })),
+    ).toBe("absence_postpone_too_late");
+    expect(await codeOf(await postpone({ startsOn: inDays(62), endsOn: inDays(64) }))).toBe(
+      "absence_postpone_duration",
+    );
+    expect(await codeOf(await postpone({ startsOn: inDays(59), endsOn: inDays(60) }))).toBe(
+      "absence_postpone_not_later",
+    );
+    // Parental leave also needs the approver's confirmation about birth, placement and age 18.
+    const parental = await ask("parental_leave", 70, 71);
+    const unconfirmed = await post("manager", `/v1/absences/${parental.id}/decision`, {
+      version: parental.version,
+      decision: "postpone",
+      reason: "Two others are away that week",
+      startsOn: inDays(100),
+      endsOn: inDays(101),
+    });
+    expect(await codeOf(unconfirmed)).toBe("absence_postpone_unconfirmed");
+    // The latest day allowed is accepted; the new dates are approved leave linked to the request.
+    const ok = await postpone({ startsOn: latest, endsOn: dayAfter(latest, 1) });
+    expect(ok.status).toBe(200);
+    const done = (await ok.json()) as Absence & { postponedTo: { id: string } | null };
+    expect(done.state).toBe("postponed");
+    const [given] = await sql<{ state: string; postponed_from_id: string; decided_by: string }>(
+      "SELECT state, postponed_from_id, decided_by FROM absence WHERE id = $1",
+      [done.postponedTo?.id],
+    );
+    expect(given).toEqual({
+      state: "approved",
+      postponed_from_id: carers.id,
+      decided_by: DEMO.users.manager.id,
+    });
+    // Audited both ways, never the reason.
+    const events = await sql<{ action: string; scope: unknown }>(
+      `SELECT action, scope FROM audit_event WHERE resource_id IN ($1, $2) AND action IN
+         ('scheduling.absence.postponed', 'scheduling.absence.approved') ORDER BY seq`,
+      [carers.id, done.postponedTo?.id],
+    );
+    expect(events.map((e) => e.action)).toEqual([
+      "scheduling.absence.postponed",
+      "scheduling.absence.approved",
+    ]);
+    expect(JSON.stringify(events)).not.toContain("Two others");
+  });
+
+  it("refuses a postponement at a stale version with 409, giving no leave on new dates", async () => {
+    const carers = await ask("carers_leave", 66, 67);
+    const stale = await post("manager", `/v1/absences/${carers.id}/decision`, {
+      version: carers.version + 1,
+      decision: "postpone",
+      reason: "Two others are away that week",
+      startsOn: inDays(73),
+      endsOn: inDays(74),
+    });
+    expect(stale.status).toBe(409);
+    expect(await codeOf(stale)).toBe("version_conflict");
+    const rows = await sql<{ state: string }>(
+      "SELECT state FROM absence WHERE id = $1 OR postponed_from_id = $1",
+      [carers.id],
+    );
+    expect(rows).toEqual([{ state: "requested" }]);
+  });
+
+  it("refuses a postponement once the notice period has passed", async () => {
+    const carers = await ask("carers_leave", 80, 80);
+    // The request arrived long ago (as if it had been waiting for a decision). The mutable-row
+    // trigger keeps created_at, so it is set with triggers off for this one session.
+    await withAdminClient(async (c) => {
+      await c.query("SET session_replication_role = replica");
+      await c.query("UPDATE absence SET created_at = now() - interval '30 days' WHERE id = $1", [
+        carers.id,
+      ]);
+      await c.query("RESET session_replication_role");
+    }, h.db.name);
+    const [row] = await sql<{ version: number }>("SELECT version FROM absence WHERE id = $1", [
+      carers.id,
+    ]);
+    const late = await post("manager", `/v1/absences/${carers.id}/decision`, {
+      version: row?.version,
+      decision: "postpone",
+      reason: "Two others are away that week",
+      startsOn: inDays(81),
+      endsOn: inDays(81),
+    });
+    expect(await codeOf(late)).toBe("absence_postpone_notice_passed");
   });
 
   it("takes parental bereavement leave as its own kind, and shows carer's leave taken as advice", async () => {
