@@ -309,14 +309,18 @@ export async function collectRecords(
 ): Promise<{ found: [string, string][]; tablesSearched: number; truncated: boolean }> {
   const found: [string, string][] = [];
   const tables = new Set<string>();
-  for (const { table, column } of SUBJECT_MAP[kind]) {
+  for (const { table, column, array } of SUBJECT_MAP[kind]) {
     if (!hasId(table)) continue;
     tables.add(table);
     const left = limit - found.length;
     if (left <= 0) return { found, tablesSearched: tables.size, truncated: true };
+    // An id array is matched with `@>`, which its GIN index serves (migration 0162).
+    const match = array
+      ? sql`t.${sql.identifier(column)} @> ARRAY[${subjectId}::uuid]`
+      : sql`t.${sql.identifier(column)}::text = ${subjectId}`;
     const result = await tx.execute<{ id: string }>(
       sql`SELECT t.id::text AS id FROM ${sql.identifier(table)} t
-          WHERE t.${sql.identifier(column)}::text = ${subjectId}
+          WHERE ${match}
           ORDER BY t.id LIMIT ${left + 1}`,
     );
     for (const r of result.rows.slice(0, left)) found.push([table, r.id]);

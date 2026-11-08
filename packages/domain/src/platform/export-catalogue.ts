@@ -26,7 +26,19 @@ export interface ColumnDoc {
   readonly ukDate?: boolean;
   /** A JSON column with its own schema in `schema.json`. */
   readonly schema?: "observation_values";
+  /**
+   * Required on every `uuid[]` column (`packages/db/src/export-catalogue.test.ts`): whose ids it
+   * holds, so a subject access request searches it (`dsarSubjectMap`), or why it holds no one's.
+   */
+  readonly idArray?: IdArrayDeclaration;
 }
+
+/** The kinds of subject a DSAR is made for (platform.md, the DSAR workbench). */
+export type IdArraySubjectKind = "person" | "contact" | "staff";
+
+export type IdArrayDeclaration =
+  | { readonly holds: IdArraySubjectKind }
+  | { readonly holds: "no_subject"; readonly why: string };
 
 export type ColumnSpec = ColumnClass | ColumnDoc;
 
@@ -1096,6 +1108,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "The person whose record was opened (person.id); empty for a search.",
       },
       shown_location_ids: {
+        idArray: { holds: "no_subject", why: "Location ids, not people." },
         description:
           "For a search, the homes whose people were shown (location.id), for the weekly report.",
       },
@@ -1279,7 +1292,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       received_at: { description: "When the compliment was received (instant, UTC)." },
       summary: { description: "What the compliment says, in words." },
-      staff_ids: { description: "Members of staff it praises (tenant_user.id)." },
+      staff_ids: {
+        description: "Members of staff it praises (tenant_user.id).",
+        idArray: { holds: "staff" },
+      },
       evidence_statement_ids: {
         description: "The quality statements it is evidence for (framework identifiers).",
       },
@@ -1576,6 +1592,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "When the results of further enquiries were shared (instant, UTC).",
       },
       correspondence_document_ids: {
+        idArray: { holds: "no_subject", why: "Document ids, not people." },
         description: "Letters and other correspondence about the duty of candour (document.id).",
       },
       outcome: { description: "How the duty of candour ended, as recorded when it closed." },
@@ -2240,7 +2257,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
-      medicine_ids: { description: "The medicines it covers (medication.medicine_id)." },
+      medicine_ids: {
+        description: "The medicines it covers (medication.medicine_id).",
+        idArray: { holds: "no_subject", why: "Stable medicine ids, not people." },
+      },
       choice: { description: "Whether the person wants to look after their medicines." },
       capacity: { description: "has_capacity, lacks_capacity or assumed." },
       capacity_assessment_id: {
@@ -2283,7 +2303,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         unit: "the unit in unit_name",
       },
       max_days: { description: "Days a course may last before the GP is asked.", unit: "days" },
-      authorised_member_ids: { description: "The staff allowed to give it (tenant_user.id)." },
+      authorised_member_ids: {
+        description: "The staff allowed to give it (tenant_user.id).",
+        idArray: { holds: "staff" },
+      },
       approved_by_name: { description: "The GP or pharmacist who agreed it." },
       approved_by_role: { description: "gp or pharmacist." },
       approved_on: { description: "When it was agreed (UK date)." },
@@ -2951,7 +2974,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         class: "internal",
       },
       tags: { description: "Tags on the note." },
-      attachment_document_ids: { description: "Attached documents (document.id list)." },
+      attachment_document_ids: {
+        description: "Attached documents (document.id list).",
+        idArray: { holds: "no_subject", why: "Document ids, not people." },
+      },
     },
   },
   "public.care_plan": {
@@ -3449,7 +3475,13 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       tenant_id: "exported",
       record_class: { description: "Retention class of the destroyed records (retention.md)." },
       subject_type: "exported",
-      subject_ids: { description: "Ids of the destroyed records." },
+      subject_ids: {
+        description: "Ids of the destroyed records.",
+        idArray: {
+          holds: "no_subject",
+          why: "Document or tenant ids on main; a certificate naming people must declare them.",
+        },
+      },
       record_count: { description: "Number of records destroyed.", unit: "count" },
       retention_rule: { description: "The rule applied: period, unit, trigger and source, JSON." },
       reason: { description: "Why they were destroyed." },
@@ -4014,7 +4046,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       answers: { description: "The organisation's answers, by section and field (JSON)." },
       residual_risk: { description: "The residual risk rated for each risk (JSON)." },
       ico_reference: { description: "ICO prior consultation reference (Article 36), if any." },
-      prepared_by: { description: "Everyone who wrote part of this version (tenant_user ids)." },
+      prepared_by: {
+        description: "Everyone who wrote part of this version (tenant_user ids).",
+        idArray: { holds: "staff" },
+      },
       version_sha256: {
         description: "SHA-256 of the version as prepared, which the signature binds.",
       },
@@ -4264,7 +4299,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       generated_by: {
         description: "Tenant user who built it (tenant_user.id); empty for the nightly job.",
       },
-      person_ids: { description: "The people with a page in the pack (person.id)." },
+      person_ids: {
+        description: "The people with a page in the pack (person.id).",
+        idArray: { holds: "person" },
+      },
       content: {
         description:
           "The pack as built, JSON: per person the sections in DOWNTIME_PACK_SECTIONS order with their state (data-standards.md).",
@@ -4654,11 +4692,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       date_from: { description: "First UK date of the evidence asked for (inclusive)." },
       date_to: { description: "Last UK date of the evidence asked for (inclusive)." },
-      location_ids: { description: "The locations the evidence comes from (location ids)." },
+      location_ids: {
+        description: "The locations the evidence comes from (location ids).",
+        idArray: { holds: "no_subject", why: "Location ids, not people." },
+      },
       quality_statement_ids: {
         description: "The quality statements asked for (statement ids); empty for every statement.",
       },
-      person_ids: { description: "The people in scope, chosen explicitly (person ids)." },
+      person_ids: {
+        description: "The people in scope, chosen explicitly (person ids).",
+        idArray: { holds: "person" },
+      },
       staff_names: {
         description: "Whether staff appear by role or by name.",
         codes: { role_only: "Staff appear by their role.", include: "Staff names are shown." },
@@ -4666,6 +4710,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       composed_by: "exported",
       composed_at: "exported",
       editor_ids: {
+        idArray: { holds: "staff" },
         description: "Members who changed the draft after it was composed (tenant_user ids).",
       },
       state: { description: "draft, released, revoked or discarded." },
@@ -4734,7 +4779,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description:
           "Each field's key, label, kind, outcome (included, redacted or withheld), reason, and who redacted it by hand; never the shown values or a redacted copy.",
       },
-      redacted_by: { description: "Members who redacted a field by hand (tenant_user ids)." },
+      redacted_by: {
+        description: "Members who redacted a field by hand (tenant_user ids).",
+        idArray: { holds: "staff" },
+      },
       created_at: "exported",
       created_by: "exported",
     },
@@ -5102,6 +5150,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       supersedes_item_id: { description: "The update this one corrects." },
       other_people_identifiable: { description: "For a photo: whether anyone else can be seen." },
       staff_shown: {
+        idArray: { holds: "staff" },
         description:
           "For a photo: the members of staff named as shown in it, each with consent to family updates when it was published.",
       },
@@ -5572,7 +5621,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "Safety-critical sections missing from the pack (photo, allergies, medicines, communication, resuscitation, about_me, eating_and_drinking).",
       },
       missing_expected: { description: "Other expected sections missing from the pack." },
-      items_sent: { description: "Belongings sent with the person (property_item.id list)." },
+      items_sent: {
+        description: "Belongings sent with the person (property_item.id list).",
+        idArray: { holds: "no_subject", why: "Property item ids, not people." },
+      },
       handed_over_at: { description: "When the pack was handed over (instant, UTC)." },
       handed_over_by: { description: "Who handed it over (tenant_user.id)." },
       ack_by: { description: "Who acknowledged handing over an incomplete pack (tenant_user.id)." },
@@ -5650,6 +5702,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       tenant_id: "exported",
       batch_id: { description: "The batch committed (import_batch.id)." },
       record_ids: {
+        idArray: { holds: "person" },
         description:
           "Ids of the records the commit created (person.id for people), kept after an undo removed them.",
       },
@@ -5913,6 +5966,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       closed_at: { description: "When it was closed (instant, UTC)." },
       closed_reason: { description: "Why it was closed." },
       person_ids: {
+        idArray: { holds: "person" },
         description:
           "The people using the service on the incident (person.id), kept in step with incident_person.",
       },
@@ -5988,6 +6042,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "True when they were subject to the Mental Health Act 1983 at the time.",
       },
       body_map_mark_ids: {
+        idArray: { holds: "no_subject", why: "Body-map mark ids, not people." },
         description: "Body-map marks recording their injuries (body_map_mark.id).",
       },
       infection: {
@@ -6096,7 +6151,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       tenant_id: "exported",
       application_id: { description: "The application (application.id)." },
       held_on: { description: "The UK date of the interview." },
-      panel: { description: "The panel members (tenant_user.id each)." },
+      panel: {
+        description: "The panel members (tenant_user.id each).",
+        idArray: { holds: "staff" },
+      },
       scores: { description: "Each values question's score, 1 to 4 (JSON)." },
       notes: { description: "The panel's notes (free text)." },
       recommendation: { description: "proceed or do_not_proceed." },
@@ -6751,7 +6809,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       rolled_up_holiday: { description: "Whether rolled-up holiday pay is used." },
       status: { description: "Draft or approved." },
-      contributor_ids: { description: "Who wrote or changed the draft (tenant_user.id)." },
+      contributor_ids: {
+        description: "Who wrote or changed the draft (tenant_user.id).",
+        idArray: { holds: "staff" },
+      },
       approved_by: { description: "Who approved it (tenant_user.id)." },
       approved_at: { description: "When it was approved." },
       created_at: "exported",
@@ -7002,7 +7063,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "The organisation's scale: periods [{ key, label, startMinute (minutes after midnight, UK time) }], categories [{ key, label, description, careMinutes [{ periodKey, minutes }] }], skillMix [{ skill, periodKey, minimumStaff }] and reviewIntervalDays.",
       },
       author_id: { description: "Who wrote the version (tenant_user.id)." },
-      contributor_ids: { description: "The author and everyone who changed the draft." },
+      contributor_ids: {
+        description: "The author and everyone who changed the draft.",
+        idArray: { holds: "staff" },
+      },
       approved_by: { description: "Who approved it; never its author or a contributor." },
       approved_at: { description: "When it was approved, and so from when it applied." },
       superseded_at: { description: "When a later version replaced it." },
@@ -7309,7 +7373,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       subject: { description: "The email subject (merge fields with no personal data only)." },
       body: { description: "The body text with {{merge.fields}}." },
       author_id: { description: "Who wrote the version (tenant_user.id)." },
-      contributor_ids: { description: "The author and everyone who changed the draft." },
+      contributor_ids: {
+        description: "The author and everyone who changed the draft.",
+        idArray: { holds: "staff" },
+      },
       approved_by: { description: "Who approved it; never its author or an editor." },
       approved_at: "exported",
       retired_by: { description: "Who retired it." },
@@ -7748,6 +7815,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       reconciliation_statement: { description: "What the reconciler checked, in their words." },
       reviewed_entry_ids: {
+        idArray: { holds: "no_subject", why: "Care entry ids, not people." },
         description: "The possible duplicate care entries reviewed before reconciling (entry ids).",
       },
       forms_entered: { description: "Distinct paper forms entered.", unit: "count" },
@@ -8306,7 +8374,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       quantity: { description: "How many.", unit: "items" },
       valuable: { description: "True when the item is a valuable (witnessed)." },
-      photo_document_ids: { description: "Photos of the item (document.id list)." },
+      photo_document_ids: {
+        description: "Photos of the item (document.id list).",
+        idArray: { holds: "no_subject", why: "Document ids (photos), not people." },
+      },
       received_on: { description: "When it was received (UK calendar date)." },
       recorded_by: { description: "Who recorded it (tenant_user.id)." },
       ack_signer: {
@@ -8619,6 +8690,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       la_reference: { description: "The council's reference for its review." },
       changes_covered: {
+        idArray: { holds: "no_subject", why: "Care plan change ids, not people." },
         description: "The changes this review covered (care_plan_change.id list).",
       },
       outcome: { description: "The outcome, in words." },
@@ -9973,7 +10045,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "The statement's Schedule 3 sections, including the provider's and registered managers' business contact details.",
       },
       author_id: { description: "Who wrote the version (tenant_user.id)." },
-      contributor_ids: { description: "The author and everyone who changed the draft." },
+      contributor_ids: {
+        description: "The author and everyone who changed the draft.",
+        idArray: { holds: "staff" },
+      },
       supersedes_id: { description: "The version this one replaced on approval, if any." },
       change_summary: {
         description: "What changed from the previous version, section by section.",

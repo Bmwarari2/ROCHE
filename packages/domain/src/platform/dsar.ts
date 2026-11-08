@@ -7,10 +7,15 @@
  */
 
 import { isRealDate } from "./data-rights";
-import type { ColumnSpec, ExportTableDefinition } from "./export-catalogue";
+import type {
+  ColumnSpec,
+  ExportTableDefinition,
+  IdArrayDeclaration,
+  IdArraySubjectKind,
+} from "./export-catalogue";
 import { type RetentionRule, retentionDecision } from "./retention";
 
-export type DsarSubjectKind = "person" | "contact" | "staff";
+export type DsarSubjectKind = IdArraySubjectKind;
 export type DsarRequestKind = "access" | "rectification" | "erasure" | "portability";
 export type DsarRequesterKind = "subject" | "representative";
 export type DsarAuthority =
@@ -25,6 +30,8 @@ export interface DsarSubjectColumn {
   /** Table name without the schema. */
   readonly table: string;
   readonly column: string;
+  /** A `uuid[]` column declared to hold this kind of subject: searched with `@>` (GIN-indexed). */
+  readonly array?: true;
 }
 
 export interface DsarSubjectMap {
@@ -48,11 +55,19 @@ function isSecret(spec: ColumnSpec): boolean {
   return spec === "secret" || (typeof spec === "object" && spec.class === "secret");
 }
 
+function idArrayOf(spec: ColumnSpec): IdArrayDeclaration | undefined {
+  return typeof spec === "object" ? spec.idArray : undefined;
+}
+
 function byTableThenColumn(a: DsarSubjectColumn, b: DsarSubjectColumn): number {
   return a.table === b.table ? a.column.localeCompare(b.column) : a.table.localeCompare(b.table);
 }
 
-/** Where a subject's records are looked for, read from the export catalogue (ADR-0090). */
+/**
+ * Where a subject's records are looked for, read from the export catalogue (ADR-0090): the
+ * subject's own row, columns named for one subject, and `uuid[]` columns the catalogue declares
+ * as holding that kind of subject (`idArray`; every `uuid[]` column must declare one).
+ */
 export function dsarSubjectMap(
   tables: Readonly<Record<string, ExportTableDefinition>>,
 ): DsarSubjectMap {
@@ -69,6 +84,14 @@ export function dsarSubjectMap(
     for (const [column, spec] of Object.entries(def.columns)) {
       if (isSecret(spec)) continue;
       const entry = { table, column };
+      // An id array is read from its declaration in the catalogue, never guessed from its name.
+      const array = idArrayOf(spec);
+      if (array !== undefined) {
+        if (array.holds === "no_subject") continue;
+        ({ person, contact, staff })[array.holds].push({ ...entry, array: true });
+        found = true;
+        continue;
+      }
       if ((table === "person" && column === "id") || column === "person_id") person.push(entry);
       else if ((table === "contact" && column === "id") || column === "contact_id")
         contact.push(entry);

@@ -106,6 +106,8 @@ export const dependencyScaleVersion = pgTable(
     ...mutableColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("dependency_scale_version_contributor_ids_idx").using("gin", t.contributorIds),
     unique("dependency_scale_version_tenant_id_id_key").on(t.tenantId, t.id),
     unique("dependency_scale_version_scale_id_key").on(t.tenantId, t.scaleId, t.id),
     unique("dependency_scale_version_number_key").on(t.tenantId, t.scaleId, t.versionNumber),

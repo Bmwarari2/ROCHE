@@ -110,6 +110,8 @@ export const letterTemplateVersion = pgTable(
     ...mutableColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("letter_template_version_contributor_ids_idx").using("gin", t.contributorIds),
     unique("letter_template_version_tenant_id_id_key").on(t.tenantId, t.id),
     unique("letter_template_version_number_key").on(t.tenantId, t.templateId, t.versionNumber),
     foreignKey({
@@ -346,6 +348,8 @@ export const feedItem = pgTable(
     ...createdColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("feed_item_staff_shown_idx").using("gin", t.staffShown),
     unique("feed_item_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
     foreignKey({
       name: "feed_item_person_fk",

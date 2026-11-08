@@ -116,6 +116,9 @@ export const evidencePack = pgTable(
     ...mutableColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("evidence_pack_person_ids_idx").using("gin", t.personIds),
+    index("evidence_pack_editor_ids_idx").using("gin", t.editorIds),
     unique("evidence_pack_tenant_id_id_key").on(t.tenantId, t.id),
     staffRef("evidence_pack_composed_by_fk", t, t.composedBy),
     staffRef("evidence_pack_released_by_fk", t, t.releasedBy),
@@ -189,6 +192,8 @@ export const evidencePackItem = pgTable(
     ...createdColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("evidence_pack_item_redacted_by_idx").using("gin", t.redactedBy),
     unique("evidence_pack_item_tenant_id_id_key").on(t.tenantId, t.id),
     foreignKey({
       name: "evidence_pack_item_pack_fk",
@@ -380,6 +385,8 @@ export const statementOfPurposeVersion = pgTable(
     ...mutableColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("statement_of_purpose_version_contributor_ids_idx").using("gin", t.contributorIds),
     unique("statement_of_purpose_version_tenant_id_id_key").on(t.tenantId, t.id),
     unique("statement_of_purpose_version_number_key").on(t.tenantId, t.versionNumber),
     foreignKey({

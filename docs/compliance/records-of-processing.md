@@ -381,6 +381,19 @@ download by the web tier, which keeps nothing and tells the browser not to cache
 full export does); opening a collected record and the response need a fresh step-up and are
 audited by the API. No new personal data is collected by the screens.
 
+Where a DSAR looks (fix, 08/11/2026; migration 0162): collection now also searches every id list
+(`uuid[]` column) the export catalogue declares as holding people supported, contacts or staff,
+such as the people on an incident (`incident.person_ids`), the people in a downtime or evidence pack,
+the staff a compliment praises, an interview panel, the staff shown in a family feed photo and who
+wrote a template or statement of purpose. Before this, an incident naming a person only in its list
+of people was reported as not searched rather than collected, and some staff lists were missed
+silently. Every id list must say whose ids it
+holds, or why it holds no one's, before it ships (a test). No new personal data is collected; only
+indexes are added. Tables the catalogue classes as holding no personal data (an import's created
+records, a DPIA's or pay rule set's authors, a homely remedy's authorised staff, destruction
+certificates) are not searched, as before. Whether past DSAR responses need re-checking, and
+whether those tables should be searched, is for the DPO (H-1624, H-1625).
+
 Quality dashboard and PIR prefill (slice 47, [quality.md](../specs/quality.md) section 22): counts
 of incidents, body map marks, care plans and risk assessments, bed occupancy and care notes at one
 location, for good governance (Regulation 17) and the provider information return within the

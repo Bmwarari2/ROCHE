@@ -1382,7 +1382,12 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
 3. Collection runs over the export catalogue through a subject map (`dsarSubjectMap`): every
    exported tenant table with personal data, by the column that names the subject (`person_id` for a
    person, `contact_id` or the contact row itself for a contact, the staff reference columns and the
-   `tenant_user` row for staff). A new table joins the map by its catalogue entry; a table with
+   `tenant_user` row for staff), and by every `uuid[]` column the catalogue declares as holding
+   that kind of subject (`idArray`, for example `incident.person_ids` or `compliment.staff_ids`),
+   matched with `@>` on a GIN index (migration 0162). An id array is read from its declaration,
+   never guessed from its name; every `uuid[]` column must declare whose ids it holds, or why it
+   holds no one's, and a declared array a DSAR searches must be GIN-indexed
+   (`packages/db/src/export-catalogue.test.ts`). A new table joins the map by its catalogue entry; a table with
    personal data but no column naming this kind of subject (worked out for each request: a
    contact request lists every table that names no contact), and a searched table whose read policy depends on the member
    reading it (`DSAR_MEMBER_SCOPED_TABLES`, kept in step with the database by a test; none today), are
@@ -1448,6 +1453,8 @@ needs its fingerprint; H-881).
 
 - `packages/domain/src/platform/dsar.test.ts`: `PLAT-022 the subject map` (built from the catalogue;
   person, contact and staff columns; tables with personal data and no subject column reported);
+  `PLAT-022 the subject map searches id arrays declared in the catalogue` (declared kinds only, never
+  by name, never secret or non-personal tables; the real catalogue's searched arrays listed);
   `third-party names highlighted, nothing redacted`; `redaction decisions` (reason and fields
   required); `bundle readiness and redaction applied`; `erasure assessment` (held, within period,
   past period); `portability applies` (staff yes, person and contact no); `new case checks`

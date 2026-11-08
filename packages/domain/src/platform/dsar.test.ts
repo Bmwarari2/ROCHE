@@ -122,6 +122,99 @@ describe("PLAT-022 the subject map", () => {
   });
 });
 
+describe("PLAT-022 the subject map searches id arrays declared in the catalogue", () => {
+  const doc = (holds: "person" | "contact" | "staff") => ({
+    description: "Ids.",
+    idArray: { holds },
+  });
+  const none = {
+    description: "Ids.",
+    idArray: { holds: "no_subject" as const, why: "Not people." },
+  };
+  const map = dsarSubjectMap({
+    "public.incident": {
+      ...table({ id: "exported" }),
+      columns: { id: "exported", person_ids: doc("person"), location_ids: none },
+    },
+    "public.compliment": {
+      ...table({ id: "exported" }),
+      columns: { id: "exported", staff_ids: doc("staff") },
+    },
+    // An array named like a scalar subject column is read from its declaration, never its name.
+    "public.pack_item": {
+      ...table({ id: "exported" }),
+      columns: { id: "exported", redacted_by: doc("staff"), approved_by: none },
+    },
+    "public.visit_pack": {
+      ...table({ id: "exported" }),
+      columns: { id: "exported", contact_ids: doc("contact") },
+    },
+    "public.review": { ...table({ id: "exported" }), columns: { id: "exported", item_ids: none } },
+    "public.import_like": {
+      ...table({ id: "exported" }, { personal: false }),
+      columns: { id: "exported", record_ids: doc("person") },
+    },
+    "public.secret_array": {
+      ...table({ id: "exported" }),
+      columns: { id: "exported", person_ids: { ...doc("person"), class: "secret" as const } },
+    },
+  });
+
+  it.each([
+    ["person", [{ table: "incident", column: "person_ids", array: true }]],
+    ["contact", [{ table: "visit_pack", column: "contact_ids", array: true }]],
+    [
+      "staff",
+      [
+        { table: "compliment", column: "staff_ids", array: true },
+        { table: "pack_item", column: "redacted_by", array: true },
+      ],
+    ],
+  ] as const)("finds a %s by the id arrays declared to hold them", (kind, expected) => {
+    expect(map[kind]).toEqual(expected);
+  });
+
+  it("never searches an array declared to hold no one's ids, a secret one or one in a table without personal data", () => {
+    const all = [...map.person, ...map.contact, ...map.staff];
+    expect(all.map((e) => `${e.table}.${e.column}`)).not.toContain("pack_item.approved_by");
+    expect(all.map((e) => e.table)).not.toContain("import_like");
+    expect(all.map((e) => e.table)).not.toContain("secret_array");
+    expect(map.notSearched).toEqual(["review", "secret_array"]);
+  });
+
+  it("searches incident.person_ids in the real catalogue, so an incident is no longer reported not searched for a person", () => {
+    const real = dsarSubjectMap(EXPORT_TABLES);
+    expect(real.person).toContainEqual({ table: "incident", column: "person_ids", array: true });
+    expect(dsarNotSearched(real, "person").map((e) => e.table)).not.toContain("incident");
+  });
+
+  it("declares every id array in the real catalogue, and searches exactly these", () => {
+    const real = dsarSubjectMap(EXPORT_TABLES);
+    const arrays = [...real.person, ...real.contact, ...real.staff]
+      .filter((e) => e.array)
+      .map((e) => `${e.table}.${e.column}`)
+      .sort();
+    expect(arrays).toEqual([
+      "compliment.staff_ids",
+      "dependency_scale_version.contributor_ids",
+      "downtime_pack.person_ids",
+      "evidence_pack.editor_ids",
+      "evidence_pack.person_ids",
+      "evidence_pack_item.redacted_by",
+      "feed_item.staff_shown",
+      "incident.person_ids",
+      "interview.panel",
+      "letter_template_version.contributor_ids",
+      "statement_of_purpose_version.contributor_ids",
+    ]);
+    // No array is ever searched as if it held one id.
+    for (const e of [...real.person, ...real.contact, ...real.staff].filter((x) => !x.array)) {
+      const spec = EXPORT_TABLES[`public.${e.table}`]?.columns[e.column];
+      expect(typeof spec === "object" && spec.idArray !== undefined, e.column).toBe(false);
+    }
+  });
+});
+
 describe("third-party names are highlighted, never redacted", () => {
   it("finds whole names, any case, longest first, without overlaps", () => {
     const text = "Spoke with Eve Example and eve about Kit. Steven was not there.";

@@ -7,6 +7,12 @@ gate passes on `main` (section 19, definition of complete).
 **Overall: 2% done** (4 of 234 register rows `done`; 119 `partial`, 111 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
+**Ready on 08/11/2026, not committed:** `fix/platform-dsar-array-subjects` (PLAT-022 stays
+`partial`). A subject access request now searches id lists (`uuid[]` columns) the export catalogue
+declares as holding people, contacts or staff, so an incident naming a person only in
+`incident.person_ids` is collected, not listed as not searched. Every `uuid[]` column must declare
+whose ids it holds, or why none (a test); searched lists are GIN-indexed and matched with `@>`.
+Migration 0162 (indexes only); human actions H-1624 and H-1625.
 **Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
 `partial`). It adds the TRUD download, which checks TRUD's answer, the archive's SHA-256 and its
 names before loading, and runs as its own Cloud Run job with alerts on refused, failed and late

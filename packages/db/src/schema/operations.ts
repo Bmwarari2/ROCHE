@@ -88,6 +88,8 @@ export const downtimePack = pgTable(
     ...createdColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("downtime_pack_person_ids_idx").using("gin", t.personIds),
     foreignKey({
       name: "downtime_pack_location_fk",
       columns: [t.tenantId, t.locationId],

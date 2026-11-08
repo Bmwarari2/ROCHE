@@ -691,3 +691,28 @@ describe("#149 re-check L1: earlier versions show only what their table's export
     expect(record).not.toHaveProperty("token_hash");
   });
 });
+
+describe("id arrays declared in the catalogue are searched (migration 0162)", () => {
+  it("finds an incident that names the person only in incident.person_ids", async () => {
+    const [incident] = await owner<{ id: string }>(
+      `INSERT INTO incident (location_id, type, occurred_at, description, raised_by, person_ids)
+       VALUES ($1, 'fall', now() - interval '2 hours', 'Found on the floor.', $2, $3) RETURNING id`,
+      [DEMO.locationId, DEMO.users.carer.id, [ada]],
+    );
+    const [named] = await owner<{ n: number }>(
+      "SELECT count(*)::int AS n FROM incident_person WHERE incident_id = $1",
+      [incident?.id],
+    );
+    expect(named?.n).toBe(0);
+    const c = await newCase({});
+    const r = await post(`/v1/dsar-cases/${c.id}/collect`, {});
+    expect(r.status).toBe(200);
+    const collected = (await r.json()) as { notSearched: { table: string }[] };
+    expect(collected.notSearched.map((e) => e.table)).not.toContain("incident");
+    const items = ((await (await get(`/v1/dsar-cases/${c.id}/items`)).json()) as { items: Item[] })
+      .items;
+    expect(items).toContainEqual(
+      expect.objectContaining({ tableName: "incident", recordId: incident?.id }),
+    );
+  });
+});

@@ -238,6 +238,8 @@ export const interview = pgTable(
     ...createdColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("interview_panel_idx").using("gin", t.panel),
     ref("interview_application_fk", t, t.applicationId, application),
     check("interview_panel", sql`cardinality(panel) BETWEEN 1 AND 5`),
     check("interview_scores", sql`jsonb_typeof(scores) = 'object'`),

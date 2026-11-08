@@ -144,6 +144,8 @@ export const compliment = pgTable(
     ...mutableColumns(),
   },
   (t) => [
+    // Searched by subject access requests with @> (dsarSubjectMap; migration 0162).
+    index("compliment_staff_ids_idx").using("gin", t.staffIds),
     unique("compliment_tenant_id_id_key").on(t.tenantId, t.id),
     foreignKey({
       name: "compliment_location_fk",
