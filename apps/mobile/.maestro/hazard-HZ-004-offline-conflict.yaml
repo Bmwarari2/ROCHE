@@ -1,0 +1,56 @@
+# Hazard HZ-004 (dose given twice), Phase 2 slice 70: a dose recorded on this phone with no signal,
+# after the same dose was recorded elsewhere (seeded through the API before the flow:
+# HARBOUR_CONFLICT_MEDICINE is due now and already has a record from another device), is kept as a
+# conflict, never dropped or merged, and the nurse in charge resolves it on the phone with words.
+#
+# Needs the live API stack, the medicine on the MAR of a person the test member is assigned to, and
+# the member holding medicines.record.manage (the nurse in charge). setAirplaneMode is Android only.
+appId: uk.co.thapsus.harbour
+name: A dose recorded on two phones, reviewed by the nurse in charge
+tags:
+  - offline
+env:
+  HARBOUR_CONFLICT_MEDICINE: ${HARBOUR_CONFLICT_MEDICINE || "Senna"}
+---
+- runFlow: sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 60000
+- tapOn:
+    id: "tab-medicines"
+- extendedWaitUntil:
+    visible:
+      text: ".*${HARBOUR_CONFLICT_MEDICINE}.*"
+    timeout: 30000
+- setAirplaneMode: enabled
+- tapOn:
+    text: ".*${HARBOUR_CONFLICT_MEDICINE}.*"
+- tapOn:
+    text: "${HARBOUR_CONFLICT_MEDICINE}.*"
+- tapOn: "Refused"
+- tapOn: "The person declined it"
+- tapOn: "Record dose"
+- assertVisible:
+    text: "Recorded on this phone.*"
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 90000
+- back
+- tapOn: "Doses recorded on two phones"
+- extendedWaitUntil:
+    visible:
+      text: "First record:.*"
+    timeout: 30000
+- assertVisible:
+    text: "The records differ.*"
+- tapOn: "What you found out"
+- inputText: "Given at 08:00 by the day nurse; the second record was a mistake"
+- hideKeyboard
+- tapOn: "Same dose sent twice: the first record stands"
+- extendedWaitUntil:
+    visible:
+      text: "Resolved."
+    timeout: 15000

@@ -283,6 +283,11 @@ const S = {
     people: [resident()],
     answers: NOTHING_TO_REPORT,
   },
+  abscondingNotReported: {
+    type: "absconding",
+    people: [resident()],
+    answers: NOTHING_TO_REPORT,
+  },
   abscondingUnderMha: {
     type: "absconding",
     people: [resident({ subjectToMentalHealthAct: true })],
@@ -364,6 +369,7 @@ describe("hazard HZ-013 classifier produces the required notifications for each 
     ["fireAlarmFailure", ["cqc_reg18_service_disruption"]],
     ["missingUnderDols", ["cqc_reg18_police", "police_missing_person"]],
     ["missingNotReported", ["police_missing_person"]],
+    ["abscondingNotReported", ["police_missing_person"]],
     ["abscondingUnderMha", ["cqc_reg18_police", "police_missing_person"]],
     ["medicationPsychologicalHarm", ["candour", "cqc_reg18_serious_injury"]],
     ["hoistCollapse", ["riddor_dangerous_occurrence"]],

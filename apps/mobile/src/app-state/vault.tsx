@@ -44,8 +44,13 @@ import { FORGET_ANSWER_FOR_ENTRY_SQL } from "../care/answered-tasks";
 import { DELETE_UPLOAD_ISSUE_SQL } from "../care/queries";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
+import { refreshMedicinesRates } from "../medicines/rates";
 import { clearPhotoCache } from "../people/use-person-photo";
-import { cancelHeldNotifications, scheduleHeldNotifications } from "../platform/notifications";
+import {
+  cancelHeldNotifications,
+  scheduleHeldNotifications,
+  scheduleMedicineReminders,
+} from "../platform/notifications";
 import {
   DEVICE_ID_ITEM,
   keyOptions,
@@ -72,8 +77,9 @@ import {
   loadOrCreateDatabaseKey,
   readDatabaseKey,
 } from "../security/db-key";
-import { type DeviceIntegrityResult, stubIntegrityChecker } from "../security/device-integrity";
+import type { DeviceIntegrityResult } from "../security/device-integrity";
 import { IdleTimer } from "../security/idle-timer";
+import { nativeIntegrityChecker } from "../security/native-integrity";
 import { FAIL_SAFE_TOLERANCE_MINUTES, resolveClockTolerance } from "../sync/clock-tolerance";
 import { HarbourConnector } from "../sync/connector";
 import {
@@ -536,6 +542,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
       heldMaxDaysRef.current = await resolveHeldMaxDays(database, fetchOptions).catch(
         () => heldMaxDaysRef.current,
       );
+      // The medicines figures for an offline round (slice 69); the round waits until it has them.
+      if (fetchOptions) void refreshMedicinesRates(database, fetchOptions);
       stopStatusListener();
       let lastSynced = database.currentStatus.lastSyncedAt?.getTime() ?? null;
       statusListenerRef.current = database.registerListener({
@@ -689,6 +697,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         if (complete) {
           await session.clearHeld().catch(() => undefined);
           void cancelHeldNotifications();
+          void scheduleMedicineReminders([]);
         }
         const connector = new HarbourConnector({
           apiUrl: appEnv.apiUrl,
@@ -729,7 +738,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         });
       }
       setDb(opened);
-      stubIntegrityChecker.check().then(setIntegrity, () => undefined);
+      nativeIntegrityChecker.check().then(setIntegrity, () => undefined);
     },
     [session.refreshMe, session.holdSession, session.clearHeld, connectSync],
   );
@@ -799,6 +808,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         await destroyDatabaseKey(secretStore, keyOptions);
         await session.clearHeld();
         void cancelHeldNotifications();
+        void scheduleMedicineReminders([]);
         clearPhotoCache();
         // Downloaded courses go with everything else (security review of slice 72, L8).
         removeAllCourseFiles();
@@ -1089,6 +1099,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         });
         await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);
         void cancelHeldNotifications();
+        void scheduleMedicineReminders([]);
         clearPhotoCache();
         // Downloaded courses go with everything else (security review of slice 72, L8).
         removeAllCourseFiles();
@@ -1182,6 +1193,7 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           await destroyDatabaseKey(secretStore, keyOptions);
           await tombstoneStore.remove(PENDING_REPORT_ITEM).catch(() => undefined);
           void cancelHeldNotifications();
+          void scheduleMedicineReminders([]);
           clearPhotoCache();
           // Downloaded courses go with everything else (security review of slice 72, L8).
           removeAllCourseFiles();

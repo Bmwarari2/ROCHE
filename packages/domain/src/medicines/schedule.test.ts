@@ -82,7 +82,11 @@ describe("the MAR cycle comes from the rate table", () => {
   });
 
   /** Numbers that only look like a rate figure: GS1 defines GTIN lengths (8, 12, 13 and 14). */
-  const NOT_RATE_FIGURES: Record<string, readonly string[]> = { "dmd-release.ts": ["12"] };
+  // GTIN lengths (12 to 14 digits) and the months of a GS1 expiry, not rate figures.
+  const NOT_RATE_FIGURES: Record<string, readonly string[]> = {
+    "dmd-release.ts": ["12"],
+    "barcodes.ts": ["12"],
+  };
 
   it("holds no rate-table figure as a literal in the medicines rules", () => {
     const dir = fileURLToPath(new URL(".", import.meta.url));

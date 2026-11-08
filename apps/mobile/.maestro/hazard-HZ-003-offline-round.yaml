@@ -1,0 +1,73 @@
+# Hazards HZ-003 (dose missed or given twice), HZ-004 (interval or maximum not respected) and
+# HZ-001 (wrong person), Phase 2 slice 69: the medicines round opens only after a complete sync,
+# reads slot by slot with each dose's state in words, and a dose recorded with no signal shows as
+# recorded on this phone and is sent once the network returns. A refusal is recorded here so the
+# flow needs no pack to scan; a dose given asks for photo confirmation and a pack scan first (the
+# unit tests cover that rule: packages/domain barcodes.test.ts, apps/mobile record.test.ts).
+#
+# Needs the live API stack with a regular medicine due within the hour on the MAR of a person the
+# test tenant's care worker is assigned to (HARBOUR_ROUND_MEDICINE, the product's name), the
+# worker holding medicines.emar.administer, and an emulator the integrity checks trust (a Google
+# Play system image; a rooted image keeps eMAR off, as it should). setAirplaneMode is Android only.
+appId: uk.co.thapsus.harbour
+name: The medicines round on the phone, offline
+tags:
+  - offline
+env:
+  HARBOUR_ROUND_MEDICINE: ${HARBOUR_ROUND_MEDICINE || "Paracetamol"}
+---
+- runFlow: sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 60000
+- tapOn:
+    id: "tab-medicines"
+- extendedWaitUntil:
+    visible:
+      id: "medicines-round"
+    timeout: 30000
+- assertNotVisible:
+    id: "medicines-blocked"
+- extendedWaitUntil:
+    visible:
+      text: ".*${HARBOUR_ROUND_MEDICINE}.*"
+    timeout: 30000
+- setAirplaneMode: enabled
+- tapOn:
+    text: ".*${HARBOUR_ROUND_MEDICINE}.*"
+- extendedWaitUntil:
+    visible:
+      id: "medicines-person"
+    timeout: 10000
+# Allergies sit beside the medicine, never blank (HZ-007).
+- assertVisible:
+    id: "person-allergy-line"
+- tapOn:
+    text: "${HARBOUR_ROUND_MEDICINE}.*"
+- extendedWaitUntil:
+    visible:
+      id: "dose-record-panel"
+    timeout: 10000
+- assertVisible:
+    id: "dose-allergies"
+- tapOn: "Refused"
+- tapOn:
+    id: "save-dose"
+# No reason yet: the record says why it cannot be saved.
+- assertVisible:
+    text: "Choose the reason."
+- tapOn: "The person declined it"
+- tapOn:
+    id: "save-dose"
+- extendedWaitUntil:
+    visible:
+      id: "dose-saved"
+    timeout: 10000
+- assertVisible:
+    text: "Recorded on this phone.*"
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible:
+      text: "Up to date.*"
+    timeout: 90000

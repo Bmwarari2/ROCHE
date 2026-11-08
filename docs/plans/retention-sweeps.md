@@ -566,8 +566,8 @@ of staff.
 Each is worded so it can go into [human-actions.md](human-actions.md) as it stands (owner: DPO). Slice 0
 (08/11/2026) logged them there under "Phase 2: retention sweeps (plan and slice 0)". **Every answer is
 provisional**: each took its recommended answer as an owner-accepted recommendation, pending DPO review
-at the testing phase (ADR-0132), so no slice waits. Questions 6 to 12 carry placeholders (`H-NEW-1` to
-`H-NEW-7`) until they are numbered at merge, as the next free numbers on `main` after H-1580.
+at the testing phase (ADR-0132), so no slice waits. Questions 6 to 12 are H-1581 to
+H-1587.
 
 | # | ID | Action | What the build produced | Unblocks |
 | --- | --- | --- | --- | --- |
@@ -576,13 +576,13 @@ at the testing phase (ADR-0132), so no slice waits. Questions 6 to 12 carry plac
 | 3 | H-1558 (provisional) | Set classes for the tables that have none: deaths and missing episodes (`death_record`, `death_step`, `herbert_profile`, `missing_episode`, `missing_event`), the learning-system import (`lms_import`, `lms_import_row`, `lms_learner_link`), medicine orders (`medicine_order`, `medicine_order_line`), the Thapsus-HR link (`hr_person_link`, `hr_pay_rate`, `hr_pay_unit`), `evidence_link` and `shift_cover_need`; and confirm the classes named only in notes for complaints and compliments, audits, absences, wellbeing, payroll exports and medicines stock, disposal and temperature logs | Section 3.2 | Slice 0 |
 | 4 | H-1559 (provisional) | Decide whether audit events about a destroyed record are destroyed with it (retention-and-deletion.md section 2) or kept for their own class (8 years from creation) as opaque ids, given they are hash-chained and archived in a bucket locked for 365 days; and whether the free-text `reason` must be cleared earlier | Section 2.4, 5.8 | Slice 14 |
 | 5 | H-1560 (provisional) | Confirm that, where a record has organisational value (rota, pay runs, audits, outbreak line lists), clearing the personal columns and keeping the anonymous row is an acceptable alternative to deleting it, and for which classes | Section 5.3 (`clear_columns`) | Slices 3 and 11 |
-| 6 | H-NEW-1 (provisional) | Confirm that one reviewer with `platform.retention.manage` and step-up may approve a destruction batch, or require a second person as the whole-organisation shred does | Section 5.5 | Slice 9 |
-| 7 | H-NEW-2 (provisional) | Confirm that deleted rows leaving point-in-time recovery after 7 (or 35) days, stated on the certificate, meets the "crypto-shred" requirement for database rows, as ADR-0109 decided, or require field-level encryption first | ADR-0109; section 5.6 | Slice 10 |
-| 8 | H-NEW-3 (provisional) | Confirm which setting decides the staff file period: the organisation's `staff_file_option` from the onboarding checklist, or whether it has its own `staff_file.after_leaving` row (today's code), and whether a keep-until date must be worked out again when the period or the date of birth changes | Section 3.2 | Slice 11 (`staff_file`) |
-| 9 | H-NEW-4 (provisional) | Confirm the trigger dates where the record has no column: a compliment (never closes; propose 10 years from receipt), a withdrawn DSAR case (propose the withdrawal's audit time), a disclosure request (propose hand-over, else release), a Thapsus breach notice (propose its acknowledgement), an agency worker (propose the last booking), and the pay reference period end for rota and time records | Section 3.2 | Slices 2 and 3 |
-| 10 | H-NEW-5 (provisional) | Confirm that records whose class is `tenant_policy` (organisation documents, CCTV) are never offered for destruction until the organisation sets a period | retention.md | Slice 4 |
-| 11 | H-NEW-6 (provisional) | Decide whether an open DSAR case, complaint, safeguarding enquiry or employee relations case about a person or member of staff holds their records automatically, without someone placing a hold | Section 4 item 8 | Slice 12 |
-| 12 | H-NEW-7 (provisional) | Confirm the order in which classes are turned on (section 6, slice 11) and that each needs the DPO's sign-off of its report from a pilot organisation first | Section 6 | Slice 11 |
+| 6 | H-1581 (provisional) | Confirm that one reviewer with `platform.retention.manage` and step-up may approve a destruction batch, or require a second person as the whole-organisation shred does | Section 5.5 | Slice 9 |
+| 7 | H-1582 (provisional) | Confirm that deleted rows leaving point-in-time recovery after 7 (or 35) days, stated on the certificate, meets the "crypto-shred" requirement for database rows, as ADR-0109 decided, or require field-level encryption first | ADR-0109; section 5.6 | Slice 10 |
+| 8 | H-1583 (provisional) | Confirm which setting decides the staff file period: the organisation's `staff_file_option` from the onboarding checklist, or whether it has its own `staff_file.after_leaving` row (today's code), and whether a keep-until date must be worked out again when the period or the date of birth changes | Section 3.2 | Slice 11 (`staff_file`) |
+| 9 | H-1584 (provisional) | Confirm the trigger dates where the record has no column: a compliment (never closes; propose 10 years from receipt), a withdrawn DSAR case (propose the withdrawal's audit time), a disclosure request (propose hand-over, else release), a Thapsus breach notice (propose its acknowledgement), an agency worker (propose the last booking), and the pay reference period end for rota and time records | Section 3.2 | Slices 2 and 3 |
+| 10 | H-1585 (provisional) | Confirm that records whose class is `tenant_policy` (organisation documents, CCTV) are never offered for destruction until the organisation sets a period | retention.md | Slice 4 |
+| 11 | H-1586 (provisional) | Decide whether an open DSAR case, complaint, safeguarding enquiry or employee relations case about a person or member of staff holds their records automatically, without someone placing a hold | Section 4 item 8 | Slice 12 |
+| 12 | H-1587 (provisional) | Confirm the order in which classes are turned on (section 6, slice 11) and that each needs the DPO's sign-off of its report from a pilot organisation first | Section 6 | Slice 11 |
 
 ## 8. Is an ADR needed?
 

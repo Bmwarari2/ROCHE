@@ -2,13 +2,11 @@
 status: "proposed"
 date: 2026-11-08
 decision-makers: lead engineer (Claude Code lead session), for the owner
-consulted: data protection officer (H-1556 to H-1560 and H-NEW-1 to H-NEW-7, provisional answers pending review at the testing phase)
+consulted: data protection officer (H-1556 to H-1560 and H-1581 to H-1587, provisional answers pending review at the testing phase)
 informed: engineering
 ---
 
 # Destroying database rows when their retention class ends
-
-Number to be confirmed at merge (next free after 0134).
 
 ## Context and problem statement
 
@@ -67,7 +65,7 @@ children before parents across contexts in one transaction. The six points:
    table, with a new `batch_id` column. Stored files linked to the record are deleted version by
    version, as ADR-0109 decided; no per-subject keys are introduced. Deleted rows leave point-in-time
    recovery after 7 or 35 days, stated on the certificate, which meets the requirement for database
-   rows (ADR-0109; provisional, H-NEW-2).
+   rows (ADR-0109; provisional, H-1582).
 2. **The owner.** A new NOLOGIN role, `harbour_retention_owner`, created by `pnpm db:bootstrap` with
    SET-only membership for `harbour_owner`; never a login role, a superuser or `BYPASSRLS`. It owns
    `app.retention_soft_delete`, `app.retention_restore` and `app.retention_purge` (`SECURITY DEFINER`,
@@ -94,10 +92,10 @@ children before parents across contexts in one transaction. The six points:
 6. **Modes and approval.** Per organisation and class, held as a tenant setting through OpenFeature:
    `off` (the default), `report`, `propose`, `destroy`, moved one step at a time; `destroy` is set
    per class, in the order of the plan's slice 11, each after the DPO signs off its report from a pilot
-   organisation (provisional, H-NEW-7). Nothing is destroyed without approval by two different people:
+   organisation (provisional, H-1587). Nothing is destroyed without approval by two different people:
    a reviewer with `platform.retention.manage` and step-up, and a second person, as the
-   whole-organisation shred does (provisional, H-NEW-1). Records of a `tenant_policy` class are never
-   proposed (provisional, H-NEW-5). Holds are checked when a batch is proposed, when it is approved
+   whole-organisation shred does (provisional, H-1581). Records of a `tenant_policy` class are never
+   proposed (provisional, H-1585). Holds are checked when a batch is proposed, when it is approved
    and again under the organisation's retention lock when rows are purged.
 
 **Exception to ADR-0133.** ADR-0133 gives each bounded context its own NOLOGIN definer owner.

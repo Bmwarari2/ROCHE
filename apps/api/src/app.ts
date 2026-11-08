@@ -52,6 +52,7 @@ import { dataProtectionRouter } from "./routes/data-protection";
 import { dataSecurityRouter } from "./routes/data-security";
 import { deathsMissingRouter } from "./routes/deaths-missing";
 import { developmentRouter } from "./routes/development";
+import { deviceKeysRouter } from "./routes/device-keys";
 import { devicesRouter } from "./routes/devices";
 import { disclosuresRouter } from "./routes/disclosures";
 import { documentsRouter } from "./routes/documents";
@@ -457,6 +458,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", healthRouter);
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
+  app.route("/", deviceKeysRouter);
   app.route("/", brandingRouter);
   app.route("/", searchRouter);
   app.route("/", ssoRouter);

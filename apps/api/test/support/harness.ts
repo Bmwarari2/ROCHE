@@ -9,6 +9,7 @@ import {
   parseBankHolidays,
   parseRates,
   parseRetention,
+  seedDemoCdRecording,
   seedDemoTenant,
   seedReferenceData,
 } from "@harbour/db/seed";
@@ -128,6 +129,9 @@ export async function createHarness(env: Record<string, string> = {}): Promise<H
     parseBankHolidays(readFileSync(`${specs}calendar.md`, "utf8")),
   );
   await seedDemoTenant(owner);
+  // Controlled drug recording released at the demo home, as the demo seed does (H-1517); Harbour
+  // Lodge (below) keeps the default, off.
+  await seedDemoCdRecording(owner);
 
   // A second location in the demo tenant, outside the Registered Manager's scope, with one person
   // and a quality lead who is told about break-glass access.
