@@ -1036,6 +1036,17 @@ gates stay unsigned until H-20.
 | H-1496 | Decide whether invoker helper functions called from definers (for example `app.holds_permission_at`) also pin `pg_temp` last. Recommended answer: yes, in one later migration; low risk today as they qualify every table | Lead engineer | ADR-0133 (security review L4) | None | open (recommended answer in force) |
 | H-1497 | Decide whether the audit chain trigger (`app.audit_event_chain`) gets its own NOLOGIN owner, apart from `harbour_platform_definer`, which also provisions organisations from operator input. Recommended answer: yes, in a later migration | Lead engineer | ADR-0133 (security review L5) | None | open (recommended answer in force) |
 
+## Guide gaps from the slice 83 review (H-1561 to H-1580)
+
+Logged by the guide-gap PRs (lead's list of 07/11/2026; the guides builder logs the review's own
+rows from H-1543). Each open question takes its recommended answer until the testing-phase review.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1561 | Accept the HZ-127 control that absconding incidents open a missing person episode as missing person incidents do (police call target, urgent task, immediate-risk alert), and whether it changes the residual risk | CSO | HZ-127; `apps/web/src/lib/missing.ts` (`missingEpisodeSubjects`) | First real tenant | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1562 | Decide whether the incident record asks when the person was found for absconding too, or the episode's found entry stays the only found time for both types. Recommended answer: the episode's found entry (the incident's found time only drives post-fall observations) | CSO | HZ-127; `apps/web/src/lib/incident-forms.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1563 | Confirm that absconding (which can be a capacitous person choosing to leave) gets the same police call target (`missing_person.police_call_minutes`) and immediate-risk alert as going missing, or ask for a separate rate key. Recommended answer: the same target; staff call at once when worried | CSO | HZ-127; [rates.md](../specs/rates.md) | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
@@ -1328,3 +1339,15 @@ H-NEW-1 to H-NEW-7, numbered at merge as the next free numbers on `main` after H
 | H-NEW-5 | Confirm that records whose class is `tenant_policy` (organisation documents, CCTV) are never offered for destruction until the organisation sets a period. Owner-accepted recommendation, pending DPO review at the testing phase: yes; `tenant_policy` classes are never offered for destruction until the organisation sets a period | DPO | Retention sweeps plan section 7, question 10; retention.md | Slice 4 | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
 | H-NEW-6 | Decide whether an open DSAR case, complaint, safeguarding enquiry or employee relations case about a person or member of staff holds their records automatically, without someone placing a hold. Owner-accepted recommendation, pending DPO review at the testing phase: yes; any of these, while open, holds the subject's records automatically (built in slice 12; until then a hold is placed by hand) | DPO | Retention sweeps plan section 7, question 11; section 4 item 8 | Slice 12 | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
 | H-NEW-7 | Confirm the order in which classes are turned on (section 6, slice 11) and that each needs the DPO's sign-off of its report from a pilot organisation first. Owner-accepted recommendation, pending DPO review at the testing phase: the order in plan section 6 slice 11 (`applicant.unsuccessful`, `staff_wellbeing`, `lone_worker`, `data_rights_case`, `dp_breach`, `sponsor_record`, `working_time_*`, `sickness_absence`, `training_record`, `rota_and_timesheet`, `staff_file` and casework, `speak_up_concern`, `complaint`, medicines logs, `controlled_drugs_register`, `mar_chart`, `care_record`, `serious_incident`), each class turned on only after the DPO signs off its report from a pilot organisation | DPO | Retention sweeps plan section 7, question 12; section 6 | Slice 11 | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
+
+## Phase 2: DPIA for the Phase 2 processing (slice 84)
+
+Logged by the DPIA update for slice 84 on 7 November 2026 (`docs/compliance/dpia-template.md`
+section 7B, still a draft for the DPO).
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1552 | Confirm the lawful bases records of processing does not yet name: location and NFC evidence at clock-in (employee monitoring, H-527); agency workers' records (B3's contract of employment does not fit people the provider does not employ; H-547 covers only the agency agreement); a wellbeing check-in the member keeps to themselves (an Article 9 condition is named only for shared ones); health revealed in free text in induction, probation, exit interview and training records; and the Thapsus-HR link's own purpose (H-1341). Add them to records of processing and DPIA section 7B.1 | DPO | DPIA 7B.6; `docs/compliance/records-of-processing.md` | Signing DPIA section 7B | open |
+| H-1553 | Decide whether risk R30 (the Thapsus-HR link: wrong matching, out-of-date data, over-sharing), assigned in phase-2.md and ADR-0126, is added to DPIA sections 6 and 7 and the in-app prefill | DPO | DPIA 7B.6; ADR-0126 | Signing DPIA section 7B | open |
+| H-1554 | Choose between the duplicate retention classes the code does not use: `lone_worker_check_in` (3 months) against the built `lone_worker` (3 years); `whistleblowing` against `speak_up_concern`; `payroll_export` against `rota_and_timesheet`; then remove the unused ones from `docs/specs/retention.md` | DPO | DPIA 7B.5 | Nothing | open |
+| H-1555 | Make location and NFC clock-in evidence and the lone-worker location flag depend on the signed DPIA: today `PUT /v1/locations/{id}/clock-setting` accepts the caller's own `dpiaApproved: true` (`apps/api/src/routes/time-attendance.ts`), and `scheduling.lone_worker.location` has no DPIA check and does not flag a signed DPIA for review when switched on (records of processing says the DPO confirms first, H-1033, H-527) | Engineering (security) | DPIA 7B.3 R22 | Switching on location or NFC evidence for any tenant | open |

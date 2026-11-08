@@ -333,3 +333,17 @@ export const CD_FIELD_FOR_PROBLEM: Readonly<Record<string, string>> = {
   cd_witness_required: "witness",
   cd_witness_blank: "witness",
 };
+
+/** The flag that releases controlled drug recording in Harbour's register at a location (H-1517). */
+export const CD_RECORDING_FLAG = "medicines.cd_recording";
+
+/**
+ * Whether controlled drug recording is turned on at the location (H-1517, HZ-115, HZ-008): only a
+ * flag the API says is on counts. An unread or missing answer counts as off, so the paper register
+ * stays the record unless Harbour's is positively released there.
+ */
+export function cdRecordingOn(
+  flags: Readonly<Record<string, boolean>> | null | undefined,
+): boolean {
+  return flags?.[CD_RECORDING_FLAG] === true;
+}

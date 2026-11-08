@@ -41,12 +41,87 @@ an ADR and 12 DPO questions come before any record is destroyed.
 Slice 0 done (08/11/2026, docs only): ADR-0135 proposed, retention.md mapping de-duplicated and complete,
 retention-and-deletion.md matches today, the 12 questions logged with provisional answers (H-1556 to H-1560, H-NEW-1 to H-NEW-7).
 
+## Retention sweep rules (08/11/2026)
+
+`feat/platform-retention-rules` (retention sweeps plan slice 1, on #193), from `main` at ea6fc04d: the
+six pure domain rules of plan section 5.2 with table-driven tests per class; no database and no record
+changes. See `docs/changelog-dev/2026-11-08-feat-platform-retention-rules.md`.
+
+## Paused 07/11/2026: where to resume on Sunday 08/11 at 08:00
+
+The owner paused every session at about 11:00 on 07/11 (UK time). Work in progress was finished
+or committed and pushed; nothing is uncommitted. The owner expects plans for new integrated
+projects on 08/11. Main ends at migration 0152 (after #190 and #191).
+
+**Merged on 07/11:** #174 to #187, #189, #190 and #191 (batch 3c, the sync buckets per home, no SMS at
+launch, the dm+d job, batch 4, the rename to Thapsus Care, the add-migration skill, the
+workforce, medicines and safety guides, the Training tab, the scheduling spec headings, the paper
+register until controlled drug recording is turned on, absconding opening a missing person
+episode, and the DPIA section 7B for Phase 2).
+
+**Open pull requests, in merge order.** Each migration takes the next free number at merge
+(migration-journal test).
+
+1. **#188** (slices 69 and 70, `feat/mobile-meds-cd-offline`, head `3fe419cd`, migration 0153).
+   Reviewed. Since #187 merged, it conflicts in `apps/api/src/routes/medicine-administrations.ts`
+   (two hunks) and in the generated `openapi.json` and `api-types.ts`. Resolve each hunk by keeping
+   #187's `requireCdRecording` call first, then #188's `requireCdSignatures` with the device
+   header. Then regenerate the OpenAPI document and the client, and run the API tests on a private
+   Postgres. Ask the clinical reviewer to confirm that a device-signed dose at a home where
+   recording is off gets the audited 409 and becomes a refused entry with an urgent review.
+   `3fe419cd` also records the CD witness schema correction in `openapi-breaking-ignore.txt`. The
+   null alternative the API never accepted is no longer in the document. All of CI passed on `3fe419cd`
+   before #187 merged.
+2. **#197** (H-1555, `fix/scheduling-clock-evidence-dpia`, `5df65b77`, label `data-protection`).
+   A security fix: clock evidence and lone-worker location only under a signed DPIA. Renumber its
+   migration after #188. Two DPO decisions are noted in the PR.
+3. **#192** (leave postponement, `554f6689`, label `data-protection`). Renumber its migration.
+   Approved by the security and accessibility reviewers.
+4. **#195** (Care Certificate and revalidation separation of duties, `2bd0bc65`). Renumber its two
+   migrations. Approved; the journeys were not re-run on the last commit.
+5. **#198** (Regulation 28 date sent and the coroner's extension, SAFE-016, `cfe310c4`).
+   Migration 0157 is provisional. The due date stays at 56 days after the date sent (reg 29(4));
+   the clinical reviewer confirmed it. H-1570 to H-1572.
+6. **#194** (copy from the slice 83 guides review, label `clinical`, `189899ba`). It conflicts with
+   main again after #191, in `record-a-missing-person.md`, and its unit job failed on that head.
+   Merge main and re-run.
+7. **#196** (a police call recorded after the person is found, HZ-127, `919ed6d2`, label
+   `clinical`). Expect conflicts with #194 in human actions and the HZ-127 rows.
+8. **#193** (retention sweeps plan, docs only, `19cc1e08`). It needs an ADR number (before
+   slice 7), 7 more H-numbers for its 12 DPO questions, and the lead's call on whether those
+   questions are provisional with recommended answers or open.
+
+**Pushed, no pull request yet:**
+
+- `feat/safety-death-step-corrections` at `8030db38` (item 3 of the slice 83 review gaps): domain
+  rules only. Still to do: the migration (`supersedes_id` and a reason on `death_step`), the API,
+  the history struck through on the web, the line-list reason, docs and the reviewers. Item 4 (a
+  narrower incident permission) is not started.
+- `docs/guides-medicines-phone` at `9c2b6178`: the 7 phone guides for slices 69 and 70. Rebase
+  them after #188 merges.
+
+**The Thapsus suite plan** (Finance, CRM and ERP, and how Care joins): `docs/plans/thapsus-suite.md`
+and slices S.1 to S.6 for Care are on branch `claude/thapsus-systems-dev-plan-2rkfaj`, with no
+pull request. Nothing is scheduled until the owner approves the plans.
+
+**Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
+phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
+and 1 once #193 has its numbers.
+
 ## User guides: safety, quality and platform, second pass (07/11/2026)
 
 `docs/guides-safety-quality-platform-2` (Phase 2 slice 83), from `main` at daa038a7: 15 new guides
 (outbreaks, deaths, missing persons, disclosures, importing medicines, care plans and staff checks)
 and about 30 brought up to `main`, linked from the indexes and the register. Gaps and findings:
 `docs/changelog-dev/2026-11-07-docs-guides-safety-quality-platform-2.md`.
+
+## DPIA for the Phase 2 processing (07/11/2026)
+
+`feat/platform-dpia-phase-2` (Phase 2 slice 84), from `main` at daa038a7: DPIA section 7B, the R20
+to R29 rows and the prefill's tests now match what is on `main` (still a draft for the DPO).
+H-1552 to H-1555; H-1555 (clock-in evidence switched on by a self-declared tick) is a security fix
+before any tenant turns location evidence on. See
+`docs/changelog-dev/2026-11-07-feat-platform-dpia-phase-2.md`.
 
 ## User guides: workforce and scheduling (07/11/2026)
 

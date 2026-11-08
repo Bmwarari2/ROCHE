@@ -19,6 +19,7 @@ import {
 } from "@/components/medicines/RoundDetails";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { tabHref } from "@/lib/care-record";
+import { cdRecordingAt } from "@/lib/cd-recording";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -68,6 +69,8 @@ async function RecordDose({
   const { me } = await getShellContext();
   if (!medicinesRoundShown(me.permissions)) return <NoAccess />;
   const api = await tenantApi();
+  // Where a controlled drug is recorded: the paper register until Harbour's is released here (H-1517).
+  const recordingOn = await cdRecordingAt(person.locationId);
   const [round, record, covert, selfAdmin] = await Promise.all([
     api.GET("/v1/people/{id}/medicine-round", { params: { path: { id }, query: {} } }),
     api.GET("/v1/people/{id}/medicines", { params: { path: { id } } }),
@@ -114,7 +117,7 @@ async function RecordDose({
         <div className="flex flex-col gap-4">
           <Notice
             icon={<Info size={20} strokeWidth={1.5} aria-hidden="true" />}
-            title={t("medicines.round.cdNotice")}
+            title={t(recordingOn ? "medicines.round.cdNoticeTurnedOn" : "medicines.round.cdNotice")}
           />
           <section
             aria-label={t("medicines.round.medicineLabel")}

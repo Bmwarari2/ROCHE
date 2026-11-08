@@ -1,3 +1,4 @@
+import { MISSING_INCIDENT_TYPES } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import type { SafetyChip } from "./incidents";
 import { type FormLike, readDateField, readDateTimeField, type TimeProblem } from "./uk-time";
@@ -12,6 +13,36 @@ import { type FormLike, readDateField, readDateTimeField, type TimeProblem } fro
 export const MISSING_READ = "safety.incident.read";
 export const MISSING_REPORT = "safety.incident.report";
 export const MISSING_MANAGE = "safety.incident.manage";
+
+/** The incident types a missing person episode is opened on (the domain's one list, HZ-127). */
+export { MISSING_INCIDENT_TYPES };
+
+/** An incident as far as offering a missing person episode goes. */
+export interface EpisodeIncident {
+  readonly type: string;
+  readonly status: string;
+  readonly people: readonly {
+    readonly kind: string;
+    readonly role: string;
+    readonly personId?: string | null;
+  }[];
+}
+
+/**
+ * Who the incident page offers to open a missing person episode for (safety.incident.report): each
+ * resident recorded as the person affected on an open missing person or absconding incident, as
+ * the API accepts; never a witness, and never on a closed incident (HZ-127).
+ */
+export function missingEpisodeSubjects(
+  incident: EpisodeIncident,
+  permissions: readonly string[],
+): string[] {
+  if (!permissions.includes(MISSING_REPORT) || incident.status === "closed") return [];
+  if (!(MISSING_INCIDENT_TYPES as readonly string[]).includes(incident.type)) return [];
+  return incident.people.flatMap((p) =>
+    p.kind === "service_user" && p.role === "affected" && p.personId ? [p.personId] : [],
+  );
+}
 
 /** Shown to whoever may read incidents (the API's own check). */
 export function missingShown(permissions: readonly string[]): boolean {
