@@ -190,7 +190,7 @@ describe("sync streams definition", () => {
 
   it("takes the people in scope from the token, never from the device", () => {
     for (const { stream, query } of streamQueries()) {
-      if (stream === "my_locations") continue;
+      if (stream === "my_locations" || stream === "my_location_services") continue;
       // The member's own shifts and clock events: by their own id only, in the token's shift days
       // (scheduling.md section 18); tested in shift-streams.test.ts.
       // The member's own medicines competence, by their own id (medicines-streams.test.ts).
@@ -422,5 +422,60 @@ describe("hazard HZ-011 cross-tenant isolation", () => {
     const device = await syncFor(hydrated, source, { sub: "carer-a" });
     expect(device.buckets.flatMap((b) => ids(device, b))).toEqual([]);
     expect(Object.values(device.tables).every((t) => t.size === 0)).toBe(true);
+  });
+});
+
+describe("hazard HZ-011 a home's services reach only its own members' phones (my_location_services)", () => {
+  const service = (
+    id: string,
+    tenant: string,
+    location: string,
+    deleted: string | null = null,
+  ) => ({
+    id,
+    tenant_id: tenant,
+    location_id: location,
+    name: "Invented service name",
+    service_type: "residential",
+    status: "active",
+    started_on: "2026-01-01",
+    created_by: "someone",
+    updated_by: "someone",
+    version: 1,
+    deleted_at: deleted,
+  });
+  const services = {
+    service: [
+      service("svc-a-h0", A, "H0"),
+      service("svc-b-h0", B, "H0"),
+      service("svc-a-h9", A, "H9"),
+      service("svc-a-h0-gone", A, "H0", "2026-10-01 00:00:00+00"),
+    ],
+  } as unknown as SourceRows;
+
+  it("gives a tenant's home its own services only, never another tenant's at the same id", async () => {
+    const device = await syncFor(
+      hydrated,
+      services,
+      claims({ tenant_id: A, location_ids: ["H0"] }),
+    );
+    expect(ids(device, "location_service")).toEqual(["svc-a-h0"]);
+  });
+
+  it("sends the type and status only, never the name or who changed it", async () => {
+    const device = await syncFor(
+      hydrated,
+      services,
+      claims({ tenant_id: A, location_ids: ["H0"] }),
+    );
+    const row = device.tables.location_service?.get("svc-a-h0");
+    expect(Object.keys(row ?? {}).sort()).toEqual(
+      ["id", "location_id", "service_type", "status", "tenant_id"].sort(),
+    );
+  });
+
+  it("gives nothing without a home in the token", async () => {
+    const device = await syncFor(hydrated, services, claims({ tenant_id: A, location_ids: [] }));
+    expect(ids(device, "location_service")).toEqual([]);
   });
 });
