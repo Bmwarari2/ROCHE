@@ -32,6 +32,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## User guides: Phase 2 gaps (08/11/2026)
+
+`docs/guides-phase-2-gaps`, from `main` at ea6fc04d: 24 new guides for screens that merged after
+their guides were written (branding, documents, tasks and approvals, legal holds and destruction,
+personal details, About me, sharing, enquiries, pre-admission, admission, property, discharge and
+transfer, duty of candour, investigations and trends, evidence packs, the statement of purpose,
+the home page and memberships), the inspector's evidence pack guide rewritten for its page, and
+about 20 guides brought up to `main` (an absconding incident opens a missing person episode, #191;
+the phone's Training tab, #184; the controlled drugs banner and round notices, #187). Linked from
+the indexes, the guides README and the register's user docs column; no status changed. Gaps still
+open and findings: `docs/changelog-dev/2026-11-08-docs-guides-phase-2-gaps.md`.
+
 ## Retention registry (08/11/2026)
 
 `feat/platform-retention-registry` (retention sweeps plan slices 2 and 3, on #193 and slice 1): the

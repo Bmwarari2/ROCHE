@@ -78,10 +78,18 @@ Thapsus Care checks your medicines competence each time you record a dose.
   day they go back, a repeated time is given once, at the first (HZ-009).
 - A dose that is not on the round any more, already recorded, not yet due or waiting for review
   shows no form. Go back to the round and choose it again (HZ-004).
-- **Controlled drugs cannot be recorded here yet.** Until both the web and the phone record
-  controlled drugs for your home, every controlled drug record stays in the paper register, with a
-  witness, and the paper MAR (medicines administration record). Tell the nurse or senior in charge
-  (H-1517).
+- **Controlled drugs are not recorded on the browser round.** The notice on the dose's page says
+  where to record them:
+  - Until controlled drug recording is turned on for your home: "Record a controlled drug in the
+    paper controlled drugs register and on the paper MAR, with a witness, and tell the nurse in
+    charge. The paper register is the record at this home until controlled drug recording is
+    turned on." The MAR is the medicines administration record.
+  - Once it is turned on, the notice says "Controlled drugs cannot be recorded on this round.
+    Record a controlled drug in the controlled drugs register on this person's record, with a
+    witness, and tell the nurse in charge." The register page cannot record a dose given. Do not
+    record the dose as any other movement on the register, and do not record it in the paper
+    register as well, so the balance is never split. Tell the nurse or senior in charge before the
+    dose is due, and follow your home's controlled drugs policy (HZ-115; decision H-1517).
 - If your medicines competence is not current, the dose is refused unless a manager has approved
   an override (HZ-119).
 - To correct a dose you recorded, open the person's **Medicines** tab, choose **Dose records**,
