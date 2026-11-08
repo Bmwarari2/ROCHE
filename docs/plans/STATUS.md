@@ -4,7 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 2% done** (4 of 234 register rows `done`; 115 `partial`, 115 `todo`). Rows become `done`
+**Overall: 2% done** (4 of 234 register rows `done`; 119 `partial`, 111 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 **Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
@@ -16,6 +16,9 @@ releases. Migration 0131; human actions H-1240 to H-1245. The job's Terraform wa
 adds the Terraform for that job (H-1241): the Cloud Run job `harbour-<env>-dmd`, its monthly Cloud
 Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job is applied
 (H-1501 to H-1505).
+**Pushed on 08/11/2026, not merged:** `feat/mobile-key-invalidated` (H-1531, MOB-007 stays
+`partial`). A phone whose key stopped opening its database records the loss at Thapsus Care, and
+a manager gets an urgent review. Migration 0159.
 
 **Committed on 07/11/2026, not pushed:** `fix/workforce-certificate-revalidation-permissions`
 (WORK-004 stays `partial`, WORK-012 `todo`). Two findings from the workforce guides' review: a Care
@@ -47,7 +50,7 @@ nightly `retention-sweep` queue in report mode, behind the flag `platform.retent
 organisation (counts per table and class: due, held, kept, waiting, by policy, never offered, not
 evaluated; no record ids) and the audit event `platform.retention.sweep_reported`; it changes no
 record. `GET /v1/retention/due` shows the latest report (`platform.retention.manage`, audited).
-Migration 0158 (renumber at merge if needed). See
+Migration 0160 (renumber at merge if needed). See
 `docs/changelog-dev/2026-11-08-feat-platform-retention-report.md`.
 
 ## User guides: Care mode on the phone (08/11/2026)
@@ -154,9 +157,22 @@ episode, and the DPIA section 7B for Phase 2).
 and slices S.1 to S.6 for Care are on branch `claude/thapsus-systems-dev-plan-2rkfaj`, with no
 pull request. Nothing is scheduled until the owner approves the plans.
 
-**Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
-phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
-and 1 once #193 has its numbers.
+**WORK-009 slice 1 (08/11/2026, `feat/workforce-supervisions-due`):** supervisions and appraisals
+due across staff, on `/training/supervisions` with `GET /v1/workforce/supervisions-due` and the
+rate key `supervision.due_window_days`; WORK-005, 008, 009 and 012 corrected from `todo` to
+`partial` (#214). **Slice 2** (`feat/workforce-supervision-reminders`, on slice 1, opened once #214
+merges): one reminder task for HR's role per supervision or appraisal due or overdue, once for
+each due date, closed when one is held, on the hourly `development-expiry-reminders` job; no
+migration. **Follow-up:**
+an ADR on whether development reads (the training matrix and the supervisions list) and reminder
+task visibility (workforce reminders about no person and no location reach holders at any home,
+migration 0079) follow attribute scope (location, team) rather than organisation-wide HR
+(migration 0073); a
+least-privilege question the lead kept out of WORK-009 (08/11/2026).
+**Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
+handling of a 409) in #205; its web journey and a navigation entry for the page in
+`feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
+tab); retention slices 0 and 1 once #193 has its numbers.
 
 ## Doses recorded twice and corrections on the web (08/11/2026)
 

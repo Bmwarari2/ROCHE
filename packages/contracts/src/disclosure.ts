@@ -79,10 +79,16 @@ export const DisclosureRequestOut = z
       redact: z.number().int(),
       withhold: z.number().int(),
     }),
-    /** Coroner: a Regulation 28 report, when the response is due (rate table) and when it was sent. */
+    /**
+     * Coroner: a Regulation 28 report. `reportOn` is the date the report was sent; the response is
+     * due within `coroner.prevention_report_response_days` (rate table) of it (`statutoryDueOn`),
+     * or on the coroner's extension when one was given (`responseDueOn`).
+     */
     prevention: z
       .object({
         reportOn: ukDate,
+        statutoryDueOn: ukDate,
+        extendedTo: ukDate.nullable(),
         responseDueOn: ukDate,
         respondedOn: ukDate.nullable(),
         state: z.enum(["due", "overdue", "responded"]),
@@ -136,7 +142,15 @@ export const RecordDisclosureHandOver = z
   .meta({ id: "RecordDisclosureHandOver" });
 
 export const RecordPreventionReport = z
-  .object({ ...Versioned, reportOn: ukDate, respondedOn: ukDate.nullable().optional() })
+  .object({
+    ...Versioned,
+    /** The date the report was sent (the response period runs from it). */
+    reportOn: ukDate,
+    /** Left out keeps what was recorded; null clears it. */
+    respondedOn: ukDate.nullable().optional(),
+    /** A later date the coroner allowed for the response, if any; left out keeps it. */
+    extendedTo: ukDate.nullable().optional(),
+  })
   .meta({ id: "RecordPreventionReport" });
 
 export const DisclosureCollectResult = z

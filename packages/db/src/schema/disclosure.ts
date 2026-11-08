@@ -55,9 +55,13 @@ export const disclosureRequest = pgTable(
     /** Records found by the collector (and tables not searched, with reasons). */
     notSearched: text("not_searched").array().notNull().default(sql`'{}'::text[]`),
     collectedAt: timestamp("collected_at", { withTimezone: true }),
-    /** Coroner: a Regulation 28 prevention of future deaths report received, and the response. */
+    /**
+     * Coroner: a Regulation 28 prevention of future deaths report, the day it was sent (the
+     * response period begins with it), the response, and a later date the coroner allowed.
+     */
     preventionReportOn: date("prevention_report_on", { mode: "string" }),
     preventionRespondedOn: date("prevention_responded_on", { mode: "string" }),
+    preventionExtendedTo: date("prevention_extended_to", { mode: "string" }),
     /** The one download of the issued pack as a PDF, and who made it (H-958). */
     packDownloadedAt: timestamp("pack_downloaded_at", { withTimezone: true }),
     packDownloadedBy: uuid("pack_downloaded_by"),
@@ -158,6 +162,10 @@ export const disclosureRequest = pgTable(
       "disclosure_request_prevention",
       sql`(prevention_report_on IS NULL OR type = 'coroner')
         AND (prevention_responded_on IS NULL OR (prevention_report_on IS NOT NULL AND prevention_responded_on >= prevention_report_on))`,
+    ),
+    check(
+      "disclosure_request_prevention_extension",
+      sql`prevention_extended_to IS NULL OR (prevention_report_on IS NOT NULL AND prevention_extended_to > prevention_report_on)`,
     ),
   ],
 );

@@ -2,6 +2,7 @@ import {
   CreateTask,
   CreateTaskSeries,
   EndTaskSeries,
+  KEY_LOST_REVIEW_OUTCOMES,
   TaskAssignRequest,
   TaskItem,
   TaskList,
@@ -13,6 +14,7 @@ import {
   assessment,
   bodyMapMark,
   careNote,
+  deviceDiscardRecord,
   observation,
   person,
   shift,
@@ -50,8 +52,9 @@ import {
 } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
-import { COVER_TASK_KIND } from "../services/device-holds";
+import { COVER_TASK_KIND, KEY_LOST_TASK_KIND } from "../services/device-holds";
 import { RETROSPECTIVE_TASK, retrospectiveRefusal } from "../services/medicine-rounds";
+import { withTenantWideScope } from "../services/safety";
 import {
   assigneeMayComplete,
   EVIDENCE_ONLY_TASK_KINDS,
@@ -96,6 +99,28 @@ const ASSIGNEE_REFUSED =
 const LOCATION_NOT_HOME =
   "A task about a person is placed where they live. Leave the location out, or choose their home.";
 
+/** Whether the member sent the lost key's record or is its owner (H-1531). */
+async function keyLostParty(
+  tx: Transaction,
+  row: typeof task.$inferSelect,
+  tenantUserId: string,
+): Promise<boolean> {
+  const details = (row.details ?? {}) as Record<string, unknown>;
+  // The owner, or the name claimed when the owner could not be confirmed (security review L2).
+  if (details.ownerTenantUserId === tenantUserId) return true;
+  if (details.claimedOwnerTenantUserId === tenantUserId) return true;
+  const sourceId = row.sourceId;
+  if (!sourceId) return row.createdBy === tenantUserId;
+  const [record] = await withTenantWideScope(tx, () =>
+    tx
+      .select({ sender: deviceDiscardRecord.senderTenantUserId })
+      .from(deviceDiscardRecord)
+      .where(eq(deviceDiscardRecord.discardId, sourceId))
+      .limit(1),
+  );
+  return (record?.sender ?? row.createdBy) === tenantUserId;
+}
+
 /**
  * Whether the caller may move a task (no step-up: completing is not submitting): anyone holding
  * the permission it names where the task is (the roles and grants carrying it reach the task's
@@ -109,6 +134,11 @@ async function completionRefusal(
   now: Date,
 ): Promise<string | null> {
   if (EVIDENCE_ONLY_TASK_KINDS.includes(row.kind)) return "completed_by_its_evidence";
+  // A lost key's review is done by someone other than whoever sent the loss or whose entries were
+  // lost (H-1531; clinical reviews M7 and re-review L1, security re-review L-b).
+  if (row.kind === KEY_LOST_TASK_KIND && (await keyLostParty(tx, row, access.tenantUserId))) {
+    return "reviewed_by_someone_else";
+  }
   // A self-reviewed medicines conflict is reviewed by someone else (slice 48 clinical review B1).
   if (row.kind === RETROSPECTIVE_TASK) {
     const own = await retrospectiveRefusal(tx, access.tenantUserId, row.sourceId);
@@ -779,6 +809,17 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
       if (SELF_ESCALATED_TASK_KINDS.includes(row.kind) && body.to !== "in_progress") {
         throw problems.invalid(
           "This task finishes on its own once the duty of candour no longer holds the incident open: finish the duty of candour on the incident.",
+        );
+      }
+      // A lost key's review ends only as done, saying what was found (H-1531; clinical re-review
+      // B1): one of the coded outcomes, never skipped, cancelled or a bare "done".
+      if (
+        row.kind === KEY_LOST_TASK_KIND &&
+        body.to !== "in_progress" &&
+        (body.to !== "done" || !KEY_LOST_REVIEW_OUTCOMES.some((o) => o === body.reason))
+      ) {
+        throw problems.invalid(
+          `Mark it done and say what the review found: ${KEY_LOST_REVIEW_OUTCOMES.join(", ")}.`,
         );
       }
       const check = checkTaskTransition(asTaskStatus(row.status), {

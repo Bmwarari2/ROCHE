@@ -24,7 +24,12 @@
 import { t } from "../i18n/t";
 
 /** Mirrors `SYNC_DISCARD_KINDS` in `@harbour/contracts`; a test keeps them equal. */
-export const DISCARD_KINDS = ["held_deleted", "signed_out_with_unsent", "refused_removed"] as const;
+export const DISCARD_KINDS = [
+  "held_deleted",
+  "signed_out_with_unsent",
+  "refused_removed",
+  "key_invalidated",
+] as const;
 export type DiscardKind = (typeof DISCARD_KINDS)[number];
 
 /** Mirrors `SYNC_DISCARD_REASON_CODES` in `@harbour/contracts`; a test keeps them equal. */
@@ -61,7 +66,8 @@ export interface Tombstone {
   /** A UUID: also the discard's id at the API, so a replay of a stage is recorded once. */
   readonly id: string;
   readonly kind: DiscardKind;
-  readonly reasonCode: DiscardReasonCode;
+  /** Null only for `key_invalidated`: a loss nobody chose has no reason (H-1531). */
+  readonly reasonCode: DiscardReasonCode | null;
   /** The stage the deletion has reached on the device. */
   readonly stage: DiscardStage;
   /** Stages the server has not acknowledged yet, in the order they happened. */
@@ -88,6 +94,10 @@ export interface Tombstone {
    * round 6, M1).
    */
   readonly deviceId?: string;
+  /** For a lost key only: where the hold's owner worked, so its review goes there (H-1531). */
+  readonly locationIds?: readonly string[];
+  /** For a lost key only: when the device last heard from the server, when the hold knew it. */
+  readonly lastSyncedAt?: string;
 }
 
 export interface TombstoneStore {
@@ -143,8 +153,13 @@ function unsentStages(value: Record<string, unknown>, stage: DiscardStage): Disc
 export function cleanTombstone(value: unknown): Tombstone | null {
   if (!isRecord(value)) return null;
   const kind = DISCARD_KINDS.find((k) => k === value.kind);
-  const reasonCode = DISCARD_REASON_CODES.find((c) => c === value.reasonCode);
-  if (!isOpaqueId(value.id) || !kind || !reasonCode) return null;
+  const reasonCode =
+    kind === "key_invalidated"
+      ? value.reasonCode === null
+        ? null
+        : undefined
+      : DISCARD_REASON_CODES.find((c) => c === value.reasonCode);
+  if (!isOpaqueId(value.id) || !kind || reasonCode === undefined) return null;
   if (typeof value.at !== "string" || !ISO_TIME.test(value.at)) return null;
   if (value.stage !== undefined && asStage(value.stage) === undefined) return null;
   const stage = asStage(value.stage) ?? "requested";
@@ -157,6 +172,14 @@ export function cleanTombstone(value: unknown): Tombstone | null {
     ? DISCARD_LEFTOVERS.filter((l) => (value.leftover as unknown[]).includes(l))
     : [];
   const deviceId = opaqueOrNull(value.deviceId);
+  const locationIds =
+    kind === "key_invalidated" ? opaqueList(value.locationIds, MAX_TOMBSTONE_PERSON_IDS) : [];
+  const lastSyncedAt =
+    kind === "key_invalidated" &&
+    typeof value.lastSyncedAt === "string" &&
+    ISO_TIME.test(value.lastSyncedAt)
+      ? value.lastSyncedAt
+      : null;
   return {
     id: value.id.toLowerCase(),
     kind,
@@ -173,6 +196,8 @@ export function cleanTombstone(value: unknown): Tombstone | null {
     ...(idsMissing ? { idsMissing } : {}),
     ...(leftover.length > 0 ? { leftover } : {}),
     ...(deviceId ? { deviceId: deviceId.toLowerCase() } : {}),
+    ...(locationIds.length > 0 ? { locationIds: locationIds.map((l) => l.toLowerCase()) } : {}),
+    ...(lastSyncedAt ? { lastSyncedAt } : {}),
   };
 }
 
@@ -232,7 +257,10 @@ export async function recordTombstone(store: TombstoneStore, tombstone: Tombston
       return;
     }
     let kept = index;
-    const excess = index.length + 1 - MAX_TOMBSTONES;
+    // A lost key's record always has a place: one slot past the limit is kept for it (clinical
+    // review of H-1531, M5), so a full list never loses the only record of a lost database.
+    const limit = stored.kind === "key_invalidated" ? MAX_TOMBSTONES + 1 : MAX_TOMBSTONES;
+    const excess = index.length + 1 - limit;
     if (excess > 0) {
       const droppable: string[] = [];
       for (const id of index) {
@@ -316,4 +344,60 @@ export async function readTombstones(store: TombstoneStore): Promise<Tombstone[]
     if (item && item !== "damaged") out.push(item);
   }
   return out;
+}
+
+/**
+ * The record of a database its key no longer opens (H-1531, HZ-006), sent to
+ * `POST /v1/sync/key-lost`: the file is already gone, so it is "deleted" from the start, with no
+ * reason, no deleter and no ids. Whose and how many come from the hold, else the person signed in
+ * (whose count the server takes from the device's last report). With no organisation known it is
+ * kept all the same and goes with the next session (clinical review of H-1531, M5).
+ */
+export function keyLostTombstone(input: {
+  readonly id: string;
+  readonly at: Date;
+  readonly held: {
+    readonly tenantId: string;
+    readonly tenantUserId: string | null;
+    readonly entries: number | null;
+    readonly locationIds?: readonly string[];
+    readonly lastServerTime?: string | null;
+  } | null;
+  readonly signedIn: {
+    readonly tenantId: string | null;
+    readonly tenantUserId: string | null;
+    readonly locationIds: readonly string[];
+  };
+  readonly deviceId: string | null;
+}): Tombstone | null {
+  if (!isOpaqueId(input.id)) return null;
+  const held = input.held;
+  const tenantId = opaqueOrNull(held?.tenantId) ?? opaqueOrNull(input.signedIn.tenantId);
+  const owner = held ? opaqueOrNull(held.tenantUserId) : opaqueOrNull(input.signedIn.tenantUserId);
+  const locations = opaqueList(
+    held ? (held.locationIds ?? []) : input.signedIn.locationIds,
+    MAX_TOMBSTONE_PERSON_IDS,
+  );
+  const deviceId = opaqueOrNull(input.deviceId);
+  // The hold's last word from the server, as a UTC time the keystore may keep.
+  const synced = held?.lastServerTime ? new Date(held.lastServerTime) : null;
+  const lastSyncedAt = synced && !Number.isNaN(synced.getTime()) ? synced.toISOString() : null;
+  return {
+    id: input.id.toLowerCase(),
+    kind: "key_invalidated",
+    reasonCode: null,
+    stage: "deleted",
+    unsent: ["deleted"],
+    tenantId,
+    ownerTenantUserId: owner,
+    deletedByTenantUserId: null,
+    entryIds: [],
+    personIds: [],
+    count: held ? held.entries : null,
+    at: input.at.toISOString(),
+    idsMissing: "key_invalid",
+    ...(deviceId ? { deviceId: deviceId.toLowerCase() } : {}),
+    ...(locations.length > 0 ? { locationIds: locations.map((l) => l.toLowerCase()) } : {}),
+    ...(lastSyncedAt ? { lastSyncedAt } : {}),
+  };
 }

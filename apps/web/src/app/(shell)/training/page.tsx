@@ -100,15 +100,18 @@ export default async function TrainingMatrixPage({
         eyebrow={me.tenant.name}
         title={title}
         description={t("development.matrix.description", { date: ukDate(asOf) })}
-        {...(me.permissions.includes(TRAINING)
-          ? {
-              secondaryActions: (
-                <ButtonLink href="/training/requirements" variant="secondary">
-                  {t("development.requirements.title")}
-                </ButtonLink>
-              ),
-            }
-          : {})}
+        secondaryActions={
+          <>
+            <ButtonLink href="/training/supervisions" variant="secondary">
+              {t("development.supervisionsDue.open")}
+            </ButtonLink>
+            {me.permissions.includes(TRAINING) ? (
+              <ButtonLink href="/training/requirements" variant="secondary">
+                {t("development.requirements.title")}
+              </ButtonLink>
+            ) : null}
+          </>
+        }
       />
       <Card as="section" title={t("development.matrix.filter")} headingLevel={2}>
         <form method="get" action="/training" className="flex flex-wrap items-end gap-4">

@@ -833,7 +833,7 @@ exported except `disclosure_request.pack_storage_key` (internal). Retention clas
 | `disclosure_request.prepared_by`, `decided_by`, `released_by` and their times | Thapsus Care | `tenant_user` ids; UTC | The decider is never `created_by` (check `disclosure_request_approver`). |
 | `disclosure_request.pack_sha256`, `pack_storage_key` | SHA-256; storage key | 64 lower-case hex characters of the canonical JSON of the records, redacted count and withheld count; `tenants/<tenant>/documents/<document>`, the pack's `document` row (category `disclosure_pack`, ids only); packs issued before 01/11/2026 carry the legacy `tenants/<tenant>/disclosures/<request>/<pack>.json` | Set together on release (check `disclosure_request_pack`). The key is internal. |
 | `disclosure_request.not_searched`, `collected_at` | Thapsus Care (`EXPORT_TABLES`) | Table names; UTC | As `dsar_case`. |
-| `disclosure_request.prevention_report_on`, `prevention_responded_on` | Coroners (Investigations) Regulations 2013, regulation 28 and 29 | `YYYY-MM-DD`; coroner requests only; the response on or after the report | The response is due `coroner.prevention_report_response_days` (rate table) after the report; never stored. |
+| `disclosure_request.prevention_report_on`, `prevention_responded_on`, `prevention_extended_to` | Coroners (Investigations) Regulations 2013, regulations 28 and 29(4) and (5); Coroners and Justice Act 2009, Schedule 5 paragraph 7 | `YYYY-MM-DD`; coroner requests only; `prevention_report_on` is the date the report was sent; the response on or after it; an extension (a later date the coroner allowed) after it and later than the usual due date (the API) | The response is due within `coroner.prevention_report_response_days` (rate table) of the date the report was sent, so on that date plus the period, or on the extension; never stored. |
 | `disclosure_item.*` | As `dsar_item` | `pending`, `disclose`, `redact`, `withhold`; redacted fields from the table's exported columns; `content_sha256` of the record as reviewed | Redacted fields read `[redacted]` in the pack; withheld records are counted. Records are in date order (the chronology). |
 
 ## Phase 1 tables completed for the gate
@@ -1275,6 +1275,7 @@ is exported.
 | `competence_sign_off.observed_on`, `valid_until` | Thapsus Care | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
 | `competence_withdrawal.reason` | Thapsus Care | Plain text, 10 to 500 characters | |
 | `supervision_record.kind` | Thapsus Care | `supervision`, `appraisal`, `spot_check` | |
+| Next meeting state (`GET /v1/workforce/supervisions-due`, `MeetingDueItem.state`; computed, not stored) | Thapsus Care | `upcoming`, `due` (within `supervision.due_window_days`), `overdue`, `none_recorded` | WORK-009: dates and states only, never notes or what a spot check found |
 | `supervision_note.discussion`, `.actions` | Thapsus Care | Free text: 10 to 4,000 characters; actions optional, 2 to 2,000 | Likely special category (ADR-0114); read only by the writer, the member and a supervisor for the member; never in audit, outbox, search or sync |
 | `supervision_note.supersedes_id` | Thapsus Care | `supervision_note.id` | A correction; the earlier note is kept and shown struck through |
 | `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |
@@ -1615,7 +1616,15 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`, resource `task`) carry the
   deletion record, the owner's `tenant_user` id, the count and how many were added;
   a cap is `sync.entry_flag.capped` (resource `device_discard`, scope `mergedInto`: the owner's
-  oldest open task at the location, whose `added` event then carries `merged`). A hold's device
+  oldest open task at the location, whose `added` event then carries `merged`). A deletion of kind
+  `key_invalidated` (a key that stopped opening the phone's database; H-1531) is written only by
+  `POST /v1/sync/key-lost`: a null `reason_code` and a `cause` (`device_key_lost`), the only kind
+  with either (checks `device_discard_record_reason` and `device_discard_record_cause`), audited
+  as `sync.device.key_lost` (resource `device_discard`; scope: the owner, a claimed owner or device
+  not taken, the device it was held on and the one it was reported from, the count and where it came from, the last sync); one per lost database (`device_discard_record_key_lost_key`); a refusal is `sync.device.key_lost` denied (resource `device`, reason `device_not_bound`). It raises `sync.device_key_lost` review tasks
+  (source `device_discard`; details: the owner's or claimed owner's and the sender's `tenant_user` ids, whether they differ, the device id, the count, the last sync and the linked hold tasks), audited as
+  `sync.device_key_lost.raised` (resource `task`; scope: the deletion record, the owner, the count,
+  the location and the priority), and is done only with a coded outcome in its reason. A hold's device
   report (unsent, refused, held and blocked counts, the oldest age, when the hold started, the
   owner's `tenant_user` id and up to 50 location ids, contract `SyncDeviceReport`, which refuses
   unknown keys) may wait in the keystore the same way, with the id of the device that held the

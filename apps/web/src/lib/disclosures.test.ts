@@ -224,6 +224,40 @@ describe("disclosure requests", () => {
     expect(backwards.ok).toBe(false);
     if (!backwards.ok) expect(Object.keys(backwards.errors)).toEqual(["respondedOn"]);
   });
+
+  it("reads the coroner's extension, never on or before the date the report was sent", () => {
+    const extended = readPreventionReport(
+      form({
+        ...when("reportOn", ["01", "10", "2026"]),
+        ...when("extendedTo", ["30", "12", "2026"]),
+      }),
+      t,
+      { expectedVersion: 1 },
+    );
+    expect(extended).toMatchObject({ ok: true, body: { extendedTo: "2026-12-30" } });
+    const early = readPreventionReport(
+      form({
+        ...when("reportOn", ["01", "10", "2026"]),
+        ...when("extendedTo", ["01", "10", "2026"]),
+      }),
+      t,
+      { expectedVersion: 1 },
+    );
+    expect(early.ok).toBe(false);
+    if (!early.ok) expect(Object.keys(early.errors)).toEqual(["extendedTo"]);
+  });
+
+  it("says an extended response is due by the coroner's date", () => {
+    const chip = preventionChip(
+      { state: "due", responseDueOn: "2026-12-30", extendedTo: "2026-12-30" },
+      t,
+      (iso) => iso,
+    );
+    expect(chip.label).toContain('"extended":"yes"');
+    expect(
+      preventionChip({ state: "due", responseDueOn: "2026-11-25" }, t, (iso) => iso).label,
+    ).toContain('"extended":"no"');
+  });
 });
 
 describe("collected records in plain words (accessibility review)", () => {

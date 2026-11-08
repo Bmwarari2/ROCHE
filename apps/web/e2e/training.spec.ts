@@ -76,7 +76,12 @@ test("the carer is offered no training screens and is refused in words", async (
   await as(page, "carer");
   await page.goto("/");
   await expect(nav(page).getByRole("link", { name: "Training", exact: true })).toHaveCount(0);
-  for (const path of ["/training", "/training/requirements", `/training/${NURSE}`]) {
+  for (const path of [
+    "/training",
+    "/training/requirements",
+    "/training/supervisions",
+    `/training/${NURSE}`,
+  ]) {
     await page.goto(path);
     await expect(main(page)).toContainText("You do not have access to this");
   }
@@ -227,6 +232,90 @@ test("the manager records a supervision with what was discussed", async ({ page 
   ).toBeVisible();
   await expect(after.locator("del")).toHaveText(discussion);
   await expectAccessible(page, "note corrected");
+});
+
+test("WORK-009 the manager reads who is due a supervision or appraisal, most urgent first", async ({
+  page,
+}) => {
+  await as(page, "manager");
+  await page.goto("/training");
+  await main(page).getByRole("link", { name: "Supervisions and appraisals due" }).click();
+  await page.waitForURL((url) => url.pathname === "/training/supervisions");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Supervisions and appraisals due" }),
+  ).toBeVisible();
+  // The summary counts members, then meetings, in words.
+  await expect(
+    main(page).getByText(/members? of staff\. .* overdue, .* due soon and .* none recorded\./),
+  ).toBeVisible();
+
+  // The carer's supervision was recorded today: not due yet, in words with its dates.
+  const carerLink = `a[href="/training/${CARER}"]`;
+  const carer = main(page)
+    .getByRole("listitem")
+    .filter({ has: page.locator(carerLink) });
+  const today = ukDay();
+  const supervision = carer.getByRole("definition").first();
+  await expect(supervision).toContainText("Not due yet");
+  await expect(supervision).toContainText(`Last held ${today.day}/${today.month}/${today.year}`);
+  await expectAccessible(page, "supervisions due (light)");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectAccessible(page, "supervisions due (dark)");
+  await page.emulateMedia({ colorScheme: "light" });
+
+  // Keyboard only: tick "only those needing attention", Tab to Show, Enter.
+  const attention = main(page).getByLabel("Only those overdue, due soon or with none recorded");
+  await attention.focus();
+  await page.keyboard.press("Space");
+  await expect(attention).toBeChecked();
+  await page.keyboard.press("Tab");
+  const show = main(page).getByRole("button", { name: "Show", exact: true });
+  await expect(show).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.waitForURL((url) => url.searchParams.get("attention") === "yes");
+  // Someone always needs attention here (the carer's appraisal is not recorded), and every card
+  // left has a meeting overdue, due soon or none recorded.
+  const cards = main(page).getByRole("listitem");
+  expect(await cards.count()).toBeGreaterThan(0);
+  for (const card of await cards.all()) {
+    await expect(card).toContainText(/Overdue|Due soon|None recorded/);
+  }
+  await expectAccessible(page, "supervisions due, needing attention");
+
+  // From Show, Tab reaches the first name; Enter opens that member's training record.
+  await main(page).getByRole("button", { name: "Show", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  const first = cards.first().getByRole("link");
+  await expect(first).toBeFocused();
+  const href = (await first.getAttribute("href")) ?? "";
+  await page.keyboard.press("Enter");
+  await page.waitForURL((url) => url.pathname === href);
+
+  // The home filter narrows the view, never the access: a home's list is no longer than everyone's,
+  // and the chosen home stays chosen.
+  await page.goto("/training/supervisions");
+  const summary = main(page).getByText(/members? of staff\./);
+  const countOf = async () => Number((await summary.textContent())?.match(/^(\d+)/)?.[1] ?? "-1");
+  const everyone = await countOf();
+  const home = main(page).getByLabel("Show staff at");
+  await expect(main(page).getByText("Narrows this list only.")).toBeVisible();
+  const options = (await home.locator("option").allTextContents()).filter(
+    (o) => o.trim() !== "" && !/^Any/.test(o),
+  );
+  for (const name of options) {
+    await home.selectOption({ label: name });
+    await main(page).getByRole("button", { name: "Show", exact: true }).click();
+    await page.waitForURL((url) => url.searchParams.has("location"));
+    await expect(home.locator("option:checked")).toHaveText(name);
+    const shown = await countOf();
+    expect(shown).toBeLessThanOrEqual(everyone);
+    if (shown === 0) {
+      await expect(
+        main(page).getByRole("heading", { name: "No members of staff to show" }),
+      ).toBeVisible();
+    }
+  }
+  await expectAccessible(page, "supervisions due, one home");
 });
 
 test("the manager records the nurse's revalidation evidence", async ({ page }) => {

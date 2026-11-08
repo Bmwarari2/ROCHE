@@ -1,5 +1,5 @@
 {
-  "id": "77a764e0-7ab7-4c42-acc7-33007adfa613",
+  "id": "9eb22325-92bd-431b-ba35-6dc9c3fa08cc",
   "prevId": "44717323-e9e3-4dcd-8750-6119c646224c",
   "version": "7",
   "dialect": "postgresql",
@@ -15103,6 +15103,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "prevention_extended_to": {
+          "name": "prevention_extended_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
         "pack_downloaded_at": {
           "name": "pack_downloaded_at",
           "type": "timestamp with time zone",
@@ -15382,6 +15388,10 @@
         "disclosure_request_prevention": {
           "name": "disclosure_request_prevention",
           "value": "(prevention_report_on IS NULL OR type = 'coroner')\n        AND (prevention_responded_on IS NULL OR (prevention_report_on IS NOT NULL AND prevention_responded_on >= prevention_report_on))"
+        },
+        "disclosure_request_prevention_extension": {
+          "name": "disclosure_request_prevention_extension",
+          "value": "prevention_extended_to IS NULL OR (prevention_report_on IS NOT NULL AND prevention_extended_to > prevention_report_on)"
         }
       },
       "isRLSEnabled": false
@@ -49783,120 +49793,6 @@
         "legal_hold_target": {
           "name": "legal_hold_target",
           "value": "\"legal_hold\".\"person_id\" IS NOT NULL OR (\"legal_hold\".\"subject_type\" IS NOT NULL AND \"legal_hold\".\"subject_id\" IS NOT NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.retention_report": {
-      "name": "retention_report",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "mode": {
-          "name": "mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "as_of": {
-          "name": "as_of",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "duration_ms": {
-          "name": "duration_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tables_read": {
-          "name": "tables_read",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tables_skipped": {
-          "name": "tables_skipped",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lines": {
-          "name": "lines",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "totals": {
-          "name": "totals",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        }
-      },
-      "indexes": {
-        "retention_report_latest_idx": {
-          "name": "retention_report_latest_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "as_of",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "retention_report_mode": {
-          "name": "retention_report_mode",
-          "value": "\"retention_report\".\"mode\" IN ('report')"
-        },
-        "retention_report_counts": {
-          "name": "retention_report_counts",
-          "value": "\"retention_report\".\"duration_ms\" >= 0 AND \"retention_report\".\"tables_read\" >= 0 AND \"retention_report\".\"tables_skipped\" >= 0"
         }
       },
       "isRLSEnabled": false
