@@ -736,12 +736,16 @@ test("hazard HZ-013 a recorded step of a death is corrected by a new entry, the 
     .getByRole("article")
     .filter({ has: page.getByRole("heading", { name: "Verification of death", exact: true }) });
   await card.getByRole("radio", { name: "Done", exact: true }).check();
-  await fillWhen(card, "When", new Date(Date.now() - 30 * 60_000));
+  // The death was recorded now; a step is timed on the minute, so wait for the next one.
+  const diedMinute = Math.floor(Date.now() / 60_000);
+  while (Math.floor(Date.now() / 60_000) === diedMinute) await page.waitForTimeout(1_000);
+  await fillWhen(card, "When", new Date());
   await card.getByRole("button", { name: "Record step" }).click();
-  await expect(status(page)).toContainText("Step recorded");
+  // Recorded, the step is settled: its form leaves and the correction is offered instead.
+  const summary = card.getByText("Correct this step: Verification of death", { exact: true });
+  await expect(summary).toBeVisible();
 
   // Correcting it: opened by keyboard, the reason asked for, then saved as a new entry.
-  const summary = card.getByText("Correct this step: Verification of death", { exact: true });
   await summary.focus();
   await page.keyboard.press("Enter");
   await card.getByRole("button", { name: "Save the correction" }).click();
