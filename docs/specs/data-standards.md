@@ -1431,7 +1431,7 @@ lists: `organisation_document`); every column is exported.
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
 map to no national data standard: `audit_event` (hash-chained), `record_version`, `outbox_event`,
-`notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
+`notification`, `notification_delivery`, `escalation_chain`, `feature_flag` (for `medicines.cd_recording`, `value` holds the free-text reason it was turned off at a home, versioned with the setting, never in `audit_event`; the screen asks not to name people; H-1518), `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
 `break_glass_event`, `person_assignment`, `role`, `role_assignment` and `access_grant` (each with
 `organisation_wide`, whether a role assigned with no location, or a grant, reaches the whole

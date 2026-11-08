@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixedCompetence } from "../src/integrations/medicines-ports";
 import { outboxHandlers, relayOutbox } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { ageSession, createHarness, type Harness } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * The controlled drugs register API (Phase 2 slice 34; MEDS-005; medicines.md section 14): the
@@ -760,6 +760,101 @@ describe("hazard HZ-115 hazard HZ-008 turning controlled drug recording on and o
     const r = await send("manager", path, { method: "PUT", body });
     expect(r.status).toBe(422);
     expect(await flag()).toBe(true);
+  });
+
+  it("keeps why it was turned off with the setting, never in the audit trail", async () => {
+    const turnedOff = await send("manager", path, { method: "PUT", body: off });
+    expect(turnedOff.status, await turnedOff.clone().text()).toBe(200);
+    try {
+      const stored = await asDemo(async (c) => ({
+        value: (
+          await c.query<{ value: { reason?: string } | null }>(
+            "SELECT value FROM feature_flag WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+            [DEMO.locationId],
+          )
+        ).rows[0]?.value,
+        audited: (
+          await c.query<{ scope: string }>(
+            `SELECT scope::text AS scope FROM audit_event
+              WHERE action = 'medicines.cd_recording.changed' AND resource_id = $1
+              ORDER BY occurred_at DESC LIMIT 1`,
+            [DEMO.locationId],
+          )
+        ).rows[0]?.scope,
+      }));
+      expect(stored.value?.reason).toBe(off.reason);
+      expect(stored.audited).toContain("reasonGiven");
+      expect(stored.audited).not.toContain(off.reason);
+    } finally {
+      await send("manager", path, { method: "PUT", body: on });
+    }
+  });
+
+  it("turns it off at the home even where the organisation turned it on for every home", async () => {
+    await asDemo(async (c) => {
+      await c.query(
+        "UPDATE feature_flag SET deleted_at = now() WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+        [DEMO.locationId],
+      );
+      await c.query(
+        `INSERT INTO feature_flag (tenant_id, location_id, flag_key, enabled)
+         VALUES ($1, NULL, 'medicines.cd_recording', true)`,
+        [DEMO.tenantId],
+      );
+    });
+    try {
+      const r = await send("manager", path, { method: "PUT", body: off });
+      expect(r.status, await r.clone().text()).toBe(200);
+      expect((await json<{ changed: boolean; enabled: boolean }>(r)).changed).toBe(true);
+      expect(await flag()).toBe(false);
+      const entryId = await morphineEntry(ADA);
+      const refused = await send("manager", `/v1/people/${ADA}/controlled-drugs/pages`, {
+        method: "POST",
+        body: { entryId },
+      });
+      expect(refused.status).toBe(409);
+    } finally {
+      await asDemo((c) =>
+        c.query(
+          "DELETE FROM feature_flag WHERE flag_key = 'medicines.cd_recording' AND location_id IS NULL",
+        ),
+      );
+      const back = await send("manager", path, { method: "PUT", body: on });
+      expect(back.status, await back.clone().text()).toBe(200);
+    }
+    expect(await flag()).toBe(true);
+  });
+
+  it.each([
+    ["another home the manager does not manage", LODGE.locationId],
+    ["another organisation's home", OTHER.locationId],
+  ])("does not change %s, and audits the refusal", async (_case, locationId) => {
+    const before = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM audit_event
+              WHERE action = 'medicines.cd_recording.changed' AND resource_id = $1 AND outcome = 'denied'`,
+            [locationId],
+          )
+        ).rows[0]?.n ?? 0,
+    );
+    const r = await send("manager", `/v1/locations/${locationId}/controlled-drugs/recording`, {
+      method: "PUT",
+      body: off,
+    });
+    expect(r.status).toBe(404);
+    const after = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM audit_event
+              WHERE action = 'medicines.cd_recording.changed' AND resource_id = $1 AND outcome = 'denied'`,
+            [locationId],
+          )
+        ).rows[0]?.n ?? 0,
+    );
+    expect(after).toBeGreaterThan(before);
   });
 
   it("is not for a care worker or a nurse, and refuses a stale second sign-in step, audited", async () => {

@@ -14,6 +14,7 @@ import {
   cdRecordingFromMeta,
   cdRecordingMetaId,
   cdRecordingMetaValue,
+  cdRecordingReadAt,
   fetchCdRecording,
   PERSON_LOCATION_SQL,
   READ_CD_RECORDING_SQL,
@@ -24,12 +25,13 @@ import {
 export function useCdRecording(
   personId: string,
   controlledDrug: boolean,
-): { readonly recording: CdRecording; readonly ready: boolean } {
+): { readonly recording: CdRecording; readonly ready: boolean; readonly readAt: string | null } {
   const db = usePowerSync();
   const tenantId = useTenantId();
   const { token } = useSession();
   const [state, setState] = useState<CdRecording>("unknown");
   const [ready, setReady] = useState(false);
+  const [readAt, setReadAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!controlledDrug || !tenantId) return;
@@ -49,6 +51,7 @@ export function useCdRecording(
         .catch(() => null);
       if (active) {
         setState(cdRecordingFromMeta(kept?.value));
+        setReadAt(cdRecordingReadAt(kept?.value));
         setReady(true);
       }
       if (!token) return;
@@ -65,12 +68,15 @@ export function useCdRecording(
       if (fresh === null) return;
       const value = cdRecordingMetaValue(fresh, new Date());
       await db.execute(WRITE_CD_RECORDING_SQL, [id, id, value]).catch(() => undefined);
-      if (active) setState(cdRecordingFromMeta(value));
+      if (active) {
+        setState(cdRecordingFromMeta(value));
+        setReadAt(cdRecordingReadAt(value));
+      }
     })();
     return () => {
       active = false;
     };
   }, [db, personId, tenantId, token, controlledDrug]);
 
-  return { recording: state, ready };
+  return { recording: state, ready, readAt };
 }

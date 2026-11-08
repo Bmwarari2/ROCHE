@@ -1,10 +1,12 @@
 import { Card, PageHeader } from "@harbour/ui";
+import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Notice } from "@/components/care/Notice";
 import { CdRecordingForm } from "@/components/medicines/CdRecordingForm";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext } from "@/lib/api";
-import { cdRecordingAt } from "@/lib/cd-recording";
+import { cdRecordingStateAt } from "@/lib/cd-recording";
 import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
 
@@ -29,7 +31,7 @@ export default async function MedicinesSettingsPage({ params }: { readonly param
   const location = me.locations.find((l) => l.id === locationId);
   if (!location) notFound();
   if (!NEEDS.every((p) => me.permissions.includes(p))) return <SafetyForbidden title={title} />;
-  const enabled = await cdRecordingAt(locationId);
+  const enabled = await cdRecordingStateAt(locationId);
   return (
     <>
       <PageHeader
@@ -38,7 +40,15 @@ export default async function MedicinesSettingsPage({ params }: { readonly param
         description={t("medicines.cdRecording.description")}
       />
       <Card as="section" title={t("medicines.cdRecording.cardTitle")} headingLevel={2}>
-        <CdRecordingForm locationId={locationId} enabled={enabled} />
+        {enabled === null ? (
+          <Notice
+            tone="warning"
+            icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
+            title={t("medicines.cdRecording.unreadable")}
+          />
+        ) : (
+          <CdRecordingForm locationId={locationId} enabled={enabled} />
+        )}
       </Card>
     </>
   );

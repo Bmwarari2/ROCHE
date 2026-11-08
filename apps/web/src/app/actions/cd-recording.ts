@@ -23,12 +23,17 @@ export async function setCdRecording(
 ): Promise<ActionResult<CdRecordingState>> {
   if (!isUuid(locationId)) return refused(t("errors.notFound"), "not_found");
   if (input.enabled && !input.confirmed) {
-    return refused(t("medicines.cdRecording.confirmRequired"), "invalid", ["confirm"]);
+    return refused(t("medicines.cdRecording.confirmRequired", { field: "all" }), "invalid", [
+      "closed",
+      "carry",
+      "phones",
+    ]);
   }
   if (!input.enabled) {
     const reason = input.reason.trim();
-    if (!reason || reason.length > 2000) {
-      return refused(t("medicines.cdRecording.reasonRequired"), "invalid", ["reason"]);
+    if (!reason) return refused(t("medicines.cdRecording.reasonRequired"), "invalid", ["reason"]);
+    if (reason.length > 2000) {
+      return refused(t("medicines.cdRecording.reasonTooLong"), "invalid", ["reason"]);
     }
     if (!input.restarted) {
       return refused(t("medicines.cdRecording.restartRequired"), "invalid", ["restarted"]);

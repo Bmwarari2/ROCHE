@@ -32,7 +32,7 @@ import {
 } from "../medicines/record";
 import { ukToday } from "../medicines/round";
 import { useCdRecording } from "../medicines/use-cd-recording";
-import { packCheckWords } from "../medicines/view";
+import { packCheckWords, ukInstantWords } from "../medicines/view";
 import { phoneWitnessPolicy, WITNESS_SERVICES_SQL } from "../medicines/witness-policy";
 import { newEntryId } from "../platform/ids";
 import { CarePersonHeader } from "./CarePersonHeader";
@@ -128,13 +128,20 @@ export function DoseRecordPanel({
   const mayRecordCd = (me?.permissions ?? []).includes("medicines.cd.administer");
   // Where the paper register is the record (H-1517; HZ-115), a controlled drug is not recorded on
   // the phone at all; not read counts as off. Said before the permission, which it overrides.
-  const { recording: cdRecording, ready: cdRecordingReady } = useCdRecording(
-    dose.personId,
-    dose.controlledDrug,
-  );
+  const {
+    recording: cdRecording,
+    ready: cdRecordingReady,
+    readAt: cdRecordingReadAt,
+  } = useCdRecording(dose.personId, dose.controlledDrug);
   const cdOff = dose.controlledDrug && cdRecording !== "on";
   const cdBlocked = dose.controlledDrug && (cdOff || !mayRecordCd);
-  const cdBlockedWords = cdOff ? t("mobile.meds.cdRecordingOff") : t("mobile.meds.cdNotPermitted");
+  const cdBlockedWords = !cdOff
+    ? t("mobile.meds.cdNotPermitted")
+    : cdRecording === "off"
+      ? t("mobile.meds.cdRecordingOff", {
+          checked: cdRecordingReadAt ? ukInstantWords(cdRecordingReadAt) : "",
+        })
+      : t("mobile.meds.cdRecordingUnknown");
   // The home's witness policy, as the API applies it: "no one is here to witness" only where it
   // allows that; unknown counts as required (HZ-116; lead's batch 5 review, B4).
   const { data: serviceRows } = useQuery<{ service_type: string | null }>(WITNESS_SERVICES_SQL, [
@@ -400,7 +407,16 @@ export function DoseRecordPanel({
         {dose.allergyWords}
       </StatusLine>
       {cdBlocked && cdRecordingReady ? (
-        <StatusLine tone="danger" testID={cdOff ? "cd-recording-off" : "cd-not-permitted"}>
+        <StatusLine
+          tone="danger"
+          testID={
+            !cdOff
+              ? "cd-not-permitted"
+              : cdRecording === "off"
+                ? "cd-recording-off"
+                : "cd-recording-unknown"
+          }
+        >
           {cdBlockedWords}
         </StatusLine>
       ) : null}

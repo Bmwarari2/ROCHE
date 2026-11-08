@@ -11,18 +11,20 @@ you with your second sign-in step.
 ## Steps
 
 1. Go to **Medicines reports** for the home and choose **Controlled drug recording**.
-2. Read which register is the record now.
+2. Read which register is the record now. If the page says it could not check, try again later
+   and keep to the register you are using.
 
 ### To turn recording on
 
-Do this only once the phones at the home have the version of the app that records controlled
-drugs.
+Do this only once everyone who gives controlled drugs at the home uses a phone with the updated
+app, the **Medicines** tab and their own medicines PIN. Once it is on, controlled drug doses are
+recorded only on the phone; if no phone can be used, the dose waits for the nurse in charge.
 
 1. With a witness, count every controlled drug against the paper register, and close each page
    with the date, time and both signatures.
 2. Tick each statement: the paper register's pages are counted, witnessed and closed now; each
-   balance will be entered in Thapsus Care's register, witnessed, before the next dose; the phones
-   have the right version.
+   balance will be entered in Thapsus Care's register, witnessed, before the next dose; everyone who
+   gives controlled drugs here has the updated app and their medicines PIN.
 3. Choose **Turn on controlled drug recording**.
 4. Straight away, for each controlled drug, open its register page and record the balance as
    received, with a witness, before anyone gives the next dose.

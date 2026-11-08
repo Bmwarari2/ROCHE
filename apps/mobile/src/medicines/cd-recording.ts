@@ -67,3 +67,16 @@ export async function fetchCdRecording(o: ApiOptions, locationId: string): Promi
     return null;
   }
 }
+
+/** When the kept answer was read, so the screen can say how old it is; null when none is kept. */
+export function cdRecordingReadAt(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as { readAt?: unknown };
+    return typeof parsed.readAt === "string" && !Number.isNaN(Date.parse(parsed.readAt))
+      ? parsed.readAt
+      : null;
+  } catch {
+    return null;
+  }
+}

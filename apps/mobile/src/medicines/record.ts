@@ -27,6 +27,7 @@ export type RecordProblem =
   | "cd_signatures_required"
   | "cd_not_permitted"
   | "cd_recording_off"
+  | "cd_recording_unknown"
   | "cd_witness_required"
   | "witness_is_recorder"
   | "may_not_give"
@@ -113,7 +114,11 @@ export function recordProblems(input: DoseRecordInput): RecordProblem[] {
   // Where the paper register is the record (H-1517), a controlled drug given is not recorded on the
   // phone at all: the API would refuse it after the dose. One message, so nothing else is asked.
   const cdRecordingOff = gives && input.controlledDrug && input.cdRecording !== "on";
-  if (cdRecordingOff) problems.push("cd_recording_off");
+  // Not known is its own problem: never "use the paper register", which may be closed (clinical
+  // review of H-1518, H1).
+  if (cdRecordingOff) {
+    problems.push(input.cdRecording === "off" ? "cd_recording_off" : "cd_recording_unknown");
+  }
   // Checked before anything is given: a witness who may not record controlled drugs is never the
   // recorder; the API would refuse it only after the dose (HZ-116; lead's batch 5 review, 1).
   // Unknown counts as not permitted: only a recorder the phone knows may record it passes.

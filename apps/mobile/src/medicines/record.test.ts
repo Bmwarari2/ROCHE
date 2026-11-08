@@ -58,7 +58,7 @@ describe("hazards HZ-001 and HZ-116 a dose recorded on the phone needs identity,
     [
       "hazard HZ-115 a controlled drug given where the phone has not read whether recording is on",
       { controlledDrug: true, cdRecording: "unknown", mayRecordCd: false },
-      ["cd_recording_off"],
+      ["cd_recording_unknown"],
     ],
     [
       "hazard HZ-115 a controlled drug refused where the paper register is the record",

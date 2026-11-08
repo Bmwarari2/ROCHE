@@ -29,7 +29,7 @@ describe("hazard HZ-115 hazard HZ-008 which register is the record at a home, in
     expect(text).toContain("The paper register is the record");
     expect(text).toContain("counted, witnessed and closed now");
     expect(text).toContain("before the next dose");
-    expect(text).toContain("records controlled drugs");
+    expect(text).toContain("their own medicines PIN");
     expect(document.querySelectorAll('input[type="checkbox"]:checked')).toHaveLength(0);
     expect(text).toContain("Turn on controlled drug recording");
     expect(await violations()).toEqual([]);

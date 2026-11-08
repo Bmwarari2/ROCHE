@@ -79,3 +79,13 @@ describe("hazard HZ-115 the phone records a controlled drug only where recording
     expect(urls).toEqual([`https://api.example.invalid/v1/me/locations/${HOME}/flags`]);
   });
 });
+
+describe("hazard HZ-115 the phone says how old its answer is", () => {
+  it("keeps when it read the switch, and nothing for an answer it cannot read", async () => {
+    const { cdRecordingMetaValue, cdRecordingReadAt } = await import("./cd-recording");
+    const at = new Date("2026-11-08T09:00:00.000Z");
+    expect(cdRecordingReadAt(cdRecordingMetaValue(false, at))).toBe(at.toISOString());
+    expect(cdRecordingReadAt(null)).toBeNull();
+    expect(cdRecordingReadAt("not json")).toBeNull();
+  });
+});

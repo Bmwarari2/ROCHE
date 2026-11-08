@@ -37,7 +37,7 @@ export function CdRecordingForm({
     if (!enabled) {
       for (const field of ["closed", "carry", "phones"] as const) {
         if (form.get(field) !== "on") {
-          problems.push({ field, message: t("medicines.cdRecording.confirmRequired") });
+          problems.push({ field, message: t("medicines.cdRecording.confirmRequired", { field }) });
         }
       }
       input = { enabled: true, confirmed: problems.length === 0 };
@@ -45,6 +45,8 @@ export function CdRecordingForm({
       const reason = String(form.get("reason") ?? "");
       if (!reason.trim()) {
         problems.push({ field: "reason", message: t("medicines.cdRecording.reasonRequired") });
+      } else if (reason.trim().length > 2000) {
+        problems.push({ field: "reason", message: t("medicines.cdRecording.reasonTooLong") });
       }
       if (form.get("restarted") !== "on") {
         problems.push({ field: "restarted", message: t("medicines.cdRecording.restartRequired") });
@@ -129,7 +131,14 @@ export function CdRecordingForm({
         </div>
         <FormFeedback
           result={result}
-          success={t("medicines.cdRecording.done", { enabled: enabled ? "no" : "yes" })}
+          success={
+            result?.ok && !(result.data as { changed?: boolean }).changed
+              ? t("medicines.cdRecording.unchanged")
+              : t("medicines.cdRecording.done", {
+                  enabled:
+                    result?.ok && (result.data as { enabled?: boolean }).enabled ? "yes" : "no",
+                })
+          }
           fieldIds={ids}
         />
       </form>

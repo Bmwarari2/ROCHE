@@ -45,6 +45,7 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
+import { flagsAt } from "../services/care-planning";
 import {
   assertionProblem,
   CD_RECORDING_FLAG,
@@ -848,7 +849,7 @@ export const controlledDrugsRouter = createRouter()
       tags,
       summary: "Turn controlled drug recording on or off at a home",
       description:
-        "Owner or Registered Manager: `medicines.record.manage` and `platform.location.manage` at the home, with a fresh second sign-in step (H-1517, H-1518; HZ-115, HZ-008). One register is the record: turning it on says the paper register is counted, witnessed and closed now, that each balance is carried into Thapsus Care's register before the next dose, and that the home's phones are updated; turning it off needs a reason and says the paper register is restarted with each balance. Audited either way, refusals included. Elsewhere 404.",
+        "Owner or Registered Manager: `medicines.record.manage` and `platform.location.manage` at the home, with a fresh second sign-in step (H-1517, H-1518; HZ-115, HZ-008). One register is the record: turning it on says the paper register is counted, witnessed and closed now, that each balance is carried into Thapsus Care's register before the next dose, and that the home's phones are updated; turning it off needs a reason and says the paper register is restarted with each balance. The reason is kept with the setting, not in the audit trail. Audited either way, and so is every refusal once the request is well formed. Elsewhere 404.",
       security,
       request: {
         params: PersonParam,
@@ -862,52 +863,65 @@ export const controlledDrugsRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, "medicines.record.manage");
+      // Both permissions through their own checks (MFA, step-up rules, audited refusal).
+      await requirePermission(c, "platform.location.manage");
       const { id: locationId } = c.req.valid("param");
       const body = c.req.valid("json");
       const action = "medicines.cd_recording.changed";
       await requireReach(c, access, "medicines.record.manage", locationId, action);
       await requireReach(c, access, "platform.location.manage", locationId, action);
+      const denied = (problem: HttpProblem, code: string) =>
+        new AuditedRefusal(problem, {
+          action,
+          outcome: "denied",
+          resourceType: "location",
+          resourceId: locationId,
+          scope: { problems: [code], enabled: body.enabled },
+        });
       const out = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
-          if (!stepUpFresh(access)) {
-            throw new AuditedRefusal(problems.stepUp(), {
-              action,
-              outcome: "denied",
-              resourceType: "location",
-              resourceId: locationId,
-              scope: { problems: ["step_up_required"], enabled: body.enabled },
-            });
-          }
+          if (!stepUpFresh(access)) throw denied(problems.stepUp(), "step_up_required");
           // One change at a time per home: the location row is the lock.
           const [home] = await tx
             .select({ id: location.id })
             .from(location)
             .where(and(eq(location.id, locationId), isNull(location.deletedAt)))
             .for("update");
-          if (!home) throw problems.notFound();
-          const [current] = await tx
-            .select({ id: featureFlag.id, enabled: featureFlag.enabled })
+          if (!home) throw denied(problems.notFound(), "not_found");
+          // What is in force, as the register's own check reads it: the home's row, else the
+          // organisation's (security review H1), so "off" is never a silent no-op.
+          const was = (await flagsAt(tx, locationId))(CD_RECORDING_FLAG);
+          if (was === body.enabled) return { locationId, enabled: was, changed: false };
+          // The home's own row, deleted or not (the scope key ignores deletion): set it here.
+          const [own] = await tx
+            .select({ id: featureFlag.id })
             .from(featureFlag)
             .where(
               and(
                 eq(featureFlag.locationId, locationId),
                 eq(featureFlag.flagKey, CD_RECORDING_FLAG),
-                isNull(featureFlag.deletedAt),
               ),
             );
-          const was = current?.enabled ?? false;
-          if (was === body.enabled) return { locationId, enabled: was, changed: false };
-          if (current) {
+          // Why it was turned off is kept with the setting, versioned and retained with it, never
+          // in the append-only audit trail (security review M2).
+          const value = body.enabled ? null : { reason: body.reason };
+          if (own) {
             await tx
               .update(featureFlag)
-              .set({ enabled: body.enabled, updatedBy: access.tenantUserId })
-              .where(eq(featureFlag.id, current.id));
+              .set({
+                enabled: body.enabled,
+                value,
+                deletedAt: null,
+                updatedBy: access.tenantUserId,
+              })
+              .where(eq(featureFlag.id, own.id));
           } else {
             await tx.insert(featureFlag).values({
               tenantId: access.tenantId,
               locationId,
               flagKey: CD_RECORDING_FLAG,
               enabled: body.enabled,
+              value,
               createdBy: access.tenantUserId,
               updatedBy: access.tenantUserId,
             });
@@ -923,7 +937,7 @@ export const controlledDrugsRouter = createRouter()
                   balancesToCarryForward: true,
                   phonesUpdated: true,
                 }
-              : { enabled: false, reason: body.reason, paperRegisterRestarted: true },
+              : { enabled: false, reasonGiven: true, paperRegisterRestarted: true },
           });
           return { locationId, enabled: body.enabled, changed: true };
         }),
