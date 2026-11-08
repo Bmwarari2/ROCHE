@@ -4,7 +4,11 @@ import { type MarEntry, ukDateOf, ukStartOfDay } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixedCompetence } from "../src/integrations/medicines-ports";
 import { marMonth } from "../src/routes/medicines-print";
-import { type CdPrintEntry, cdRegisterLines } from "../src/services/cd-register-pdf";
+import {
+  type CdPrintEntry,
+  cdRegisterLines,
+  cdRegisterPrintedNotice,
+} from "../src/services/cd-register-pdf";
 import {
   doseCell,
   initialsOf,
@@ -446,7 +450,10 @@ describe("hazard HZ-122 the register page's lines (clinical review B3)", () => {
     expect(lines.join("\n")).toContain("witnessed by Ben Example");
     expect(lines.join("\n")).toContain("no witness: Night shift, one nurse");
     expect(lines.join("\n")).toContain("Balanced. Counted by Ada Example");
-    expect(lines[1]).toBe(marPrintedNotice(printedAt));
+    // The register's own notice, never the eMAR's (#200 review): it says which register is the record.
+    expect(lines[1]).toBe(cdRegisterPrintedNotice(printedAt));
+    expect(lines[1]).toContain("This is not the live record");
+    expect(lines[1]).not.toContain("eMAR");
     expect(lines).toContain("No communication needs identified.");
   });
 });
