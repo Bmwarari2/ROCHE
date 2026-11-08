@@ -1047,6 +1047,27 @@ rows from H-1543). Each open question takes its recommended answer until the tes
 | H-1562 | Decide whether the incident record asks when the person was found for absconding too, or the episode's found entry stays the only found time for both types. Recommended answer: the episode's found entry (the incident's found time only drives post-fall observations) | CSO | HZ-127; `apps/web/src/lib/incident-forms.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 | H-1563 | Confirm that absconding (which can be a capacitous person choosing to leave) gets the same police call target (`missing_person.police_call_minutes`) and immediate-risk alert as going missing, or ask for a separate rate key. Recommended answer: the same target; staff call at once when worried | CSO | HZ-127; [rates.md](../specs/rates.md) | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
 
+## Guide gaps from the slice 83 review: copy (H-1564 to H-1566)
+
+Logged by the copy PR (lead's list of 07/11/2026, item 6; block H-1561 to H-1580). Each open
+question takes its recommended answer until the testing-phase review.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1564 | Approve the death form's hint for an unexpected death (make sure 999 and the police have been called; a doctor or the medical examiner usually refers to the coroner; anyone worried can contact the coroner), and decide whether it must be nation-specific before a Scottish or Northern Ireland tenant (the procurator fiscal; the Coroners Act (Northern Ireland) 1959 s.7 duty on the person in charge). Recommended answer: as built for England and Wales; a nation-pack select before either nation goes live | CSO | HZ-013; `people.exit.death.expectedHint` | First Scottish or Northern Ireland tenant | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1565 | Confirm that every missing person reported to the police, or under DoLS or the Mental Health Act, is a Regulation 18(2)(f) notification (H-63), and with it the prompt's "is needed without delay". Recommended answer: yes | CSO | HZ-013, HZ-127; `missing.notifications.cqcPrompt` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1566 | Rule on the undo's phone gate for medicines and staff file imports: the API stops offering undo once phones sync for every type, the database refuses it only for people and care plans. Recommended answer: keep the API's stricter gate and record it in HZ-130 | CSO with the lead engineer | HZ-130; `apps/api/src/services/platform-imports.ts` (`undoState`); migration 0136 | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+
+## Guide gaps from the slice 83 review: late police call (H-1567 to H-1569)
+
+Logged by the late police call PR (lead's list of 07/11/2026, item 2; block H-1561 to H-1580).
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1567 | Decide whether police involvement learned of after the incident closed raises a task to reopen the incident and notify the CQC (as built), or is accepted as residual risk | CSO | HZ-127, HZ-013; `raisePoliceAfterCloseTask` | First real tenant | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1568 | Confirm that a police call cannot be added once the episode closes (the incident is then the only route), and the "called after the target" wording shown as a warning | CSO | HZ-127; `apps/web/src/lib/missing.ts` (`policeCallState`) | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+| H-1569 | Confirm the 15 minutes after which a timeline entry says it was recorded later (`RECORDED_LATER_MS`), or make it a rate. Recommended answer: 15 minutes, a product setting | CSO | HZ-127; `apps/web/src/lib/missing.ts` | None | provisional: owner-accepted recommendation, pending CSO review at the testing phase |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

@@ -19,9 +19,10 @@ Manager and the owner. Care and support workers cannot: tell the person in charg
 1. Open the person's record and choose **Leaving**.
 2. Under **Record a death**, enter **When the person died**.
 3. Choose **Where the person died**: **In the home**, **In hospital** or **Somewhere else**.
-4. Answer **Was the death expected?** with what the clinician judged. Whether the death is
-   reported to the coroner is decided by the doctor or the medical examiner, not by you or Thapsus
-   Care. Follow your procedure.
+4. Answer **Was the death expected?** with what the clinician judged. If the death was sudden or
+   unexpected, make sure 999 and the police have been called (see Before you start). A doctor or
+   the medical examiner usually refers the death to the coroner, but anyone worried about how a
+   person died can contact the coroner.
 5. Answer **Did the person have a learning disability, or were they autistic?** from what is
    known. It is needed for LeDeR (the NHS programme that learns from the lives and deaths of people
    with a learning disability and autistic people) and never assumed.

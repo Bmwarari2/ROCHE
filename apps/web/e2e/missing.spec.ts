@@ -168,3 +168,75 @@ test("HZ-127 an absconding incident opens a missing person episode from the inci
   await page.waitForURL(/\/missing\/[0-9a-f-]{36}$/);
   await expect(page.getByText(/call by \d{2}\/\d{2}\/\d{4}/i).first()).toBeVisible();
 });
+
+test("HZ-127 a police call made before the person was found is recorded afterwards at its true time", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(180_000);
+  await context.addCookies(session);
+  const headers = { "x-harbour-tenant": DEMO_TENANT };
+  const listed = await context.request.get(`${API_URL}/v1/missing-episodes`, { headers });
+  expect(listed.status(), await listed.text()).toBe(200);
+  const busy = new Set(
+    ((await listed.json()) as { items: { personId: string; status: string }[] }).items
+      .filter((e) => e.status !== "closed")
+      .map((e) => e.personId),
+  );
+  const person = [3, 4, 5, 6, 1, 2].map(demoPerson).find((p) => !busy.has(p));
+  test.skip(!person, "Every demo resident already has an open missing person episode.");
+  if (!person) return;
+  const noticed = new Date(Date.now() - 90 * 60_000);
+  const recorded = await context.request.post(`${API_URL}/v1/incidents`, {
+    headers,
+    data: {
+      locationId: DEMO_LOCATION,
+      type: "missing_person",
+      occurredAt: noticed.toISOString(),
+      description: `Not at lunch; found later at the bus stop (${RUN}).`,
+      people: [{ kind: "service_user", role: "affected", personId: person }],
+    },
+  });
+  expect(recorded.status(), await recorded.text()).toBe(201);
+  const incident = (await recorded.json()) as { id: string };
+  const episodeId = crypto.randomUUID();
+  const opened = await context.request.post(`${API_URL}/v1/missing-episodes`, {
+    headers,
+    data: {
+      id: episodeId,
+      incidentId: incident.id,
+      personId: person,
+      immediateRisk: false,
+      noticedMissingAt: noticed.toISOString(),
+    },
+  });
+  expect(opened.status(), await opened.text()).toBe(201);
+  const found = await context.request.post(`${API_URL}/v1/missing-episodes/${episodeId}/events`, {
+    headers,
+    data: {
+      id: crypto.randomUUID(),
+      kind: "found",
+      at: new Date(Date.now() - 30 * 60_000).toISOString(),
+      note: `At the bus stop on the main road (${RUN}).`,
+    },
+  });
+  expect(found.status(), await found.text()).toBe(200);
+
+  await page.goto(`/missing/${episodeId}`);
+  await expect(
+    page.getByText(/If the police were called before the person was found/),
+  ).toBeVisible();
+  // Found after the target with no call: said as missed, with how to record a call made.
+  await expect(page.getByText(/No police call is recorded/)).toBeVisible();
+  await accessibleInBothThemes(page, "found episode with no police call");
+  await page.getByLabel("What happened").selectOption("police_called");
+  await fillWhen(page, "When it happened", new Date(Date.now() - 70 * 60_000));
+  await page.getByLabel("Reference").fill(`CAD late ${RUN}`);
+  await page.getByRole("button", { name: "Add to the timeline" }).click();
+  await expect(page.getByText(`Reference: CAD late ${RUN}`).first()).toBeVisible();
+  await expect(page.getByText("The police have been called")).toBeVisible();
+  await expect(page.getByText(/^Recorded later, at /).first()).toBeVisible();
+  await expect(page.getByText(/If the police were called before the person was found/)).toHaveCount(
+    0,
+  );
+});

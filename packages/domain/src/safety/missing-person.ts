@@ -44,6 +44,8 @@ export interface MissingEpisode {
 export interface MissingState {
   /** When police must be called by (a tenant target); null once called. */
   readonly policeCallDueAt: Date | null;
+  /** The police call target, kept once the call is made, so a late call can say so (HZ-127). */
+  readonly policeCallTargetAt: Date | null;
   readonly policeCallLate: boolean;
   readonly problems: readonly string[];
   readonly cqcNotificationPrompt: boolean;
@@ -113,6 +115,7 @@ export function missingPersonState(
   }
   return {
     policeCallDueAt: police ? null : dueAt,
+    policeCallTargetAt: dueAt,
     policeCallLate,
     problems: [...problems, ...closeProblems],
     // Reg 18(2)(f) of the 2009 Registration Regulations: any incident reported to the police is

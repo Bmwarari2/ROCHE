@@ -472,6 +472,127 @@ describe("hazard HZ-127 an absconding incident opens an episode as a missing per
   });
 });
 
+describe("hazard HZ-127 a police call recorded after the person was found", () => {
+  /** An episode for a resident with none still searching or found (the tests above leave some). */
+  async function freeEpisode(minutesAgo: number) {
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      const created = await as("carer", "/v1/incidents", {
+        method: "POST",
+        body: {
+          locationId: DEMO.locationId,
+          type: "missing_person",
+          occurredAt: ago(minutesAgo * MIN),
+          description: "Not at lunch; found later at the bus stop.",
+          people: [{ kind: "service_user", role: "affected", personId: resident(n) }],
+        },
+      });
+      if (created.status !== 201) continue;
+      const incidentId = (await json<IncidentDetail>(created)).id;
+      const id = newId();
+      const opened = await as("carer", "/v1/missing-episodes", {
+        method: "POST",
+        body: {
+          id,
+          incidentId,
+          personId: resident(n),
+          immediateRisk: false,
+          noticedMissingAt: ago(minutesAgo * MIN),
+        },
+      });
+      if (opened.status === 201) return { episodeId: id, incidentId };
+    }
+    throw new Error("No resident free to go missing");
+  }
+  const add = (episodeId: string, body: Record<string, unknown>) =>
+    as("carer", `/v1/missing-episodes/${episodeId}/events`, {
+      method: "POST",
+      body: { id: newId(), ...body },
+    });
+
+  it("hazard HZ-127 takes a call made before they were found at its true time, answering police involved and drafting the CQC notification", async () => {
+    const { episodeId } = await freeEpisode(90);
+    const found = await add(episodeId, {
+      kind: "found",
+      at: ago(30 * MIN),
+      note: "At the bus stop on the main road.",
+    });
+    expect(found.status, await found.clone().text()).toBe(200);
+    // Timed after they were found: refused in words.
+    const after = await add(episodeId, {
+      kind: "police_called",
+      at: ago(20 * MIN),
+      reference: "CAD 77",
+    });
+    expect(after.status).toBe(422);
+    expect((await json<ProblemDetails>(after)).detail).toMatch(/before they were found/);
+    // The call made while they were missing, recorded now at its true time.
+    const called = await add(episodeId, {
+      kind: "police_called",
+      at: ago(70 * MIN),
+      reference: "CAD 77",
+    });
+    expect(called.status, await called.clone().text()).toBe(200);
+    const view = await json<MissingEpisodeView>(called);
+    expect(view).toMatchObject({
+      status: "found",
+      policeReference: "CAD 77",
+      cqcNotificationPrompt: true,
+      policeInvolvementUnnotified: false,
+    });
+    expect(view.notifications.map((n) => n.kind)).toContain("cqc_reg18_police");
+    expect(view.timeline.map((e) => e.kind)).toEqual(["noticed_missing", "police_called", "found"]);
+    // The police call task stays done: a late call never reopens it.
+    const tasks = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ status: string }>(
+        "SELECT status FROM task WHERE kind = 'safety.missing_police_call' AND source_id = $1",
+        [episodeId],
+      );
+      return rows.map((r) => r.status);
+    });
+    expect(tasks).toEqual(["done"]);
+  });
+
+  it("hazard HZ-127 a late police call on a closed incident raises the notification task", async () => {
+    const { episodeId, incidentId } = await freeEpisode(90);
+    expect(
+      (
+        await add(episodeId, {
+          kind: "found",
+          at: ago(30 * MIN),
+          note: "At the bus stop on the main road.",
+        })
+      ).status,
+    ).toBe(200);
+    // The incident closed with police involvement unanswered, before the call was recorded.
+    await asDemoTenant((c) =>
+      c.query(
+        `UPDATE incident SET status = 'closed', closed_at = now(), closed_reason = 'Closed in a test.',
+           closed_by = (SELECT u.id FROM tenant_user u WHERE u.tenant_id = incident.tenant_id
+                          AND u.id <> incident.raised_by ORDER BY u.id LIMIT 1)
+          WHERE id = $1`,
+        [incidentId],
+      ),
+    );
+    const called = await add(episodeId, {
+      kind: "police_called",
+      at: ago(70 * MIN),
+      reference: "CAD 88",
+    });
+    expect(called.status, await called.clone().text()).toBe(200);
+    const view = await json<MissingEpisodeView>(called);
+    expect(view).toMatchObject({ policeReference: "CAD 88", policeInvolvementUnnotified: true });
+    const tasks = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ status: string; priority: string; role: string }>(
+        `SELECT status, priority, assignee_role_key AS role FROM task
+          WHERE kind = 'safety.missing_police_after_close' AND source_id = $1`,
+        [episodeId],
+      );
+      return rows;
+    });
+    expect(tasks).toEqual([{ status: "open", priority: "urgent", role: "registered_manager" }]);
+  });
+});
+
 describe("hazard HZ-127 an episode at immediate risk tells those on site at once (H-771)", () => {
   it("hazard HZ-127 notifies every clinical lead and team leader on site when it opens, without waiting", async () => {
     const created = await as("carer", "/v1/incidents", {

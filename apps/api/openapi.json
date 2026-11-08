@@ -22417,6 +22417,13 @@
             ],
             "format": "date-time"
           },
+          "policeCallTargetAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
           "policeCallLate": {
             "type": "boolean"
           },
@@ -22425,6 +22432,9 @@
               "string",
               "null"
             ]
+          },
+          "policeInvolvementUnnotified": {
+            "type": "boolean"
           },
           "cqcNotificationPrompt": {
             "type": "boolean"
@@ -22498,8 +22508,10 @@
           "underDolsOrMha",
           "timeline",
           "policeCallDueAt",
+          "policeCallTargetAt",
           "policeCallLate",
           "policeReference",
+          "policeInvolvementUnnotified",
           "cqcNotificationPrompt",
           "herbertProfile",
           "herbertProfileVersionAtOpening",

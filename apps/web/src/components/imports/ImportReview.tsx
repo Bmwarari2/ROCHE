@@ -491,11 +491,13 @@ export function UndoImport({ batch }: { readonly batch: ImportBatch }) {
               undo.send(() => undoImport(batch.id), undefined, "undone");
             }}
           >
-            {t("import.undo.confirm", { records: batch.records ?? 0 })}
+            {t("import.undo.confirm", { type: batch.recordType, records: batch.records ?? 0 })}
           </Button>
         )}
       >
-        <p className="m-0">{t("import.undo.about", { records: batch.records ?? 0 })}</p>
+        <p className="m-0">
+          {t("import.undo.about", { type: batch.recordType, records: batch.records ?? 0 })}
+        </p>
       </Confirm>
       <ManageFeedback
         result={undo.result as ActionResult<unknown> | null}
