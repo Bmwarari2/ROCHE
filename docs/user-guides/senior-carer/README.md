@@ -6,6 +6,7 @@ at your home, and the tasks below.
 ## Your guides
 
 - [How to declare and close an outage](declare-and-close-an-outage.md)
+- [How to give a controlled drug on the phone](../nurse/give-a-controlled-drug-on-the-phone.md)
 - [How to print the downtime pack](print-the-downtime-pack.md)
 - [How to publish a family update](publish-a-family-update.md)
 - [How to record a death](record-a-death.md)
@@ -44,6 +45,7 @@ at your home, and the tasks below.
 - [How to check your shifts](../care-worker/check-your-shifts.md)
 - [How to clock in and out on the phone](../care-worker/clock-in-and-out-on-the-phone.md)
 - [How to clock in and out on the web](../care-worker/clock-in-and-out.md)
+- [How to correct a medicines record on the phone](../care-worker/correct-a-medicines-record-on-the-phone.md)
 - [How to correct an entry on the phone](../care-worker/correct-an-entry-on-the-phone.md)
 - [How to deal with an entry that was not saved on the phone](../care-worker/deal-with-an-entry-not-saved-on-the-phone.md)
 - [How to do a round](../care-worker/run-a-round.md)
@@ -53,6 +55,7 @@ at your home, and the tasks below.
 - [How to give a homely remedy](../care-worker/give-a-homely-remedy.md)
 - [How to give a when-required (PRN) medicine in the browser](../care-worker/give-a-when-required-medicine-in-the-browser.md)
 - [How to give medicines in the browser round](../care-worker/give-medicines-in-the-browser-round.md)
+- [How to give medicines on the phone](../care-worker/give-medicines-on-the-phone.md)
 - [How to keep a missing person's timeline](../care-worker/keep-a-missing-person-timeline.md)
 - [How to keep a wellbeing check-in](../care-worker/keep-a-wellbeing-check-in.md)
 - [How to keep the phone safe for care records](../care-worker/keep-the-phone-safe-for-care-records.md)
@@ -73,9 +76,11 @@ at your home, and the tasks below.
 - [How to record an incident](../care-worker/record-an-incident.md)
 - [How to record vital signs and read the NEWS2 result](../care-worker/record-vital-signs.md)
 - [How to record vital signs and read the NEWS2 result on the phone](../care-worker/record-vital-signs-on-the-phone.md)
+- [How to scan a medicine pack on the phone](../care-worker/scan-a-medicine-pack-on-the-phone.md)
 - [How to see your people for the shift on the phone](../care-worker/see-your-people-on-the-phone.md)
 - [How to see your shifts on the phone](../care-worker/see-your-shifts-on-the-phone.md)
 - [How to send unsent entries after signing in again on the phone](../care-worker/send-unsent-entries-after-signing-in-again-on-the-phone.md)
+- [How to set a medicines PIN on the phone](../care-worker/set-a-medicines-pin-on-the-phone.md)
 - [How to sign as a controlled drugs witness in the browser](../care-worker/sign-as-a-controlled-drugs-witness.md)
 - [How to sign in on the phone](../care-worker/sign-in-on-the-phone.md)
 - [How to sign out of the phone](../care-worker/sign-out-of-the-phone.md)
@@ -84,6 +89,7 @@ at your home, and the tasks below.
 - [How to take an e-learning course](../care-worker/take-an-e-learning-course.md)
 - [How to thank a colleague](../care-worker/thank-a-colleague.md)
 - [How to use a shared phone or tablet](../care-worker/use-a-shared-phone-or-tablet.md)
+- [How to witness a controlled drug on the phone](../care-worker/witness-a-controlled-drug-on-the-phone.md)
 - [How to write a daily note](../care-worker/write-a-daily-note.md)
 - [How to write a daily note on the phone](../care-worker/write-a-daily-note-on-the-phone.md)
 

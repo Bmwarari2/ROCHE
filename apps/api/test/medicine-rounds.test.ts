@@ -31,6 +31,11 @@ const SOURCE = { kind: "prescription", reference: "Prescription, Dr A Example, 3
 const MINUTE = 60_000;
 const competence = fixedCompetence();
 const DEVICE = "0194d000-0000-7000-8600-0000000000de";
+/** Photo confirmation and a pack with no barcode: what a phone sends with a dose (ADR-0081). */
+const PHONE_CHECKS = {
+  identity: "photo",
+  pack: { method: "override", override: { code: "no_barcode_on_pack", note: null } },
+};
 const send = (
   user: string,
   path: string,
@@ -183,6 +188,8 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
         method: "POST",
         headers: device ? { [DEVICE_HEADER]: DEVICE } : {},
         body: {
+          // A phone's upload carries its identity and pack checks (ADR-0081).
+          ...(device ? { pointOfCare: PHONE_CHECKS } : {}),
           id,
           entryId,
           dueAt: dose?.dueAt,
@@ -382,6 +389,8 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
         method: "POST",
         headers: device ? { [DEVICE_HEADER]: DEVICE } : {},
         body: {
+          // A phone's upload carries its identity and pack checks (ADR-0081).
+          ...(device ? { pointOfCare: PHONE_CHECKS } : {}),
           id: randomUUID(),
           entryId,
           dueAt,
@@ -500,6 +509,7 @@ describe("hazards HZ-001 and HZ-003 the round for a location", () => {
       method: "POST",
       headers: { [DEVICE_HEADER]: DEVICE },
       body: {
+        pointOfCare: PHONE_CHECKS,
         id: randomUUID(),
         entryId: (
           await json<Round>(

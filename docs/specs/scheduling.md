@@ -972,7 +972,7 @@ screens are slice 60, the phone's offline queue slice 71.
 
 | Table | Kind | Columns | Retention class |
 | --- | --- | --- | --- |
-| `clock_setting` | mutable, one per location | `location_id`, `evidence` (`none` by default; `at_location` or `nfc` only once the employee-monitoring DPIA is approved, H-527), `nfc_tag_refs` (opaque tag ids) | `rota_and_timesheet` |
+| `clock_setting` | mutable, one per location | `location_id`, `evidence` (`none` by default; `at_location` or `nfc` only while `scheduling.clock.location_evidence` is on at the location and the organisation's signed DPIA covers it, H-527, H-1555), `nfc_tag_refs` (opaque tag ids) | `rota_and_timesheet` |
 | `clock_event` | append-only, client UUID, idempotent | `worker_id`, `kind` (`in`, `out`, `break_start`, `break_end`), `shift_id`, `location_id`, `device_time`, `recorded_at` (server), `device_id` (opaque), `evidence` (`none`, `at_location`, `nfc`), `nfc_tag_ref`, `flags` | `rota_and_timesheet` |
 | `timesheet_entry` | mutable while `draft`; fixed once `approved`; corrected by a new entry with `supersedes_id` | `worker_id`, `location_id`, `shift_id`, `kind` (shift kinds plus `travel`), `started_at`, `ended_at`, `breaks` (`[{ start, end }]`), `travel` (journey kind), `mileage_tenths` (tenths of a mile), `source` (`clock`, `manual`), `clock_in_id`, `clock_out_id`, `status` (`draft`, `approved`), `approved_by`, `approved_at`, `supersedes_id`, `correction_reason` | `rota_and_timesheet` |
 | `sleep_in_awake_period` | append-only | `timesheet_entry_id`, `started_at`, `ended_at` | `rota_and_timesheet` |
@@ -983,7 +983,24 @@ Location evidence is never a position: the phone says only whether it was at the
 read the location's NFC tag); Thapsus Care stores that word and never coordinates or a track. The API
 keeps evidence only as the location's setting asks for it, and an NFC tag only if it is one of the
 location's tags (a short code, never free text); anything else is stored as `none` and flagged
-`evidence_not_matched`. Entries longer than 25 hours (a design limit, not a statutory figure) cannot
+`evidence_not_matched`.
+
+Location or NFC evidence is employee monitoring (H-527, H-1033, H-1555). The catalogue flag
+`scheduling.clock.location_evidence` (off by default, not licensed, never set remotely) is the
+organisation's intention to use it; switching it on, for the organisation or at any location, lists
+it among the DPIA's features, so the signed DPIA is flagged for review (`feature_enabled`) until a
+version listing it is prepared and signed. `PUT /v1/locations/{id}/clock-setting` refuses `at_location`
+or `nfc` with 422 `dpia_monitoring_not_covered` ("Location or NFC evidence is employee monitoring:
+your organisation's signed DPIA must cover it first.") unless the flag is on at the location AND the
+signed DPIA lists it; the refusal is audited. `none` is always accepted. The client's `dpiaApproved`
+is deprecated and ignored; the audit event records `evidence` and the id of the signed DPIA relied
+on (`dpiaId`). `GET` and `PUT` answer with `inUse`, whether the evidence asked for is in effect at the
+location (not `none`, the flag on there and the signed DPIA covering it). Because `feature_flag` rows are set directly, the same check applies at clock-in: evidence
+is kept only while the setting asks for it, the flag is on at the location and the signed DPIA covers
+it, so a setting saved before this check, or a DPIA superseded by one without the flag, keeps
+`none` (flagged `evidence_not_matched`).
+
+Entries longer than 25 hours (a design limit, not a statutory figure) cannot
 come from the clock; a longer live-in stretch is entered by hand.
 
 ### Rules
@@ -1076,7 +1093,7 @@ actions H-970 to H-979.
 
 | Table | Kind | Columns | Retention class |
 | --- | --- | --- | --- |
-| `absence` | mutable, `expected_version` | `member_id` (the `tenant_user` absent), `location_id` (the home whose rota it touches), `kind` (`ABSENCE_KINDS`), `starts_on`, `ends_on` (null while a sickness is open), `state` (`requested`, `approved`, `declined`, `cancelled`, `recorded`), `decided_by`, `decided_at`, `decision_reason`, `self_certified_at`, `ended_at`; never a diagnosis | `sickness_absence` for sickness, else `rota_and_timesheet` |
+| `absence` | mutable, `expected_version` | `member_id` (the `tenant_user` absent), `location_id` (the home whose rota it touches), `kind` (`ABSENCE_KINDS`), `starts_on`, `ends_on` (null while a sickness is open), `state` (`requested`, `approved`, `declined`, `postponed`, `cancelled`, `recorded`), `decided_by`, `decided_at`, `decision_reason`, `self_certified_at`, `ended_at`, `postponed_from_id` (migration 0155); never a diagnosis | `sickness_absence` for sickness, else `rota_and_timesheet` |
 | `fit_note` | append-only | `absence_id`, `document_id` (an HR-only staff document, retention `sickness_absence`), `issued_on`, `covers_from`, `covers_to`, `fitness` (`not_fit`, `may_be_fit`), the four ticked adjustments (`phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations`); never the condition written on the note | `sickness_absence` |
 | `return_to_work` | append-only | `absence_id`, `member_id`, `held_on`, `held_by`, `fit_for_usual_duties`, `adjustments_agreed` (the same four), `notes` (the conversation, special category); one per absence | `sickness_absence` |
 | `shift_cover_need` | append-only, then resolved once | `shift_id`, `assignment_id`, `absence_id`, `location_id`, `raised_at`, `resolved_at`, `resolution` (`assignment_removed`, `absence_ended`) | `rota_and_timesheet` |
@@ -1107,10 +1124,37 @@ reads it.
    their own, a decline with a reason. Statutory leave is never declined (H-970, recommended answer
    applied 31/10/2026): maternity, paternity, adoption and parental bereavement leave are notified
    and approved or recorded; carer's leave and unpaid parental leave may only be postponed as the law
-   allows (`postponed`, with a reason; the member asks again for the later dates). The database
-   refuses a decline of these kinds and a postponement of any other (`absence_statutory`). A rota manager records a sickness or leave for a member
+   allows (rule 1a). The database refuses a decline of these kinds and a postponement of any other
+   (`absence_statutory`), and the absences screen never offers a decline for any statutory kind:
+   for carer's and parental leave it offers approve or postpone, for the others approve only. A rota manager records a sickness or leave for a member
    (`recorded`). The member cancels their own request before it is decided; a manager cancels an
    approved or recorded absence with a reason.
+1a. **Postponing carer's and parental leave** (H-970; `checkPostponement`, `postponementLimits`;
+   migration 0155). Only where the business would be unduly disrupted, which the approver judges
+   and writes as the reason. The approver gives the new first and last days, and the request moves
+   to `postponed` while the new dates become `approved` leave pointing back at it
+   (`postponed_from_id`, one per request, never changed), raising cover needs as any approved
+   leave; the database lets only the approver who postponed it write that leave, for the same
+   member, home and kind. The domain refuses, from the rate table in force on the day of the
+   request (no figure is a literal; none for Northern Ireland until its nation pack, so
+   `postpone_no_rate`):
+   - new dates of a different number of calendar days from those asked for (`postpone_duration`;
+     reg 8(2)(b) and Sch 2 para 6(c)(i): leave "of the same duration");
+   - a new first day on or before the first day asked for, or on or before today
+     (`postpone_not_later`);
+   - a new first day later than `carers_leave.postpone_max_months` (one month; Carer's Leave
+     Regulations 2024 reg 8(2)(b)) or `parental_leave.postpone_max_months` (six months; Maternity and
+     Parental Leave etc. Regulations 1999 Sch 2 para 6(c)(ii)) after the first day asked for, a day
+     the month lacks becoming its last day (`postpone_too_late`);
+   - a decision after the last day for notice (`postpone_notice_passed`): the request's day plus
+     `carers_leave.postpone_notice_days` or `parental_leave.postpone_notice_days` (seven days), and
+     for carer's leave no later than the day before the leave was due to start (reg 8(3));
+   - parental leave without the approver's confirmation that it does not start on the child's birth
+     or placement for adoption (Sch 2 paras 4 and 5) and that the new dates end before the child's
+     18th birthday (para 6(c)(iii)) (`postpone_unconfirmed`): Thapsus Care holds neither date.
+   The request's day is when it was received (`created_at`, UK date). The approver sees the latest
+   new first day and the last day for notice on the request (`postponement`). The written notice to
+   the member is the decision itself, with its reason and dates, on their absences screen.
 2. **Kinds** (`ABSENCE_KINDS`): `annual_leave`, `sickness`, `compassionate`, `carers_leave`,
    `parental_leave`, `maternity`, `paternity`, `adoption`, `parental_bereavement`, `unpaid`,
    `other`. Compassionate leave stays the organisation's own policy until bereavement leave under
@@ -1164,7 +1208,7 @@ reads it.
 | --- | --- |
 | Ask for own leave; read and cancel own absences | `scheduling.timesheet.self` |
 | Record a sickness or leave for a member; read absences at a home | `scheduling.rota.manage` there |
-| Approve or decline leave (never own) | `scheduling.rota.approve` there |
+| Approve, decline or postpone leave (never own) | `scheduling.rota.approve` there |
 | Add and open fit notes; record return to work; the Bradford factor; SSP working | `workforce.hr_document.read` there |
 
 ### API, audit and outbox
@@ -1173,7 +1217,9 @@ reads it.
 `/{id}/decision`, `/{id}/cancel`, `/{id}/end` (a sickness's last day), `/{id}/fit-notes` (upload
 the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNoteId}/content`,
 `/{id}/return-to-work`, `/{id}/bradford-exclusion`, `/v1/members/{id}/bradford`, `POST /{id}/ssp` (the earnings in the body, never the address). Audit:
-`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
+`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.postponed` (with the id
+of the leave given on the new dates, itself audited as `.approved` with the request's id),
+`.cancelled`, `.ended`;
 `workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
 `workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
 a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (cover need, shift, absence, location; consumed by the worker).
@@ -1183,14 +1229,20 @@ a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` 
 - Domain: `packages/domain/src/scheduling/absence.test.ts` (table-driven: decisions never by the
   member; state moves; days of an absence; fit note needed after the self-certification days, the
   days uncovered; periods of incapacity at the minimum length and linked within the link weeks;
-  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs).
+  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs;
+  H-970 postponement limits read from the rate table: the latest new first day, the last day for
+  notice, same length, later dates, parental leave confirmation, no rows for the nation).
 - Database: `packages/db/test/absence.test.ts` (cross-tenant denial on all four tables; a member
   sees only their own; a rota manager reads but never a fit note or return to work; decisions only
-  by an approver, never the member; state moves; fit notes and return to work append-only).
+  by an approver, never the member; state moves; fit notes and return to work append-only; leave on
+  new dates written only by the approver who postponed the request, for its member and kind, once).
 - API: `apps/api/test/absence.test.ts` (ask and approve with cover needs raised; decline and cancel
   resolving them; recording a sickness; fit note upload and open audited; return to work; the
   Bradford factor with its working; SSP working; assigning onto an absence refused; the rota check
-  counting a cover need as open with a warning).
+  counting a cover need as open with a warning; postponing within the limits, each refusal, the
+  notice passed, both audit events without the reason).
+- Web: `apps/web/src/lib/pay-time.test.ts` (the decision options per kind, the postponement form
+  read); E2E `apps/web/e2e/pay-time.spec.ts`.
 
 ## 18. Pay calculation runs (slice 36; SCHED-005, SCHED-006, SCHED-007)
 
@@ -1429,7 +1481,15 @@ The server decides only from check-ins it has received, by the time the worker m
 
 ### 19.5 Location evidence (H-527)
 
-Off by default (`scheduling.lone_worker.location`, a location-level flag). When on, the device may
+Off by default (`scheduling.lone_worker.location`, a location-level flag). It is employee
+monitoring (H-1033, H-1555): a point is kept only while the flag is on at the session's location AND
+the organisation's signed DPIA lists the flag among its features; otherwise the point sent is
+ignored. Switching the flag on, for the organisation or at any location, flags the signed DPIA for
+review (`feature_enabled`). `GET` and `PUT /v1/lone-worker/route` report `locationEvidence` as the
+organisation-wide value: the organisation's flag on and covered by its signed DPIA. A location's own
+flag row may switch it on (or off) at that location alone, which this value does not show. The
+`event_recorded` audit event says whether a point sent was kept (`locationKept`), never the point.
+When in use, the device may
 attach one point to the event it sends (check-in, help, duress, finish); nothing is collected
 between events, so there is never a track. A monitor sees the latest point on an alarm. The sweep
 erases each point (coordinates cleared, the row kept as proof of the erasure) after
@@ -1444,7 +1504,7 @@ timekeeping (R22).
 | `PUT /v1/lone-worker/route` | manage | Validated; a named person must be an active member; audited `scheduling.lone_worker.route_set` |
 | `POST /v1/lone-worker/sessions` | check_in | Client id; 201 or 200 on replay; audited `session_started` |
 | `GET /v1/lone-worker/sessions/mine` | check_in | Duress shown as check-in; overdue alarm only |
-| `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in) |
+| `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in), with `locationKept` when a point was sent |
 | `POST /v1/lone-worker/emergency` | check_in | Help or duress without a usable session (H-1317, slice 71): recorded in the worker's open session, else the session of their open help or duress alarm, else a new session finished as it starts, at the named session's location when it is theirs, the location given, their latest session's, or another where they work (by name); alarmed like any help or duress (the route, else the Registered Manager and owner); answers as a session's event (duress as a check-in); client UUID, a replay of the worker's own event answered before a limit of 30 in 10 minutes; audited `session_started` and `event_recorded` with `withoutSession` (duress as check-in) |
 | `GET /v1/lone-worker/board` | monitor | Open sessions with status words; audited |
 | `GET /v1/lone-worker/alarms` | monitor | Open by default; with the latest location point; audited |
@@ -1461,7 +1521,8 @@ Notifications carry no personal data.
 `lone_worker` (3 years from the session's finish) for sessions, events and alarms; location points
 are not retained beyond `lone_worker.location_days`. Records of processing B3; data standards
 "Lone-worker safety". The DPO confirms the employee-monitoring DPIA covers it before it is switched
-on (H-1033).
+on (H-1033); Thapsus Care enforces this by keeping no location unless the signed DPIA covers it
+(section 19.5; H-1555).
 
 ### 19.8 Web screens (slice 61)
 

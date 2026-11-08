@@ -282,6 +282,16 @@ describe("hazard HZ-006 refused uploads on the device", () => {
 });
 
 describe("the demo round (demo mode only)", () => {
+  it("hazard HZ-001 hazard HZ-007 carries each person's allergy status and active allergies to the round card", () => {
+    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, ["me", DEMO_TENANT_ID]);
+    const withPerson = rows.filter((r) => r.person_id);
+    expect(withPerson.length).toBeGreaterThan(0);
+    for (const row of withPerson) {
+      expect(row).toHaveProperty("allergy_status");
+      expect(typeof row.allergy_count).toBe("number");
+    }
+  });
+
   it("seeds one task of each state the round words, each markable by the demo member", () => {
     const seeded = new Date("2026-10-11T09:00:00Z");
     const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, ["me", DEMO_TENANT_ID]);
