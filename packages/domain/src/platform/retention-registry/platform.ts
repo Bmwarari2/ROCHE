@@ -79,6 +79,16 @@ export const PLATFORM_REGISTRY: RegistryContext = {
       },
     ),
     entry(
+      "member_device_key",
+      classes("audit_event"),
+      { createdAt: col("created_at") },
+      staff("tenant_user_id"),
+      {
+        parent: parentIs("device_binding", "device_id"),
+        note: "Verifies controlled drug signatures made offline (ADR-0084): the purge must not delete a key while a signature it verifies is kept",
+      },
+    ),
+    entry(
       "document",
       rowClass("retention_class", ...DOCUMENT_CLASSES),
       {

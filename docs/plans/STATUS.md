@@ -36,7 +36,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 `feat/platform-retention-registry` (retention sweeps plan slices 2 and 3, on #193 and slice 1): the
 retention registry in `packages/domain/src/platform/retention-registry/`, one entry for each of the
-237 tables with personal data (Phase 0 to 2 and the sign-in schema) and 76 listed as holding none;
+238 tables with personal data (Phase 0 to 2 and the sign-in schema) and 76 listed as holding none;
 a `packages/db` test that fails for a table with neither, or an entry naming a missing table,
 column or retention.md class; and the export catalogue's `retention` field checked against it
 (45 values corrected). No migration, data change or route. DPO decisions found are in plan section

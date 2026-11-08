@@ -15,7 +15,7 @@ Branch `feat/platform-retention-registry`: #193 (the plan and slice 0) merged wi
   applicant or none) and its column; the parent it is destroyed with; and the destruction method
   (`delete`, `clear_columns` with the columns, or `never`). It holds no period: classes resolve
   through `resolveRule` (slice 1).
-- **Coverage**: 237 entries, every table with personal data in `packages/db/src/schema`: the 135
+- **Coverage**: 238 entries, every table with personal data in `packages/db/src/schema`: the 135
   Phase 2 tables of the plan's inventory, 96 Phase 0 and 1 tables and 6 sign-in (`auth`) tables.
   76 tables are listed in `no-personal-data.ts` as holding none, each with a reason (plan 3.1 and
   the Phase 0 and 1 configuration and reference data). No allow-list was needed.
