@@ -195,7 +195,7 @@ export const NOTIFICATION_KINDS: Readonly<Record<StatutoryNotificationKind, Noti
     },
     ukhsa_outbreak: {
       label: "Outbreak report to the health protection team",
-      recipient: "UKHSA health protection team",
+      recipient: "The health protection team",
       statutory: false,
       clock: "without_delay",
       per: "incident",

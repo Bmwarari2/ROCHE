@@ -249,14 +249,17 @@ export function commitReadiness(
 
 /** Undo, in words: when it closes, or a plain statement that it is not available. */
 export function undoWords(
-  batch: Pick<ImportBatch, "status" | "undoAvailable" | "undoClosesAt" | "undoneAt">,
+  batch: Pick<ImportBatch, "status" | "undoAvailable" | "undoClosesAt" | "undoneAt" | "recordType">,
   t: Translator,
   when: (iso: string | null) => string,
 ): string | null {
   if (batch.status === "undone") return t("import.undo.done", { dateTime: when(batch.undoneAt) });
   if (batch.status !== "committed") return null;
   if (batch.undoAvailable && batch.undoClosesAt) {
-    return t("import.undo.until", { dateTime: when(batch.undoClosesAt) });
+    return t("import.undo.until", {
+      type: batch.recordType,
+      dateTime: when(batch.undoClosesAt),
+    });
   }
   return t("import.undo.unavailable");
 }
