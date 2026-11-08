@@ -1,4 +1,4 @@
-import { AccountDeletionRequest, Me, Membership } from "@harbour/contracts";
+import { AccountDeletionRequest, LocationFlags, Me, Membership } from "@harbour/contracts";
 import { featureFlag, location, tenant } from "@harbour/db";
 import { checkAccent, scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -10,7 +10,7 @@ import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
 import { requestAccountDeletion } from "../services/account-deletion";
 import { sampleDataState } from "../services/onboarding";
 import { logoOf } from "./branding";
-import { createRouter, errorResponses, jsonBody, security } from "./openapi";
+import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
 export const membershipsRouter = createRouter().openapi(
   createRoute({
@@ -145,5 +145,50 @@ export const meRouter = createRouter()
       );
       const out = await requestAccountDeletion(c.get("services").db, access, c.get("requestId"));
       return out.status === "requested" ? c.json(out, 201) : c.json(out, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/me/locations/{id}/flags",
+      tags: ["platform"],
+      summary: "The feature flags at one location you work at",
+      description:
+        "Any member, for a location they work at (as /v1/me lists them): each catalogue flag as it applies there (the location's row, then the organisation's, then the remote value where allowed, then the default). The web reads it for settings that are released location by location, such as controlled drug recording (H-1517). Elsewhere 404.",
+      security,
+      request: { params: z.object({ id: z.uuid() }) },
+      responses: {
+        200: jsonBody(LocationFlags, "The flags at that location"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = c.get("access");
+      const { id } = c.req.valid("param");
+      const overrides = await withTenant(c, async (tx) => {
+        const allLocations = await tx
+          .select({ id: location.id })
+          .from(location)
+          .where(isNull(location.deletedAt));
+        const working = workLocationIds(
+          await accessRowsOfMember(tx, access.tenantUserId),
+          allLocations.map((l) => l.id),
+          new Date(),
+        );
+        if (!working.includes(id)) throw problems.notFound();
+        return tx
+          .select({
+            flagKey: featureFlag.flagKey,
+            locationId: featureFlag.locationId,
+            enabled: featureFlag.enabled,
+          })
+          .from(featureFlag)
+          .where(isNull(featureFlag.deletedAt));
+      });
+      const flags = await c
+        .get("services")
+        .flags.evaluateAll({ tenantId: access.tenantId, locationId: id, overrides });
+      return c.json({ locationId: id, flags }, 200);
     },
   );

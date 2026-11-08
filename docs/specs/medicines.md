@@ -1653,6 +1653,20 @@ needs `medicines.cd.witness`, each with a fresh step-up, as the API asks. Every 
 record frame, so the point-of-care header (name, photo, date of birth, NHS number, allergies) is
 above the register.
 
+**Which register is the record** (H-1517, HZ-115): Thapsus Care's register is the record at a home only
+once controlled drug recording is released there on both the web and the phone (the per-location
+flag `medicines.cd_recording`, off by default). Until then the tab and every page say at the top,
+in words with a warning icon, that the paper controlled drugs register is the record and not to
+record controlled drugs there; the web offers none of the register's forms (open a page, record,
+witness, correct, count); the printed page and the person's stock say the paper register is the
+record; and the web round's record page tells staff to record a controlled drug in the paper
+register and on the paper MAR. A flag the web cannot read counts as off. The API refuses every
+register write where it is off (opening a page, a witness signature, every movement and
+correction, a stock count, and a controlled drug given) with 409 `cd_recording_not_enabled`,
+audited. The demo seed releases recording at the demo home only. Until the switch-on flow (H-1518:
+a Registered Manager with step-up, confirming the paper balance is carried over as an opening
+count) only Thapsus operators set the flag, as a location row.
+
 **Rules**
 
 1. **The tab** (`/people/{id}/controlled-drugs`): one row per register page (drug, form and strength,
