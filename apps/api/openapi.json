@@ -33510,6 +33510,116 @@
           "validUntil"
         ]
       },
+      "SupervisionsDue": {
+        "type": "object",
+        "properties": {
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "dueWindowDays": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupervisionsDueMember"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "asOf",
+          "dueWindowDays",
+          "members",
+          "truncated"
+        ]
+      },
+      "SupervisionsDueMember": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "locationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "meetings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeetingDueItem"
+            }
+          },
+          "lastSpotCheckOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "member",
+          "roles",
+          "locationIds",
+          "meetings",
+          "lastSpotCheckOn"
+        ]
+      },
+      "MeetingDueItem": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "supervision",
+              "appraisal"
+            ]
+          },
+          "lastHeldOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "dueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "due",
+              "overdue",
+              "none_recorded"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "lastHeldOn",
+          "dueOn",
+          "state"
+        ]
+      },
       "PutTrainingRequirement": {
         "type": "object",
         "properties": {
@@ -36860,6 +36970,64 @@
         ],
         "additionalProperties": false,
         "description": "A device deleted, or is about to delete, entries that never reached the server; recorded as an audit event"
+      },
+      "SyncKeyLost": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerTenantUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 50
+          },
+          "lastSyncedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lostAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "ownerTenantUserId",
+          "count",
+          "deviceId",
+          "locationIds",
+          "lastSyncedAt",
+          "lostAt"
+        ],
+        "additionalProperties": false,
+        "description": "A device's key stopped opening its database and its unsent entries were lost; recorded with a review"
       },
       "SyncDeviceReport": {
         "type": "object",
@@ -99183,6 +99351,88 @@
         }
       }
     },
+    "/v1/workforce/supervisions-due": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Supervisions and appraisals due across staff",
+        "description": "workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read, as the training matrix. Every member of staff by name and job title, with their next supervision and appraisal (upcoming, due within supervision.due_window_days, overdue, or none recorded) by the rules of the member's record, and their last spot check. Filter by location (roles held there) or attention (a meeting not upcoming). At most 2,000 members; truncated says when more match. Audited without names.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "attention",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Supervisions and appraisals due",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisionsDue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workforce/members/{memberId}/development": {
       "get": {
         "tags": [
@@ -105509,6 +105759,74 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SyncDiscard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncDiscardResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/key-lost": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Record that a device's key stopped opening its database and its unsent entries were lost",
+        "description": "Nobody chose this loss (H-1531, HZ-006), so it carries no reason, no deleter and no ids. The server writes the deletion record (kind key_invalidated, cause device_key_lost), its audit event and an urgent review task for the holders of safety.incident.manage where the owner worked, in one transaction. Any member of the staff may send it from their session on a phone (with MFA when their roles call for it; never a family portal session), up to 3 a day each and 2 a day from any one phone, for a device this organisation knows; otherwise it is refused with an audited problem and no review. One record per lost database: a retry under any id raises nothing more. The owner counts only when an active member and the sender or bound to the device; otherwise the name is kept as a claim. The count is the higher of the device's and the device's last report. Its sender's replay raises the review if it is missing; the old device's open hold tasks are linked to it and left open. The staff route POST /v1/sync/discards never takes this kind.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncKeyLost"
               }
             }
           }

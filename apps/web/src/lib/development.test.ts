@@ -3,6 +3,7 @@ import { createTranslator } from "@harbour/i18n";
 import enGB from "@harbour/i18n/messages/en-GB.json";
 import { describe, expect, it } from "vitest";
 import {
+  byMeetingUrgency,
   codeLabel,
   codeOptions,
   competenceChip,
@@ -13,6 +14,7 @@ import {
   matchesName,
   matrixCounts,
   meetingChip,
+  meetingCounts,
   notNeededChip,
   OBSERVE,
   present,
@@ -214,10 +216,15 @@ describe("status as an icon and a word", () => {
 
   it.each([
     ["overdue", "overdue", "Overdue"],
-    ["due", "due", "Due now"],
+    ["due", "due", "Due soon"],
+    ["none_recorded", "due", "None recorded"],
     ["upcoming", "info", "Not due yet"],
   ])("next meeting %s", (state, status, label) => {
     expect(meetingChip(state, t)).toMatchObject({ status, label });
+  });
+
+  it("never shows none recorded with the overdue icon", () => {
+    expect(meetingChip("none_recorded", t).icon).not.toBe(meetingChip("overdue", t).icon);
   });
 
   it("revalidation requirements", () => {
@@ -273,5 +280,29 @@ describe("helpers", () => {
   it("lists in British English and drops missing names", () => {
     expect(listOf(["A", "B", "C"])).toBe("A, B and C");
     expect(present([{ id: "a" }, null, undefined])).toEqual([{ id: "a" }]);
+  });
+});
+
+describe("WORK-009 supervisions and appraisals across staff", () => {
+  const member = (name: string, ...states: string[]) => ({
+    member: { displayName: name },
+    meetings: states.map((state) => ({ state })),
+  });
+
+  it("counts each state", () => {
+    expect(
+      meetingCounts([member("A", "overdue", "upcoming"), member("B", "none_recorded", "due")]),
+    ).toEqual({ overdue: 1, due: 1, none_recorded: 1, upcoming: 1 });
+  });
+
+  it("puts the most urgent first, then by name", () => {
+    const sorted = byMeetingUrgency([
+      member("Zoe", "upcoming", "upcoming"),
+      member("Bea", "none_recorded", "upcoming"),
+      member("Al", "upcoming", "overdue"),
+      member("Cy", "due", "upcoming"),
+      member("Ann", "upcoming", "upcoming"),
+    ]);
+    expect(sorted.map((m) => m.member.displayName)).toEqual(["Al", "Cy", "Bea", "Ann", "Zoe"]);
   });
 });

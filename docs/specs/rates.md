@@ -260,6 +260,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | retention.staff_file.birthday_age | 75 | years | 2000-01-01 | - | all | NHS Records Management Code of Practice (staff records to the 75th birthday); retention.md staff_file.to_75th_birthday | master-prompt |
 | supervision.per_year | 6 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | appraisal.per_year | 1 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
+| supervision.due_window_days | 14 | days | 2000-01-01 | - | all | Thapsus Care default, not a statutory figure: how many days before a supervision or appraisal falls due it shows as due soon on the training screens (workforce.md rule 7; WORK-009); tenant default | to-verify |
 | document_expiry.reminder_days.first | 90 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.second | 30 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.third | 7 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |

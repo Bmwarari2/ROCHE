@@ -42,7 +42,7 @@
  *   The task is due at once when any entry is an observation (a chart), otherwise within a day
  *   (clinical review round 7, M3). A partial unique index keeps one open task per source.
  */
-import type { DeviceDeletionFlag, SyncDeviceReport } from "@harbour/contracts";
+import type { DeviceDeletionFlag, SyncDeviceReport, SyncKeyLost } from "@harbour/contracts";
 import {
   accessGrant,
   activityRecord,
@@ -52,6 +52,7 @@ import {
   careNote,
   deviceBinding,
   deviceDiscardEntry,
+  deviceDiscardRecord,
   entryDeviceDeletionFlag,
   location,
   notification,
@@ -74,6 +75,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lte, notExists, or, sql } from
 import { alias } from "drizzle-orm/pg-core";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
+import { PerUserQuota, QuotaExceeded } from "../http/quota";
 import { accessRowsOf, accessRowsOfMember } from "./access-rows";
 import { bindDevice, boundToDevice, deviceFirstSeen, deviceRevoked } from "./devices";
 import { rateNumber } from "./rates";
@@ -107,6 +109,25 @@ export const REFUSED_REVIEW_TASK_KIND = "care.refused_entry_review";
  * (scheduling.md section 17 rule 7; HZ-123); defined here for the same reason as the review above.
  */
 export const COVER_TASK_KIND = "scheduling.cover_needed";
+/**
+ * A device's key stopped opening its database and its unsent entries were lost (H-1531, HZ-006):
+ * a manager checks with their owner what was not recorded. It points at the deletion record, and
+ * no report of the device closes it.
+ */
+export const KEY_LOST_TASK_KIND = "sync.device_key_lost";
+export const KEY_LOST_ACTIONS = {
+  recorded: "sync.device.key_lost",
+  raised: "sync.device_key_lost.raised",
+  /** Another member's report of a lost database already on record (changes nothing). */
+  claimOnExisting: "sync.device.key_lost_claim",
+  /** A hold task of the lost database's device, linked to the review (left open). */
+  linked: "sync.device_hold.key_lost_linked",
+} as const;
+/** The deletion record kind a lost key writes (`DEVICE_DISCARD_KINDS`). */
+export const KEY_INVALIDATED_KIND = "key_invalidated" as const;
+/** Lost-key records one member may send in a rolling day (security review of H-1531, M2). */
+export const KEY_LOST_PER_DAY = 3;
+const keyLostQuota = new PerUserQuota("sync.key_lost", KEY_LOST_PER_DAY, 86_400_000);
 /** A flagged-entry task points at the deletion record it comes from. */
 export const FLAGGED_ENTRY_SOURCE = "device_discard";
 const FLAGGED_ENTRY_TASK_KINDS = [REPORTED_DELETED_TASK_KIND, UPLOADED_BEFORE_DELETION_TASK_KIND];
@@ -121,6 +142,7 @@ type FlaggedEntryKind = (typeof FLAGGED_ENTRY_TASK_KINDS)[number];
 export const PERMISSION_ESCALATED_TASK_KINDS: readonly string[] = [
   DEVICE_HOLD_TASK_KIND,
   ...FLAGGED_ENTRY_TASK_KINDS,
+  KEY_LOST_TASK_KIND,
   REFUSED_REVIEW_TASK_KIND,
   COVER_TASK_KIND,
 ];
@@ -1374,6 +1396,292 @@ export async function closeDeviceHoldOnDeletion(
   return withRequestContext(db, systemFor(access), async (tx) => {
     await lock(tx, access.tenantId, `device_hold:${deviceId}`);
     return closeIfEntitled(tx, access, deviceId, "deletion", now, requestId);
+  });
+}
+
+/**
+ * What `recordKeyLost` did: a new record, a replay, an id another kind of deletion holds, or a
+ * refusal because the sender is not on a device or never used the one named.
+ */
+export type KeyLostOutcome =
+  | { readonly outcome: "recorded" | "replay"; readonly tasks: number }
+  | { readonly outcome: "other_deletion" | "device_not_bound" };
+
+/** Lost-key records one phone may send in a rolling day, whoever is signed in (the lead's rule). */
+export const KEY_LOST_PER_DEVICE_PER_DAY = 2;
+
+/** The scope of a lost-key record's audit event, for a replay to rebuild its review from. */
+function scopeFlag(scope: unknown, key: string): boolean | null {
+  const value = (scope as Record<string, unknown> | null)?.[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+async function recordedKeyLostScope(tx: Transaction, discardId: string): Promise<unknown> {
+  const [row] = await tx
+    .select({ scope: auditEvent.scope })
+    .from(auditEvent)
+    .where(
+      and(
+        eq(auditEvent.action, KEY_LOST_ACTIONS.recorded),
+        eq(auditEvent.resourceType, "device_discard"),
+        eq(auditEvent.resourceId, discardId),
+      ),
+    )
+    .orderBy(asc(auditEvent.seq))
+    .limit(1);
+  return row?.scope ?? null;
+}
+
+/**
+ * Records a device's lost key (H-1531, HZ-006), in one transaction run as the system acting for
+ * the sender: the deletion record (kind `key_invalidated`, cause `device_key_lost`, no reason, no
+ * deleter, no ids), its audit event and its review, so the review is never missing once the
+ * record exists (security review M3, clinical review B1). A replay raises the review if it is
+ * still missing.
+ *
+ * - The owner counts only when on the staff and the sender or bound to the device; otherwise the
+ *   name is audited as a claim and the record names no owner (security review M1). The report is
+ *   refused unless the session is on a phone and the lost device is one this organisation knows;
+ *   whether the sender used it is on the review.
+ * - The count is the higher of the device's and the bound device's last report; the review is
+ *   always urgent (clinical reviews H3 and re-review M1).
+ * - The review goes where the owner worked, from the hold's locations, else where the sender works
+ *   (`holdLocations`), for the holders of `safety.incident.manage`; no later report closes it,
+ *   and neither its sender nor the owner can (tasks route). The old device's open hold tasks are
+ *   linked to it, and left for whoever may close them (clinical review M6, security re-review).
+ */
+export async function recordKeyLost(
+  db: Db,
+  access: TenantAccess,
+  body: SyncKeyLost,
+  now: Date,
+  requestId?: string,
+): Promise<KeyLostOutcome> {
+  return withRequestContext(db, systemFor(access), async (tx) => {
+    let id = body.id.toLowerCase();
+    await lock(tx, access.tenantId, `device_discard:${id}`);
+    const sender = access.tenantUserId;
+    const claimedDevice = body.deviceId.toLowerCase();
+    // Bound to a device this organisation knows: the session is signed in on the phone it comes
+    // from, and the sender used the lost database's device (row-level security keeps the binding
+    // inside the tenant). A client-sent id alone is never trusted (the lead's rule).
+    if (!access.deviceId || access.deviceBound !== true) return { outcome: "device_not_bound" };
+    // The lost device must be one this organisation knows (someone in it used it). The sender
+    // need not have used it: on a shared phone the next person signed in sends it, and the loss
+    // must still be reviewed (clinical review round 3, H1); whether they did is on the review.
+    if ((await deviceFirstSeen(tx, claimedDevice)) === null) return { outcome: "device_not_bound" };
+    const senderUsedIt = await boundToDevice(tx, claimedDevice, sender);
+    // The reporting phone first, then the lost device, always in that order: the phone's daily
+    // count cannot be raced by members sending for different devices at once (security review M1).
+    await lock(tx, access.tenantId, `key_lost_from:${access.deviceId}`);
+    await lock(tx, access.tenantId, `device_key_lost:${claimedDevice}`);
+    // One record per lost database: the device id names the database, so a phone that re-keys
+    // and loses it again records anew, and a retry under another id finds this one.
+    let [record] = await tx
+      .select()
+      .from(deviceDiscardRecord)
+      .where(
+        or(
+          eq(deviceDiscardRecord.discardId, id),
+          and(
+            eq(deviceDiscardRecord.kind, KEY_INVALIDATED_KIND),
+            eq(deviceDiscardRecord.deviceId, claimedDevice),
+          ),
+        ),
+      )
+      .limit(1);
+    if (record && record.kind !== KEY_INVALIDATED_KIND) return { outcome: "other_deletion" };
+    // A retry, under any id, is the record already kept: its own id from here on, so a new id never
+    // raises a second review (security review H1).
+    if (record) id = record.discardId;
+    // Only its sender's replay raises a missing review (security re-review L-b); another member's
+    // claim on the same lost database is audited and changes nothing (security review L3).
+    if (record && record.senderTenantUserId !== sender) {
+      await auditInTx(tx, access, {
+        action: KEY_LOST_ACTIONS.claimOnExisting,
+        resourceType: "device_discard",
+        resourceId: id,
+        scope: { heldOnDeviceId: claimedDevice, reportedFromDeviceId: access.deviceId },
+        requestId,
+      });
+      return { outcome: "replay", tasks: 0 };
+    }
+    const replay = record !== undefined;
+    if (!record) {
+      await keyLostQuota.take(tx, sender);
+      // A few a day from any one phone, whoever is signed in on it.
+      const [fromDevice] = await tx
+        .execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM public.audit_event
+        WHERE action = ${KEY_LOST_ACTIONS.recorded}
+          AND scope ->> 'reportedFromDeviceId' = ${access.deviceId}
+          AND occurred_at > now() - interval '1 day'`)
+        .then((r) => r.rows);
+      if ((fromDevice?.n ?? 0) >= KEY_LOST_PER_DEVICE_PER_DAY) throw new QuotaExceeded(3600);
+      const claimedOwner = body.ownerTenantUserId?.toLowerCase() ?? null;
+      const onStaff = claimedOwner
+        ? (
+            await tx
+              .select({ id: tenantUser.id })
+              .from(tenantUser)
+              .where(and(eq(tenantUser.id, claimedOwner), eq(tenantUser.status, "active")))
+          ).length > 0
+        : false;
+      const ownerBound =
+        claimedOwner !== null &&
+        onStaff &&
+        (claimedOwner === sender || (await boundToDevice(tx, claimedDevice, claimedOwner)));
+      const owner = ownerBound ? claimedOwner : null;
+      const deviceId = claimedDevice;
+      // The higher of the device's count and its last report: the phone never lowers what the
+      // server last heard (clinical re-review H1, M1).
+      let count = body.count;
+      let countFrom: "device" | "last_report" | "unknown" = count === null ? "unknown" : "device";
+      if (deviceId) {
+        const last = (await lastReportedWaiting(tx, [deviceId])).get(deviceId);
+        if (last && (count === null || last.waiting > count)) {
+          count = last.waiting;
+          countFrom = "last_report";
+        }
+      }
+      const lostAt = new Date(Math.min(new Date(body.lostAt).getTime(), now.getTime()));
+      [record] = await tx
+        .insert(deviceDiscardRecord)
+        .values({
+          discardId: id,
+          stage: "deleted",
+          kind: KEY_INVALIDATED_KIND,
+          reasonCode: null,
+          cause: "device_key_lost",
+          ownerTenantUserId: owner,
+          deletedByTenantUserId: null,
+          senderTenantUserId: sender,
+          deviceId,
+          entryCount: count,
+          discardedAt: lostAt,
+        })
+        .returning();
+      await auditInTx(tx, access, {
+        action: KEY_LOST_ACTIONS.recorded,
+        resourceType: "device_discard",
+        resourceId: id,
+        reason: "device_key_lost",
+        scope: {
+          kind: KEY_INVALIDATED_KIND,
+          cause: "device_key_lost",
+          ownerTenantUserId: owner,
+          ...(claimedOwner && !ownerBound ? { claimedOwnerTenantUserId: claimedOwner } : {}),
+          heldOnDeviceId: deviceId,
+          senderUsedDevice: senderUsedIt,
+          reportedFromDeviceId: access.deviceId,
+          ...(body.lastSyncedAt ? { lastSyncedAt: body.lastSyncedAt } : {}),
+          count,
+          countFrom,
+          lostAt: lostAt.toISOString(),
+        },
+        requestId,
+      });
+    }
+    if (!record) throw new Error("The key-lost record was not written.");
+    const raised = await tx
+      .select({ id: task.id })
+      .from(task)
+      .where(
+        and(
+          eq(task.kind, KEY_LOST_TASK_KIND),
+          eq(task.sourceType, FLAGGED_ENTRY_SOURCE),
+          eq(task.sourceId, id),
+          isNull(task.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (raised.length > 0) return { outcome: "replay", tasks: 0 };
+    const owner = record.ownerTenantUserId;
+    // A replay raises the review from what was recorded, never from the replay's body (security
+    // review M2): the claimed owner and last sync from the record's audit event, and no places.
+    const recorded = replay ? await recordedKeyLostScope(tx, id) : null;
+    const claimed = replay
+      ? scopeText(recorded, "claimedOwnerTenantUserId")
+      : (body.ownerTenantUserId?.toLowerCase() ?? null);
+    const lastSyncedAt = replay ? scopeText(recorded, "lastSyncedAt") : body.lastSyncedAt;
+    const lastReport = record.deviceId
+      ? (await lastReportedWaiting(tx, [record.deviceId])).get(record.deviceId)
+      : undefined;
+    // What the nurse in charge needs to ask the right question (the lead's rule): the owner (or the
+    // name claimed), who sent it and whether that is someone else (a shared phone), the device,
+    // the count and the last sync. No entry content.
+    const reviewDetails = {
+      ownerTenantUserId: owner,
+      ...(owner === null && claimed ? { claimedOwnerTenantUserId: claimed } : {}),
+      senderTenantUserId: record.senderTenantUserId,
+      senderUsedDevice: replay ? scopeFlag(recorded, "senderUsedDevice") : senderUsedIt,
+      sharedDevice: (owner ?? claimed) !== null && (owner ?? claimed) !== record.senderTenantUserId,
+      deviceId: record.deviceId,
+      entryCount: record.entryCount,
+      lastSyncedAt,
+      // The server's own last word from the lost device, beside the phone's (clinical review M3).
+      lastReportedAt: lastReport ? lastReport.at.toISOString() : null,
+    };
+    const locations = await holdLocations(
+      tx,
+      { reporter: sender, owner: owner ?? sender },
+      owner && !replay ? body.locationIds : [],
+      now,
+    );
+    // Always urgent: entries written after the device's last report cannot be known, so a count
+    // of 0 does not show nothing was lost (clinical re-review M1; H-1534 for the CSO).
+    // The old device's open hold tasks are linked, never closed here: closing them is for their
+    // owner, raiser or a manager (`closingRight`; security re-review M, clinical re-review H1).
+    const holds = record.deviceId
+      ? await tx.select({ id: task.id }).from(task).where(openDeviceTasks(record.deviceId))
+      : [];
+    const ids: string[] = [];
+    for (const target of await taskTargets(tx, locations, now)) {
+      const [created] = await tx
+        .insert(task)
+        .values({
+          locationId: target.locationId,
+          kind: KEY_LOST_TASK_KIND,
+          title: "Unsent care entries were lost on a device: check what was not recorded",
+          requiredPermission: DISCARD_OTHERS_PERMISSION,
+          sourceType: FLAGGED_ENTRY_SOURCE,
+          sourceId: id,
+          assigneeTenantUserId: target.assignee,
+          assigneeRoleKey: "registered_manager",
+          dueAt: now,
+          priority: "urgent",
+          details: {
+            ...reviewDetails,
+            ...(holds.length > 0 ? { holdTaskIds: holds.map((h) => h.id) } : {}),
+          },
+        })
+        .onConflictDoNothing()
+        .returning({ id: task.id });
+      if (!created) continue;
+      ids.push(created.id);
+      await auditInTx(tx, access, {
+        action: KEY_LOST_ACTIONS.raised,
+        resourceType: "task",
+        resourceId: created.id,
+        scope: {
+          discardId: id,
+          ownerTenantUserId: owner,
+          count: record.entryCount,
+          locationId: target.locationId,
+        },
+        requestId,
+      });
+    }
+    for (const hold of holds) {
+      await auditInTx(tx, access, {
+        action: KEY_LOST_ACTIONS.linked,
+        resourceType: "task",
+        resourceId: hold.id,
+        scope: { deviceId: record.deviceId, discardId: id, reviewTaskId: ids[0] ?? null },
+        requestId,
+      });
+    }
+    return { outcome: replay ? "replay" : "recorded", tasks: ids.length };
   });
 }
 

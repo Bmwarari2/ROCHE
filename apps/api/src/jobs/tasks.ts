@@ -62,7 +62,7 @@ import {
   raiseHerbertReviews,
   withdrawDeathRecord,
 } from "../services/deaths-missing";
-import { raiseDevelopmentReminders } from "../services/development";
+import { raiseDevelopmentReminders, raiseSupervisionReminders } from "../services/development";
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
@@ -704,6 +704,19 @@ export async function remindDevelopmentExpiry(deps: TaskDeps, now = new Date()):
     raiseDevelopmentReminders(tx, tenantId, now),
   );
   if (raised > 0) deps.logger.info({ raised }, "training and competence reminders raised");
+  return raised;
+}
+
+/**
+ * Supervision and appraisal reminders (workforce.md rule 7; WORK-009): one task for HR's role per
+ * meeting due inside `supervision.due_window_days` or overdue, once for each due date. Runs with
+ * the training and competence reminders, on their hourly schedule.
+ */
+export async function remindSupervisionsDue(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "supervision-reminders", (tx, tenantId) =>
+    raiseSupervisionReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "supervision and appraisal reminders raised");
   return raised;
 }
 
