@@ -352,14 +352,16 @@ following; each is marked in the registry (`provisional`) and none changes a rec
 - **Phase 0 and 1 tables with a class only in the export catalogue** (no mapping row in
   retention.md; the catalogue's class is used, for the DPO to confirm): `access_grant`,
   `role_assignment` and `support_access_request` (`audit_event`), `person_assignment`
-  (`care_record`), `form_submission` and `notification` (the class of the record they link).
+  (`care_record`), `form_submission` and `notification` (the class of the record they link)
+  (provisional, H-1606).
 - **Tables with no class anywhere** (kept, never offered, until the DPO decides): the membership
   `tenant_user`, the organisation's officers on `tenant`, `notification_preference` and
   `operator_user` (kept while current); the sign-in schema `auth.user`, `auth.account`,
   `auth.passkey`, `auth.two_factor`, `auth.session` and `auth.verification` (removed with the
   sign-in or at expiry, but no sweep deletes expired sessions or verifications); `request_quota`
   (rewritten in place, never deleted); `integration_inbound` (staged inbound messages, no sweep);
-  and the trigger of a `statutory_notification` with no incident (its submission, proposed).
+  and the trigger of a `statutory_notification` with no incident (its submission, proposed)
+  (provisional, H-1607).
 - **Organisation material marked personal by the catalogue** (it names authors and approvers):
   `dependency_scale_version`, `policy_version`, `statement_of_purpose_version` and
   `letter_template_version` have entries under `organisation_document` (never offered), though
@@ -369,7 +371,7 @@ following; each is marked in the registry (`provisional`) and none changes a rec
   `audit_record.started_by`, `audit_action.owner_id`, `rota_publication.published_by`,
   `shift_assignment.worker_id`, `pay_run_line.member_id`, `pay_run_exception.member_id` and the
   `outbreak_case` check that a resident row names a person. These are deleted for now; keeping the
-  anonymous row needs an expand migration (slice 8). Rotas, shifts and pay runs clear their
+  anonymous row needs an expand migration (slice 8; provisional, H-1608). Rotas, shifts and pay runs clear their
   personal columns; applicants are redacted; lone-worker locations keep today's clearing.
 - **Classes the registry cannot yet tell apart per row**: a person closed without admission
   (`not_admitted`) takes `enquiry_not_assessed` and `pre_admission_not_admitted` together, the
