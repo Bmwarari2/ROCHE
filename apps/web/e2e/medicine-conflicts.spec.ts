@@ -101,6 +101,8 @@ test("hazard HZ-004 the nurse in charge decides a dose sent twice: the first rec
   await expect(asked).toBeFocused();
   await bothThemes(manager, "given twice asked again");
   await decide.getByRole("button", { name: "Keep reviewing" }).press("Enter");
+  // The button goes, so focus returns to the question.
+  await expect(decide.getByRole("radio").first()).toBeFocused();
   const stands = decide.getByRole("radio", { name: /the first record stands/ });
   await stands.focus();
   await manager.keyboard.press("Space");
@@ -221,7 +223,9 @@ test("hazard HZ-004 hazard HZ-115 a controlled drug's record is corrected with a
   await expect(status(owner, /Signed as witness\./)).toBeVisible();
   await witness.getByRole("button", { name: "Check for the signature" }).click();
   // Whether it was found is announced.
-  await expect(form.getByText("Your witness's signature is here. Choose it below.")).toBeAttached();
+  await expect(
+    form.getByText("Your witness's signature is here. Choose it under “The witness's signature”."),
+  ).toBeAttached();
   await witness.getByLabel("The witness's signature").selectOption({ label: `Signed by ${OWNER}` });
   await form.getByRole("button", { name: "Save correction" }).click();
   await expect(status(manager, "Record corrected. Now decide what happened.")).toBeVisible();

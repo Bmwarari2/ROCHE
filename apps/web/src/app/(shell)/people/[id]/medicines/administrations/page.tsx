@@ -109,7 +109,7 @@ async function Administrations({
                           <PenLine size={18} strokeWidth={1.5} aria-hidden="true" />
                           {t("medicines.administrations.correct", {
                             product,
-                            at: formatDateTime(r.givenAt) ?? "",
+                            at: formatDateTime(r.givenAt) ?? "none",
                           })}
                         </Link>
                       </p>

@@ -131,6 +131,16 @@ describe("hazards HZ-115 and HZ-116 the register page and its entries", () => {
     expect((await json<{ id: string }>(await open())).id).toBe(pageId);
   });
 
+  it("hazard HZ-115 says a controlled drug's MAR entry is one in the write's own response", async () => {
+    // The second check returns the entry: it says so, as the MAR read does (web corrections).
+    const checked = await send("owner", `/v1/medicines/${entryId}/check`, {
+      method: "POST",
+      body: { outcome: "matches_source", comparedWithSource: true },
+    });
+    expect(checked.status, await checked.clone().text()).toBe(200);
+    expect((await json<{ controlledDrug: boolean }>(checked)).controlledDrug).toBe(true);
+  });
+
   it("takes a witnessed receipt, and refuses one without a witness, by the witness, or unsigned for", async () => {
     const receive = (body: Record<string, unknown>) =>
       send("manager", `/v1/controlled-drugs/pages/${pageId}/entries`, {

@@ -135,7 +135,15 @@ export function ConflictDecisionForm({
             : t(confirming ? "medicines.conflicts.form.raise" : "medicines.conflicts.form.submit")}
         </Button>
         {confirming ? (
-          <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setConfirming(false);
+              // The button goes, so focus returns to the question it came from.
+              document.getElementById(ids.outcome ?? "")?.focus();
+            }}
+          >
             {t("medicines.conflicts.form.keepReviewing")}
           </Button>
         ) : null}
@@ -433,7 +441,8 @@ export function AdministrationCorrectionForm({
       {controlledDrug && move && recordingOn ? (
         <fieldset className="flex flex-col gap-3 rounded-input border border-border p-3">
           <legend className="px-1 font-semibold">{t("medicines.correct.witness.title")}</legend>
-          <p className="m-0">
+          {/* Announced by the live region above; shown here only, so it is not read twice. */}
+          <p className="m-0" aria-hidden="true">
             {t("medicines.correct.witness.signsFor", { what: moveWords(move, unit) })}
           </p>
           {witnessLink ? (

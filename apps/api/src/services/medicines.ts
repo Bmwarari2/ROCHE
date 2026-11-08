@@ -437,3 +437,12 @@ export async function guardConcurrent<T>(fn: () => Promise<T>): Promise<T> {
     throw error;
   }
 }
+
+/** Whether the entry's dm+d product is a controlled drug (its schedule comes from slice 10). */
+export async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ cd: medication.cdSchedule })
+    .from(medication)
+    .where(eq(medication.id, entryId));
+  return Boolean(row?.cd);
+}

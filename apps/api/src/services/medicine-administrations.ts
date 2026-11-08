@@ -538,11 +538,4 @@ export async function raiseOutstandingDoseTasks(
 
 const LOOKBACK_MS = 3 * 86_400_000;
 
-/** Whether the entry's dm+d product is a controlled drug (its schedule comes from slice 10). */
-export async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {
-  const [row] = await tx
-    .select({ cd: medication.cdSchedule })
-    .from(medication)
-    .where(eq(medication.id, entryId));
-  return Boolean(row?.cd);
-}
+export { isControlledDrug } from "./medicines";

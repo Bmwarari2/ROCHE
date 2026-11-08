@@ -267,7 +267,7 @@ describe("reading the correction form", () => {
       null,
     ],
   ] as const)(
-    "hazard HZ-010 the time corrected across a clock change: %s",
+    "hazard HZ-009 the time corrected across a clock change: %s",
     (_name, parts, instant) => {
       const read = readCorrection(form({ ...base, ...parts }), t, context());
       if (instant === null) {
