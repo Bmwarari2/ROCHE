@@ -972,7 +972,7 @@ screens are slice 60, the phone's offline queue slice 71.
 
 | Table | Kind | Columns | Retention class |
 | --- | --- | --- | --- |
-| `clock_setting` | mutable, one per location | `location_id`, `evidence` (`none` by default; `at_location` or `nfc` only once the employee-monitoring DPIA is approved, H-527), `nfc_tag_refs` (opaque tag ids) | `rota_and_timesheet` |
+| `clock_setting` | mutable, one per location | `location_id`, `evidence` (`none` by default; `at_location` or `nfc` only while `scheduling.clock.location_evidence` is on at the location and the organisation's signed DPIA covers it, H-527, H-1555), `nfc_tag_refs` (opaque tag ids) | `rota_and_timesheet` |
 | `clock_event` | append-only, client UUID, idempotent | `worker_id`, `kind` (`in`, `out`, `break_start`, `break_end`), `shift_id`, `location_id`, `device_time`, `recorded_at` (server), `device_id` (opaque), `evidence` (`none`, `at_location`, `nfc`), `nfc_tag_ref`, `flags` | `rota_and_timesheet` |
 | `timesheet_entry` | mutable while `draft`; fixed once `approved`; corrected by a new entry with `supersedes_id` | `worker_id`, `location_id`, `shift_id`, `kind` (shift kinds plus `travel`), `started_at`, `ended_at`, `breaks` (`[{ start, end }]`), `travel` (journey kind), `mileage_tenths` (tenths of a mile), `source` (`clock`, `manual`), `clock_in_id`, `clock_out_id`, `status` (`draft`, `approved`), `approved_by`, `approved_at`, `supersedes_id`, `correction_reason` | `rota_and_timesheet` |
 | `sleep_in_awake_period` | append-only | `timesheet_entry_id`, `started_at`, `ended_at` | `rota_and_timesheet` |
@@ -983,7 +983,24 @@ Location evidence is never a position: the phone says only whether it was at the
 read the location's NFC tag); Thapsus Care stores that word and never coordinates or a track. The API
 keeps evidence only as the location's setting asks for it, and an NFC tag only if it is one of the
 location's tags (a short code, never free text); anything else is stored as `none` and flagged
-`evidence_not_matched`. Entries longer than 25 hours (a design limit, not a statutory figure) cannot
+`evidence_not_matched`.
+
+Location or NFC evidence is employee monitoring (H-527, H-1033, H-1555). The catalogue flag
+`scheduling.clock.location_evidence` (off by default, not licensed, never set remotely) is the
+organisation's intention to use it; switching it on, for the organisation or at any location, lists
+it among the DPIA's features, so the signed DPIA is flagged for review (`feature_enabled`) until a
+version listing it is prepared and signed. `PUT /v1/locations/{id}/clock-setting` refuses `at_location`
+or `nfc` with 422 `dpia_monitoring_not_covered` ("Location or NFC evidence is employee monitoring:
+your organisation's signed DPIA must cover it first.") unless the flag is on at the location AND the
+signed DPIA lists it; the refusal is audited. `none` is always accepted. The client's `dpiaApproved`
+is deprecated and ignored; the audit event records `evidence` and the id of the signed DPIA relied
+on (`dpiaId`). `GET` and `PUT` answer with `inUse`, whether the evidence asked for is in effect at the
+location (not `none`, the flag on there and the signed DPIA covering it). Because `feature_flag` rows are set directly, the same check applies at clock-in: evidence
+is kept only while the setting asks for it, the flag is on at the location and the signed DPIA covers
+it, so a setting saved before this check, or a DPIA superseded by one without the flag, keeps
+`none` (flagged `evidence_not_matched`).
+
+Entries longer than 25 hours (a design limit, not a statutory figure) cannot
 come from the clock; a longer live-in stretch is entered by hand.
 
 ### Rules
@@ -1076,7 +1093,7 @@ actions H-970 to H-979.
 
 | Table | Kind | Columns | Retention class |
 | --- | --- | --- | --- |
-| `absence` | mutable, `expected_version` | `member_id` (the `tenant_user` absent), `location_id` (the home whose rota it touches), `kind` (`ABSENCE_KINDS`), `starts_on`, `ends_on` (null while a sickness is open), `state` (`requested`, `approved`, `declined`, `postponed`, `cancelled`, `recorded`), `decided_by`, `decided_at`, `decision_reason`, `self_certified_at`, `ended_at`, `postponed_from_id` (migration 0153); never a diagnosis | `sickness_absence` for sickness, else `rota_and_timesheet` |
+| `absence` | mutable, `expected_version` | `member_id` (the `tenant_user` absent), `location_id` (the home whose rota it touches), `kind` (`ABSENCE_KINDS`), `starts_on`, `ends_on` (null while a sickness is open), `state` (`requested`, `approved`, `declined`, `postponed`, `cancelled`, `recorded`), `decided_by`, `decided_at`, `decision_reason`, `self_certified_at`, `ended_at`, `postponed_from_id` (migration 0155); never a diagnosis | `sickness_absence` for sickness, else `rota_and_timesheet` |
 | `fit_note` | append-only | `absence_id`, `document_id` (an HR-only staff document, retention `sickness_absence`), `issued_on`, `covers_from`, `covers_to`, `fitness` (`not_fit`, `may_be_fit`), the four ticked adjustments (`phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations`); never the condition written on the note | `sickness_absence` |
 | `return_to_work` | append-only | `absence_id`, `member_id`, `held_on`, `held_by`, `fit_for_usual_duties`, `adjustments_agreed` (the same four), `notes` (the conversation, special category); one per absence | `sickness_absence` |
 | `shift_cover_need` | append-only, then resolved once | `shift_id`, `assignment_id`, `absence_id`, `location_id`, `raised_at`, `resolved_at`, `resolution` (`assignment_removed`, `absence_ended`) | `rota_and_timesheet` |
@@ -1113,7 +1130,7 @@ reads it.
    (`recorded`). The member cancels their own request before it is decided; a manager cancels an
    approved or recorded absence with a reason.
 1a. **Postponing carer's and parental leave** (H-970; `checkPostponement`, `postponementLimits`;
-   migration 0153). Only where the business would be unduly disrupted, which the approver judges
+   migration 0155). Only where the business would be unduly disrupted, which the approver judges
    and writes as the reason. The approver gives the new first and last days, and the request moves
    to `postponed` while the new dates become `approved` leave pointing back at it
    (`postponed_from_id`, one per request, never changed), raising cover needs as any approved
@@ -1351,7 +1368,6 @@ Audit events carry ids only (never figures): `scheduling.pay_rule_set.created`, 
   reproduces; the member reads their own locked line.
 
 ## 19. Lone-worker safety (slice 46; SCHED-012)
-## 17. Lone-worker safety (slice 46; SCHED-012)
 
 Staff who work alone (domiciliary visits, night shifts) check in on a schedule. A missed check-in,
 a call for help or a duress check-in raises an alarm to the organisation's named on-call route
@@ -1361,7 +1377,6 @@ slice 61 and the mobile app slice 71. No rota or shift table exists yet (slice 2
 stands alone: the worker starts it.
 
 ### 19.1 Schema (migration 0113)
-### 17.1 Schema (migration 0113)
 
 | Table | Kind | What it holds |
 | --- | --- | --- |
@@ -1378,7 +1393,6 @@ tenant scope), and acknowledged only by a monitor who is not the worker. History
 `record_version` is redacted (no worker, note or outcome). Records stay on the server for now.
 
 ### 19.2 Permissions and figures
-### 17.2 Permissions and figures
 
 | Permission | Who has it by default | What it allows |
 | --- | --- | --- |
@@ -1392,7 +1406,6 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
 `lone_worker.location_days`, and the existing `sync.clock_drift_flag_minutes`.
 
 ### 19.3 Rules
-### 17.3 Rules
 
 1. **Off until the route is named.** A session starts only when the organisation has saved a
    valid route under the chain key `scheduling.lone_worker.alarm`: step 1 the on-call person or
@@ -1449,7 +1462,6 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
    is audited and the others go on.
 
 ### 19.4 The offline rule
-### 17.4 The offline rule
 
 The server decides only from check-ins it has received, by the time the worker made them:
 
@@ -1468,9 +1480,16 @@ The server decides only from check-ins it has received, by the time the worker m
   that time, not now. If the worker is overdue again by now, the alarm stays open.
 
 ### 19.5 Location evidence (H-527)
-### 17.5 Location evidence (H-527)
 
-Off by default (`scheduling.lone_worker.location`, a location-level flag). When on, the device may
+Off by default (`scheduling.lone_worker.location`, a location-level flag). It is employee
+monitoring (H-1033, H-1555): a point is kept only while the flag is on at the session's location AND
+the organisation's signed DPIA lists the flag among its features; otherwise the point sent is
+ignored. Switching the flag on, for the organisation or at any location, flags the signed DPIA for
+review (`feature_enabled`). `GET` and `PUT /v1/lone-worker/route` report `locationEvidence` as the
+organisation-wide value: the organisation's flag on and covered by its signed DPIA. A location's own
+flag row may switch it on (or off) at that location alone, which this value does not show. The
+`event_recorded` audit event says whether a point sent was kept (`locationKept`), never the point.
+When in use, the device may
 attach one point to the event it sends (check-in, help, duress, finish); nothing is collected
 between events, so there is never a track. A monitor sees the latest point on an alarm. The sweep
 erases each point (coordinates cleared, the row kept as proof of the erasure) after
@@ -1478,7 +1497,6 @@ erases each point (coordinates cleared, the row kept as proof of the erasure) af
 timekeeping (R22).
 
 ### 19.6 API, audit and outbox
-### 17.6 API, audit and outbox
 
 | Route | Permission | Notes |
 | --- | --- | --- |
@@ -1486,7 +1504,7 @@ timekeeping (R22).
 | `PUT /v1/lone-worker/route` | manage | Validated; a named person must be an active member; audited `scheduling.lone_worker.route_set` |
 | `POST /v1/lone-worker/sessions` | check_in | Client id; 201 or 200 on replay; audited `session_started` |
 | `GET /v1/lone-worker/sessions/mine` | check_in | Duress shown as check-in; overdue alarm only |
-| `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in) |
+| `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in), with `locationKept` when a point was sent |
 | `POST /v1/lone-worker/emergency` | check_in | Help or duress without a usable session (H-1317, slice 71): recorded in the worker's open session, else the session of their open help or duress alarm, else a new session finished as it starts, at the named session's location when it is theirs, the location given, their latest session's, or another where they work (by name); alarmed like any help or duress (the route, else the Registered Manager and owner); answers as a session's event (duress as a check-in); client UUID, a replay of the worker's own event answered before a limit of 30 in 10 minutes; audited `session_started` and `event_recorded` with `withoutSession` (duress as check-in) |
 | `GET /v1/lone-worker/board` | monitor | Open sessions with status words; audited |
 | `GET /v1/lone-worker/alarms` | monitor | Open by default; with the latest location point; audited |
@@ -1499,14 +1517,14 @@ events: `scheduling.lone_worker.alarm_raised`, `scheduling.lone_worker.alarm_res
 Notifications carry no personal data.
 
 ### 19.7 Retention and data protection
-### 17.7 Retention and data protection
 
 `lone_worker` (3 years from the session's finish) for sessions, events and alarms; location points
 are not retained beyond `lone_worker.location_days`. Records of processing B3; data standards
 "Lone-worker safety". The DPO confirms the employee-monitoring DPIA covers it before it is switched
-on (H-1033).
+on (H-1033); Thapsus Care enforces this by keeping no location unless the signed DPIA covers it
+(section 19.5; H-1555).
 
-### 19.8a Web screens (slice 61)
+### 19.8 Web screens (slice 61)
 
 `/lone-working` in the navigation, for holders of any of the three permissions
 (`loneWorkerNavShown`). Every rule stays in the API; the pages order and word what it returns.
@@ -1556,8 +1574,7 @@ on (H-1033).
   first, no Registered Manager later, minutes out of order and a step reaching people only inside
   Thapsus Care (`readRoute`); the API checks every role and person again.
 
-### 19.8 Test list
-### 17.8 Test list
+### 19.9 Test list
 
 - Domain, table-driven: session checks, event acceptance offline and late, next due, status, the
   offline rule end to end, resolution, acknowledgement, re-alert, route checks, figures present.
@@ -1646,7 +1663,7 @@ share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decis
    stopping hides it again. A check-in is never a referral or a judgement. The screen points to the
    organisation's own support (its employee assistance details) and to emergency help, set by the
    organisation (H-1084).
-## 19. Payroll and pension exports (slice 76; SCHED-008; ADR-0013, ADR-0097)
+## 21. Payroll and pension exports (slice 76; SCHED-008; ADR-0013, ADR-0097)
 
 A locked pay run (section 18) leaves Thapsus Care only when someone exports it, explicitly, in one of
 four ways: to Xero Payroll UK through its adapter, or as a file for Staffology, Sage or BrightPay.
@@ -1881,14 +1898,14 @@ Audit events carry ids only, never a figure or a reference:
   - another organisation's run not found;
   - audit with ids only.
 
-## 18. Shifts, the clock and lone working on the phone (slice 71; MOB-007, SCHED-002, SCHED-004, SCHED-012)
+## 22. Shifts, the clock and lone working on the phone (slice 71; MOB-007, SCHED-002, SCHED-004, SCHED-012)
 
 The member's own shifts, clock and lone working in the mobile app, offline first. The phone never
 decides what the API decides: whether a clock-in is allowed (HZ-124), whether a check-in counts,
 when an alarm is raised (section 17). It saves what the member did, with the device's time and a
 client UUID, and sends it when there is a connection.
 
-### 18.1 What syncs to the phone
+### 22.1 What syncs to the phone
 
 Two streams, both scoped by the sync token alone (connection parameters are ignored; HZ-011):
 
@@ -1906,7 +1923,7 @@ database (`sync_meta`, `lone-worker-mine:<tenant>`), so a restart without a conn
 the session and says "Thapsus Care last answered at 10:02." Without any answer the screen says it cannot
 tell whether the member is in a session, never that they are not.
 
-### 18.2 What the phone writes
+### 22.2 What the phone writes
 
 | Device table | Sent to | Notes |
 | --- | --- | --- |
@@ -1921,7 +1938,7 @@ for a clock-in come from the shift under way or starting within `CLOCK_IN_EARLY_
 product setting), else the member's only location; with neither the phone records nothing and says
 so. A break or clock-out takes the clock-in's location and shift.
 
-### 18.3 The Shifts tab
+### 22.3 The Shifts tab
 
 Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check_in`.
 
@@ -1933,7 +1950,7 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    way", and "Changed after it was published" in words.
 4. Lone working (holders of the check-in permission): its own screen.
 
-### 18.4 Lone working on the phone (HZ-125)
+### 22.4 Lone working on the phone (HZ-125)
 
 1. **Start**: kind of work, length (2, 4 or 8 hours) and interval (every 30 or 60 minutes), each
    choice said in words. These are presets; the API checks the organisation's own figures (section
@@ -1941,7 +1958,7 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    queue until the server has it.
 2. **Check in**: one press. The next check-in due is the server's own when nothing of the worker's
    waits to send (so a monitor's "safe confirmed" moves it), otherwise worked out on the phone as the
-   server does (section 17.3 rule 3). "Overdue" is said in words with an icon, and aloud when it
+   server does (section 19.3 rule 3). "Overdue" is said in words with an icon, and aloud when it
    becomes overdue. A session known only on the phone (started offline) says that nobody is told
    if a check-in is missed until it reaches Thapsus Care, and that Ask for help still raises
    the alarm with Thapsus Care, with "call 999"; a start the API refused says lone working did not start, in the
@@ -1959,7 +1976,7 @@ Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check
    it goes back into the queue when the owner signs in again (H-1315). A duress press the API
    refused before reaching the event (the session unknown or refused, access withdrawn) raised no
    alarm there, so the phone sends it again (on a 404, or a 403 about the session only) to
-   `POST /v1/lone-worker/emergency` (H-1317, section 17.6), which records it against the worker and
+   `POST /v1/lone-worker/emergency` (H-1317, section 19.6), which records it against the worker and
    raises the alarm. The refusal is still kept under "needs attention" as a check-in, exactly as a
    refused check-in would be, so the list never gives the press away; if the emergency route
    refuses too (the member checks in nowhere, or no longer may), that is what stays.
@@ -1978,7 +1995,7 @@ help or duress from the lock screen (H-1314). A member who no longer holds the c
 anywhere cannot be recorded in lone working at all; the phone keeps such a press under "needs
 attention" with "call 999".
 
-### 18.5 Data on the device
+### 22.5 Data on the device
 
 `shift` and `clock_event` are copies of the member's own rows (data standards, "Device copies").
 `lone_worker_outbox` rows exist only until sent, in the upload queue, or in `held_entry` when the
@@ -1986,7 +2003,7 @@ session ended first (put back into the queue when the owner signs in again). Ref
 `upload_issue` until someone removes them with a reason, a duress press always as a check-in. The
 last answer about the member's own session is kept in `sync_meta`. All are in the encrypted device database, wiped with it.
 
-### 18.6 Test list
+### 22.6 Test list
 
 - Sync: own shifts and clock events only, never a colleague's or another tenant's; nothing without
   `shift_days`; device parameters ignored; no lone-worker table (`shift-streams.test.ts`); the token

@@ -2074,7 +2074,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       correction_reason: { description: "Why the record was corrected." },
       scan_evidence: {
-        description: "Barcode evidence, when scanning is in use (empty until then).",
+        description:
+          "How the person was identified (photo or wristband) and the pack checked (scanned, with its GTIN, batch and expiry, or why it was not), when recorded on a phone.",
       },
       cd_entry_id: { description: "The controlled drugs register entry (empty until slice 34)." },
       created_at: "exported",
@@ -2454,6 +2455,19 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       asserted_at: { description: "When they signed (instant, UTC)." },
       expires_at: { description: "When the signature stopped being usable (instant, UTC)." },
       used_at: { description: "When an entry or stock check used it (instant, UTC)." },
+      method: {
+        description:
+          "How the witness signed: step_up in their own session, or device_factor with their PIN on the recorder's device (ADR-0084).",
+      },
+      device_key_id: { description: "The device key that signed (member_device_key.id)." },
+      signature: {
+        description:
+          "The witness's ECDSA P-256 signature over the dose statement, checked by the API on upload (ADR-0084); proof for the register, not exported.",
+        class: "internal",
+      },
+      signed_at: {
+        description: "When the witness signed on the device, by its clock (instant, UTC).",
+      },
       created_at: "exported",
     },
   },
@@ -3500,6 +3514,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     personal: true,
     reasonNotExported:
       "Security records of sign-in sessions: the session ids are Thapsus Care's own credentials' identifiers and mean nothing outside it; which member used which device is exported in device_binding.",
+    columns: {},
+  },
+  "public.member_device_key": {
+    context: "platform",
+    description:
+      "The public half of each member's signing key on each device, for signatures on controlled drugs made offline (ADR-0084).",
+    treatment: "not_exported",
+    retention: "audit_event",
+    personal: true,
+    reasonNotExported:
+      "Security keys: a public key means nothing outside Thapsus Care; which member used which device is exported in device_binding, and each signature's key with the witness record.",
     columns: {},
   },
   "public.device_discard_entry": {

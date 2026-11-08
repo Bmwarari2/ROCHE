@@ -7,6 +7,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { t } from "../i18n/t";
+import { MEDS_REMINDER_PREFIX, type PlannedReminder } from "../medicines/reminders";
 import { HELD_NOTIFICATION_IDS, type PlannedNotification } from "../sync/held-limit";
 
 const CHANNEL_ID = "held-entries";
@@ -60,5 +61,42 @@ export async function scheduleHeldNotifications(
     }
   } catch {
     // The sign-in screen carries the same message.
+  }
+}
+
+const MEDS_CHANNEL_ID = "time-critical-medicines";
+
+/**
+ * Replaces the time-critical dose reminders with the plan (slice 69). Best effort, never throws:
+ * the round shows the same doses due whether or not reminders are allowed. The words name no one.
+ */
+export async function scheduleMedicineReminders(plan: readonly PlannedReminder[]): Promise<void> {
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const n of scheduled) {
+      if (n.identifier.startsWith(MEDS_REMINDER_PREFIX)) {
+        await Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => undefined);
+      }
+    }
+    if (plan.length === 0 || !(await permitted())) return;
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync(MEDS_CHANNEL_ID, {
+        name: t("mobile.meds.reminderChannel"),
+        importance: Notifications.AndroidImportance.HIGH,
+      });
+    }
+    for (const item of plan) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: item.identifier,
+        content: { title: t("mobile.meds.reminderTitle"), body: t("mobile.meds.reminderBody") },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: item.at,
+          ...(Platform.OS === "android" ? { channelId: MEDS_CHANNEL_ID } : {}),
+        },
+      });
+    }
+  } catch {
+    // The round carries the same doses.
   }
 }

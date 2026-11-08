@@ -692,7 +692,7 @@ export const absencesRouter = createRouter()
         let given: AbsenceRow | undefined;
         let givenRaised = 0;
         if (to === "postponed") {
-          // The leave on the new dates, approved by the same approver (migration 0153).
+          // The leave on the new dates, approved by the same approver (migration 0155).
           [given] = await tx
             .insert(absence)
             .values({

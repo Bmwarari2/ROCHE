@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CdWitness } from "./controlled-drugs";
+import { DoseCdWitness } from "./controlled-drugs";
 import { Dose, MarSourceKind } from "./medicines";
 
 /**
@@ -50,10 +50,52 @@ const RecordFields = {
    * administration, or where policy allows why there was none. The register entry is written with
    * the record.
    */
-  controlledDrug: CdWitness.nullable().default(null),
+  controlledDrug: DoseCdWitness.nullable().default(null),
   /** Given covertly, under the person's covert record for the medicine (slice 38). */
   covert: z.boolean().default(false),
 };
+
+/**
+ * How the person was identified and the pack checked at the point of care (ADR-0081; HZ-001,
+ * HZ-113): sent by the phone with each record. A dose given needs both; an outcome that gives
+ * nothing needs neither. Kept as the record's barcode evidence. No pack serial: it is not needed.
+ */
+export const PointOfCare = z
+  .object({
+    identity: z.enum(["photo", "wristband"]).nullable(),
+    pack: z
+      .object({
+        method: z.enum(["scanned", "override"]),
+        gtin: z
+          .string()
+          .regex(/^\d{14}$/)
+          .nullable()
+          .default(null),
+        batch: text(20).nullable().default(null),
+        expiry: ukDate.nullable().default(null),
+        amppId: z
+          .string()
+          .regex(/^[1-9]\d{5,17}$/)
+          .nullable()
+          .default(null),
+        override: z
+          .object({
+            code: z.enum([
+              "no_barcode_on_pack",
+              "barcode_unreadable",
+              "pack_not_in_reference_data",
+              "patient_own_supply",
+              "other",
+            ]),
+            note: text(500).nullable().default(null),
+          })
+          .nullable()
+          .default(null),
+      })
+      .nullable(),
+  })
+  .meta({ id: "PointOfCare" });
+export type PointOfCare = z.infer<typeof PointOfCare>;
 
 export const RecordAdministration = z
   .object({
@@ -71,6 +113,15 @@ export const RecordAdministration = z
     givenBeforeRecorded: z.object({ reason }).nullable().default(null),
     /** Who gave it, when someone else records it after it was given; the recorder otherwise. */
     givenBy: uuid.nullable().default(null),
+    /** Identity and pack checks, sent by the phone (ADR-0081). */
+    pointOfCare: PointOfCare.nullable().default(null),
+    /**
+     * When the phone recorded it, by its clock: a phone's upload only (it names its device), within
+     * the clock-drift figure of the time in its UUIDv7 id. The rules judge the record at this time,
+     * so a dose recorded offline and sent later is judged as recorded on the round, never as
+     * "recorded after a delay" (clinical review of slice 69, B1).
+     */
+    deviceRecordedAt: isoDateTime.nullable().default(null),
   })
   .meta({ id: "RecordAdministration" });
 

@@ -223,6 +223,12 @@ export const LocationSummary = z
   .meta({ id: "LocationSummary" });
 export type LocationSummary = z.infer<typeof LocationSummary>;
 
+/** The feature flags as they apply at one location the member works at (H-1517). */
+export const LocationFlags = z
+  .object({ locationId: uuid, flags: z.record(z.string(), z.boolean()) })
+  .meta({ id: "LocationFlags" });
+export type LocationFlags = z.infer<typeof LocationFlags>;
+
 export const Me = z
   .object({
     user: z.object({ id: z.string(), name: z.string(), email: z.email() }),

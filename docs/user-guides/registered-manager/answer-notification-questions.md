@@ -3,8 +3,8 @@
 Thapsus Care checks which statutory notifications an incident needs. When it cannot tell from what was
 recorded, it asks questions. Until they are answered, a notification may be missed.
 
-**Who can do this**: people who manage incidents (Registered Manager, deputy, nurse or clinical
-lead, owner). The person who raised a fall can answer the two falls questions.
+**Who can do this**: people who manage incidents (Registered Manager, deputy manager, nurse or
+clinical lead, owner). The person who raised a fall can answer the two falls questions.
 
 **Register rows**: SAFE-002, SAFE-009.
 

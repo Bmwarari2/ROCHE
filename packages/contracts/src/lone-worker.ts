@@ -52,7 +52,12 @@ export const LoneWorkerRoute = z
     on: z.boolean(),
     steps: z.array(LoneWorkerRouteStep),
     problems: z.array(z.object({ code: z.string(), message: z.string() })),
-    /** Whether the organisation attaches location evidence to events (off by default; H-527). */
+    /**
+     * Whether the organisation attaches location evidence to events, organisation-wide: its flag
+     * on for the organisation AND its signed DPIA covering it (off by default; H-527, H-1555). A
+     * location's own flag row may switch it on or off at that location alone; this value does not
+     * show that.
+     */
     locationEvidence: z.boolean(),
     /**
      * Whether text messages can be chosen: only once an SMS gateway is connected. None is at
@@ -104,7 +109,10 @@ export const RecordLoneWorkerEvent = z
     kind: LoneWorkerEventKind,
     /** When the worker made it, by the device's clock (it may arrive much later). */
     deviceAt: isoDateTime,
-    /** Ignored unless the organisation's location flag is on; one point, never a track. */
+    /**
+     * Ignored unless the location flag is on at the session's location and the organisation's
+     * signed DPIA covers it (H-1555); one point, never a track.
+     */
     location: LoneWorkerLocationPoint.nullable().optional(),
   })
   .meta({ id: "RecordLoneWorkerEvent" });

@@ -1,6 +1,7 @@
 # User guides: senior carer or team leader
 
-For team leaders and senior carers. You can do everything a care worker does for everyone at your home, and the tasks below.
+For team leaders or senior carers. You can do everything a care or support worker does for everyone
+at your home, and the tasks below.
 
 ## Your guides
 
@@ -8,7 +9,11 @@ For team leaders and senior carers. You can do everything a care worker does for
 - [How to print the downtime pack](print-the-downtime-pack.md)
 - [How to publish a family update](publish-a-family-update.md)
 - [How to record a death](record-a-death.md)
+- [How to record a dependency category](record-a-dependency-category.md)
+- [How to respond to a lone-working alarm](respond-to-a-lone-working-alarm.md)
 - [How to send someone to hospital](send-someone-to-hospital.md)
+- [How to sign off a competence you observed](sign-off-a-competence.md)
+- [How to withdraw a competence sign-off](withdraw-a-competence-sign-off.md)
 
 ## Everyone
 
@@ -24,23 +29,52 @@ For team leaders and senior carers. You can do everything a care worker does for
 
 ## From the care worker guides
 
+- [How to add medication error details to an incident](../care-worker/add-medication-error-details-to-an-incident.md)
+- [How to answer a staff survey](../care-worker/answer-a-staff-survey.md)
+- [How to ask for help while lone working on the phone](../care-worker/ask-for-help-while-lone-working-on-the-phone.md)
+- [How to ask for leave](../care-worker/ask-for-leave.md)
 - [How to check a person's safeguarding measures](../care-worker/check-safeguarding-measures.md)
 - [How to check consent, capacity and DoLS](../care-worker/check-consent-capacity-and-dols.md)
+- [How to check in while lone working on the phone](../care-worker/check-in-while-lone-working-on-the-phone.md)
+- [How to check in while working alone on the web](../care-worker/check-in-while-working-alone-on-the-web.md)
 - [How to check the person's details before you give care](../care-worker/check-the-person-before-you-act.md)
+- [How to check your pay](../care-worker/check-your-pay.md)
+- [How to check your shifts](../care-worker/check-your-shifts.md)
+- [How to clock in and out on the phone](../care-worker/clock-in-and-out-on-the-phone.md)
+- [How to clock in and out on the web](../care-worker/clock-in-and-out.md)
 - [How to do a round](../care-worker/run-a-round.md)
+- [How to download a training course to the phone](../care-worker/download-a-training-course-to-the-phone.md)
 - [How to enter paper records after an outage](../care-worker/enter-paper-records-after-an-outage.md)
+- [How to give a homely remedy](../care-worker/give-a-homely-remedy.md)
+- [How to give a when-required (PRN) medicine in the browser](../care-worker/give-a-when-required-medicine-in-the-browser.md)
+- [How to give medicines in the browser round](../care-worker/give-medicines-in-the-browser-round.md)
+- [How to keep a missing person's timeline](../care-worker/keep-a-missing-person-timeline.md)
+- [How to keep a wellbeing check-in](../care-worker/keep-a-wellbeing-check-in.md)
 - [How to mark the body map](../care-worker/mark-the-body-map.md)
+- [How to print the MAR chart](../care-worker/print-the-mar-chart.md)
 - [How to raise a safeguarding concern](../care-worker/raise-a-safeguarding-concern.md)
 - [How to read and acknowledge the shift handover](../care-worker/read-and-acknowledge-the-handover.md)
+- [How to read the staff privacy notice and choose how your photo is used](../care-worker/check-your-privacy-choices.md)
 - [How to record a chart entry (fluids, food, repositioning, bowel, weight)](../care-worker/record-a-chart-entry.md)
+- [How to record a medicines fridge or room temperature](../care-worker/record-a-medicines-fridge-or-room-temperature.md)
 - [How to record a missing person](../care-worker/record-a-missing-person.md)
 - [How to record an activity or a visit](../care-worker/record-an-activity-or-visit.md)
 - [How to record an incident](../care-worker/record-an-incident.md)
 - [How to record vital signs and read the NEWS2 result](../care-worker/record-vital-signs.md)
+- [How to see your shifts on the phone](../care-worker/see-your-shifts-on-the-phone.md)
+- [How to sign as a controlled drugs witness in the browser](../care-worker/sign-as-a-controlled-drugs-witness.md)
+- [How to start and finish lone working on the phone](../care-worker/start-and-finish-lone-working-on-the-phone.md)
+- [How to take a training course offline on the phone](../care-worker/take-a-training-course-offline-on-the-phone.md)
+- [How to take an e-learning course](../care-worker/take-an-e-learning-course.md)
+- [How to thank a colleague](../care-worker/thank-a-colleague.md)
 - [How to write a daily note](../care-worker/write-a-daily-note.md)
 
 ## From the nurse guides
 
+- [How to correct a controlled drugs register entry](../nurse/correct-a-controlled-drugs-register-entry.md)
+- [How to count controlled drugs stock](../nurse/count-controlled-drugs-stock.md)
+- [How to print a controlled drugs register page](../nurse/print-a-controlled-drugs-register-page.md)
+- [How to record a controlled drug received, returned, disposed of or destroyed](../nurse/record-a-controlled-drug-movement.md)
 - [How to run MUST, Waterlow or Braden, or ask the falls questions](../nurse/run-a-validated-tool.md)
 
 Back to [all user guides](../README.md).

@@ -103,7 +103,7 @@ export const absence = pgTable(
     source: text("source").notNull().default("harbour"),
     hrId: text("hr_id"),
     /**
-     * For leave an approver gave on new dates when postponing a request (H-970; migration 0153):
+     * For leave an approver gave on new dates when postponing a request (H-970; migration 0155):
      * the request it replaces, which stays `postponed` with the reason.
      */
     postponedFromId: uuid("postponed_from_id"),

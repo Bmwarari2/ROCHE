@@ -178,7 +178,7 @@ describe("migration 0107 an absence is its member's and their home's managers'",
   });
 });
 
-describe("H-970 migration 0153 postponing carer's or parental leave to new dates", () => {
+describe("H-970 migration 0155 postponing carer's or parental leave to new dates", () => {
   const ASK_CARERS = `INSERT INTO absence (member_id, location_id, kind, starts_on, ends_on, state)
     VALUES ($1, $2, $3, '2026-12-07', '2026-12-08', 'requested') RETURNING id`;
   const GIVE = `INSERT INTO absence (member_id, location_id, kind, starts_on, ends_on, state,

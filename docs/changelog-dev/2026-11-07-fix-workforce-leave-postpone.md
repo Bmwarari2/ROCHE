@@ -11,7 +11,7 @@ Branch `fix/workforce-leave-postpone`.
   law does not let them refuse it), and approve or decline for the rest.
 - Postponing now takes new dates. The approver gives the new first and last days and a reason;
   the request becomes `postponed` and the new dates become approved leave pointing back at it
-  (`absence.postponed_from_id`, migration 0153), with cover needs raised as for any approved leave.
+  (`absence.postponed_from_id`, migration 0155), with cover needs raised as for any approved leave.
   Only the approver who postponed it may write that leave, for the same member, home and kind, once.
 - The domain (`checkPostponement`, `postponementLimits`) refuses new dates of a different length,
   dates not after the first day asked for and today, a first day later than the limit, a decision
@@ -48,5 +48,5 @@ Branch `fix/workforce-leave-postpone`.
   errors of an empty postponement, then new dates and the confirmation) and maternity leave
   approved as its only choice.
 - API test: a postponement at a stale version is refused with 409 and gives no leave on new dates.
-  Migration 0153 says the date limits are the domain's and the API's, and that the postponing
+  Migration 0155 says the date limits are the domain's and the API's, and that the postponing
   approver is accountable on both rows.

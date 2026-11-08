@@ -3,8 +3,8 @@
 Thapsus Care builds the handover from the record: falls, NEWS2 scores needing a response, incidents,
 alerts, body map marks, overdue or missed tasks, refused care and notes for handover.
 
-**Who can do this**: care workers, agency workers, senior carers, nurses and managers. You see
-only the items about the people you may see.
+**Who can do this**: care and support workers, agency or bank workers, team leaders or senior
+carers, nurses and managers. You see only the items about the people you may see.
 
 **Register rows**: CARE-013, COMMS-006. On the web only for now.
 
@@ -29,7 +29,7 @@ Notes add to the handover. They never change an item.
 
 - Acknowledging means you have read the items shown to you. If something new is added later, you
   will be asked to read it too.
-- If nobody on the incoming shift acknowledges it, the nurse in charge is alerted an hour after the
+- If nobody on the incoming shift acknowledges it, the nurse or senior in charge (whoever your home gives medicines record management) is alerted an hour after the
   shift ends: "A handover has not been acknowledged".
 - Day shift starts at 08:00 and night shift at 20:00 unless your home has set other times.
 - Once the shift ends the handover is locked. Add anything new to the next shift's handover.

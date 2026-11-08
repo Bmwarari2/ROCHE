@@ -2,9 +2,6 @@
 
 See who has signed the version of a policy in force, and who is still outstanding and since when.
 
-These screens arrive with the next merge; until then they are on the `feat/quality-dashboard-pir`
-branch.
-
 **Who can do this**: the Registered Manager, the deputy manager, the owner and the quality and
 compliance lead. Other staff see only whether they have signed themselves.
 
@@ -12,7 +9,7 @@ compliance lead. Other staff see only whether they have signed themselves.
 
 ## Steps
 
-1. In the side bar, choose **Policies**.
+1. In the menu, choose **Policies**.
 2. Choose the policy in the **Policy library**.
 3. Go to **Who has read and signed**. The summary says how many of the people asked have signed,
    for example "12 of 15 people asked have signed."
@@ -30,4 +27,4 @@ compliance lead. Other staff see only whether they have signed themselves.
   everyone asked must sign again.
 - Thapsus Care reminds outstanding people with a task until they sign. You do not need to chase them in
   Thapsus Care.
-- The rule: [quality spec section 17, rule 26](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).
+- The rules are in the [quality specification](../../specs/quality.md#17-phase-2-domain-rules-slice-8-qual-001-002-004-005-006-008-012).

@@ -1,7 +1,7 @@
 # How to invite a team member
 
 **Who can do this**: the owner, Registered Manager and deputy manager. You must confirm it is you
-with your passkey or authenticator app (step-up).
+with your passkey or authenticator app.
 
 **Register row**: PLAT-004.
 

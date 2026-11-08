@@ -4,7 +4,7 @@ Break-glass lets you read a record outside your normal access, for example in an
 only when you must.
 
 **Who can do this**: the Registered Manager, deputy manager and owner. You must confirm it is you
-with your passkey or authenticator app (step-up).
+with your passkey or authenticator app.
 
 **Register rows**: PLAT-006, PLAT-013.
 

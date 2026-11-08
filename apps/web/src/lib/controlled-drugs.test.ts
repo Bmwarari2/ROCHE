@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CD_RECORDING_FLAG,
   type CdEntry,
+  cdRecordingOn,
   cdShown,
   countOverdue,
   movementChip,
@@ -206,5 +208,24 @@ describe("reading the forms", () => {
         loneAllowed: false,
       }),
     ).toMatchObject({ ok: true, body: { counted: 0, reason: null } });
+  });
+});
+
+describe("hazard HZ-115 hazard HZ-008 the paper register is the record until Thapsus Care's is released at the home (H-1517)", () => {
+  it.each([
+    ["the flag on at the location", { [CD_RECORDING_FLAG]: true }, true],
+    ["the flag off", { [CD_RECORDING_FLAG]: false }, false],
+    ["the flag missing from the answer", { "module.emar": true }, false],
+    ["no answer from the API", null, false],
+    ["nothing read", undefined, false],
+  ] as const)("%s: turned on is %s", (_case, flags, on) => {
+    expect(cdRecordingOn(flags)).toBe(on);
+  });
+
+  it("says in words that the paper register is the record, and the round no longer sends staff to Thapsus Care's", () => {
+    expect(t("cd.notTurnedOn.title")).toMatch(/not turned on/);
+    expect(t("cd.notTurnedOn.body")).toMatch(/paper controlled drugs register is the record/);
+    expect(t("medicines.round.cdNotice")).toMatch(/paper controlled drugs register/);
+    expect(t("medicines.round.cdNotice")).not.toMatch(/in the controlled drugs register/);
   });
 });

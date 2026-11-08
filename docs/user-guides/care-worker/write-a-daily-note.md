@@ -1,7 +1,7 @@
 # How to write a daily note
 
-**Who can do this**: care workers (for the people assigned to them), senior carers, nurses and
-managers.
+**Who can do this**: care and support workers (for the people assigned to them), team leaders or
+senior carers, nurses and managers.
 
 **Register row**: CARE-009.
 
