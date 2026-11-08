@@ -3600,11 +3600,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           held_deleted: "Entries held on the device after a session ended.",
           signed_out_with_unsent: "Unsent entries, at a sign-out.",
           refused_removed: "One entry the server had refused, removed from the device.",
+          key_invalidated:
+            "The device's key stopped opening its database, so its unsent entries were lost; nobody chose it.",
         },
       },
       reason_code: {
         description:
-          "The coded reason (discard_reason.code of this organisation); the person's own words never leave the device.",
+          "The coded reason (discard_reason.code of this organisation); the person's own words never leave the device. Empty for key_invalidated, which nobody chose.",
+      },
+      cause: {
+        description: "For key_invalidated only: the system cause, never a staff reason.",
+        codes: { device_key_lost: "The device's key no longer opened its database." },
       },
       owner_tenant_user_id: {
         description:

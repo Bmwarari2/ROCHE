@@ -477,6 +477,53 @@ export const SyncDiscard = z
   });
 export type SyncDiscard = z.infer<typeof SyncDiscard>;
 
+/** The system cause a `key_invalidated` deletion record carries (H-1531): never a staff reason. */
+export const SYNC_KEY_LOST_CAUSES = ["device_key_lost"] as const;
+
+/**
+ * A device's keystore key stopped opening its encrypted database, so the unsent entries in it were
+ * lost (H-1531, HZ-006). Nobody chose it: it carries no reason, no deleter and no ids, only what
+ * the device knew of its hold. Sent once, to `POST /v1/sync/key-lost`; the server writes the
+ * deletion record (kind `key_invalidated`) and the review. The staff route
+ * (`POST /v1/sync/discards`) never takes it.
+ */
+export const SyncKeyLost = z
+  .object({
+    /** The device's record id: a replay is recorded once. */
+    id: uuid,
+    /** Whose entries, as the device knew (the hold's owner, else the person signed in). */
+    ownerTenantUserId: uuid.nullable(),
+    /** How many entries the hold counted; null when the device did not know. */
+    count: z.number().int().min(0).max(100_000).nullable(),
+    /**
+     * The device whose database was lost (its opaque id then). It must be one this organisation
+     * knows and the sender used; the request comes from the sender's session on the phone now.
+     */
+    deviceId: uuid,
+    /** Where the hold's owner worked, as the device knew (at most 50). */
+    locationIds: z.array(uuid).max(50),
+    /** When the device last heard from the server, when the hold knew it. */
+    lastSyncedAt: isoDateTime.nullable(),
+    lostAt: isoDateTime,
+  })
+  .strict()
+  .meta({
+    id: "SyncKeyLost",
+    description:
+      "A device's key stopped opening its database and its unsent entries were lost; recorded with a review",
+  });
+export type SyncKeyLost = z.infer<typeof SyncKeyLost>;
+
+/**
+ * How a lost key's review ends (H-1531): its `reason` when marked done is one of these codes, so
+ * the review is never closed without saying what was found.
+ */
+export const KEY_LOST_REVIEW_OUTCOMES = [
+  "nothing_missing",
+  "re_recorded",
+  "incident_raised",
+] as const;
+
 export const SyncDiscardResult = z
   .object({ id: uuid, recorded: z.boolean(), replay: z.boolean() })
   .meta({ id: "SyncDiscardResult" });

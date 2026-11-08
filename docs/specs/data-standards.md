@@ -1616,7 +1616,15 @@ these differences, defined in `packages/sync/src/client/schema.ts`:
   audit events (`sync.entry_flag.raised`, `sync.entry_flag.added`, resource `task`) carry the
   deletion record, the owner's `tenant_user` id, the count and how many were added;
   a cap is `sync.entry_flag.capped` (resource `device_discard`, scope `mergedInto`: the owner's
-  oldest open task at the location, whose `added` event then carries `merged`). A hold's device
+  oldest open task at the location, whose `added` event then carries `merged`). A deletion of kind
+  `key_invalidated` (a key that stopped opening the phone's database; H-1531) is written only by
+  `POST /v1/sync/key-lost`: a null `reason_code` and a `cause` (`device_key_lost`), the only kind
+  with either (checks `device_discard_record_reason` and `device_discard_record_cause`), audited
+  as `sync.device.key_lost` (resource `device_discard`; scope: the owner, a claimed owner or device
+  not taken, the device it was held on and the one it was reported from, the count and where it came from, the last sync); one per lost database (`device_discard_record_key_lost_key`); a refusal is `sync.device.key_lost` denied (resource `device`, reason `device_not_bound`). It raises `sync.device_key_lost` review tasks
+  (source `device_discard`; details: the owner's or claimed owner's and the sender's `tenant_user` ids, whether they differ, the device id, the count, the last sync and the linked hold tasks), audited as
+  `sync.device_key_lost.raised` (resource `task`; scope: the deletion record, the owner, the count,
+  the location and the priority), and is done only with a coded outcome in its reason. A hold's device
   report (unsent, refused, held and blocked counts, the oldest age, when the hold started, the
   owner's `tenant_user` id and up to 50 location ids, contract `SyncDeviceReport`, which refuses
   unknown keys) may wait in the keystore the same way, with the id of the device that held the

@@ -2,6 +2,7 @@ import {
   SyncDeviceReport,
   SyncDiscard,
   SyncDiscardResult,
+  SyncKeyLost,
   SyncToken,
   SyncUpload,
   SyncUploadResult,
@@ -36,7 +37,7 @@ import {
 } from "@harbour/sync/streams";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import { auditInTx } from "../http/audit";
+import { auditInTx, writeAudit } from "../http/audit";
 import { mfaRefusal, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
@@ -48,6 +49,7 @@ import {
   DISCARD_OTHERS_PERMISSION,
   flagEntriesAlreadyUploaded,
   recordDeviceHold,
+  recordKeyLost,
 } from "../services/device-holds";
 import {
   bindDevice,
@@ -858,6 +860,52 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           }
         }
         return c.json({ id: body.id, recorded: true, replay }, 200);
+      },
+    )
+    .openapi(
+      createRoute({
+        method: "post",
+        path: "/v1/sync/key-lost",
+        tags: ["sync"],
+        summary:
+          "Record that a device's key stopped opening its database and its unsent entries were lost",
+        description:
+          "Nobody chose this loss (H-1531, HZ-006), so it carries no reason, no deleter and no ids. The server writes the deletion record (kind key_invalidated, cause device_key_lost), its audit event and an urgent review task for the holders of safety.incident.manage where the owner worked, in one transaction. Any member of the staff may send it from their session on a phone (with MFA when their roles call for it; never a family portal session), up to 3 a day each and 2 a day from any one phone, for a device this organisation knows; otherwise it is refused with an audited problem and no review. One record per lost database: a retry under any id raises nothing more. The owner counts only when an active member and the sender or bound to the device; otherwise the name is kept as a claim. The count is the higher of the device's and the device's last report. Its sender's replay raises the review if it is missing; the old device's open hold tasks are linked to it and left open. The staff route POST /v1/sync/discards never takes this kind.",
+        security,
+        request: { body: { content: { "application/json": { schema: SyncKeyLost } } } },
+        responses: { 200: jsonBody(SyncDiscardResult, "Recorded"), ...errorResponses },
+      }),
+      async (c) => {
+        const access = c.get("access");
+        // Staff only: a family portal session never records a device's loss (security re-review
+        // L-a).
+        if (access.context.family) throw problems.forbidden();
+        if (!access.mfaSatisfied) throw mfaRefusal(access);
+        const body = c.req.valid("json");
+        const result = await recordKeyLost(
+          c.get("services").db,
+          access,
+          body,
+          new Date(),
+          c.get("requestId"),
+        );
+        if (result.outcome === "other_deletion") {
+          throw problems.invalid("This deletion was recorded for other entries.");
+        }
+        if (result.outcome === "device_not_bound") {
+          // Audited, with opaque ids only, then refused (the lead's rule: no task).
+          await writeAudit(c.get("services").appPool, access, {
+            action: "sync.device.key_lost",
+            outcome: "denied",
+            resourceType: "device",
+            resourceId: body.deviceId.toLowerCase(),
+            reason: "device_not_bound",
+          });
+          throw problems.invalid(
+            "Send this from your session on the phone, for a phone used with this organisation.",
+          );
+        }
+        return c.json({ id: body.id, recorded: true, replay: result.outcome === "replay" }, 200);
       },
     )
     .openapi(

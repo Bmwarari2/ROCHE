@@ -56,6 +56,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /v1/notifications/{id}/read": "the member's own notification",
   "POST /v1/sync/device-report":
     "any member reports what their device holds; written in the system's view (HZ-006)",
+  "POST /v1/sync/key-lost":
+    "any staff member on a phone reports a lost database a device the organisation knows held; written in the system's view (H-1531, HZ-006)",
   "POST /v1/sync/upload": "refuses every operation (no writable synced tables); audits the count",
   "POST /v1/me/clock-events":
     "the member's own clock event: scheduling.timesheet.self, or a bank or agency booking checked in the route (ADR-0088); written as the system for that member only",

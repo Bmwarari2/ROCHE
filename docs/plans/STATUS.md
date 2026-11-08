@@ -16,6 +16,9 @@ releases. Migration 0131; human actions H-1240 to H-1245. The job's Terraform wa
 adds the Terraform for that job (H-1241): the Cloud Run job `harbour-<env>-dmd`, its monthly Cloud
 Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job is applied
 (H-1501 to H-1505).
+**Pushed on 08/11/2026, not merged:** `feat/mobile-key-invalidated` (H-1531, MOB-007 stays
+`partial`). A phone whose key stopped opening its database records the loss at Thapsus Care, and
+a manager gets an urgent review. Migration 0159.
 
 **Committed on 07/11/2026, not pushed:** `fix/workforce-certificate-revalidation-permissions`
 (WORK-004 stays `partial`, WORK-012 `todo`). Two findings from the workforce guides' review: a Care

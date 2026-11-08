@@ -221,7 +221,7 @@ export const task = pgTable(
         sql`coalesce(assignee_tenant_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`,
       )
       .where(
-        sql`status IN ('open', 'in_progress') AND deleted_at IS NULL AND kind IN ('sync.device_hold', 'sync.entry_reported_deleted', 'sync.entry_deleted_after_upload', 'care.refused_entry_review')`,
+        sql`status IN ('open', 'in_progress') AND deleted_at IS NULL AND kind IN ('sync.device_hold', 'sync.entry_reported_deleted', 'sync.entry_deleted_after_upload', 'care.refused_entry_review', 'sync.device_key_lost')`,
       ),
     index("task_due_idx").on(t.tenantId, t.status, t.dueAt),
     index("task_person_idx").on(t.tenantId, t.personId, t.dueAt),
