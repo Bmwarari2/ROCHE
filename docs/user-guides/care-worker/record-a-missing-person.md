@@ -20,9 +20,9 @@ the incident but cannot open the missing person episode: tell the person in char
 
 1. From the person's record, choose **Record an incident** (see
    [How to record an incident](record-an-incident.md)).
-2. Under **What kind of incident was it?**, choose **Missing person**. Choose it also when they
-   left without agreement and nobody knows where they are: only a **Missing person** incident can
-   open the missing person episode and the police call target at present.
+2. Under **What kind of incident was it?**, choose **Missing person**, or **Left without
+   agreement** if they left without staff knowing. Both open the missing person episode and the
+   police call target.
 3. Under **When did it happen?**, choose **Just now**, or **Earlier** and enter when they were
    noticed missing.
 4. Under **What happened**, write when and where they were last seen, what they were wearing, and
@@ -32,8 +32,8 @@ the incident but cannot open the missing person episode: tell the person in char
 
 ## What happens next
 
-- Open the missing person episode straight away from the **Missing person** incident: choose
-  **Record the missing person episode**. The episode shows the latest time to call the police and
+- Open the missing person episode straight away from the **Missing person** or **Left without
+  agreement** incident: choose **Record the missing person episode for** the person affected. The episode shows the latest time to call the police and
   keeps the search log (see
   [How to keep a missing person's timeline](keep-a-missing-person-timeline.md)). If you cannot
   see the button, tell the person in charge.
@@ -46,6 +46,8 @@ the incident but cannot open the missing person episode: tell the person in char
 
 ## Good to know
 
+- If you are worried, call the police straight away. The time on the episode is your
+  organisation's target, never a reason to wait.
 - The person's Herbert Protocol profile (what they look like, places they may go, routines) is on
   their record, under **Herbert Protocol**. Anyone who can read incidents can read it.
 - If the person is under a Deprivation of Liberty Safeguards (DoLS) authorisation or the Mental

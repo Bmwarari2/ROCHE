@@ -62,6 +62,7 @@ import {
   type CdWitnessInput,
   pageEntries,
   pageFor,
+  requireCdRecording,
   witnessPolicyFor,
   writeCdEntry,
 } from "../services/controlled-drugs";
@@ -554,6 +555,12 @@ export const medicineAdministrationsRouter = createRouter()
           if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
           const cd = isCd && body.outcome === "given" ? { cdEntryId: randomUUID() } : null;
           if (cd) {
+            // Refused before anything else where the register is not released here (H-1517).
+            await requireCdRecording(
+              tx,
+              (await loadPerson(tx, personId)).locationId,
+              deny([]).audit,
+            );
             requireCdSignatures(
               access,
               body.controlledDrug,
@@ -929,6 +936,8 @@ export const medicineAdministrationsRouter = createRouter()
           if (isCd) refuseUnheldCdOutcome(body.outcome, deny);
           const cdMove = isCd ? registerMoveForCorrection(original, body, at) : null;
           if (cdMove) {
+            // Refused before anything else where the register is not released here (H-1517).
+            await requireCdRecording(tx, facts.person.locationId, deny([]).audit);
             requireCdSignatures(
               access,
               body.controlledDrug,
@@ -1423,7 +1432,7 @@ export async function isControlledDrug(tx: Transaction, entryId: string): Promis
   return Boolean(row?.cd);
 }
 
-type Deny = (issues: readonly { problem: string; message: string }[]) => Error;
+type Deny = (issues: readonly { problem: string; message: string }[]) => AuditedRefusal;
 
 /**
  * A controlled drug taken by the person themselves or given by family is not recorded here until
@@ -1561,6 +1570,9 @@ async function writeRegisterEntry(
     readonly deviceGivenAt?: string | null;
   },
 ) {
+  // Nothing goes in Thapsus Care's register until recording is released here (H-1517): the dose
+  // is refused, audited as the caller's action, and recorded on paper instead.
+  await requireCdRecording(tx, e.locationId, deny([]).audit);
   const { page, opened } = await pageFor(tx, e.entry, access.tenantUserId);
   // Offline on one phone (ADR-0084; slice 70): both signatures are verified here, and the
   // witness's becomes the register's own assertion, used at once by the entry below.

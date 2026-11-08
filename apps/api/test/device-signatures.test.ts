@@ -327,6 +327,89 @@ describe("hazard HZ-116 a controlled drug witnessed on one phone offline (ADR-00
     expect((await json<{ taskId: string | null }>(r)).taskId).not.toBeNull();
   });
 
+  it("hazard HZ-115 hazard HZ-116 refuses a dose signed on a phone where controlled drug recording is not turned on (H-1517), before its signatures are checked, and keeps its copy with an urgent review", async () => {
+    const setRecording = (enabled: boolean) =>
+      asDemo((c) =>
+        c.query(
+          "UPDATE feature_flag SET enabled = $2 WHERE flag_key = 'medicines.cd_recording' AND location_id = $1",
+          [DEMO.locationId, enabled],
+        ),
+      );
+    await setRecording(false);
+    try {
+      const at = new Date();
+      const id = uuidV7At(at);
+      const pair = (quantity: number) => ({
+        deviceSignatures: {
+          recorder: signed("recorder", "manager", id, quantity, at),
+          witness: { ...signed("witness", "carer", id, 1, at), witnessId: DEMO.users.carer.id },
+        },
+      });
+      // Valid signatures, and a recorder who signed for another amount: both refused for the
+      // switch, never for the signatures, which are not checked.
+      for (const body of [pair(1), pair(2)]) {
+        const r = await dose(id, at, body);
+        expect(r.status, await r.clone().text()).toBe(409);
+        expect((await json<{ code: string }>(r)).code).toBe("cd_recording_not_enabled");
+      }
+      const written = await asDemo(async (c) => ({
+        doses: (await c.query("SELECT 1 FROM medication_administration WHERE id = $1", [id]))
+          .rowCount,
+        witnessed: (
+          await c.query(
+            "SELECT 1 FROM controlled_drug_witness_assertion WHERE administration_id = $1",
+            [id],
+          )
+        ).rowCount,
+        denied: (
+          await c.query(
+            `SELECT 1 FROM audit_event WHERE resource_id = $1 AND outcome = 'denied'
+               AND action = 'medicines.administration.recorded'`,
+            [id],
+          )
+        ).rowCount,
+      }));
+      expect(written.doses).toBe(0);
+      expect(written.witnessed).toBe(0);
+      expect(written.denied).toBeGreaterThanOrEqual(1);
+      const copy = await send("manager", "/v1/sync/refused-entries", {
+        method: "POST",
+        headers: onPhone,
+        body: {
+          entryId: id,
+          table: "medication_administration",
+          personId: ADA,
+          httpStatus: 409,
+          code: "cd_recording_not_enabled",
+          message: "Controlled drugs are recorded in the paper register at this home.",
+          refusedAt: at.toISOString(),
+          payload: {
+            kind: "record",
+            body: {
+              id,
+              entryId,
+              outcome: "given",
+              amount: { quantity: 1, unitCode: TABLET },
+              givenAt: at.toISOString(),
+              controlledDrug: pair(1),
+            },
+          },
+        },
+      });
+      expect(copy.status, await copy.clone().text()).toBe(200);
+      const { taskId } = await json<{ taskId: string | null }>(copy);
+      expect(taskId).not.toBeNull();
+      const priority = await asDemo(
+        async (c) =>
+          (await c.query<{ priority: string }>("SELECT priority FROM task WHERE id = $1", [taskId]))
+            .rows[0]?.priority,
+      );
+      expect(priority).toBe("urgent");
+    } finally {
+      await setRecording(true);
+    }
+  });
+
   // Last: revoking a phone also ends the sessions bound to it.
   it("takes no new key on a phone whose access was withdrawn", async () => {
     // A phone whose access was withdrawn takes no new key.

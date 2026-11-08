@@ -7,6 +7,7 @@ import {
   service,
   type Transaction,
 } from "@harbour/db";
+import type { FlagKey } from "@harbour/domain";
 import {
   type CdEntry,
   type CdEntryIssue,
@@ -20,7 +21,9 @@ import {
   witnessPolicyForServices,
 } from "@harbour/domain";
 import { and, asc, eq, isNull } from "drizzle-orm";
+import { AuditedRefusal, type AuditInput } from "../http/audit";
 import { problems } from "../http/problem";
+import { flagsAt } from "./care-planning";
 import { guardConcurrent } from "./medicines";
 
 /**
@@ -281,4 +284,27 @@ export function stockCheckOut(r: StockCheckRow, unitName: string): StockCheckOut
     witnessId: r.witnessId,
     noWitnessReason: r.noWitnessReason,
   };
+}
+
+/** The flag that releases Thapsus Care's controlled drugs register at a location (H-1517). */
+export const CD_RECORDING_FLAG = "medicines.cd_recording" satisfies FlagKey;
+
+/**
+ * Refuses a write to the controlled drugs register, or an administration that would write to it,
+ * while recording is not released at the person's home (H-1517, HZ-115): 409
+ * `cd_recording_not_enabled`, audited as denied by the caller's `withAuditedRefusal`. Checked in
+ * the transaction that writes, before anything is written.
+ */
+export async function requireCdRecording(
+  tx: Transaction,
+  locationId: string,
+  audit: AuditInput,
+): Promise<void> {
+  const on = await flagsAt(tx, locationId);
+  if (on(CD_RECORDING_FLAG)) return;
+  throw new AuditedRefusal(problems.cdRecordingNotEnabled(), {
+    ...audit,
+    outcome: "denied",
+    scope: { ...audit.scope, problems: ["cd_recording_not_enabled"] },
+  });
 }
