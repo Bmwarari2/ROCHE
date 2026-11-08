@@ -44,6 +44,7 @@ import { publish } from "../outbox";
 import {
   developmentRecord,
   endDevelopmentReminders,
+  endSupervisionReminders,
   memberNation,
   supervisionsDueFor,
   trainingMatrixFor,
@@ -672,6 +673,8 @@ export const developmentRouter = createRouter()
             heldBy: access.tenantUserId,
           })
           .returning({ id: supervisionRecord.id });
+        // The reminder for this kind is done; the next due date's follows from the sweep.
+        await endSupervisionReminders(tx, memberId, body.kind);
         if (row && body.note) {
           await tx.insert(supervisionNote).values({
             supervisionId: row.id,

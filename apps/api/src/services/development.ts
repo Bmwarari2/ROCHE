@@ -20,6 +20,8 @@ import {
   type Competence,
   competenceDecision,
   expiryState,
+  meetingReminderKey,
+  meetingReminders,
   meetingsDue,
   meetingsNeedAttention,
   nextMeeting,
@@ -49,6 +51,9 @@ import { withSystemRights } from "./system-rights";
 export const TRAINING_EXPIRY_TASK = "workforce.training_expiry";
 export const COMPETENCE_EXPIRY_TASK = "workforce.competence_expiry";
 export const DEVELOPMENT_REMINDER_PERMISSION = "workforce.training.manage";
+/** A supervision or appraisal due or overdue (rule 7; WORK-009): for holders of the permission. */
+export const SUPERVISION_DUE_TASK = "workforce.supervision_due";
+export const SUPERVISION_REMINDER_PERMISSION = "workforce.supervision.manage";
 /** Who the reminders go to: the built-in HR role (no person scope: the tasks are about no person). */
 export const DEVELOPMENT_REMINDER_ROLE = "hr";
 
@@ -795,4 +800,133 @@ export async function supervisionsDueFor(
     });
   }
   return { asOf: today, dueWindowDays: home.supervisionDueWindowDays, members: rows, truncated };
+}
+
+/**
+ * Supervision and appraisal reminders (workforce.md rule 7; WORK-009): for every member of staff
+ * with a role in force, one task when a supervision or appraisal falls due inside
+ * `supervision.due_window_days` or is overdue, once for each due date (a task already raised for
+ * the member, the kind and the date, whatever its status, stops a second). The task is about no
+ * person and no location, so it goes to HR's role and is seen by holders of
+ * `workforce.supervision.manage` (migration 0079's task visibility). With none held, the next falls
+ * due from the start date in the staff file; with neither, no task (never a guessed date). Leavers
+ * get none. Runs as the system in each organisation.
+ */
+export async function raiseSupervisionReminders(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+): Promise<number> {
+  const today = ukIsoDate(now);
+  const members = await staffMembers(tx, now);
+  if (members.size === 0) return 0;
+  const ids = [...members.keys()];
+  const profiles = new Map(
+    (
+      await tx
+        .select({
+          id: staffProfile.tenantUserId,
+          startsOn: staffProfile.startsOn,
+          leftOn: staffProfile.leftOn,
+        })
+        .from(staffProfile)
+    ).map((p) => [p.id, p]),
+  );
+  const held = await tx
+    .select({
+      workerId: supervisionRecord.workerId,
+      kind: supervisionRecord.kind,
+      heldOn: supervisionRecord.heldOn,
+    })
+    .from(supervisionRecord)
+    .where(isNull(supervisionRecord.deletedAt));
+  const sent = await tx
+    .select({ sourceId: task.sourceId, details: task.details })
+    .from(task)
+    .where(eq(task.kind, SUPERVISION_DUE_TASK));
+  const raisedFor = (memberId: string) =>
+    new Set(
+      sent
+        .filter((t) => t.sourceId === memberId)
+        .map((t) => t.details as { meetingKind?: unknown; reminderDueOn?: unknown } | null)
+        .filter(
+          (d): d is { meetingKind: "supervision" | "appraisal"; reminderDueOn: string } =>
+            (d?.meetingKind === "supervision" || d?.meetingKind === "appraisal") &&
+            typeof d.reminderDueOn === "string",
+        )
+        .map((d) => meetingReminderKey(d.meetingKind, d.reminderDueOn)),
+    );
+  const rates = new Map<Nation, WorkforceRates>();
+  let raised = 0;
+  for (const id of ids) {
+    const member = members.get(id);
+    if (!member) continue;
+    const profile = profiles.get(id);
+    if (profile?.leftOn && profile.leftOn < today) continue;
+    const nation = member.nation ?? "england";
+    const r = rates.get(nation) ?? (await workforceRates(tx, tenantId, nation, today));
+    rates.set(nation, r);
+    const records = held
+      .filter((h) => h.workerId === id)
+      .map((h) => ({
+        kind: h.kind as "supervision" | "appraisal" | "spot_check",
+        heldOn: h.heldOn,
+      }));
+    const meetings = meetingsDue(
+      records,
+      { supervision: r.supervisionsPerYear, appraisal: r.appraisalsPerYear },
+      today,
+      r.supervisionDueWindowDays,
+      profile?.startsOn && profile.startsOn <= today ? profile.startsOn : null,
+    );
+    for (const reminder of meetingReminders(meetings, raisedFor(id))) {
+      await tx.insert(task).values({
+        kind: SUPERVISION_DUE_TASK,
+        title:
+          reminder.kind === "supervision"
+            ? "Hold a supervision that is due"
+            : "Hold an appraisal that is due",
+        requiredPermission: SUPERVISION_REMINDER_PERMISSION,
+        sourceType: "tenant_user",
+        sourceId: id,
+        locationId: null,
+        assigneeRoleKey: DEVELOPMENT_REMINDER_ROLE,
+        dueAt: ukEndOfDay(reminder.dueOn),
+        priority: reminder.priority,
+        details: { memberId: id, meetingKind: reminder.kind, reminderDueOn: reminder.dueOn },
+      });
+      raised += 1;
+    }
+  }
+  return raised;
+}
+
+/**
+ * Closes a member's open supervision or appraisal reminders once one is held (rule 7): the next
+ * due date's reminder follows from the sweep. A spot check closes none: it never counts as a
+ * supervision. With the system's rights, for that member and kind only, because the reminders are
+ * about no person and no location.
+ */
+export function endSupervisionReminders(
+  tx: Transaction,
+  memberId: string,
+  kind: "supervision" | "appraisal" | "spot_check",
+): Promise<number> {
+  if (kind === "spot_check") return Promise.resolve(0);
+  return withSystemRights(tx, async () => {
+    const ended = await tx
+      .update(task)
+      .set({ status: "cancelled", statusReason: "Ended: held" })
+      .where(
+        and(
+          eq(task.kind, SUPERVISION_DUE_TASK),
+          eq(task.sourceType, "tenant_user"),
+          eq(task.sourceId, memberId),
+          inArray(task.status, ["open", "in_progress"]),
+          sql`${task.details}->>'meetingKind' = ${kind}`,
+        ),
+      )
+      .returning({ id: task.id });
+    return ended.length;
+  });
 }

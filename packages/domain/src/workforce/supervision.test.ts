@@ -4,6 +4,9 @@ import { addDays, addMonths } from "./dates";
 import { resolveWorkforceRates } from "./rates";
 import {
   intervalMonths,
+  type MeetingDue,
+  meetingReminderKey,
+  meetingReminders,
   meetingsDue,
   meetingsNeedAttention,
   nextMeeting,
@@ -135,5 +138,60 @@ describe("WORK-009 supervisions and appraisals due across staff (rule 7)", () =>
       state,
     }));
     expect(meetingsNeedAttention(meetings)).toBe(attention);
+  });
+});
+
+describe("WORK-009 reminder tasks for supervisions and appraisals due (rule 7)", () => {
+  const meeting = (
+    kind: "supervision" | "appraisal",
+    state: MeetingDue["state"],
+    dueOn: string | null,
+  ): MeetingDue => ({ kind, lastHeldOn: null, dueOn, state });
+  it.each([
+    [
+      "overdue: urgent",
+      [meeting("supervision", "overdue", "2026-10-01")],
+      [],
+      [["supervision", "2026-10-01", "urgent"]],
+    ],
+    [
+      "due inside the window: routine",
+      [meeting("appraisal", "due", "2026-11-10")],
+      [],
+      [["appraisal", "2026-11-10", "routine"]],
+    ],
+    ["upcoming: none", [meeting("supervision", "upcoming", "2027-01-01")], [], []],
+    [
+      "none recorded: none, never a guessed date",
+      [meeting("supervision", "none_recorded", null)],
+      [],
+      [],
+    ],
+    [
+      "already raised for that date: none",
+      [meeting("supervision", "overdue", "2026-10-01")],
+      ["supervision:2026-10-01"],
+      [],
+    ],
+    [
+      "raised for an earlier date, now due again: a new one",
+      [meeting("supervision", "due", "2027-01-01")],
+      ["supervision:2026-10-01"],
+      [["supervision", "2027-01-01", "routine"]],
+    ],
+    [
+      "each kind on its own",
+      [meeting("supervision", "overdue", "2026-10-01"), meeting("appraisal", "due", "2026-11-10")],
+      ["appraisal:2026-11-10"],
+      [["supervision", "2026-10-01", "urgent"]],
+    ],
+  ] as const)("%s", (_name, meetings, raised, expected) => {
+    expect(
+      meetingReminders(meetings, new Set(raised)).map((r) => [r.kind, r.dueOn, r.priority]),
+    ).toEqual(expected);
+  });
+
+  it("keys a reminder by kind and due date", () => {
+    expect(meetingReminderKey("appraisal", "2026-11-10")).toBe("appraisal:2026-11-10");
   });
 });
