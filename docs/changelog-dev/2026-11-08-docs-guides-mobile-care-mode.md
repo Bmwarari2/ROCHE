@@ -167,7 +167,7 @@ Each behaviour a new sentence claims was checked in `apps/mobile/src`.
   text and the run-a-round line break; **Confirm it is you to delete unsent entries** in bold.
   "Forearm" stays quoted (a `@harbour/domain` name) and the lock screen's **Sign out** stays bold
   (`mobile.signOut.button`).
-- **CSO decisions**: `H-NEW-M1` to `H-NEW-M8` in `docs/plans/human-actions.md` (numbered at merge):
+- **CSO decisions**: `H-1596` to `H-1603` in `docs/plans/human-actions.md`:
   shared devices (M1), sign-out with unsent entries (M2), the keystore reset (M3), root and jailbreak
   detection (M4), round cards (M5), NEWS2 on the phone (M6), the "nurse in charge knows" deletion
   reason (M7) and the training control and stale threshold (M8).
