@@ -84,5 +84,6 @@ Thapsus Care checks your medicines competence each time you record a dose.
   (H-1517).
 - If your medicines competence is not current, the dose is refused unless a manager has approved
   an override (HZ-119).
-- Corrections and recording a dose given earlier are not on the web yet.
+- To correct a dose you recorded, open the person's **Medicines** tab, choose **Dose records**,
+  then **Correct this record**. Recording a dose given earlier is not on the web yet.
 - The round on the web does not work offline. For offline rounds, use the phone.

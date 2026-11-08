@@ -44833,6 +44833,9 @@
               "mayGive",
               "notice"
             ]
+          },
+          "controlledDrug": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -44863,7 +44866,8 @@
           "replacedFrom",
           "reanchor",
           "withdrawn",
-          "status"
+          "status",
+          "controlledDrug"
         ]
       },
       "DmdProductRef": {
@@ -46717,6 +46721,9 @@
               "at",
               "method"
             ]
+          },
+          "inCdRegister": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -46740,7 +46747,8 @@
           "supersedesId",
           "correctionReason",
           "supersededById",
-          "witness"
+          "witness",
+          "inCdRegister"
         ]
       },
       "AdministrationConflictRaised": {
@@ -47700,6 +47708,13 @@
                 "quantity": {
                   "type": "number"
                 },
+                "administrationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
                 "witnessName": {
                   "type": "string"
                 },
@@ -47712,6 +47727,7 @@
                 "id",
                 "movement",
                 "quantity",
+                "administrationId",
                 "witnessName",
                 "expiresAt"
               ]
@@ -48319,6 +48335,12 @@
           "standing": {
             "$ref": "#/components/schemas/Administration"
           },
+          "current": {
+            "$ref": "#/components/schemas/Administration"
+          },
+          "controlledDrug": {
+            "type": "boolean"
+          },
           "uploaded": {
             "$ref": "#/components/schemas/UploadedAdministration"
           },
@@ -48397,6 +48419,8 @@
           "entryId",
           "dueAt",
           "standing",
+          "current",
+          "controlledDrug",
           "uploaded",
           "joined",
           "problems",

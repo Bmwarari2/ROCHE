@@ -89,6 +89,7 @@ import {
   dosingRecordOut,
   effective,
   givenDoses,
+  isControlledDrug,
   medicinesRates,
   personAdministrations,
   personDosingRecords,
@@ -96,6 +97,7 @@ import {
   supersededBy,
   witnessesFor,
 } from "../services/medicine-administrations";
+
 import {
   conflictForClientRecord,
   pendingConflicts,
@@ -1423,15 +1425,6 @@ function chainOf(
     at = at.supersedesId ? byId.get(at.supersedesId) : undefined;
   }
   return ids;
-}
-
-/** Whether the entry's dm+d product is a controlled drug (its schedule comes from slice 10). */
-export async function isControlledDrug(tx: Transaction, entryId: string): Promise<boolean> {
-  const [row] = await tx
-    .select({ cd: medication.cdSchedule })
-    .from(medication)
-    .where(eq(medication.id, entryId));
-  return Boolean(row?.cd);
 }
 
 type Deny = (issues: readonly { problem: string; message: string }[]) => AuditedRefusal;
