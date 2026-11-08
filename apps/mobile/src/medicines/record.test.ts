@@ -59,6 +59,28 @@ describe("hazards HZ-001 and HZ-116 a dose recorded on the phone needs identity,
       [],
     ],
     [
+      "hazard HZ-119 a dose given by a member whose competence has expired",
+      { competence: "expired" },
+      ["competence_expired"],
+    ],
+    [
+      "hazard HZ-119 a dose given by a member with no competence sign-off",
+      { competence: "not_held" },
+      ["competence_not_held"],
+    ],
+    [
+      "hazard HZ-119 a refusal recorded by a member whose competence has expired",
+      {
+        competence: "expired",
+        outcome: "refused",
+        reason: { code: "other", note: "Said no thank you" },
+        identity: null,
+        pack: null,
+      },
+      [],
+    ],
+    ["a dose given where the phone cannot judge competence", { competence: "unknown" }, []],
+    [
       "a when-required dose with no 24-hour maximum",
       { amount: { quantity: 4, unitCode: "428673006" }, prnRemaining: null },
       [],

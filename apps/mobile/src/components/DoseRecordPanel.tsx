@@ -22,7 +22,14 @@ import {
   saveWrappedKey,
 } from "../medicines/device-key-store";
 import { useRecordDose } from "../medicines/hooks";
-import { DEVICE_GTINS_SQL, DEVICE_PRODUCTS_SQL } from "../medicines/queries";
+import { type CompetenceRow, MY_COMPETENCE_SQL, phoneCompetence } from "../medicines/my-competence";
+import {
+  DEVICE_GTINS_SQL,
+  DEVICE_PRODUCTS_SQL,
+  MEDICINES_RATES_SQL,
+  medicinesRatesParams,
+} from "../medicines/queries";
+import { parseMedicinesRates } from "../medicines/rates";
 import {
   type CdDeviceSignatures,
   type PackEvidence,
@@ -127,6 +134,14 @@ export function DoseRecordPanel({
   const [lone, setLone] = useState(false);
   // Whether this member may record a controlled drug: checked before the dose, never after.
   const mayRecordCd = (me?.permissions ?? []).includes("medicines.cd.administer");
+  // The member's own medicines competence, from their synced sign-offs (HZ-119).
+  const { data: competenceRows } = useQuery<CompetenceRow>(MY_COMPETENCE_SQL, [
+    tenantId ?? "",
+    me?.tenantUserId ?? "",
+  ]);
+  const rateRows = useQuery<{ value: string }>(MEDICINES_RATES_SQL, medicinesRatesParams);
+  const rates = useMemo(() => parseMedicinesRates(rateRows.data[0]?.value), [rateRows.data]);
+  const competence = phoneCompetence(competenceRows ?? [], new Date(), rates);
   const cdBlocked = dose.controlledDrug && !mayRecordCd;
   // The home's witness policy, as the API applies it: "no one is here to witness" only where it
   // allows that; unknown counts as required (HZ-116; lead's batch 5 review, B4).
@@ -357,6 +372,7 @@ export function DoseRecordPanel({
       controlledDrug: dose.controlledDrug,
       nextAllowedAt: dose.nextAllowedAt,
       prnRemaining: dose.prnRemaining ?? null,
+      competence,
       lastDoseNotOnDevice: dose.lastDoseNotOnDevice,
       packRefused,
       cdSignatures,
