@@ -17,6 +17,7 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 ## Everyone
 
 - [How to accept an invitation and set up your sign-in](../all-staff/accept-an-invitation.md)
+- [How to handle a lost or stolen phone](../all-staff/handle-a-lost-or-stolen-phone.md)
 - [How to handle speak-up cases](../all-staff/handle-speak-up-cases.md)
 - [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
 - [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)
@@ -63,6 +64,7 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 - [How to run a staff survey](../registered-manager/run-a-staff-survey.md)
 - [How to run the safeguarding log](../registered-manager/run-the-safeguarding-log.md)
 - [How to see what your team shares](../registered-manager/see-what-your-team-shares.md)
+- [How to send or delete another person's unsent entries on a phone](../registered-manager/send-or-delete-another-persons-unsent-entries-on-a-phone.md)
 - [How to set indicator targets](../registered-manager/set-indicator-targets.md)
 - [How to set up a dependency scale](../registered-manager/set-up-a-dependency-scale.md)
 - [How to set up shift templates and patterns](../registered-manager/set-up-shift-templates-and-patterns.md)

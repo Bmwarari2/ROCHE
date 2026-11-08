@@ -5,6 +5,7 @@ Guides for everyone who uses Thapsus Care.
 ## Your guides
 
 - [How to accept an invitation and set up your sign-in](accept-an-invitation.md)
+- [How to handle a lost or stolen phone](handle-a-lost-or-stolen-phone.md)
 - [How to handle speak-up cases](handle-speak-up-cases.md)
 - [How to raise a speak-up concern](raise-a-speak-up-concern.md)
 - [How to read and sign a policy](read-and-sign-a-policy.md)

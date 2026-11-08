@@ -41,7 +41,7 @@ links the care worker's incident guide.
 
 ## Register rows and their guides
 
-Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 medicines (slice 81), workforce and scheduling (slice 82) and safety, quality and platform (slice 83) rows, that have a guide. The register's user
+Phase 1 rows (and the Phase 0 rows with Phase 1 screens), and the Phase 2 medicines (slice 81), workforce and scheduling (slice 82) and safety, quality and platform (slice 83) rows, and the Care mode phone rows (MOB), that have a guide. The register's user
 docs column links the same guides.
 
 | Row | Guides |
@@ -56,8 +56,8 @@ docs column links the same guides.
 | PLAT-018 | [Work through getting started](owner/work-through-getting-started.md) |
 | PLAT-022 | [Handle a data rights request](data-protection-lead/handle-a-data-rights-request.md), [Find and review the records for a data rights request](data-protection-lead/find-and-review-the-records-for-a-request.md), [Send the response to a data rights request](data-protection-lead/send-the-response-to-a-data-rights-request.md), [Handle a request to erase, correct or move information](data-protection-lead/handle-an-erasure-correction-or-portability-request.md), [Record and handle a data breach](data-protection-lead/record-a-data-breach.md), [Acknowledge a breach notice from Thapsus](data-protection-lead/acknowledge-a-breach-notice-from-thapsus.md), [Handle a data protection complaint](data-protection-lead/handle-a-data-protection-complaint.md) |
 | PLAT-023 | [Prepare and sign the DPIA](data-protection-lead/prepare-and-sign-the-dpia.md) |
-| PEOP-001 | [Check the person's details](care-worker/check-the-person-before-you-act.md) |
-| PEOP-002 | [Check the person's details](care-worker/check-the-person-before-you-act.md) |
+| PEOP-001 | [Check the person's details](care-worker/check-the-person-before-you-act.md), [Check the person before you give care on the phone](care-worker/check-the-person-before-you-act-on-the-phone.md) |
+| PEOP-002 | [Check the person's details](care-worker/check-the-person-before-you-act.md), [Check the person before you give care on the phone](care-worker/check-the-person-before-you-act-on-the-phone.md) |
 | PEOP-008 | [Record a review](nurse/record-a-review.md) |
 | PEOP-009 | [Send someone to hospital](senior-carer/send-someone-to-hospital.md) |
 | PEOP-010 | [Record a death](senior-carer/record-a-death.md) |
@@ -65,11 +65,11 @@ docs column links the same guides.
 | CARE-002 | [Add a risk assessment](nurse/add-a-risk-assessment.md) |
 | CARE-003 | [Run a validated tool](nurse/run-a-validated-tool.md) |
 | CARE-006 | [Run a validated tool (falls questions)](nurse/run-a-validated-tool.md) |
-| CARE-007 | [Record vital signs and NEWS2](care-worker/record-vital-signs.md) |
-| CARE-009 | [Write a daily note](care-worker/write-a-daily-note.md) |
-| CARE-010 | [Record a chart entry](care-worker/record-a-chart-entry.md), [Set food and drink levels](nurse/set-food-and-drink-levels.md) |
-| CARE-012 | [Mark the body map](care-worker/mark-the-body-map.md) |
-| CARE-013 | [Do a round](care-worker/run-a-round.md), [Read and acknowledge the handover](care-worker/read-and-acknowledge-the-handover.md) |
+| CARE-007 | [Record vital signs and NEWS2](care-worker/record-vital-signs.md), [Record vital signs on the phone](care-worker/record-vital-signs-on-the-phone.md) |
+| CARE-009 | [Write a daily note](care-worker/write-a-daily-note.md), [Write a daily note on the phone](care-worker/write-a-daily-note-on-the-phone.md) |
+| CARE-010 | [Record a chart entry](care-worker/record-a-chart-entry.md), [Set food and drink levels](nurse/set-food-and-drink-levels.md), [Record a chart entry on the phone](care-worker/record-a-chart-entry-on-the-phone.md) |
+| CARE-012 | [Mark the body map](care-worker/mark-the-body-map.md), [Mark the body map on the phone](care-worker/mark-the-body-map-on-the-phone.md) |
+| CARE-013 | [Do a round](care-worker/run-a-round.md), [Read and acknowledge the handover](care-worker/read-and-acknowledge-the-handover.md), [Do a round on the phone](care-worker/do-a-round-on-the-phone.md), [Read and acknowledge the handover on the phone](care-worker/read-and-acknowledge-the-handover-on-the-phone.md) |
 | CARE-014 | [Record an activity or visit](care-worker/record-an-activity-or-visit.md) |
 | CARE-015 | [Record a resuscitation decision](nurse/record-a-resuscitation-decision.md), [Check the person's details](care-worker/check-the-person-before-you-act.md) |
 | CARE-021 | [Check consent, capacity and DoLS](care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
@@ -96,7 +96,7 @@ docs column links the same guides.
 | WORK-011 | [Handle a data rights request](data-protection-lead/handle-a-data-rights-request.md), [Find and review the records for a data rights request](data-protection-lead/find-and-review-the-records-for-a-request.md), [Export an employee relations case](hr-lead/export-an-employee-relations-case.md), [Read the staff privacy notice and choose how your photo is used](care-worker/check-your-privacy-choices.md), [Record a sponsored worker](hr-lead/record-a-sponsored-worker.md), [Set the staff privacy notice](owner/set-the-staff-privacy-notice.md) |
 | OPS-028 | [Print the downtime pack](senior-carer/print-the-downtime-pack.md), [Declare and close an outage](senior-carer/declare-and-close-an-outage.md), [Enter paper records](care-worker/enter-paper-records-after-an-outage.md), [Reconcile an outage](registered-manager/reconcile-an-outage.md) |
 | COMMS-001 | [Publish a family update](senior-carer/publish-a-family-update.md), [Read updates from the home](family-member/read-updates.md) |
-| COMMS-006 | [Read and acknowledge the handover](care-worker/read-and-acknowledge-the-handover.md) |
+| COMMS-006 | [Read and acknowledge the handover](care-worker/read-and-acknowledge-the-handover.md), [Read and acknowledge the handover on the phone](care-worker/read-and-acknowledge-the-handover-on-the-phone.md) |
 | COMMS-007 | [Write a letter template](registered-manager/write-a-letter-template.md), [Make a letter](registered-manager/make-a-letter.md) |
 | MEDS-001 | [Add a medicine to the MAR](nurse/add-a-medicine-to-the-mar.md), [Reconcile medicines](nurse/reconcile-medicines.md), [Second-check a medicine](nurse/second-check-a-medicine.md), [Stop a medicine](nurse/stop-a-medicine.md) |
 | MEDS-002 | [Give a when-required (PRN) medicine in the browser](care-worker/give-a-when-required-medicine-in-the-browser.md), [Give medicines in the browser round](care-worker/give-medicines-in-the-browser-round.md) |
@@ -109,6 +109,12 @@ docs column links the same guides.
 | MEDS-013 | [Book and record a medication review](nurse/book-and-record-a-medication-review.md), [Check the medication review tracker](registered-manager/check-the-medication-review-tracker.md), [Read the medicines reports](registered-manager/read-the-medicines-reports.md) |
 | MEDS-014 | [Print a controlled drugs register page](nurse/print-a-controlled-drugs-register-page.md), [Print the MAR chart](care-worker/print-the-mar-chart.md) |
 | CARE-004 | [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Record a dependency category](senior-carer/record-a-dependency-category.md), [Set up a dependency scale](registered-manager/set-up-a-dependency-scale.md) |
+| MOB-001 | [Sign in on the phone](care-worker/sign-in-on-the-phone.md), [See your people for the shift on the phone](care-worker/see-your-people-on-the-phone.md), [Send unsent entries after signing in again on the phone](care-worker/send-unsent-entries-after-signing-in-again-on-the-phone.md) |
+| MOB-002 | [Sign in on the phone](care-worker/sign-in-on-the-phone.md), [See your people for the shift on the phone](care-worker/see-your-people-on-the-phone.md), [Check the person before you give care on the phone](care-worker/check-the-person-before-you-act-on-the-phone.md), [Write a daily note on the phone](care-worker/write-a-daily-note-on-the-phone.md), [Record a chart entry on the phone](care-worker/record-a-chart-entry-on-the-phone.md), [Record vital signs on the phone](care-worker/record-vital-signs-on-the-phone.md), [Mark the body map on the phone](care-worker/mark-the-body-map-on-the-phone.md), [Correct an entry on the phone](care-worker/correct-an-entry-on-the-phone.md), [Do a round on the phone](care-worker/do-a-round-on-the-phone.md), [Read and acknowledge the handover on the phone](care-worker/read-and-acknowledge-the-handover-on-the-phone.md), [Read the sync banner on the phone](care-worker/read-the-sync-banner-on-the-phone.md), [Deal with an entry that was not saved on the phone](care-worker/deal-with-an-entry-not-saved-on-the-phone.md) |
+| MOB-005 | [Use a shared phone or tablet](care-worker/use-a-shared-phone-or-tablet.md), [Sign out of the phone](care-worker/sign-out-of-the-phone.md), [Send or delete another person's unsent entries on a phone](registered-manager/send-or-delete-another-persons-unsent-entries-on-a-phone.md) |
+| MOB-006 | [See your people for the shift on the phone](care-worker/see-your-people-on-the-phone.md), [Check the person before you give care on the phone](care-worker/check-the-person-before-you-act-on-the-phone.md), [Write a daily note on the phone](care-worker/write-a-daily-note-on-the-phone.md), [Record a chart entry on the phone](care-worker/record-a-chart-entry-on-the-phone.md), [Record vital signs on the phone](care-worker/record-vital-signs-on-the-phone.md), [Mark the body map on the phone](care-worker/mark-the-body-map-on-the-phone.md), [Correct an entry on the phone](care-worker/correct-an-entry-on-the-phone.md), [Do a round on the phone](care-worker/do-a-round-on-the-phone.md), [Read and acknowledge the handover on the phone](care-worker/read-and-acknowledge-the-handover-on-the-phone.md), [Read the sync banner on the phone](care-worker/read-the-sync-banner-on-the-phone.md), [Deal with an entry that was not saved on the phone](care-worker/deal-with-an-entry-not-saved-on-the-phone.md), [Send unsent entries after signing in again on the phone](care-worker/send-unsent-entries-after-signing-in-again-on-the-phone.md), [Send or delete another person's unsent entries on a phone](registered-manager/send-or-delete-another-persons-unsent-entries-on-a-phone.md) |
+| MOB-009 | [Sign in on the phone](care-worker/sign-in-on-the-phone.md), [Lock and unlock Thapsus Care on the phone](care-worker/lock-and-unlock-the-phone.md), [Use a shared phone or tablet](care-worker/use-a-shared-phone-or-tablet.md), [Sign out of the phone](care-worker/sign-out-of-the-phone.md), [Keep the phone safe for care records](care-worker/keep-the-phone-safe-for-care-records.md) |
+| MOB-010 | [Lock and unlock Thapsus Care on the phone](care-worker/lock-and-unlock-the-phone.md), [Keep the phone safe for care records](care-worker/keep-the-phone-safe-for-care-records.md), [Sign out of the phone](care-worker/sign-out-of-the-phone.md), [Send unsent entries after signing in again on the phone](care-worker/send-unsent-entries-after-signing-in-again-on-the-phone.md), [Send or delete another person's unsent entries on a phone](registered-manager/send-or-delete-another-persons-unsent-entries-on-a-phone.md), [Handle a lost or stolen phone](all-staff/handle-a-lost-or-stolen-phone.md) |
 | MOB-007 | [Ask for help while lone working on the phone](care-worker/ask-for-help-while-lone-working-on-the-phone.md), [Check in while lone working on the phone](care-worker/check-in-while-lone-working-on-the-phone.md), [Clock in and out on the phone](care-worker/clock-in-and-out-on-the-phone.md), [Download a training course to the phone](care-worker/download-a-training-course-to-the-phone.md), [See your shifts on the phone](care-worker/see-your-shifts-on-the-phone.md), [Start and finish lone working on the phone](care-worker/start-and-finish-lone-working-on-the-phone.md), [Take a training course offline on the phone](care-worker/take-a-training-course-offline-on-the-phone.md) |
 | SCHED-001 | [Build a rota](registered-manager/build-a-rota.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Set up a dependency scale](registered-manager/set-up-a-dependency-scale.md) |
 | SCHED-002 | [Build a rota](registered-manager/build-a-rota.md), [Check and publish a rota](registered-manager/check-and-publish-a-rota.md), [Check your shifts](care-worker/check-your-shifts.md), [Override the rostering rule](registered-manager/override-the-rostering-rule.md), [See your shifts on the phone](care-worker/see-your-shifts-on-the-phone.md), [Set up shift templates and patterns](registered-manager/set-up-shift-templates-and-patterns.md), [Release absence copies from the HR platform](registered-manager/release-absence-copies.md) |
@@ -140,7 +146,11 @@ docs column links the same guides.
 **Phase 1 rows with no guide yet**, because they have no web screen on `main` (or are paused with
 mobile): PLAT-002, PLAT-009, PLAT-011, PEOP-003, PEOP-005, PEOP-007, PEOP-013,
 SAFE-007, SAFE-010, QUAL-003 (see the [inspector page](inspector/open-an-evidence-pack.md)),
-QUAL-009, INSI-001, INTG-011 and the MOB rows. Write each guide with its screen.
+QUAL-009, INSI-001, INTG-011 and, of the phone rows, MOB-003 and MOB-004 (Manage and Family
+modes: no screen yet), MOB-008, MOB-011 (the account deletion request in Settings has no guide yet),
+MOB-012 and MOB-013. Kiosk mode (MOB-005) has only the shared-device lock, and incidents and the
+conflict review (MOB-006) have no phone screen: see the
+[mobile guides changelog](../changelog-dev/2026-11-08-docs-guides-mobile-care-mode.md). Write each guide with its screen.
 
 **Phase 2 safety, quality and platform rows with no guide yet** (slice 83), because they have no
 screen on `main`: INTG-006 (the dm+d release history), INTG-007 (identity and vetting checks) and

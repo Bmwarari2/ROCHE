@@ -19,6 +19,7 @@ For the quality and compliance lead, and the person named as data protection lea
 
 ## Everyone
 
+- [How to handle a lost or stolen phone](../all-staff/handle-a-lost-or-stolen-phone.md)
 - [How to handle speak-up cases](../all-staff/handle-speak-up-cases.md)
 - [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
 - [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)

@@ -30,4 +30,5 @@ it.
 - The list shows the last 3 days. Choose **Show the last 7 days** to see more.
 - If you are copying from a paper downtime form, see
   [How to enter paper records after an outage](enter-paper-records-after-an-outage.md).
-- Voice-to-text and writing notes with no signal are mobile app features still being built.
+- Voice-to-text is still being built. To write a note with no signal, use the phone: see
+  [How to write a daily note on the phone](write-a-daily-note-on-the-phone.md).

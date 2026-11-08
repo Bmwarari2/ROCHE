@@ -32,6 +32,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## User guides: Care mode on the phone (08/11/2026)
+
+`docs/guides-mobile-care-mode`, from `main` at ea6fc04d: 19 guides for the phone's Care mode
+(sign-in, lock, shared devices, Today and People, checking the person, notes, charts, vital signs,
+the body map, corrections, the round, the handover, the sync banner, entries not saved, unsent
+entries, sign-out, device safety, a lost phone, and a manager's hand-over of held entries), linked
+from the role indexes, the guides README and the user docs column of MOB-001, 002, 005, 006, 009 and
+010. Kiosk sign-in, phone incidents, the conflict review, root detection and device withdrawal have
+no screen yet. Gaps, hard-coded strings and what the guides found on screen (shared devices unlock
+with device biometrics; switching user offline deletes unsent entries): see
+`docs/changelog-dev/2026-11-08-docs-guides-mobile-care-mode.md`.
+
 ## Paused 07/11/2026: where to resume on Sunday 08/11 at 08:00
 
 The owner paused every session at about 11:00 on 07/11 (UK time). Work in progress was finished
