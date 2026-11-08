@@ -1,10 +1,11 @@
 import { Card } from "@harbour/ui";
-import { CalendarClock, ChartColumn, ClipboardList, ShieldAlert } from "lucide-react";
+import { CalendarClock, ChartColumn, ClipboardList, Settings, ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ReportFrame } from "@/components/medicines/errors/ReportFrame";
 import { reportLocation } from "@/components/medicines/errors/report-location";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
+import { getShellContext } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { REPORT_NAMES, type ReportName, reportHref } from "@/lib/medication-errors";
 
@@ -29,6 +30,11 @@ export default async function LocationReportsPage({ params }: { readonly params:
   const title = t("medicines.errors.reports.title");
   const location = await reportLocation(locationId);
   if (!location) return <SafetyForbidden title={title} />;
+  // Controlled drug recording at the home is set by the Owner or Registered Manager (H-1518).
+  const { me } = await getShellContext();
+  const setsRecording = ["medicines.record.manage", "platform.location.manage"].every((p) =>
+    me.permissions.includes(p),
+  );
   return (
     <ReportFrame
       locationId={location.id}
@@ -58,6 +64,24 @@ export default async function LocationReportsPage({ params }: { readonly params:
             </li>
           );
         })}
+        {setsRecording ? (
+          <li>
+            <Card as="article">
+              <div className="flex flex-col gap-2">
+                <h2 className="m-0 flex items-center gap-2 text-body font-semibold">
+                  <Settings size={20} strokeWidth={1.5} aria-hidden="true" />
+                  <Link
+                    href={`/medicines-settings/${location.id}`}
+                    className="inline-flex min-h-target items-center underline"
+                  >
+                    {t("medicines.cdRecording.title")}
+                  </Link>
+                </h2>
+                <p className="m-0">{t("medicines.cdRecording.description")}</p>
+              </div>
+            </Card>
+          </li>
+        ) : null}
       </ul>
     </ReportFrame>
   );

@@ -29,6 +29,7 @@ const base: DoseRecordInput = {
   deviceOffsetMs: null,
   mayGive: true,
   mayRecordCd: true,
+  cdRecording: "on",
   controlledDrug: false,
 };
 
@@ -49,6 +50,33 @@ describe("hazards HZ-001 and HZ-116 a dose recorded on the phone needs identity,
     ],
     ["a dose given without an amount", { amount: null }, ["amount_required"]],
     ["a controlled drug with no signatures", { controlledDrug: true }, ["cd_signatures_required"]],
+    [
+      "hazard HZ-115 a controlled drug given where the paper register is the record",
+      { controlledDrug: true, cdRecording: "off" },
+      ["cd_recording_off"],
+    ],
+    [
+      "hazard HZ-115 a controlled drug given where the phone has not read whether recording is on",
+      { controlledDrug: true, cdRecording: "unknown", mayRecordCd: false },
+      ["cd_recording_unknown"],
+    ],
+    [
+      "hazard HZ-115 a controlled drug refused where the paper register is the record",
+      {
+        controlledDrug: true,
+        cdRecording: "off",
+        outcome: "refused",
+        reason: { code: "other", note: "Said no thank you" },
+        identity: null,
+        pack: null,
+      },
+      [],
+    ],
+    [
+      "an ordinary medicine given where the paper register is the record",
+      { cdRecording: "off" },
+      [],
+    ],
     [
       "a controlled drug from someone who may not record controlled drugs",
       { controlledDrug: true, mayRecordCd: false },
@@ -226,5 +254,46 @@ describe("hazard HZ-115 a dose refused on upload is copied to the server, never 
       kind: "copy",
       body: { table: "medication_administration", payload: { kind: "record", body: { id: ID } } },
     });
+  });
+
+  it("hazard HZ-115 keeps a signed controlled drug refused where recording is off (409), as the API takes it", async () => {
+    const { toRefusedCopy } = await import("../sync/refused-copies");
+    const { SyncRefusedEntry } = await import("@harbour/contracts");
+    const row = localAdministrationRow({
+      ...base,
+      controlledDrug: true,
+      cdSignatures: {
+        recorder: {
+          keyId: "01890000-0000-7000-8000-0000000000d1",
+          signature: `${"A".repeat(86)}==`,
+          signedAt: "2026-11-03T08:05:00Z",
+        },
+        witness: {
+          keyId: "01890000-0000-7000-8000-0000000000d2",
+          signature: `${"B".repeat(86)}==`,
+          signedAt: "2026-11-03T08:04:00Z",
+          witnessId: "01890000-0000-7000-8000-0000000000cc",
+        },
+        noWitnessReason: null,
+      },
+    });
+    const copy = toRefusedCopy(
+      {
+        id: ID,
+        tenant_id: "tenant-1",
+        person_id: PERSON,
+        record_table: "medication_administration",
+        http_status: 409,
+        code: "cd_recording_not_enabled",
+        message: "Controlled drugs are recorded in the paper register at this home.",
+        payload: JSON.stringify(row),
+        rejected_at: "2026-11-03T09:00:00Z",
+      },
+      new Date("2026-11-03T09:01:00Z"),
+    );
+    if (copy.kind !== "copy") throw new Error(`expected a copy, got ${copy.kind}`);
+    expect(() => SyncRefusedEntry.parse(copy.body)).not.toThrow();
+    expect(copy.body).toMatchObject({ httpStatus: 409, code: "cd_recording_not_enabled" });
+    expect(JSON.stringify(copy.body.payload)).toContain("deviceSignatures");
   });
 });

@@ -930,6 +930,97 @@ describe("hazard HZ-006 a refused entry's copy goes to the server at once (Devic
   });
 });
 
+describe("hazard HZ-115 a controlled drug refused where recording is not turned on (H-1517)", () => {
+  it("hazard HZ-115 is sent once, kept in needs attention with the 409 and copied, and the queue moves on", async () => {
+    const { localAdministrationRow } = await import("../medicines/record");
+    const id = "0199d000-0000-7000-8000-0000000000c1";
+    const row = localAdministrationRow({
+      id,
+      tenantId: TENANT,
+      personId: PERSON,
+      entryId: "0199d000-0000-7000-8000-0000000000c2",
+      dueAt: "2026-10-11T08:00:00.000Z",
+      outcome: "given",
+      reason: null,
+      amount: { quantity: 1, unitCode: "428673006" },
+      timingReason: null,
+      identity: "photo",
+      pack: {
+        method: "scanned",
+        gtin: "05000000000012",
+        batch: "B1",
+        expiry: "2028-03-31",
+        amppId: "1000003",
+        override: null,
+      },
+      memberId: "member-1",
+      at: new Date("2026-10-11T08:05:00Z"),
+      deviceOffsetMs: null,
+      mayGive: true,
+      mayRecordCd: true,
+      cdRecording: "on",
+      controlledDrug: true,
+      cdSignatures: {
+        recorder: {
+          keyId: "0199d000-0000-7000-8000-0000000000d1",
+          signature: `${"A".repeat(86)}==`,
+          signedAt: "2026-10-11T08:05:00Z",
+        },
+        witness: {
+          keyId: "0199d000-0000-7000-8000-0000000000d2",
+          signature: `${"B".repeat(86)}==`,
+          signedAt: "2026-10-11T08:04:00Z",
+          witnessId: "0199d000-0000-7000-8000-0000000000d3",
+        },
+        noWitnessReason: null,
+      },
+    });
+    const dose: CrudEntryLike = {
+      op: "PUT",
+      table: "medication_administration",
+      id,
+      opData: { ...row } as Record<string, unknown>,
+    };
+    const refusedSignals = { count: 0 };
+    const { fetch, calls } = fakeFetch([
+      problem(
+        409,
+        "cd_recording_not_enabled",
+        "Controlled drug recording is not turned on here.",
+        "Controlled drugs are recorded in the paper register at this home.",
+      ),
+    ]);
+    const instance = new HarbourConnector({
+      apiUrl: API,
+      fetch,
+      getToken: async () => "tok",
+      getTenantId: () => TENANT,
+      onSessionRevoked: () => undefined,
+      onRefused: () => {
+        refusedSignals.count += 1;
+      },
+      backoff: { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 },
+      random: () => 0.5,
+      sleep: async () => undefined,
+      now: () => new Date("2026-10-11T15:00:00.000Z"),
+    });
+    const queue = fakeQueue([dose]);
+    await instance.uploadData(queue.source);
+    // Never retried, never a conflict: one request, then needs attention and its copy.
+    expect(calls).toHaveLength(1);
+    expect(queue.state.completed).toBe(1);
+    expect(queue.issues()).toEqual([
+      expect.objectContaining({
+        id,
+        table: "medication_administration",
+        httpStatus: 409,
+        code: "cd_recording_not_enabled",
+      }),
+    ]);
+    expect(refusedSignals.count).toBe(1);
+  });
+});
+
 describe("uploadData: the round and the handover go to their own routes", () => {
   const TASK = "0199d000-0000-7000-8000-0000000000a1";
   const MOVE = "0199d000-0000-7000-8000-000000000101";

@@ -47942,6 +47942,92 @@
           "witness"
         ]
       },
+      "CdRecordingState": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "locationId",
+          "enabled",
+          "changed"
+        ]
+      },
+      "CdRecordingChange": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "paperRegisterClosed": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "balancesToCarryForward": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "phonesUpdated": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "paperRegisterClosed",
+              "balancesToCarryForward",
+              "phonesUpdated"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "paperRegisterRestarted": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "reason",
+              "paperRegisterRestarted"
+            ]
+          }
+        ]
+      },
       "LocationMedicineRound": {
         "type": "object",
         "properties": {
@@ -117685,6 +117771,96 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/controlled-drugs/recording": {
+      "put": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Turn controlled drug recording on or off at a home",
+        "description": "Owner or Registered Manager: `medicines.record.manage` and `platform.location.manage` at the home, with a fresh second sign-in step (H-1517, H-1518; HZ-115, HZ-008). One register is the record: turning it on says the paper register is counted, witnessed and closed now, that each balance is carried into Thapsus Care's register before the next dose, and that the home's phones are updated; turning it off needs a reason and says the paper register is restarted with each balance. The reason is kept with the setting, not in the audit trail. Audited either way, and so is every refusal once the request is well formed. Elsewhere 404.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CdRecordingChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recording as it now stands at the home",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CdRecordingState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

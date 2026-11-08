@@ -124,6 +124,24 @@ describe("hazard HZ-006 a refused entry's copy, as the API takes it (care.md sec
     expect(await sendRefusedCopy(options(fakeFetch([status]).fetch), copy.body)).toBe(expected);
   });
 
+  it.each([
+    ["missing_permission", "refused"],
+    ["step_up_required", "retry"],
+    ["not_a_member", "retry"],
+  ] as const)(
+    "hazard HZ-115 reads a 403 %s as %s, so one member's missing permission never holds later copies",
+    async (code, expected) => {
+      const copy = toRefusedCopy(row(), NOW);
+      if (copy.kind !== "copy") throw new Error("expected a copy");
+      const fetch: FetchLike = async () =>
+        new Response(JSON.stringify({ code }), {
+          status: 403,
+          headers: { "content-type": "application/problem+json" },
+        });
+      expect(await sendRefusedCopy(options(fetch), copy.body)).toBe(expected);
+    },
+  );
+
   it("waits on a network failure, never throwing", async () => {
     const copy = toRefusedCopy(row(), NOW);
     if (copy.kind !== "copy") throw new Error("expected a copy");
