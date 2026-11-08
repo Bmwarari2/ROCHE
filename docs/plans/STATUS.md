@@ -4,7 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 1% done** (3 of 234 register rows `done`; 103 `partial`, 128 `todo`). Rows become `done`
+**Overall: 2% done** (4 of 234 register rows `done`; 115 `partial`, 115 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 **Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
@@ -41,6 +41,13 @@ a `packages/db` test that fails for a table with neither, or an entry naming a m
 column or retention.md class; and the export catalogue's `retention` field checked against it
 (45 values corrected). No migration, data change or route. DPO decisions found are in plan section
 3.2. See `docs/changelog-dev/2026-11-08-feat-platform-retention-registry.md`.
+
+## H-1555: clock and lone-worker location evidence under a signed DPIA (07/11/2026)
+
+`fix/scheduling-clock-evidence-dpia`: location or NFC clock-in evidence and the lone-worker
+location are used only when the organisation's signed DPIA covers them (a client tick no longer
+switches them on); turning either on flags the DPIA for review. Migration 0154. See
+`docs/changelog-dev/2026-11-07-fix-scheduling-clock-evidence-dpia.md`.
 
 ## Retention sweep rules (08/11/2026)
 
