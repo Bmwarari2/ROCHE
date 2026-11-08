@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
+import { addCalendarMonths } from "../platform/data-rights";
 import {
   ABSENCE_KINDS,
   type AbsenceKind,
@@ -11,12 +12,18 @@ import {
   carersLeaveTaken,
   checkAbsenceMove,
   checkNewAbsence,
+  checkPostponement,
   fitNoteNeeded,
+  POSTPONEMENT_RATE_KEYS,
+  type PostponableKind,
   periodsOfIncapacity,
+  postponementLimits,
   qualifyingDaysIn,
   resolveAbsenceRates,
+  resolvePostponementRates,
   STATUTORY_LEAVE_KINDS,
 } from "./absence";
+import { plusDays } from "./intervals";
 
 /** Absence and leave (scheduling.md section 17; SCHED-010; HZ-123, HZ-124). Invented people. */
 
@@ -354,5 +361,317 @@ describe("H-970 carer's leave taken in any 12 months (advisory)", () => {
       carersLeaveWeeks: 1,
     });
     expect(out.takenDays).toBe(1);
+  });
+});
+
+/**
+ * H-970 postponing carer's leave (Carer's Leave Regulations 2024 reg 8) and unpaid parental leave
+ * (Maternity and Parental Leave etc. Regulations 1999 Sch 2 para 6): the employer gives new dates
+ * of the same length, no later than the rate table's months after the first day asked for, in
+ * writing within the rate table's days of the request (and, for carer's leave, before the leave was
+ * due to start). Every limit is read from the rate table; the cases are built from it.
+ */
+describe("H-970 postponing carer's and parental leave within the statutory limits", () => {
+  const table = readRateTable();
+  const ratesFor = (kind: PostponableKind) =>
+    resolvePostponementRates(table, kind, "england", "2026-10-31", null);
+  const carers = ratesFor("carers_leave");
+  const parental = ratesFor("parental_leave");
+
+  it("reads every limit from the rate table, for each nation of Great Britain only", () => {
+    for (const kind of ["carers_leave", "parental_leave"] as const) {
+      for (const nation of ["england", "wales", "scotland"] as const) {
+        const r = resolvePostponementRates(table, kind, nation, "2026-10-31", null);
+        expect(r.maxMonths).toBeGreaterThan(0);
+        expect(r.noticeDays).toBeGreaterThan(0);
+      }
+      expect(resolvePostponementRates(table, kind, "northern_ireland", "2026-10-31", null)).toEqual(
+        { maxMonths: null, noticeDays: null },
+      );
+    }
+    const row = (key: string) =>
+      Number(table.find((r) => r.key === key && r.nation === "england")?.value);
+    expect(carers).toEqual({
+      maxMonths: row(POSTPONEMENT_RATE_KEYS.carers_leave.maxMonths),
+      noticeDays: row(POSTPONEMENT_RATE_KEYS.carers_leave.noticeDays),
+    });
+    expect(parental).toEqual({
+      maxMonths: row(POSTPONEMENT_RATE_KEYS.parental_leave.maxMonths),
+      noticeDays: row(POSTPONEMENT_RATE_KEYS.parental_leave.noticeDays),
+    });
+  });
+
+  it("has no carer's leave to postpone before the regulations started", () => {
+    expect(resolvePostponementRates(table, "carers_leave", "england", "2024-04-05", null)).toEqual({
+      maxMonths: null,
+      noticeDays: null,
+    });
+  });
+
+  // Asked for on 1 October for 2 to 3 November (two days); decided on 3 October.
+  const REQUESTED = "2026-10-01";
+  const START = "2026-11-02";
+  const END = "2026-11-03";
+  const DECIDED = "2026-10-03";
+
+  describe("the limits shown to the approver", () => {
+    it.each<
+      [string, PostponableKind, string, string, { latestStartsOn: string; noticeBy: string }]
+    >([
+      [
+        "carer's leave: a month after the first day; notice within the days after the request",
+        "carers_leave",
+        REQUESTED,
+        START,
+        {
+          latestStartsOn: addCalendarMonths(START, carers.maxMonths as number),
+          noticeBy: plusDays(REQUESTED, carers.noticeDays as number),
+        },
+      ],
+      [
+        "carer's leave asked for close to the day: notice by the day before it starts",
+        "carers_leave",
+        "2026-10-30",
+        START,
+        {
+          latestStartsOn: addCalendarMonths(START, carers.maxMonths as number),
+          noticeBy: plusDays(START, -1),
+        },
+      ],
+      [
+        "parental leave: six months after the first day; notice within the days after the request",
+        "parental_leave",
+        REQUESTED,
+        START,
+        {
+          latestStartsOn: addCalendarMonths(START, parental.maxMonths as number),
+          noticeBy: plusDays(REQUESTED, parental.noticeDays as number),
+        },
+      ],
+      [
+        "a month from 31 January ends on the last day of February",
+        "carers_leave",
+        "2027-01-02",
+        "2027-01-31",
+        {
+          latestStartsOn: addCalendarMonths("2027-01-31", carers.maxMonths as number),
+          noticeBy: plusDays("2027-01-02", carers.noticeDays as number),
+        },
+      ],
+    ])("%s", (_name, kind, requestedOn, startsOn, expected) => {
+      expect(postponementLimits({ kind, startsOn, requestedOn }, ratesFor(kind))).toEqual(expected);
+    });
+    it("gives no limits where the nation has no rows", () => {
+      expect(
+        postponementLimits(
+          { kind: "carers_leave", startsOn: START, requestedOn: REQUESTED },
+          { maxMonths: null, noticeDays: null },
+        ),
+      ).toBeNull();
+    });
+    it("counts a calendar month to the last day of a short month", () => {
+      expect(addCalendarMonths("2027-01-31", 1)).toBe("2027-02-28");
+    });
+  });
+
+  describe("the rules a postponement must meet", () => {
+    const limits = (kind: PostponableKind) =>
+      postponementLimits({ kind, startsOn: START, requestedOn: REQUESTED }, ratesFor(kind)) as {
+        latestStartsOn: string;
+        noticeBy: string;
+      };
+    const cl = limits("carers_leave");
+    const pl = limits("parental_leave");
+    type Case = [
+      string,
+      PostponableKind,
+      {
+        decidedOn?: string;
+        newStartsOn: string | null;
+        newEndsOn: string | null;
+        confirmsPostponable?: boolean;
+      },
+      string | null,
+    ];
+    it.each<Case>([
+      [
+        "carer's leave a week later",
+        "carers_leave",
+        { newStartsOn: "2026-11-09", newEndsOn: "2026-11-10" },
+        null,
+      ],
+      [
+        "carer's leave on the latest day allowed",
+        "carers_leave",
+        { newStartsOn: cl.latestStartsOn, newEndsOn: plusDays(cl.latestStartsOn, 1) },
+        null,
+      ],
+      [
+        "carer's leave the day after the latest day",
+        "carers_leave",
+        { newStartsOn: plusDays(cl.latestStartsOn, 1), newEndsOn: plusDays(cl.latestStartsOn, 2) },
+        "postpone_too_late",
+      ],
+      [
+        "carer's leave decided on the last day for notice",
+        "carers_leave",
+        { decidedOn: cl.noticeBy, newStartsOn: "2026-11-09", newEndsOn: "2026-11-10" },
+        null,
+      ],
+      [
+        "carer's leave decided the day after the last day for notice",
+        "carers_leave",
+        { decidedOn: plusDays(cl.noticeBy, 1), newStartsOn: "2026-11-09", newEndsOn: "2026-11-10" },
+        "postpone_notice_passed",
+      ],
+      [
+        "carer's leave decided on the day it was due to start",
+        "carers_leave",
+        { decidedOn: START, newStartsOn: "2026-11-09", newEndsOn: "2026-11-10" },
+        "postpone_notice_passed",
+      ],
+      [
+        "parental leave on the latest day allowed",
+        "parental_leave",
+        {
+          newStartsOn: pl.latestStartsOn,
+          newEndsOn: plusDays(pl.latestStartsOn, 1),
+          confirmsPostponable: true,
+        },
+        null,
+      ],
+      [
+        "parental leave the day after the latest day",
+        "parental_leave",
+        {
+          newStartsOn: plusDays(pl.latestStartsOn, 1),
+          newEndsOn: plusDays(pl.latestStartsOn, 2),
+          confirmsPostponable: true,
+        },
+        "postpone_too_late",
+      ],
+      [
+        "parental leave decided the day after the last day for notice",
+        "parental_leave",
+        {
+          decidedOn: plusDays(pl.noticeBy, 1),
+          newStartsOn: "2027-01-04",
+          newEndsOn: "2027-01-05",
+          confirmsPostponable: true,
+        },
+        "postpone_notice_passed",
+      ],
+      [
+        "parental leave right after a birth or placement, or past the 18th birthday, is not confirmed",
+        "parental_leave",
+        { newStartsOn: "2027-01-04", newEndsOn: "2027-01-05", confirmsPostponable: false },
+        "postpone_unconfirmed",
+      ],
+      [
+        "new dates are needed",
+        "carers_leave",
+        { newStartsOn: null, newEndsOn: null },
+        "postpone_dates_required",
+      ],
+      [
+        "a last day is needed",
+        "carers_leave",
+        { newStartsOn: "2026-11-09", newEndsOn: null },
+        "postpone_dates_required",
+      ],
+      [
+        "the new last day cannot be before the new first day",
+        "carers_leave",
+        { newStartsOn: "2026-11-10", newEndsOn: "2026-11-09" },
+        "ends_before_start",
+      ],
+      [
+        "the same dates are not a postponement",
+        "carers_leave",
+        { newStartsOn: START, newEndsOn: END },
+        "postpone_not_later",
+      ],
+      [
+        "earlier dates are not a postponement",
+        "carers_leave",
+        { newStartsOn: "2026-10-26", newEndsOn: "2026-10-27" },
+        "postpone_not_later",
+      ],
+      [
+        "a new first day not after the day of the decision",
+        "parental_leave",
+        {
+          decidedOn: "2026-10-08",
+          newStartsOn: "2026-10-08",
+          newEndsOn: "2026-10-09",
+          confirmsPostponable: true,
+        },
+        "postpone_not_later",
+      ],
+      [
+        "a shorter period is refused: the same length of leave is given",
+        "carers_leave",
+        { newStartsOn: "2026-11-09", newEndsOn: "2026-11-09" },
+        "postpone_duration",
+      ],
+      [
+        "a longer period is refused",
+        "parental_leave",
+        { newStartsOn: "2027-01-04", newEndsOn: "2027-01-06", confirmsPostponable: true },
+        "postpone_duration",
+      ],
+    ])("%s", (_name, kind, given, expected) => {
+      expect(
+        checkPostponement(
+          {
+            kind,
+            startsOn: START,
+            endsOn: END,
+            requestedOn: REQUESTED,
+            decidedOn: given.decidedOn ?? DECIDED,
+            newStartsOn: given.newStartsOn,
+            newEndsOn: given.newEndsOn,
+            confirmsPostponable: given.confirmsPostponable ?? false,
+          },
+          ratesFor(kind),
+        ),
+      ).toBe(expected);
+    });
+
+    it("refuses where the nation has no rows rather than guessing", () => {
+      expect(
+        checkPostponement(
+          {
+            kind: "carers_leave",
+            startsOn: START,
+            endsOn: END,
+            requestedOn: REQUESTED,
+            decidedOn: DECIDED,
+            newStartsOn: "2026-11-09",
+            newEndsOn: "2026-11-10",
+            confirmsPostponable: false,
+          },
+          { maxMonths: null, noticeDays: null },
+        ),
+      ).toBe("postpone_no_rate");
+    });
+
+    it("refuses kinds that cannot be postponed", () => {
+      expect(
+        checkPostponement(
+          {
+            kind: "annual_leave",
+            startsOn: START,
+            endsOn: END,
+            requestedOn: REQUESTED,
+            decidedOn: DECIDED,
+            newStartsOn: "2026-11-09",
+            newEndsOn: "2026-11-10",
+            confirmsPostponable: true,
+          },
+          carers,
+        ),
+      ).toBe("not_postponable");
+    });
   });
 });

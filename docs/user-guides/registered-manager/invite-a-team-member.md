@@ -21,6 +21,7 @@ with your passkey or authenticator app.
 
 ## Good to know
 
-- Changing a member's role, suspending or removing a member is not available yet. Ask whoever runs
-  Thapsus Care for your organisation.
-- Acting-up (time-limited extra permissions) has no screen yet.
+- To suspend, reinstate or end a membership, see
+  [How to suspend, reinstate or end a team member's membership](suspend-reinstate-or-end-a-membership.md).
+- Changing a member's role, and acting-up (time-limited extra permissions), have no screen yet.
+  Ask whoever runs Thapsus Care for your organisation.

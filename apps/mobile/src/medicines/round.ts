@@ -86,6 +86,8 @@ export interface AdministrationLocalRow {
   readonly unit_code: string | null;
   readonly given_at: string | null;
   readonly administered_by: string | null;
+  /** Who recorded it, which decides who may correct it on the phone, as the API does. */
+  readonly recorded_by?: string | null;
   readonly supersedes_id: string | null;
   /** The request this phone queued (local only): set until the server's row replaces it. */
   readonly request: string | null;

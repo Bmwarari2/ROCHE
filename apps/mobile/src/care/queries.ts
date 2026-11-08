@@ -1,3 +1,4 @@
+import { INACTIVE_ALLERGY_STATUSES } from "../people/queries";
 import { answeredStateSql } from "./answered-tasks";
 /**
  * Local SQLite queries for Care mode. They run against the PowerSync views on the device, so they
@@ -271,7 +272,10 @@ export const ROUND_TASKS_SQL = `SELECT t.id, t.tenant_id, t.person_id, t.locatio
   t.required_permission, t.assignee_tenant_user_id, t.version, t.queued_transition,
   t.from_earlier_plan, t.kind, t.series_id, t.escalation_level,
   p.preferred_name, p.given_name, p.family_name, p.communication_needs,
-  p.location_id AS person_location_id,
+  p.location_id AS person_location_id, p.allergy_status,
+  (SELECT COUNT(*) FROM allergy a WHERE a.person_id = p.id AND a.tenant_id = p.tenant_id
+    AND lower(trim(COALESCE(a.status, 'active'))) NOT IN (${INACTIVE_ALLERGY_STATUSES.map((s) => `'${s}'`).join(", ")}))
+    AS allergy_count,
   (SELECT COUNT(*) FROM care_note e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
     + (SELECT COUNT(*) FROM observation e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
     + (SELECT COUNT(*) FROM body_map_mark e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)

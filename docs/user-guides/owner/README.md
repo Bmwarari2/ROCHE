@@ -9,6 +9,7 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 - [How to import people from another system](import-people-from-another-system.md)
 - [How to run and lock a pay run](run-and-lock-a-pay-run.md)
 - [How to set the staff privacy notice](set-the-staff-privacy-notice.md)
+- [How to set your organisation's branding](set-your-organisations-branding.md)
 - [How to turn on single sign-on](turn-on-single-sign-on.md)
 - [How to undo an import](undo-an-import.md)
 - [How to work through the getting started checklist](work-through-getting-started.md)
@@ -17,9 +18,12 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 ## Everyone
 
 - [How to accept an invitation and set up your sign-in](../all-staff/accept-an-invitation.md)
+- [How to handle a lost or stolen phone](../all-staff/handle-a-lost-or-stolen-phone.md)
 - [How to handle speak-up cases](../all-staff/handle-speak-up-cases.md)
 - [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
 - [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)
+- [How to read and sign an organisation document](../all-staff/read-and-sign-an-organisation-document.md)
+- [How to read your home page](../all-staff/read-your-home-page.md)
 - [How to search for a person](../all-staff/search-for-a-person.md)
 - [How to see the history of a record](../all-staff/view-a-records-history.md)
 - [How to set up a passkey or an authenticator app](../all-staff/set-up-a-second-sign-in-step.md)
@@ -28,18 +32,22 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 
 ## From the Registered Manager guides
 
+- [How to add an organisation document or a new version](../registered-manager/add-an-organisation-document.md)
 - [How to add, schedule and retire an audit template](../registered-manager/set-up-an-audit-template.md)
 - [How to answer the notification questions on an incident](../registered-manager/answer-notification-questions.md)
 - [How to approve or refuse a disclosure request](../registered-manager/approve-or-refuse-a-disclosure-request.md)
 - [How to approve timesheets](../registered-manager/approve-timesheets.md)
 - [How to build a rota](../registered-manager/build-a-rota.md)
 - [How to carry out an audit or mock inspection](../registered-manager/carry-out-an-audit.md)
+- [How to change a person's details and contacts](../registered-manager/change-a-persons-details-and-contacts.md)
 - [How to check and publish a rota](../registered-manager/check-and-publish-a-rota.md)
 - [How to check evidence coverage and its gaps](../registered-manager/check-evidence-coverage.md)
 - [How to check the medication review tracker](../registered-manager/check-the-medication-review-tracker.md)
 - [How to check who has read and signed a policy](../registered-manager/check-who-has-signed-a-policy.md)
+- [How to compose and release an evidence pack](../registered-manager/compose-and-release-an-evidence-pack.md)
 - [How to copy the PIR figures](../registered-manager/copy-the-pir-figures.md)
 - [How to decide a leave request](../registered-manager/decide-a-leave-request.md)
+- [How to discharge a person or transfer them to another provider](../registered-manager/discharge-or-transfer-a-person.md)
 - [How to follow up after a death](../registered-manager/follow-up-after-a-death.md)
 - [How to handle a complaint](../registered-manager/handle-a-complaint.md)
 - [How to invite a team member](../registered-manager/invite-a-team-member.md)
@@ -56,25 +64,34 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 - [How to read working time results](../registered-manager/read-working-time-results.md)
 - [How to reconcile an outage](../registered-manager/reconcile-an-outage.md)
 - [How to record a compliment](../registered-manager/record-a-compliment.md)
+- [How to record a decision to admit](../registered-manager/record-a-decision-to-admit.md)
+- [How to record a sharing decision](../registered-manager/record-a-sharing-decision.md)
 - [How to record a statutory notification as submitted, or as not required](../registered-manager/record-a-notification-as-submitted.md)
+- [How to record an admission and a room](../registered-manager/record-an-admission-and-a-room.md)
+- [How to record an enquiry and start the pre-admission assessment](../registered-manager/record-an-enquiry.md)
 - [How to retire a policy](../registered-manager/retire-a-policy.md)
 - [How to review and close an incident](../registered-manager/review-and-close-an-incident.md)
 - [How to review the weekly break-glass report](../registered-manager/review-the-weekly-break-glass-report.md)
 - [How to run a staff survey](../registered-manager/run-a-staff-survey.md)
 - [How to run the safeguarding log](../registered-manager/run-the-safeguarding-log.md)
 - [How to see what your team shares](../registered-manager/see-what-your-team-shares.md)
+- [How to send or delete another person's unsent entries on a phone](../registered-manager/send-or-delete-another-persons-unsent-entries-on-a-phone.md)
 - [How to set indicator targets](../registered-manager/set-indicator-targets.md)
 - [How to set up a dependency scale](../registered-manager/set-up-a-dependency-scale.md)
 - [How to set up shift templates and patterns](../registered-manager/set-up-shift-templates-and-patterns.md)
+- [How to suspend, reinstate or end a team member's membership](../registered-manager/suspend-reinstate-or-end-a-membership.md)
 - [How to tag a record as evidence](../registered-manager/tag-a-record-as-evidence.md)
+- [How to update the statement of purpose](../registered-manager/update-the-statement-of-purpose.md)
 - [How to write and approve a letter template](../registered-manager/write-a-letter-template.md)
 - [How to write and publish a policy](../registered-manager/write-and-publish-a-policy.md)
 
 ## From the data protection lead guides
 
 - [How to acknowledge a breach notice from Thapsus](../data-protection-lead/acknowledge-a-breach-notice-from-thapsus.md)
+- [How to destroy documents past their retention period](../data-protection-lead/destroy-documents-past-their-retention-period.md)
 - [How to find and review the records for a data rights request](../data-protection-lead/find-and-review-the-records-for-a-request.md)
 - [How to handle a request to erase, correct or move information](../data-protection-lead/handle-an-erasure-correction-or-portability-request.md)
+- [How to place or release a legal hold](../data-protection-lead/place-or-release-a-legal-hold.md)
 - [How to prepare and sign the DPIA](../data-protection-lead/prepare-and-sign-the-dpia.md)
 - [How to record a Cyber Essentials certificate or ICO registration](../data-protection-lead/record-a-certificate-or-registration.md)
 - [How to record a DSPT submission](../data-protection-lead/record-a-dspt-submission.md)
@@ -87,6 +104,13 @@ For the owner, director or Nominated Individual. You can do everything the Regis
 - [How to pay staff through the HR platform](../registered-manager/set-the-route-to-payroll.md)
 - [How to release absence copies from the HR platform](../registered-manager/release-absence-copies.md)
 
+## From the nurse guides
+
+- [How to fill in a pre-admission assessment](../nurse/fill-in-a-pre-admission-assessment.md)
+- [How to keep a duty of candour record](../nurse/keep-a-duty-of-candour-record.md)
+- [How to record an incident investigation](../nurse/record-an-incident-investigation.md)
+- [How to write About me](../nurse/write-about-me.md)
+
 Back to [all user guides](../README.md).
 
 ## From the care worker guides
@@ -94,12 +118,17 @@ Back to [all user guides](../README.md).
 
 - [How to check a person's safeguarding measures](../care-worker/check-safeguarding-measures.md)
 - [How to raise a safeguarding concern](../care-worker/raise-a-safeguarding-concern.md)
+- [How to read incident trends](../care-worker/read-incident-trends.md)
 - [How to record a missing person](../care-worker/record-a-missing-person.md)
+- [How to work through your tasks](../care-worker/work-through-your-tasks.md)
 
 ## From the senior carer guides
 
 
+- [How to create a task](../senior-carer/create-a-task.md)
 - [How to record a death](../senior-carer/record-a-death.md)
+- [How to record a person's property and keys](../senior-carer/record-property-and-keys.md)
+- [How to work through approvals](../senior-carer/work-through-approvals.md)
 
 ## From the HR lead guides
 

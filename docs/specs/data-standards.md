@@ -833,7 +833,7 @@ exported except `disclosure_request.pack_storage_key` (internal). Retention clas
 | `disclosure_request.prepared_by`, `decided_by`, `released_by` and their times | Thapsus Care | `tenant_user` ids; UTC | The decider is never `created_by` (check `disclosure_request_approver`). |
 | `disclosure_request.pack_sha256`, `pack_storage_key` | SHA-256; storage key | 64 lower-case hex characters of the canonical JSON of the records, redacted count and withheld count; `tenants/<tenant>/documents/<document>`, the pack's `document` row (category `disclosure_pack`, ids only); packs issued before 01/11/2026 carry the legacy `tenants/<tenant>/disclosures/<request>/<pack>.json` | Set together on release (check `disclosure_request_pack`). The key is internal. |
 | `disclosure_request.not_searched`, `collected_at` | Thapsus Care (`EXPORT_TABLES`) | Table names; UTC | As `dsar_case`. |
-| `disclosure_request.prevention_report_on`, `prevention_responded_on` | Coroners (Investigations) Regulations 2013, regulation 28 and 29 | `YYYY-MM-DD`; coroner requests only; the response on or after the report | The response is due `coroner.prevention_report_response_days` (rate table) after the report; never stored. |
+| `disclosure_request.prevention_report_on`, `prevention_responded_on`, `prevention_extended_to` | Coroners (Investigations) Regulations 2013, regulations 28 and 29(4) and (5); Coroners and Justice Act 2009, Schedule 5 paragraph 7 | `YYYY-MM-DD`; coroner requests only; `prevention_report_on` is the date the report was sent; the response on or after it; an extension (a later date the coroner allowed) after it and later than the usual due date (the API) | The response is due within `coroner.prevention_report_response_days` (rate table) of the date the report was sent, so on that date plus the period, or on the extension; never stored. |
 | `disclosure_item.*` | As `dsar_item` | `pending`, `disclose`, `redact`, `withhold`; redacted fields from the table's exported columns; `content_sha256` of the record as reviewed | Redacted fields read `[redacted]` in the pack; withheld records are counted. Records are in date order (the chronology). |
 
 ## Phase 1 tables completed for the gate
@@ -922,7 +922,7 @@ so the codes are Thapsus Care's. Times are instants in UTC, shown in UK local ti
 | `lone_worker_alarm.state` | Thapsus Care | `open`, `acknowledged`, `resolved_by_check_in`, `resolved_late_check_in` (`LONE_WORKER_ALARM_STATES`) | Shown with words (`ALARM_STATE_WORDS`), never by colour alone. |
 | `lone_worker_alarm.outcome` | Thapsus Care | `safe_confirmed`, `help_sent`, `emergency_services_called`, `other` (`LONE_WORKER_OUTCOMES`) | Any outcome but `safe_confirmed` suggests an incident report. |
 | `lone_worker_alarm.note` | Thapsus Care | Plain text, 1 to 2,000 characters | Required to acknowledge. |
-| `lone_worker_location.latitude`, `longitude` | WGS 84 decimal degrees | Five decimal places (about one metre); empty once erased | Evidence only (H-527); erased at `delete_after`. |
+| `lone_worker_location.latitude`, `longitude` | WGS 84 decimal degrees | Five decimal places (about one metre); empty once erased | Evidence only (H-527); kept only while `scheduling.lone_worker.location` is on and the signed DPIA covers it (H-1555); erased at `delete_after`. |
 | `lone_worker_location.accuracy_metres` | Thapsus Care | Whole metres, 0 to 100,000, or empty | As the device reported it. |
 | `LoneWorkerBoardItem.workerName` (API, slice 61) | Thapsus Care | The member's display name, or null when none is held | Read from `tenant_user`, never stored on the session; shown to monitors as "Name not held" when null, never as an id. |
 | `placement.dependency_category` | Thapsus Care (Phase 1, free text from the admission form) | Text, at most 20 characters | Retired (recommended answer to H-716, 31/10/2026): no longer collected or written; an existing value is shown read-only as `admissionFormCategory` to whoever records the person's first structured category, never prefilled into it, and the column is dropped by a later contract migration (expand and contract). Never read by the required care hours. |
@@ -1074,13 +1074,15 @@ fields are Thapsus Care's.
 | Thapsus Care field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `absence.starts_on`, `ends_on` | ISO 8601 date | `YYYY-MM-DD` (UK calendar), shown dd/mm/yyyy; `ends_on` null while a sickness is open | Leave always has a last day. |
-| `absence.decided_by`, `decided_at`, `decision_reason` | Thapsus Care | `tenant_user` id, UTC; a reason of 3 to 500 characters for a decline or a manager's cancellation | The decider is never the member (check `absence_decider_is_member`). The reason is about the rota, never health. |
+| `absence.decided_by`, `decided_at`, `decision_reason` | Thapsus Care | `tenant_user` id, UTC; a reason of 3 to 500 characters for a decline, a postponement or a manager's cancellation | The decider is never the member (check `absence_decider_is_member`). The reason is about the rota, never health. |
+| `absence.postponed_from_id` | Thapsus Care | `absence` id; only on carer's or parental leave (check `absence_postponed_from`), at most one per request, never changed | The leave an approver gave on new dates when postponing a request (H-970; migration 0155). The limits come from the rate table: `carers_leave.postpone_max_months`, `carers_leave.postpone_notice_days`, `parental_leave.postpone_max_months`, `parental_leave.postpone_notice_days`. |
 | `absence.self_certified_at`, `bradford_excluded_reason` | Thapsus Care | UTC; free text of 3 to 500 characters | Self-certification covers `ssp.self_certification_days`; the exclusion reason is HR's only. |
 | `fit_note.issued_on`, `covers_from`, `covers_to` | ISO 8601 date | `YYYY-MM-DD` | `covers_to` on or after `covers_from`; issued no later than `covers_to`. |
 | `fit_note.fitness` and adjustments | The fit note form (Statement of Fitness for Work) | `not_fit`, `may_be_fit`; booleans `phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations` (ticked only when `may_be_fit`) | The condition stays on the document; never typed into Thapsus Care. |
 | `fit_note.document_id` | Thapsus Care | A `document` of category `staff_hr_document`, subject `fit_note`, retention `sickness_absence` | Opened only by holders of `workforce.hr_document.read`, audited. |
 | `return_to_work.*` | Thapsus Care | `held_on` date; `held_by` (never the member); `fit_for_usual_duties`; the four adjustments; `notes` up to 4,000 characters | One per absence, after it ends. Notes never in an audit event. |
 | `revalidation_evidence.review_state`, `reviewed_by`, `reviewed_at`, `confirmed_by`, `confirmed_on` (H-693) | Thapsus Care | `draft`, `submitted`, `reviewed`; `tenant_user` ids; UTC; UK date | The nurse writes their own counts; HR reviews; the confirmer is never the nurse |
+| `revalidation_evidence.confirmer_id` (rule 8; migration 0156) | Thapsus Care | `tenant_user` id, nullable | Who is to confirm the cycle, named by HR: never the nurse (a check) and never the one naming them; only they record the confirmation (separation of duties). Exported with the record |
 | `compliance_item.detail` for `driving_for_work` (H-835) | DVLA licence categories | `licenceCheckedOn` date; `categories` as the DVLA shows them (`^[A-Z][A-Z0-9+]{0,3}$`); `insuranceExpiresOn` date | Never the licence number or the DVLA check code. Current for `workforce.driving_licence_check_months` and while insured |
 | `compliance_item.detail.nmcPart` (H-835) | NMC register parts | `nurse`, `midwife`, `nursing_associate` | Required for an NMC registration; only `nurse` counts as a registered nurse on duty |
 | `shift_cover_need.resolution` | Thapsus Care | `assignment_removed`, `absence_ended` | Raised once, resolved once (trigger `shift_cover_need_guard`). |
@@ -1096,7 +1098,7 @@ payroll exports (slice 76) map them to each provider.
 | `clock_event.nfc_tag_ref`, `clock_setting.nfc_tag_refs` | Thapsus Care | 1 to 64 of A-Z, a-z, 0-9, `_`, `-` | One of the location's tags. |
 | `clock_event.device_id` | Thapsus Care | 1 to 120 of A-Z, a-z, 0-9, `.`, `_`, `:`, `-` | Opaque. |
 | `clock_event.device_time`, `recorded_at` | ISO 8601 date-time, UTC | `timestamptz` | The device's time is the time worked; both are kept (HZ-010). |
-| `clock_event.evidence`, `clock_setting.evidence` | Thapsus Care | `none`, `at_location`, `nfc` | Never a position; `at_location` is the phone's word only (H-527). Kept only as the location's setting asks. |
+| `clock_event.evidence`, `clock_setting.evidence` | Thapsus Care | `none`, `at_location`, `nfc` | Never a position; `at_location` is the phone's word only (H-527). Kept only as the location's setting asks, while `scheduling.clock.location_evidence` is on there and the signed DPIA covers it (H-1555). |
 | `clock_event.flags` | Thapsus Care | `late_upload`, `device_clock_ahead`, `outside_access_window`, `no_shift`, `not_eligible`, `no_induction`, `no_booking`, `not_on_shift`, `other_location`, `no_permission`, `evidence_not_matched`, and the pairing problems `no_clock_in`, `no_clock_out`, `break_not_ended`, `break_not_started`, `out_of_order` | |
 | `timesheet_entry.kind` | Thapsus Care (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training`, `travel` | |
 | `timesheet_entry.travel` | Thapsus Care (NMW travel time) | `between_assignments`, `home_to_first_assignment`, `last_assignment_to_home`, `commute_to_fixed_workplace` | |
@@ -1431,7 +1433,7 @@ lists: `organisation_document`); every column is exported.
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but
 map to no national data standard: `audit_event` (hash-chained), `record_version`, `outbox_event`,
-`notification`, `notification_delivery`, `escalation_chain`, `feature_flag`, `form_template`,
+`notification`, `notification_delivery`, `escalation_chain`, `feature_flag` (for `medicines.cd_recording`, `value` holds the free-text reason it was turned off at a home, versioned with the setting, never in `audit_event`; the screen asks not to name people; H-1518), `form_template`,
 `form_submission`, `integration_connection`, `integration_inbound`, `support_access_request`,
 `break_glass_event`, `person_assignment`, `role`, `role_assignment` and `access_grant` (each with
 `organisation_wide`, whether a role assigned with no location, or a grant, reaches the whole

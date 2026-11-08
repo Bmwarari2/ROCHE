@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { toMedicinesUpload } from "../sync/medicines-upload";
-import { type CorrectionInput, correctionProblems, localCorrectionRow } from "./correction";
+import {
+  type CorrectionInput,
+  correctionProblems,
+  localCorrectionRow,
+  mayCorrectOnPhone,
+} from "./correction";
 
 const ORIGINAL = "01890000-0000-7000-8000-0000000000c1";
 const ID = "01890000-0000-7000-8000-0000000000c2";
@@ -70,5 +75,36 @@ describe("hazard HZ-004 a record that reached Thapsus Care is corrected, never c
       toMedicinesUpload({ id: ID, op: "PUT", table: "medication_administration", opData: row })
         .kind,
     ).toBe("refused");
+  });
+});
+
+describe("hazard HZ-004 the phone offers Correct only where the API would take it (guides review)", () => {
+  it.each([
+    [
+      "the member's own record",
+      { recorded_by: "me" },
+      { tenantUserId: "me", permissions: [] },
+      true,
+    ],
+    [
+      "someone else's record",
+      { recorded_by: "ben" },
+      { tenantUserId: "me", permissions: [] },
+      false,
+    ],
+    [
+      "someone else's record, for a nurse who may correct anyone's",
+      { recorded_by: "ben" },
+      { tenantUserId: "me", permissions: ["medicines.record.manage"] },
+      true,
+    ],
+    [
+      "a record whose recorder the phone does not know",
+      { recorded_by: null },
+      { tenantUserId: "me", permissions: [] },
+      false,
+    ],
+  ] as const)("%s", (_case, record, member, may) => {
+    expect(mayCorrectOnPhone(record, member)).toBe(may);
   });
 });

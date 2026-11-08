@@ -30477,6 +30477,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/members/{memberId}/care-certificate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's Care Certificate
+     * @description workforce.staff_file.read, workforce.staff_file.manage or workforce.competence.observe. The Care Certificate alone, with the staff file's id to record against, so an observer (a team leader or clinical lead) can find and observe it without any staff file permission; 404 when the member has no staff file. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The Care Certificate */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CareCertificateView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/staff-files/{id}/care-certificate/{standardId}": {
     parameters: {
       query?: never;
@@ -30487,7 +30564,7 @@ export interface paths {
     get?: never;
     /**
      * Record a Care Certificate standard's assessment or observation
-     * @description workforce.staff_file.manage or workforce.competence.observe, never on one's own file, in the caller's own name: the knowledge assessment, then the observation in practice (observers only). Audited.
+     * @description Never on one's own file, in the caller's own name: the knowledge assessment (workforce.staff_file.manage or workforce.competence.observe), then the observation in practice (workforce.competence.observe only; no staff file permission needed). Audited.
      */
     put: {
       parameters: {
@@ -32345,6 +32422,175 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/members/{memberId}/revalidation/confirmer": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Name who confirms a nurse's revalidation
+     * @description workforce.training.manage, never for oneself, against expectedVersion. A colleague other than the nurse and other than the caller (so nobody makes themselves the confirmer); never once confirmed. Only the named confirmer records the confirmation (rule 8, H-693). Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NameRevalidationConfirmer"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/revalidation/confirmers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Who may be named a nurse's revalidation confirmer
+     * @description workforce.training.manage, never for oneself. Members holding workforce.training.manage or workforce.supervision.manage (as app.revalidation_confirmer_candidates counts them), by name and job title only, leaving out the nurse, the caller and whoever reviewed the cycle given (rule 8). Audited.
+     */
+    get: {
+      parameters: {
+        query?: {
+          cycleDueOn?: string;
+        };
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Who may be named */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ColleagueList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/members/{memberId}/revalidation/confirmation": {
     parameters: {
       query?: never;
@@ -32356,7 +32602,7 @@ export interface paths {
     put?: never;
     /**
      * Record that you confirmed a nurse's revalidation
-     * @description The confirmer, in their own name, never the nurse (workforce.training.manage or workforce.supervision.manage; ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out; H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.
+     * @description Only the confirmer named on the cycle (PUT .../revalidation/confirmer), acting for themselves and in their own name, after HR's review; never the nurse, and never HR unless named (separation of duties). The confirmer holds workforce.training.manage or workforce.supervision.manage, ideally an NMC registrant line manager, as the NMC's revalidation guidance sets out (rule 8, H-693). Thapsus Care only tracks it: the nurse revalidates with the NMC. Audited.
      */
     post: {
       parameters: {
@@ -45689,7 +45935,7 @@ export interface paths {
     put?: never;
     /**
      * Record a coroner's Regulation 28 report and the response
-     * @description safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). The response is due coroner.prevention_report_response_days after the report (rate table). Dates not in the future; the response not before the report. Audited (safety.disclosure.prevention_recorded).
+     * @description safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). reportOn is the date the report was sent: the response is due within coroner.prevention_report_response_days (rate table) of that date (Coroners (Investigations) Regulations 2013 reg 29(4)), or by extendedTo, a later date the coroner allowed (reg 29(5); 422 extension_not_later otherwise, naming the due date). A field left out keeps what was recorded; null clears it. Dates sent and responded not in the future (422 date_in_future); the response not before the report (422 response_before_report). Audited (safety.disclosure.prevention_recorded).
      */
     post: {
       parameters: {
@@ -48607,6 +48853,87 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/controlled-drugs/recording": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Turn controlled drug recording on or off at a home
+     * @description Owner or Registered Manager: `medicines.record.manage` and `platform.location.manage` at the home, with a fresh second sign-in step (H-1517, H-1518; HZ-115, HZ-008). One register is the record: turning it on says the paper register is counted, witnessed and closed now, that each balance is carried into Thapsus Care's register before the next dose, and that the home's phones are updated; turning it off needs a reason and says the paper register is restarted with each balance. The reason is kept with the setting, not in the audit trail. Audited either way, and so is every refusal once the request is well formed. Elsewhere 404.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["CdRecordingChange"];
+        };
+      };
+      responses: {
+        /** @description Recording as it now stands at the home */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CdRecordingState"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -60280,7 +60607,7 @@ export interface paths {
     put?: never;
     /**
      * Approve, decline or postpone a leave request
-     * @description scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable); carer's and parental leave may be postponed (H-970). Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.
+     * @description scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline or postponement needs a reason. Statutory leave is never declined (422 absence_not_declinable). Carer's and unpaid parental leave may be postponed, never declined (H-970): with the new first and last days, the same number of days as asked for, starting after the first day asked for and no later than the rate table's months after it, given within the rate table's days of the request (and, for carer's leave, before it was due to start); parental leave also needs confirmsPostponable (422 absence_postpone_*). The request becomes postponed and the new dates become approved leave pointing back at it. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved, .declined or .postponed, and .approved for the new dates), never the reason.
      */
     post: {
       parameters: {
@@ -61225,7 +61552,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Clock evidence at a location */
+    /**
+     * Clock evidence at a location
+     * @description scheduling.rota.manage, .rota.read or .timesheet.self. The evidence the location's setting asks for, and whether it is in effect (inUse): not none, the flag scheduling.clock.location_evidence on at the location, and the organisation's signed DPIA covering it (H-1555). While inUse is false, clock events keep no location or NFC evidence.
+     */
     get: {
       parameters: {
         query?: never;
@@ -61286,7 +61616,7 @@ export interface paths {
     };
     /**
      * Set clock evidence at a location
-     * @description Location or NFC evidence is employee monitoring: it needs dpiaApproved, confirming the employee-monitoring DPIA is approved (H-527). Never a position: only whether the phone was at the location or read the location's tag.
+     * @description scheduling.rota.approve. Location or NFC evidence is employee monitoring (H-527, H-1555): it is refused (422 dpia_monitoring_not_covered) unless the flag scheduling.clock.location_evidence is on at the location and the organisation's signed DPIA lists it among its features. dpiaApproved is deprecated and ignored. Setting none is always allowed. Never a position: only whether the phone was at the location or read the location's tag. Audited with the evidence and the id of the signed DPIA relied on (dpiaId). The answer says whether the evidence is in effect (inUse).
      */
     put: {
       parameters: {
@@ -62502,7 +62832,7 @@ export interface paths {
     };
     /**
      * The on-call route for lone-worker alarms (H-539)
-     * @description Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached. Holders of scheduling.lone_worker.check_in, .monitor or .manage.
+     * @description Whether lone-worker check-ins are on (a valid route is saved), its steps and any problems, and whether location evidence is attached for the organisation as a whole (the organisation-wide value of the flag scheduling.lone_worker.location, on and covered by the organisation's signed DPIA; H-1555). A location's own flag row may switch it on or off at that location alone, which this value does not show. Holders of scheduling.lone_worker.check_in, .monitor or .manage.
      */
     get: {
       parameters: {
@@ -62787,7 +63117,7 @@ export interface paths {
     put?: never;
     /**
      * Check in, ask for help, raise duress or finish
-     * @description scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the organisation's flag is on. Audited (duress as an event like any other).
+     * @description scheduling.lone_worker.check_in, on one's own session. The client's id makes a resend (a retry, an offline queue) record once. An event made offline is accepted from its device time and flagged when it arrives late; a device clock ahead of the server beyond the tolerance is refused, except for help and duress, which are always accepted. Help and duress raise an alarm at once; a duress check-in answers exactly as an ordinary check-in. A check-in resolves an overdue alarm unless the worker is overdue again. Location is kept only while the flag scheduling.lone_worker.location is on at the session's location and the organisation's signed DPIA covers it (H-1555). Audited (duress as an event like any other), with whether a location sent was kept and never the location itself.
      */
     post: {
       parameters: {
@@ -73896,6 +74226,7 @@ export interface components {
       /** @enum {string} */
       reviewState: "draft" | "submitted" | "reviewed";
       reviewedBy: components["schemas"]["StaffName"];
+      confirmer: components["schemas"]["StaffName"];
       confirmedBy: components["schemas"]["StaffName"];
       /** Format: date */
       confirmedOn: string | null;
@@ -73963,6 +74294,13 @@ export interface components {
       expectedVersion: number;
       /** Format: date */
       cycleDueOn: string;
+    };
+    NameRevalidationConfirmer: {
+      expectedVersion: number;
+      /** Format: date */
+      cycleDueOn: string;
+      /** Format: uuid */
+      confirmerId: string;
     };
     ConfirmRevalidation: {
       expectedVersion: number;
@@ -76469,6 +76807,10 @@ export interface components {
         /** Format: date */
         reportOn: string;
         /** Format: date */
+        statutoryDueOn: string;
+        /** Format: date */
+        extendedTo: string | null;
+        /** Format: date */
         responseDueOn: string;
         /** Format: date */
         respondedOn: string | null;
@@ -76604,6 +76946,8 @@ export interface components {
       reportOn: string;
       /** Format: date */
       respondedOn?: string | null;
+      /** Format: date */
+      extendedTo?: string | null;
     };
     QualityDashboard: {
       /** Format: uuid */
@@ -76845,6 +77189,7 @@ export interface components {
         mayGive: boolean;
         notice: string | null;
       };
+      controlledDrug: boolean;
     };
     DmdProductRef: {
       vmpId: string;
@@ -77336,6 +77681,7 @@ export interface components {
         /** @enum {string} */
         method: "step_up" | "device_factor";
       } | null;
+      inCdRegister: boolean;
     };
     AdministrationConflictRaised: {
       /** Format: uuid */
@@ -77586,6 +77932,8 @@ export interface components {
         id: string;
         movement: components["schemas"]["CdMovement"] | "stock_check";
         quantity: number;
+        /** Format: uuid */
+        administrationId: string | null;
         witnessName: string;
         /** Format: date-time */
         expiresAt: string;
@@ -77657,6 +78005,30 @@ export interface components {
       reason: string | null;
       witness: components["schemas"]["CdWitness"];
     };
+    CdRecordingState: {
+      /** Format: uuid */
+      locationId: string;
+      enabled: boolean;
+      changed: boolean;
+    };
+    CdRecordingChange:
+      | {
+          /** @enum {boolean} */
+          enabled: true;
+          /** @enum {boolean} */
+          paperRegisterClosed: true;
+          /** @enum {boolean} */
+          balancesToCarryForward: true;
+          /** @enum {boolean} */
+          phonesUpdated: true;
+        }
+      | {
+          /** @enum {boolean} */
+          enabled: false;
+          reason: string;
+          /** @enum {boolean} */
+          paperRegisterRestarted: true;
+        };
     LocationMedicineRound: {
       /** Format: date-time */
       from: string;
@@ -77731,6 +78103,8 @@ export interface components {
       /** Format: date-time */
       dueAt: string;
       standing: components["schemas"]["Administration"];
+      current: components["schemas"]["Administration"];
+      controlledDrug: boolean;
       uploaded: components["schemas"]["UploadedAdministration"];
       joined: components["schemas"]["UploadedAdministration"][];
       problems: string[];
@@ -80316,6 +80690,22 @@ export interface components {
       fitNoteUncoveredDays: string[] | null;
       /** @enum {string} */
       source: "harbour" | "thapsus_hr";
+      /** Format: uuid */
+      postponedFromId: string | null;
+      postponedTo: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string;
+      } | null;
+      postponement: {
+        /** Format: date */
+        latestStartsOn: string;
+        /** Format: date */
+        noticeBy: string;
+      } | null;
     };
     /** @enum {string} */
     AbsenceKind:
@@ -80374,6 +80764,22 @@ export interface components {
       fitNoteUncoveredDays: string[] | null;
       /** @enum {string} */
       source: "harbour" | "thapsus_hr";
+      /** Format: uuid */
+      postponedFromId: string | null;
+      postponedTo: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string;
+      } | null;
+      postponement: {
+        /** Format: date */
+        latestStartsOn: string;
+        /** Format: date */
+        noticeBy: string;
+      } | null;
       carersLeave: {
         takenDays: number;
         allowanceDays: number | null;
@@ -80428,6 +80834,11 @@ export interface components {
       /** @enum {string} */
       decision: "approve" | "decline" | "postpone";
       reason?: string;
+      /** Format: date */
+      startsOn?: string;
+      /** Format: date */
+      endsOn?: string;
+      confirmsPostponable?: boolean;
     };
     CancelAbsence: {
       version: number;
@@ -80611,13 +81022,19 @@ export interface components {
       version: number | null;
       evidence: components["schemas"]["ClockEvidence"];
       nfcTagRefs: string[];
+      /** @description Whether the evidence asked for is in effect at the location: not none, the flag scheduling.clock.location_evidence on there, and the organisation's signed DPIA covering it (H-1555). While false, clock events keep no location or NFC evidence. */
+      inUse: boolean;
     };
     ChangeClockSetting: {
       version: number | null;
       evidence: components["schemas"]["ClockEvidence"];
       /** @default [] */
       nfcTagRefs: string[];
-      /** @default false */
+      /**
+       * @deprecated
+       * @description Deprecated and ignored: location or NFC evidence needs the organisation's signed DPIA to cover it, which the API checks (H-1555).
+       * @default false
+       */
       dpiaApproved: boolean;
     };
     CreateTimesheetEntry: {

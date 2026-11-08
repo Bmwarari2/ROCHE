@@ -5,7 +5,7 @@
 -- every existing row has a reason and an older kind. Both tables are small at this phase, so
 -- the checks and the index are built in the migration's own transaction.
 -- One lost-key record per lost database (its device id), so a retry under another id finds it.
--- Provisional number: the lead confirms it at merge.
+-- Numbered 0159 after main's 0158 (first written as a provisional 0154).
 ALTER TABLE "device_discard_record" DROP CONSTRAINT "device_discard_record_kind";--> statement-breakpoint
 ALTER TABLE "device_discard_record" ALTER COLUMN "reason_code" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "device_discard_record" ADD COLUMN "cause" text;--> statement-breakpoint

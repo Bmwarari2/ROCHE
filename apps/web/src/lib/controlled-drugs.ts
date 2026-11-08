@@ -49,6 +49,53 @@ export const RECORDED_MOVEMENTS = ["receipt", "transfer_out", "disposal", "destr
 export type RecordedMovement = (typeof RECORDED_MOVEMENTS)[number];
 /** What a witness can sign for: a recorded movement, a correction or a count. */
 export const WITNESSED = [...RECORDED_MOVEMENTS, "correction", "stock_check"] as const;
+/** What a witness signs for a dose record's correction: a dose now given, or the entry corrected. */
+export const DOSE_WITNESSED = ["administration", "correction"] as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The witness's link for a dose record's correction: the register page, with what they sign. */
+export function doseWitnessHref(
+  personId: string,
+  pageId: string,
+  dose: {
+    readonly administrationId: string;
+    readonly movement: (typeof DOSE_WITNESSED)[number];
+    readonly quantity: number;
+    readonly recorderId: string;
+  },
+): string {
+  const query = new URLSearchParams({
+    dose: dose.administrationId,
+    movement: dose.movement,
+    quantity: String(dose.quantity),
+    recorder: dose.recorderId,
+  });
+  return `${cdPageHref(personId, pageId)}?${query.toString()}`;
+}
+
+/** The prefilled signature a witness link asks for, when its query is well formed. */
+export function doseWitnessFrom(query: {
+  readonly dose?: string | undefined;
+  readonly movement?: string | undefined;
+  readonly quantity?: string | undefined;
+  readonly recorder?: string | undefined;
+}): {
+  readonly administrationId: string;
+  readonly movement: (typeof DOSE_WITNESSED)[number];
+  readonly quantity: string;
+  readonly recorderId: string;
+} | null {
+  const { dose, movement, quantity, recorder } = query;
+  if (!dose || !UUID.test(dose) || !recorder || !UUID.test(recorder)) return null;
+  if (!(DOSE_WITNESSED as readonly string[]).includes(movement ?? "")) return null;
+  if (readCdQuantity(quantity ?? "", true) === null) return null;
+  return {
+    administrationId: dose,
+    movement: movement as (typeof DOSE_WITNESSED)[number],
+    quantity: quantity as string,
+    recorderId: recorder,
+  };
+}
 
 export function cdShown(permissions: readonly string[]): boolean {
   return CD_READERS.some((p) => permissions.includes(p));
@@ -165,7 +212,13 @@ export function readWitness(
 ): Read<Schemas["AssertWitness"]> {
   const errors: Errors = {};
   const movement = text(form, "movement");
-  if (!(WITNESSED as readonly string[]).includes(movement)) {
+  // A dose record's correction (HZ-004): the witness signs for that record, by its client id.
+  const administrationId = text(form, "administrationId") || null;
+  if (administrationId !== null && !UUID.test(administrationId)) {
+    errors.movement = t("cd.witness.movementError");
+  }
+  const allowed: readonly string[] = administrationId ? DOSE_WITNESSED : WITNESSED;
+  if (!allowed.includes(movement)) {
     errors.movement = t("cd.witness.movementError");
   }
   const signed = movement === "correction";
@@ -181,7 +234,7 @@ export function readWitness(
     body: {
       movement: movement as Schemas["AssertWitness"]["movement"],
       quantity: quantity as number,
-      administrationId: null,
+      administrationId,
       recorderId,
     },
   };
@@ -347,3 +400,15 @@ export function cdRecordingOn(
 ): boolean {
   return flags?.[CD_RECORDING_FLAG] === true;
 }
+
+/**
+ * Who may turn controlled drug recording on or off at a home (H-1518): both permissions, as the
+ * API checks again at the home. Only they are offered the page and its navigation entry.
+ */
+export const CD_RECORDING_SETTERS = [
+  "medicines.record.manage",
+  "platform.location.manage",
+] as const;
+export const cdRecordingSettingsShown = (permissions: readonly string[]) =>
+  CD_RECORDING_SETTERS.every((p) => permissions.includes(p));
+export const cdRecordingSettingsHref = (locationId: string) => `/medicines-settings/${locationId}`;

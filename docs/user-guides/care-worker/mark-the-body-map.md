@@ -37,3 +37,4 @@ senior carers, nurses and managers.
 - Correcting a mark, marking it healed and adding a photo are not on the web yet.
 - Marks on the body map are not linked to an incident on the web. Describe injuries in the incident
   too.
+- On the phone, see [How to mark the body map on the phone](mark-the-body-map-on-the-phone.md).

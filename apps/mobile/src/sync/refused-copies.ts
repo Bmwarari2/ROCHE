@@ -144,6 +144,12 @@ export async function sendRefusedCopy(
       body: JSON.stringify(body),
     });
     if (response.ok) return "copied";
+    // A member who may not keep copies (no `care.note.write`) never will: waiting would hold every
+    // later copy on this phone behind it. Reported as kept only on this phone (merge clinical
+    // review, L). Other 403s (step-up, a phone not yet bound) may pass later, so they wait.
+    if (response.status === 403 && (await problemCode(response)) === "missing_permission") {
+      return "refused";
+    }
     if (response.status === 401 || response.status === 403 || response.status === 408) {
       return "retry";
     }
@@ -153,6 +159,15 @@ export async function sendRefusedCopy(
     return "refused";
   } catch {
     return "retry";
+  }
+}
+
+async function problemCode(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.clone().json()) as { code?: unknown } | null;
+    return typeof body?.code === "string" ? body.code : null;
+  } catch {
+    return null;
   }
 }
 

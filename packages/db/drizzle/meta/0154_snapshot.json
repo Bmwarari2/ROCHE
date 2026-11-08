@@ -1,5 +1,5 @@
 {
-  "id": "7f82e571-1ae8-4432-9591-ab7df3a35bbe",
+  "id": "5642d147-748e-413e-86c2-2958e8496101",
   "prevId": "de477f26-92c8-4a8c-8afd-c6cb5f4ffe99",
   "version": "7",
   "dialect": "postgresql",
@@ -58647,13 +58647,7 @@
           "name": "reason_code",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "cause": {
-          "name": "cause",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "owner_tenant_user_id": {
           "name": "owner_tenant_user_id",
@@ -58737,28 +58731,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "device_discard_record_key_lost_key": {
-          "name": "device_discard_record_key_lost_key",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "device_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "kind = 'key_invalidated'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -58854,15 +58826,7 @@
         },
         "device_discard_record_kind": {
           "name": "device_discard_record_kind",
-          "value": "kind IN ('held_deleted', 'signed_out_with_unsent', 'refused_removed', 'key_invalidated')"
-        },
-        "device_discard_record_reason": {
-          "name": "device_discard_record_reason",
-          "value": "(reason_code IS NULL) = (kind = 'key_invalidated')"
-        },
-        "device_discard_record_cause": {
-          "name": "device_discard_record_cause",
-          "value": "(cause IS NOT NULL) = (kind = 'key_invalidated') AND (cause IS NULL OR cause IN ('device_key_lost'))"
+          "value": "kind IN ('held_deleted', 'signed_out_with_unsent', 'refused_removed')"
         },
         "device_discard_record_count": {
           "name": "device_discard_record_count",
@@ -62254,7 +62218,7 @@
             }
           ],
           "isUnique": true,
-          "where": "status IN ('open', 'in_progress') AND deleted_at IS NULL AND kind IN ('sync.device_hold', 'sync.entry_reported_deleted', 'sync.entry_deleted_after_upload', 'care.refused_entry_review', 'sync.device_key_lost')",
+          "where": "status IN ('open', 'in_progress') AND deleted_at IS NULL AND kind IN ('sync.device_hold', 'sync.entry_reported_deleted', 'sync.entry_deleted_after_upload', 'care.refused_entry_review')",
           "concurrently": false,
           "method": "btree",
           "with": {}

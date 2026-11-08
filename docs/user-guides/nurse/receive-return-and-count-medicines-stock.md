@@ -35,7 +35,10 @@ owners. Staff who give medicines can see the balances but not change them.
 - A count that differs from the balance changes the balance to your count, with your reason.
   Nothing else is changed.
 - **Controlled drugs are not counted here.** They are listed under **Controlled drugs** with the
-  register's balance and a link to the register page.
+  register's balance and a link to the register page. Where controlled drug recording is not
+  turned on for your home, the list says "This balance is from the controlled drugs register in
+  Thapsus Care, which is not the record at this home. Use the paper controlled drugs register for
+  this medicine's stock."
 - A dose recorded as "Not available" because it is out of stock raises an urgent task for the
   nurse in charge (HZ-003).
 - A receipt more than the order line asked for is allowed and shown as "more than ordered".

@@ -4,7 +4,7 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 1% done** (3 of 234 register rows `done`; 103 `partial`, 128 `todo`). Rows become `done`
+**Overall: 2% done** (4 of 234 register rows `done`; 115 `partial`, 115 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
 **Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
@@ -18,7 +18,14 @@ Scheduler trigger, its secrets and its alerts. H-1241 stays open until the job i
 (H-1501 to H-1505).
 **Pushed on 08/11/2026, not merged:** `feat/mobile-key-invalidated` (H-1531, MOB-007 stays
 `partial`). A phone whose key stopped opening its database records the loss at Thapsus Care, and
-a manager gets an urgent review. Migration 0154 is a provisional number.
+a manager gets an urgent review. Migration 0159.
+
+**Committed on 07/11/2026, not pushed:** `fix/workforce-certificate-revalidation-permissions`
+(WORK-004 stays `partial`, WORK-012 `todo`). Two findings from the workforce guides' review: a Care
+Certificate observation needs only `workforce.competence.observe` (API, row-level security and a
+Care Certificate section on the training record, so team leaders and clinical leads can record
+it); and the NMC revalidation confirmation is recorded only by the confirmer HR names, never by HR
+unless named (API, database and web). Migrations 0156 and 0157.
 
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 **Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
@@ -34,6 +41,47 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
+
+## User guides: Care mode on the phone (08/11/2026)
+
+`docs/guides-mobile-care-mode`, from `main` at ea6fc04d: 19 guides for the phone's Care mode
+(sign-in, lock, shared devices, Today and People, checking the person, notes, charts, vital signs,
+the body map, corrections, the round, the handover, the sync banner, entries not saved, unsent
+entries, sign-out, device safety, a lost phone, and a manager's hand-over of held entries), linked
+from the role indexes, the guides README and the user docs column of MOB-001, 002, 005, 006, 009 and
+010. Kiosk sign-in, phone incidents, the conflict review, root detection and device withdrawal have
+no screen yet. Gaps, hard-coded strings and what the guides found on screen (shared devices unlock
+with device biometrics; switching user offline deletes unsent entries): see
+`docs/changelog-dev/2026-11-08-docs-guides-mobile-care-mode.md`.
+
+## User guides: Phase 2 gaps (08/11/2026)
+
+`docs/guides-phase-2-gaps`, from `main` at ea6fc04d: 24 new guides for screens that merged after
+their guides were written (branding, documents, tasks and approvals, legal holds and destruction,
+personal details, About me, sharing, enquiries, pre-admission, admission, property, discharge and
+transfer, duty of candour, investigations and trends, evidence packs, the statement of purpose,
+the home page and memberships), the inspector's evidence pack guide rewritten for its page, and
+about 20 guides brought up to `main` (an absconding incident opens a missing person episode, #191;
+the phone's Training tab, #184; the controlled drugs banner and round notices, #187). Linked from
+the indexes, the guides README and the register's user docs column; no status changed. Gaps still
+open and findings: `docs/changelog-dev/2026-11-08-docs-guides-phase-2-gaps.md`.
+
+## Retention registry (08/11/2026)
+
+`feat/platform-retention-registry` (retention sweeps plan slices 2 and 3, on #193 and slice 1): the
+retention registry in `packages/domain/src/platform/retention-registry/`, one entry for each of the
+238 tables with personal data (Phase 0 to 2 and the sign-in schema) and 76 listed as holding none;
+a `packages/db` test that fails for a table with neither, or an entry naming a missing table,
+column or retention.md class; and the export catalogue's `retention` field checked against it
+(45 values corrected). No migration, data change or route. DPO decisions found are in plan section
+3.2. See `docs/changelog-dev/2026-11-08-feat-platform-retention-registry.md`.
+
+## H-1555: clock and lone-worker location evidence under a signed DPIA (07/11/2026)
+
+`fix/scheduling-clock-evidence-dpia`: location or NFC clock-in evidence and the lone-worker
+location are used only when the organisation's signed DPIA covers them (a client tick no longer
+switches them on); turning either on flags the DPIA for review. Migration 0154. See
+`docs/changelog-dev/2026-11-07-fix-scheduling-clock-evidence-dpia.md`.
 
 ## Retention sweep rules (08/11/2026)
 
@@ -98,9 +146,18 @@ episode, and the DPIA section 7B for Phase 2).
 and slices S.1 to S.6 for Care are on branch `claude/thapsus-systems-dev-plan-2rkfaj`, with no
 pull request. Nothing is scheduled until the owner approves the plans.
 
-**Not started, next in each lane:** H-1518 (the controlled drug recording switch-on flow, with the
-phone's handling of a 409 and the switch-off procedure); H-1527 (the More tab); retention slices 0
-and 1 once #193 has its numbers.
+**Built:** H-1518 (the controlled drug recording switch-on and switch-off flow, with the phone's
+handling of a 409) in #205; its web journey and a navigation entry for the page in
+`feat/web-cd-recording-journey` (08/11/2026). **Not started, next in each lane:** H-1527 (the More
+tab); retention slices 0 and 1 once #193 has its numbers.
+
+## Doses recorded twice and corrections on the web (08/11/2026)
+
+`feat/meds-web-cd-conflicts-corrections`: the three web screens the phone sends staff to (HZ-004;
+medicines.md 15.4): deciding a dose recorded twice (a controlled drug's included, with step-up and
+someone who took no part), correcting the record that stands, and correcting a controlled drug's
+record with a witness who signs, in their own session, for exactly that correction. H-1605's
+stop-gap stays until this merges. Additive API fields only; no migration.
 
 ## Retention sweeps: plan (07/11/2026)
 
@@ -692,6 +749,7 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 - slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
 - slice 72 training offline on the phone, `feat/mobile-training-offline` (no migration; H-1360 to H-1366): download with a storage check, offline runtime, queued statements; MOB-007 partial;
 - slice 72 leftovers, `feat/mobile-training-placement`: Training tab beside Shifts (H-1365 done); Welsh strings H-1526; tab bar H-1527; Android Maestro run not done (no emulator here);
+- phone safety from the guides review, `feat/mobile-device-safety` (no migration; H-1530, H-1531; H-1604 stop-gap): PRN 24-hour maximum against the amount, Correct only where allowed, offline competence, keep-my-entries sign-out, honest key-reset notice, round-card allergies and Show record, device-mode gate; still open: shared-device PIN sign-in (ADR-0025, H-1530), the key-reset record at the server (H-1531), save confirmation, a device-withdraw screen, phone incidents and passkeys, hard-coded sign-in and lock strings; Maestro not run;
 - slice 68 medicines sync and the dm+d subset, `feat/mobile-meds-sync` (0147; ADR-0130; H-1421 to H-1427; on `feat/sync-bucket-per-home`): streams, token claims, device subset; MOB-007 partial;
 - slice 69 the medicines round on the phone, `feat/mobile-meds-round` (no migration; ADR-0081; H-1432 to H-1438; on slice 68): the round shared with the API, GS1 pack scan and photo confirmation, offline records judged at the phone's time, integrity gate, reminders; MOB-007, MEDS-002 partial; Maestro flow written, not run;
 - slice 70 controlled drugs, corrections and conflicts on the phone, `feat/mobile-meds-cd-offline` (0153 for now, the integrator renumbers; ADR-0084; H-1439, H-1440, H-1521 to H-1525; on slice 69): PIN keys per member and phone, two signatures verified on upload, referenced corrections, conflict review; MOB-007, MEDS-005 partial; Maestro flows written, not run;

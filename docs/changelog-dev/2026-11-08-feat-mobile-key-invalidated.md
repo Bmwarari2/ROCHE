@@ -1,7 +1,7 @@
 # A phone's lost key is put on record with a review (H-1531)
 
-Branch `feat/mobile-key-invalidated`, from main. Migration 0154 (provisional number; the lead
-confirms it at merge).
+Branch `feat/mobile-key-invalidated`, from main. Migration 0159 (renumbered from a
+provisional 0154 at the lead's request, after main's 0158).
 
 - **Its own route.** `POST /v1/sync/key-lost` (contract `SyncKeyLost`). The staff route
   `POST /v1/sync/discards` never takes the kind. The server writes the deletion record itself:
@@ -60,8 +60,8 @@ confirms it at merge).
   - The phone's test of the same name in tombstones.test.ts.
 - **Docs.** Hazard log HZ-006, data-standards, care.md section 6 and the export catalogue.
 - **Not done here.**
-  - The reset notice telling the person a review was raised lives in #208, and follows after it
-    merges.
-  - The H-1531 row in human-actions.md is on #208's branch.
+  - The reset notice (from #208) gives the count of lost entries but does not yet say a review was
+    raised; that follows separately.
+  - The H-1531 row in human-actions.md is marked built here, now that #208 is merged.
   - Nothing on the web lists device deletions or counts them today, so there is no history line or
     report count to add yet.

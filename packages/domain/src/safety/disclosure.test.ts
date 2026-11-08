@@ -12,6 +12,8 @@ import {
   HAND_OVER_PROBLEM_MESSAGES,
   handOverProblems,
   legalBasis,
+  preventionReportProblems,
+  preventionResponse,
 } from "./disclosure";
 import { resolveSafetyPhase2Rates } from "./phase2-rates";
 
@@ -194,5 +196,64 @@ describe("handing a released pack over (H-958)", () => {
     for (const message of Object.values(HAND_OVER_PROBLEM_MESSAGES)) {
       expect(message).toMatch(/^[A-Z].*\.$/);
     }
+  });
+});
+
+describe("a coroner's Regulation 28 report (rule 43)", () => {
+  // The period's length comes from the rate table (coroner.prevention_report_response_days).
+  const days = Number(
+    readRateTable().find((r) => r.key === "coroner.prevention_report_response_days")?.value,
+  );
+
+  it("reads the response period from the rate table", () => {
+    expect(days).toBeGreaterThan(0);
+  });
+
+  it.each([
+    // Fixed dates, across both clock changes: 56 days after the date the report was sent.
+    ["2026-01-01", null, null, "2026-02-26", "2026-02-26", false, "due"],
+    ["2026-01-01", null, null, "2026-02-27", "2026-02-26", false, "overdue"],
+    ["2026-03-20", null, null, "2026-05-15", "2026-05-15", false, "due"],
+    ["2026-10-01", null, null, "2026-11-26", "2026-11-26", false, "due"],
+    ["2026-01-01", null, "2026-02-27", "2026-03-01", "2026-02-26", false, "responded"],
+    // An extension the coroner allowed, even after the period passed (regulation 29(5)).
+    ["2026-01-01", "2026-03-31", null, "2026-03-01", "2026-03-31", true, "due"],
+    ["2026-01-01", "2026-03-31", null, "2026-04-01", "2026-03-31", true, "overdue"],
+  ] as const)(
+    "SAFE-016 a report sent on %s (extended to %s, responded %s), seen on %s, is due on %s",
+    (sentOn, extendedTo, respondedOn, today, dueOn, extended, state) => {
+      // The rate table holds 56 days for England and Wales; these dates assume it.
+      expect(days).toBe(56);
+      const out = preventionResponse({
+        sentOn,
+        responseDays: days,
+        extendedTo,
+        respondedOn,
+        today,
+      });
+      expect(out.dueOn).toBe(dueOn);
+      expect(out.extended).toBe(extended);
+      expect(out.state).toBe(state);
+    },
+  );
+
+  it.each([
+    [{ sentOn: "2026-02-01" }, ["sent_in_future"]],
+    [{ respondedOn: "2026-02-01" }, ["responded_in_future"]],
+    [{ respondedOn: "2025-12-31" }, ["response_before_report"]],
+    [{ extendedTo: "2026-02-26" }, ["extension_not_later"]],
+    [{ extendedTo: "2026-02-27" }, []],
+    [{}, []],
+  ] as const)("refuses %j with %j", (change, problems) => {
+    expect(
+      preventionReportProblems({
+        sentOn: "2026-01-01",
+        respondedOn: null,
+        extendedTo: null,
+        responseDays: days,
+        today: "2026-01-20",
+        ...change,
+      }),
+    ).toEqual(problems);
   });
 });

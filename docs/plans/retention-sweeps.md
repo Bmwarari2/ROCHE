@@ -343,6 +343,51 @@ is not stored on shifts, clock events or timesheets; a Thapsus breach notice has
 breach entry; an agency worker has no end date; a leaver's keep-until date is worked out once and does
 not move if the tenant's row or the date of birth changes (workforce.md known gaps).
 
+**Found by slices 2 and 3 (08/11/2026).** Building the registry against the schema found the
+following; each is marked in the registry (`provisional`) and none changes a record.
+
+- **The plan was wrong once.** `processor_breach_notice.breach_id` refers to the organisation's
+  `dp_breach` entry, so a Thapsus breach notice does close with the breach it reports (no
+  derived date needed, H-1584 narrows).
+- **Phase 0 and 1 tables with a class only in the export catalogue** (no mapping row in
+  retention.md; the catalogue's class is used, for the DPO to confirm): `access_grant`,
+  `role_assignment` and `support_access_request` (`audit_event`), `person_assignment`
+  (`care_record`), `form_submission` and `notification` (the class of the record they link)
+  (provisional, H-1606).
+- **Tables with no class anywhere** (kept, never offered, until the DPO decides): the membership
+  `tenant_user`, the organisation's officers on `tenant`, `notification_preference` and
+  `operator_user` (kept while current); the sign-in schema `auth.user`, `auth.account`,
+  `auth.passkey`, `auth.two_factor`, `auth.session` and `auth.verification` (removed with the
+  sign-in or at expiry, but no sweep deletes expired sessions or verifications); `request_quota`
+  (rewritten in place, never deleted); `integration_inbound` (staged inbound messages, no sweep);
+  and the trigger of a `statutory_notification` with no incident (its submission, proposed)
+  (provisional, H-1607).
+- **Organisation material marked personal by the catalogue** (it names authors and approvers):
+  `dependency_scale_version`, `policy_version`, `statement_of_purpose_version` and
+  `letter_template_version` have entries under `organisation_document` (never offered), though
+  section 3.1 lists the first two as holding no personal data. `homely_remedy_protocol` is mapped
+  to `mar_chart` but is a location's configuration about no person; it is listed as holding none.
+- **Clearing (H-1560) is not possible yet where a column is NOT NULL or a check needs it**:
+  `audit_record.started_by`, `audit_action.owner_id`, `rota_publication.published_by`,
+  `shift_assignment.worker_id`, `pay_run_line.member_id`, `pay_run_exception.member_id` and the
+  `outbreak_case` check that a resident row names a person. These are deleted for now; keeping the
+  anonymous row needs an expand migration (slice 8; provisional, H-1608). Rotas, shifts and pay runs clear their
+  personal columns; applicants are redacted; lone-worker locations keep today's clearing.
+- **Classes the registry cannot yet tell apart per row**: a person closed without admission
+  (`not_admitted`) takes `enquiry_not_assessed` and `pre_admission_not_admitted` together, the
+  longer winning, until the sweep checks whether an assessment exists; `applicant.talent_pool` is
+  applied by the sweep from `talent_pool_until`, not as a second class; `audit_event.care_record`
+  waits for slice 14; a downtime pack in force during an outage is checked against outages; every
+  kind of `absence` takes `sickness_absence`, whose notes name sickness only (DPO to confirm).
+- **Parents and children with different periods**: a stock item (2 years from opening) is older
+  than its movements and its disposals (3 years), and a controlled drug administration (also
+  `mar_chart`) can outlive its register page. The purge (slice 10) must never delete a parent while a child is kept.
+- **Phase 2 tables the catalogue marks not personal** but this inventory lists (`rota`, `shift`,
+  `pay_run`, `outbreak`, `medicine_order`, `medicine_temperature_reading`, `audit_record`,
+  `audit_action`, `import_batch`, `import_commit`, the breach notice tables,
+  `payroll_export_result`, `pulse_survey_response`, `disclosure_item`, `lms_import`) have entries;
+  their catalogue `personal` flag is unchanged.
+
 **Two rules for the staff file choice.** `retainUntil` in `apps/api/src/routes/induction.ts` chooses
 `staff_file.after_leaving` when the tenant has its own row for it, not from `tenant.staff_file_option`,
 which the onboarding checklist records. The sweep needs one rule (question 8).
@@ -544,8 +589,8 @@ tenant's data.
 | --- | --- | --- | --- |
 | 0 | Spec and ADR (`docs/retention-sweeps-spec`) | The ADR (section 8); retention.md mapping table de-duplicated and the 32 tables without a mapping row added (with the DPO's interim answers); retention-and-deletion.md section 4 and 5 drift fixed; the human actions in section 7 | No |
 | 1 | Domain rules (`feat/platform-retention-rules`) | 5.2 with table-driven tests per class; no database | No |
-| 2 | Registry, part 1 (`feat/platform-retention-registry`) | The type, the platform, people and care entries, and the `packages/db` test that a personal table without an entry fails (with an allow-list for the contexts not yet done); export catalogue alignment for those contexts | No |
-| 3 | Registry, parts 2 to 4 | Workforce and scheduling; medicines; safety, quality and comms. Fix the catalogue's medicines, audit and payroll classes. The allow-list ends empty | No |
+| 2 | Registry, part 1 (`feat/platform-retention-registry`) | The type, the platform, people and care entries, and the `packages/db` test that a personal table without an entry fails (with an allow-list for the contexts not yet done); export catalogue alignment for those contexts. **Built 08/11/2026** with slice 3 in one branch: `packages/domain/src/platform/retention-registry/`, `packages/db/src/retention-registry.test.ts` | No |
+| 3 | Registry, parts 2 to 4 | Workforce and scheduling; medicines; safety, quality and comms. Fix the catalogue's medicines, audit and payroll classes. The allow-list ends empty. **Built 08/11/2026** (`feat/platform-retention-registry`): 238 entries (the 135 Phase 2 tables, 96 Phase 0 and 1 tables and 6 sign-in tables) and 76 tables listed as holding no personal data; no allow-list was needed; 45 catalogue `retention` values corrected | No |
 | 4 | Report-only sweep (`feat/platform-retention-report`) | `retention-sweep` queue in report mode, `retention_report` table (counts only, forced RLS), `GET /v1/retention/due`, audit event, tests with a clock | No (writes reports only) |
 | 5 | Report screen | `/settings/retention` "Due for destruction" counts per class, with axe tests | No |
 | 6 | Batches (`feat/platform-retention-batches`) | `destruction_batch`, `destruction_batch_item` (append-only), propose mode, list and cancel routes, step-up; no soft delete yet | No (proposals only) |

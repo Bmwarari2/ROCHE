@@ -34,8 +34,9 @@ organisation.
   Change it in the HR platform; Thapsus Care follows at the next sync. A pay run paid through the HR
   platform carries it too: the run is still made and checked in Thapsus Care, and only its units go to
   the HR platform.
-- The staff file has no screen in Thapsus Care yet, so its label, and withdrawing a wrong leaving date,
-  come with that screen.
+- The staff file (see [How to start a staff file](../hr-lead/start-a-staff-file.md)) does not show
+  the **Managed in the HR platform** label yet, and a wrong leaving date given by the HR platform
+  cannot be withdrawn on screen yet.
 - When the HR platform's data is older than your limit, the rota and staffing screens say so in
   words with the time. Absences already known still keep people off the rota.
 - Nobody is matched by name. You never confirm a match to your own staff file, and a leaver's match

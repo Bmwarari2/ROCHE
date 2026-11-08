@@ -203,9 +203,42 @@ export const CdWaitingAssertions = z
         id: uuid,
         movement: z.union([CdMovement, z.literal("stock_check")]),
         quantity: z.number(),
+        /** The administration the witness saw (its client id), for a dose; null otherwise. */
+        administrationId: uuid.nullable(),
         witnessName: z.string(),
         expiresAt: isoDateTime,
       }),
     ),
   })
   .meta({ id: "CdWaitingAssertions" });
+
+/**
+ * Turning controlled drug recording on or off at a home (H-1517, H-1518; HZ-115, HZ-008). One
+ * register is the record: switching on closes the paper register, switching off restarts it, and
+ * each needs the person doing it to say the steps around it are done.
+ */
+export const CdRecordingChange = z
+  .discriminatedUnion("enabled", [
+    z.object({
+      enabled: z.literal(true),
+      /** The paper register's pages are counted, witnessed and closed now. */
+      paperRegisterClosed: z.literal(true),
+      /** Each balance is entered in Thapsus Care's register, witnessed, before the next dose. */
+      balancesToCarryForward: z.literal(true),
+      /** The home's phones run the version that records controlled drugs. */
+      phonesUpdated: z.literal(true),
+    }),
+    z.object({
+      enabled: z.literal(false),
+      reason,
+      /** The register pages are printed and the paper register restarted with each balance. */
+      paperRegisterRestarted: z.literal(true),
+    }),
+  ])
+  .meta({ id: "CdRecordingChange" });
+export type CdRecordingChange = z.infer<typeof CdRecordingChange>;
+
+export const CdRecordingState = z
+  .object({ locationId: uuid, enabled: z.boolean(), changed: z.boolean() })
+  .meta({ id: "CdRecordingState" });
+export type CdRecordingState = z.infer<typeof CdRecordingState>;

@@ -1208,6 +1208,15 @@ witness, who signs on the same device with their own factor, is slice 70.
 - `POST /v1/controlled-drugs/pages/{pageId}/entries`: a receipt, disposal, transfer out,
   destruction or correction, checked by `checkCdEntry` under the person's lock. The recorder needs
   `medicines.cd.administer` and a fresh step-up.
+- `PUT /v1/locations/{id}/controlled-drugs/recording` (H-1518): turns controlled drug recording on
+  or off at a home, for a member holding `medicines.record.manage` and `platform.location.manage`
+  there, with a fresh step-up. On: the paper register's pages are counted, witnessed and closed now,
+  each balance is carried in as a witnessed receipt before the next dose, and the home's phones are
+  updated, each confirmed. Off: a reason, and the pages printed and the paper register restarted.
+  Audited as `medicines.cd_recording.changed`, refusals included; a request for the state already
+  in force changes nothing. The web's **Controlled drug recording** page (from the home's medicines
+  reports) asks for each in words. The phone reads the switch for the person's home and stops a
+  controlled drug before signing where it is not on; never read counts as off.
 - `POST /v1/controlled-drugs/pages/{pageId}/stock-checks`, with `medicines.cd.administer` or
   `medicines.stock.manage`: a count, witnessed under the same rules.
   `cdStockCheck` compares it with the page. A count that does not balance needs a reason and
@@ -1363,6 +1372,33 @@ becomes an administration record without a person's decision.
 
 The table is append-only, apart from the resolution, which is set once. It has forced RLS and
 person scope, and its retention class is `mar_chart`.
+
+Each conflict also carries `current`, the latest record for the dose (the record that stands, or
+the correction now in force), and `controlledDrug`; each administration carries `inCdRegister`,
+whether it wrote a register entry; a waiting witness signature carries the `administrationId` it
+was signed for. All are additive.
+
+**On the web (HZ-004; H-1605 closes when this merges).** The phone sends staff here for three things, now built:
+- *Doses recorded twice* (`/medicines-round/{locationId}/conflicts`, linked from the home's
+  medicines round): each conflict with the person, the medicine, both records in words side by
+  side, whether they agree and whether one member recorded both. Its page offers only the
+  decisions the records allow (the rules above), asks what was found out, and asks again before
+  "given twice" raises a medication incident. A controlled drug says it needs a fresh sign-in and
+  someone who took no part in the dose; a refusal is shown in the API's words, and a step-up
+  refusal links to sign in again and back. Decided by holders of `medicines.record.manage`.
+- *Correcting the record that stands*: from the conflict, the correction form for its latest
+  record (the corrections route, section 13), which comes back to the conflict with "corrected"
+  chosen; the record corrected is struck through beside the correction.
+- *Correcting a controlled drug's record* (`/people/{id}/medicines/administrations`, the person's
+  last seven days of records, each in force with "Correct this record"): the same form. When the
+  correction moves the register, the page says exactly what the witness signs for (a dose given of
+  the amount, or a correction by the signed change, as `registerMoveForCorrection`) and gives a
+  link to the register page with that prefilled, for the correction's own client id, fixed in the
+  page's address. The witness opens it signed in as themselves and signs; the recorder checks for
+  the signature and chooses it, or, where the page's policy allows, says why there was no witness.
+  A signature for a dose record's correction is never offered for another register entry. Until
+  controlled drugs recording is turned on at the home the banner says the paper register is the
+  record, and a refusal (`cd_recording_not_enabled`) removes the form.
 
 ### 15.5 Audit and outbox
 
@@ -1695,9 +1731,11 @@ record; and the web round's record page tells staff to record a controlled drug 
 register and on the paper MAR. A flag the web cannot read counts as off. The API refuses every
 register write where it is off (opening a page, a witness signature, every movement and
 correction, a stock count, and a controlled drug given) with 409 `cd_recording_not_enabled`,
-audited. The demo seed releases recording at the demo home only. Until the switch-on flow (H-1518:
-a Registered Manager with step-up, confirming the paper balance is carried over as an opening
-count) only Thapsus operators set the flag, as a location row.
+audited. The demo seed releases recording at the demo home only. The Owner or Registered Manager
+turns recording on or off at a home on the Controlled drug recording page (`/medicines-settings`,
+in the navigation for those who hold `medicines.record.manage` and `platform.location.manage`;
+H-1518, #205): on with the three confirmations, off with a reason and the paper register
+restarted, each with a fresh second sign-in step. A state the web cannot read offers no change.
 
 **Rules**
 
