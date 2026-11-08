@@ -56,3 +56,10 @@ export function parsePreferences(raw: string | null | undefined): Preferences {
 export function parseAppMode(value: string | null | undefined): AppMode | null {
   return value === "care" || value === "manage" || value === "family" ? value : null;
 }
+
+/** Who may set the device personal or shared, and a shared device's lock time (H-1530; HZ-001). */
+export const DEVICE_MODE_PERMISSION = "platform.device.revoke";
+
+export function mayChangeDeviceMode(permissions: readonly string[] | undefined): boolean {
+  return (permissions ?? []).includes(DEVICE_MODE_PERMISSION);
+}

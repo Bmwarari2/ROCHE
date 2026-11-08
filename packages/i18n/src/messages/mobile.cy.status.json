@@ -1,5 +1,9 @@
 {
   "untranslated": [
+    "mobile.settings.deviceIs",
+    "mobile.settings.deviceMode",
+    "mobile.settings.sharedLockAfter",
+    "mobile.settings.deviceModeFixed",
     "mobile.signOut.done",
     "mobile.held.keptAtSignOut",
     "mobile.signOut.keep",

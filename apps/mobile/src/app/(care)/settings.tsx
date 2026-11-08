@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { Alert, Pressable, ScrollView, Switch, View } from "react-native";
 import { usePreferences } from "../../app-state/preferences";
+import { mayChangeDeviceMode } from "../../app-state/preferences-model";
 import { useSession } from "../../app-state/session";
 import { useVault } from "../../app-state/vault";
 import { platformFetch } from "../../auth/clients";
@@ -219,33 +220,45 @@ export default function SettingsScreen() {
           <Text tone="secondary">
             Thapsus Care locks after {describeTimeout(vault.autoLockMs)} without use.
           </Text>
-          <Text emphasis>This device is</Text>
-          <Choice
-            label="My own device"
-            selected={preferences.deviceMode === "personal"}
-            onSelect={() => update({ deviceMode: "personal" })}
-            testID="device-mode-personal"
-          />
-          <Choice
-            label="Shared with colleagues"
-            selected={preferences.deviceMode === "shared"}
-            onSelect={() => update({ deviceMode: "shared" })}
-            testID="device-mode-shared"
-          />
-          {preferences.deviceMode === "shared" ? (
+          {/* Personal or shared, and how soon a shared device locks, are set by a manager who may
+              withdraw devices, never by any signed-in member (guides review; HZ-001, H-1530). */}
+          {mayChangeDeviceMode(session.me?.permissions) ? (
             <>
-              <Text emphasis>Lock a shared device after</Text>
-              {SHARED_AUTO_LOCK_CHOICES_MS.map((ms) => (
-                <Choice
-                  key={ms}
-                  label={describeTimeout(ms)}
-                  selected={preferences.sharedAutoLockMs === ms}
-                  onSelect={() => update({ sharedAutoLockMs: ms })}
-                  testID={`auto-lock-${ms}`}
-                />
-              ))}
+              <Text emphasis>{t("mobile.settings.deviceIs")}</Text>
+              <Choice
+                label={t("mobile.settings.deviceMode", { mode: "personal" })}
+                selected={preferences.deviceMode === "personal"}
+                onSelect={() => update({ deviceMode: "personal" })}
+                testID="device-mode-personal"
+              />
+              <Choice
+                label={t("mobile.settings.deviceMode", { mode: "shared" })}
+                selected={preferences.deviceMode === "shared"}
+                onSelect={() => update({ deviceMode: "shared" })}
+                testID="device-mode-shared"
+              />
+              {preferences.deviceMode === "shared" ? (
+                <>
+                  <Text emphasis>{t("mobile.settings.sharedLockAfter")}</Text>
+                  {SHARED_AUTO_LOCK_CHOICES_MS.map((ms) => (
+                    <Choice
+                      key={ms}
+                      label={describeTimeout(ms)}
+                      selected={preferences.sharedAutoLockMs === ms}
+                      onSelect={() => update({ sharedAutoLockMs: ms })}
+                      testID={`auto-lock-${ms}`}
+                    />
+                  ))}
+                </>
+              ) : null}
             </>
-          ) : null}
+          ) : (
+            <Text testID="device-mode-fixed">
+              {t("mobile.settings.deviceModeFixed", {
+                mode: preferences.deviceMode === "personal" ? "personal" : "shared",
+              })}
+            </Text>
+          )}
           <Button label="Lock now" variant="secondary" onPress={vault.lock} testID="lock-now" />
         </Section>
 

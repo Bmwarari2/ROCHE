@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { defaultPreferences, parseAppMode, parsePreferences } from "./preferences-model";
+import {
+  defaultPreferences,
+  mayChangeDeviceMode,
+  parseAppMode,
+  parsePreferences,
+} from "./preferences-model";
 
 describe("parsePreferences", () => {
   it.each([null, "", "not json", "[]", "42"])("falls back to defaults for %j", (raw) => {
@@ -44,5 +49,15 @@ describe("parseAppMode", () => {
     [null, null],
   ])("%s -> %s", (raw, expected) => {
     expect(parseAppMode(raw)).toBe(expected);
+  });
+});
+
+describe("hazard HZ-001 only a manager who may withdraw devices sets the device mode (guides review, H-1530)", () => {
+  it.each([
+    ["a care worker", ["care.note.write"], false],
+    ["a manager", ["platform.device.revoke", "care.note.write"], true],
+    ["no session", undefined, false],
+  ] as const)("%s", (_case, permissions, may) => {
+    expect(mayChangeDeviceMode(permissions)).toBe(may);
   });
 });
