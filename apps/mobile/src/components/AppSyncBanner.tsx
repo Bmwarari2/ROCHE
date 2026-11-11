@@ -1,4 +1,4 @@
-import { SyncBanner } from "@harbour/ui-native";
+import { SyncBanner, syncBannerWords } from "@harbour/ui-native";
 import { useStatus } from "@powersync/react";
 import { useNetworkState } from "expo-network";
 import { useEffect } from "react";
@@ -6,6 +6,7 @@ import { useVault } from "../app-state/vault";
 import { useHeldEntryCount, useQueuedChanges, useUploadIssueState } from "../care/hooks";
 import { appEnv } from "../config/app-env";
 import { STALE_AFTER_MS } from "../config/constants";
+import { t } from "../i18n/t";
 import {
   announceRefusalOnce,
   forgetRefusalAnnouncement,
@@ -17,6 +18,9 @@ import { deriveConnectionState, lastSyncedAtOf } from "../sync/sync-state";
  * PowerSync status for every signed-in screen: connection, last successful sync, changes waiting
  * to upload, refused entries, failures with a retry, and the stale-data warning (HZ-002, HZ-006).
  */
+/** The banner's words, from the catalogue (section 5.4). */
+const BANNER_WORDS = syncBannerWords(t);
+
 export function AppSyncBanner() {
   const status = useStatus();
   const network = useNetworkState();
@@ -47,6 +51,7 @@ export function AppSyncBanner() {
       state={state}
       lastSyncedAt={lastSyncedAt}
       staleAfterMs={STALE_AFTER_MS}
+      words={BANNER_WORDS}
       queuedChanges={queued}
       refusedEntries={refused}
       failureReason={showRefusal ? "scope_too_large" : null}

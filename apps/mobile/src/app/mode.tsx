@@ -4,24 +4,15 @@ import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AppMode } from "../app-state/preferences-model";
 import { useSession } from "../app-state/session";
+import { t } from "../i18n/t";
 
-const modes: ReadonlyArray<{ mode: AppMode; title: string; subtitle: string }> = [
-  {
-    mode: "care",
-    title: "Care",
-    subtitle: "For carers, nurses and coordinators: your people, today's work, offline.",
-  },
-  {
-    mode: "manage",
-    title: "Manage",
-    subtitle: "Approvals, alerts and dashboards. Coming in a later release.",
-  },
-  {
-    mode: "family",
-    title: "Family",
-    subtitle: "Updates and messages for families. Coming in a later release.",
-  },
-];
+const modes: ReadonlyArray<{ mode: AppMode; title: string; subtitle: string }> = (
+  ["care", "manage", "family"] as const
+).map((mode) => ({
+  mode,
+  title: t("mobile.mode.title", { mode }),
+  subtitle: t("mobile.mode.subtitle", { mode }),
+}));
 
 /** Mode chosen after sign-in (section 17). Only Care mode is built in Phase 0. */
 export default function ModeScreen() {
@@ -42,9 +33,9 @@ export default function ModeScreen() {
       <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
         <View style={{ gap: theme.space[1] }}>
           <Text variant="title" accessibilityRole="header">
-            Choose how you will use Thapsus Care
+            {t("mobile.mode.choose")}
           </Text>
-          <Text tone="secondary">You can change this later in Settings.</Text>
+          <Text tone="secondary">{t("mobile.mode.changeLater")}</Text>
         </View>
         <View
           style={{

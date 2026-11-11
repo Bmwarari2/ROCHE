@@ -3,6 +3,7 @@ import { Redirect } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useSession } from "../app-state/session";
 import { useVault } from "../app-state/vault";
+import { t } from "../i18n/t";
 
 /** Entry route: sends people to sign-in, mode choice or their mode's home. */
 export default function Index() {
@@ -21,8 +22,11 @@ export default function Index() {
   // Loading, or waiting behind the lock screen for the database to open.
   return (
     <View style={[styles.centre, { backgroundColor: theme.colors.bg }]} testID="splash">
-      <ActivityIndicator color={theme.colors.textSecondary} accessibilityLabel="Loading" />
-      <Text tone="secondary">Thapsus Care</Text>
+      <ActivityIndicator
+        color={theme.colors.textSecondary}
+        accessibilityLabel={t("mobile.splash.loading")}
+      />
+      <Text tone="secondary">{t("mobile.splash.name")}</Text>
     </View>
   );
 }

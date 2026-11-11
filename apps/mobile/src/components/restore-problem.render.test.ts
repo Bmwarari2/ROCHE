@@ -1,4 +1,4 @@
-import { SyncBanner } from "@harbour/ui-native";
+import { SyncBanner, syncBannerWords } from "@harbour/ui-native";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import { restoreProblem } from "../app-state/held-work";
@@ -34,6 +34,7 @@ describe("hazard HZ-006 held entries that could not be put back are shown, not h
         state: "synced",
         lastSyncedAt: new Date(),
         staleAfterMs: 3_600_000,
+        words: syncBannerWords(t),
         queuedChanges: 0,
         refusedEntries: null,
         onRetry: () => undefined,

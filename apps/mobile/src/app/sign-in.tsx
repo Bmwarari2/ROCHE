@@ -261,7 +261,7 @@ export default function SignInScreen() {
                 ? t("mobile.held.discardSignInTitle")
                 : handingOver
                   ? t("mobile.held.handOverSignInTitle")
-                  : "Sign in to Thapsus Care"}
+                  : t("mobile.signIn.title")}
             </Text>
             <Text tone="secondary">
               {discarding
@@ -269,8 +269,8 @@ export default function SignInScreen() {
                 : handingOver
                   ? t("mobile.held.handOverSignInBody")
                   : step.kind === "credentials"
-                    ? "Use the email address and password from your care provider."
-                    : "Enter the 6-digit code from your authenticator app."}
+                    ? t("mobile.signIn.credentialsBody")
+                    : t("mobile.signIn.codeBody")}
             </Text>
           </View>
 
@@ -307,15 +307,14 @@ export default function SignInScreen() {
 
           {appEnv.demoMode ? (
             <Text variant="bodyDense" tone="secondary" testID="demo-sign-in-hint">
-              Demo mode: any email address and password will sign in. Include "+totp" in the email
-              address to try the code step (code {DEMO_TOTP_CODE}).
+              {t("mobile.signIn.demoHint", { code: DEMO_TOTP_CODE })}
             </Text>
           ) : null}
 
           {step.kind === "credentials" ? (
             <View style={{ gap: theme.space[2] }}>
               <TextField
-                label="Email address"
+                label={t("mobile.signIn.email")}
                 testID="email-input"
                 value={email}
                 onChangeText={setEmail}
@@ -330,7 +329,7 @@ export default function SignInScreen() {
               />
               <TextField
                 ref={passwordRef}
-                label="Password"
+                label={t("mobile.signIn.password")}
                 testID="password-input"
                 value={password}
                 onChangeText={setPassword}
@@ -348,7 +347,7 @@ export default function SignInScreen() {
             </View>
           ) : (
             <TextField
-              label="Authenticator code"
+              label={t("mobile.signIn.code")}
               testID="totp-input"
               value={code}
               onChangeText={setCode}
@@ -373,7 +372,7 @@ export default function SignInScreen() {
                     ? t("mobile.held.discardSignIn")
                     : handingOver
                       ? t("mobile.held.handOverSignIn")
-                      : "Sign in"
+                      : t("mobile.signIn.submit")
                 }
                 variant={discarding ? "destructive" : "primary"}
                 onPress={() => {
@@ -387,7 +386,7 @@ export default function SignInScreen() {
             ) : (
               <>
                 <Button
-                  label="Continue"
+                  label={t("mobile.signIn.continue")}
                   onPress={() => {
                     void submitCode();
                   }}
@@ -397,7 +396,7 @@ export default function SignInScreen() {
                   testID="totp-continue-button"
                 />
                 <Button
-                  label="Start again"
+                  label={t("mobile.signIn.startAgain")}
                   variant="secondary"
                   onPress={() => {
                     setStep({ kind: "credentials" });

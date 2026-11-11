@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",
+    "@harbour/i18n": "workspace:*",
     "@react-native/metro-config": "0.86.3",
     "@types/react": "~19.2.18",
     "lucide-react-native": "^1.55.0",

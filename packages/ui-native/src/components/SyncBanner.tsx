@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
-import { describeSyncBanner, type SyncConnectionState } from "../logic/sync-banner";
+import {
+  describeSyncBanner,
+  type SyncBannerWords,
+  type SyncConnectionState,
+} from "../logic/sync-banner";
 import { toneAppearance } from "../logic/theme";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH, iconByName } from "./icons";
@@ -12,6 +16,8 @@ export interface SyncBannerProps {
   readonly lastSyncedAt: Date | null;
   /** Data older than this carries a "may be out of date" warning (HZ-002). */
   readonly staleAfterMs: number;
+  /** The banner's words, from the app's catalogue (`syncBannerWords(t)`; section 5.4). */
+  readonly words: SyncBannerWords;
   readonly queuedChanges?: number;
   /** Entries the server refused: shown on every screen, never "Up to date" (HZ-006, C1). */
   readonly refusedEntries?: number | null;
@@ -57,6 +63,7 @@ export function SyncBanner({
   lastSyncedAt,
   staleAfterMs,
   queuedChanges = 0,
+  words,
   refusedEntries = 0,
   failureReason = null,
   announce = defaultAnnounce,
@@ -67,15 +74,10 @@ export function SyncBanner({
   const theme = useTheme();
   const haptics = useHaptics();
   const now = useNow(fixedNow);
-  const content = describeSyncBanner({
-    state,
-    lastSyncedAt,
-    now,
-    staleAfterMs,
-    queuedChanges,
-    refusedEntries,
-    failureReason,
-  });
+  const content = describeSyncBanner(
+    { state, lastSyncedAt, now, staleAfterMs, queuedChanges, refusedEntries, failureReason },
+    words,
+  );
 
   // Warnings and failures are filled so they cannot be missed; calm states sit on the card colour.
   // A refusal lasts until access changes: it is announced, with any stale-data warning beside it
@@ -147,7 +149,7 @@ export function SyncBanner({
       {content.showRetry && onRetry ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Retry sync"
+          accessibilityLabel={words.retryLabel}
           accessibilityHint={content.retryHint}
           testID={`${testID}-retry`}
           onPress={() => {
@@ -168,7 +170,7 @@ export function SyncBanner({
           ]}
         >
           <Text variant="bodyDense" tone={textTone} emphasis>
-            Retry
+            {words.retry}
           </Text>
         </Pressable>
       ) : null}

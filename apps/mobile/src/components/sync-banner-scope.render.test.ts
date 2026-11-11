@@ -1,10 +1,14 @@
-import { SyncBanner } from "@harbour/ui-native";
-import { SCOPE_TOO_LARGE_REASON, STALE_WARNING } from "@harbour/ui-native/logic";
+import { SyncBanner, syncBannerWords } from "@harbour/ui-native";
 import { createElement } from "react";
 import { AccessibilityInfo } from "react-native";
 import { describe, expect, it } from "vitest";
+import { t } from "../i18n/t";
 import { announceRefusalOnce, setScopeRefused } from "../sync/scope-refusal-store";
 import { render } from "../test-support/render";
+
+const words = syncBannerWords(t);
+const SCOPE_TOO_LARGE_REASON = words.scopeReason;
+const STALE_WARNING = words.staleWarning;
 
 /**
  * Hazard HZ-138 and HZ-002 (ADR-0134): a phone refused because the member's access is too wide
@@ -20,6 +24,7 @@ describe("hazard HZ-138 the banner when a phone is refused for too wide access",
         state: "failed",
         lastSyncedAt: new Date(Date.now() - 2 * 3_600_000),
         staleAfterMs: 3_600_000,
+        words,
         failureReason: "scope_too_large",
         onRetry: () => undefined,
       }),
@@ -43,6 +48,7 @@ describe("hazard HZ-138 the banner when a phone is refused for too wide access",
         state: "failed",
         lastSyncedAt,
         staleAfterMs: 3_600_000,
+        words,
         failureReason: "scope_too_large",
         announce: announceRefusalOnce,
         onRetry: () => undefined,

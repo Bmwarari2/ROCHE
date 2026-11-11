@@ -1,12 +1,19 @@
+import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
-  describeSyncBanner,
-  NEVER_SYNCED_WARNING,
-  REFUSED_TITLE,
-  SCOPE_TOO_LARGE_REASON,
-  SCOPE_TOO_LARGE_TITLE,
-  STALE_WARNING,
+  describeSyncBanner as describe_,
+  type SyncBannerInput,
+  syncBannerWords,
 } from "./sync-banner";
+
+/** The banner's words from the en-GB catalogue, as the app passes them (section 5.4). */
+const words = syncBannerWords(createTranslator("en-GB"));
+const describeSyncBanner = (input: SyncBannerInput) => describe_(input, words);
+const NEVER_SYNCED_WARNING = words.neverSyncedWarning;
+const REFUSED_TITLE = words.refusedTitle;
+const SCOPE_TOO_LARGE_REASON = words.scopeReason;
+const SCOPE_TOO_LARGE_TITLE = words.scopeTitle;
+const STALE_WARNING = words.staleWarning;
 
 const now = new Date("2026-10-09T13:05:00Z");
 const staleAfterMs = 15 * 60_000;
