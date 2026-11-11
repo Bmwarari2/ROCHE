@@ -72,15 +72,15 @@
       "@esbuild-kit/core-utils>esbuild": "0.25.12",
       "@expo/cli>zod": "4.6.6",
       "@lhci/cli>lighthouse": "13.5.0",
-      "@lhci/utils>lighthouse": "13.5.0"
+      "@lhci/utils>lighthouse": "13.5.0",
+      "glob@>=13.0.0 <14.0.2": "14.0.2",
+      "minimatch@>=10.0.0 <11.0.1": "11.0.1"
     },
     "auditConfig": {
       "ignoreGhsas": [
         "GHSA-qr28-fpjm-wq7f",
         "GHSA-vcc3-ghjq-m6fr",
-        "GHSA-gcqx-w48m-w2h4",
-        "GHSA-g3hv-75wg-m249",
-        "GHSA-3g3m-2fjr-6pw4"
+        "GHSA-gcqx-w48m-w2h4"
       ]
     },
     "patchedDependencies": {
