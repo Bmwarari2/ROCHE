@@ -7,6 +7,11 @@ gate passes on `main` (section 19, definition of complete).
 **Overall: 2% done** (4 of 234 register rows `done`; 119 `partial`, 111 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
+**Pushed on 11/11/2026, PR open:** `fix/vuln-exceptions-2026-11-14` (no register row). It clears
+the three vulnerability exceptions due on 14/11/2026 by upgrading: zod (high), extract-zip (high)
+and glob with minimatch (moderate). All five advisory ids leave the exceptions record, `ignoreGhsas`
+and `.trivyignore`. New low and moderate node-forge and fast-xml-parser advisories, also on `main`,
+are left for their own change.
 **Pushed on 01/11/2026, not merged:** `feat/integrations-dmd-download` (slice 75, INTG-006 stays
 `partial`). It adds the TRUD download, which checks TRUD's answer, the archive's SHA-256 and its
 names before loading, and runs as its own Cloud Run job with alerts on refused, failed and late
