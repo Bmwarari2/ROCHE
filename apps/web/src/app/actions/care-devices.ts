@@ -17,7 +17,11 @@ import { type ActionResult, problemMessage, refused } from "@/lib/outcome";
  */
 export async function withdrawDevice(
   deviceId: string,
-  input: { readonly reasonCode: string; readonly confirmEntriesWaiting: boolean },
+  input: {
+    readonly reasonCode: string;
+    /** What the manager saw: the count and when the phone reported it (null when it never did). */
+    readonly seen: { readonly count: number; readonly reportedAt: string | null };
+  },
 ): Promise<ActionResult<RevokeDeviceResult>> {
   if (!isUuid(deviceId)) return refused(t("errors.notFound"), "not_found");
   if (!isWithdrawReason(input.reasonCode)) {
@@ -29,7 +33,7 @@ export async function withdrawDevice(
       params: { path: { deviceId } },
       body: {
         reasonCode: input.reasonCode as DeviceRevocationReason,
-        ...(input.confirmEntriesWaiting ? { confirmEntriesWaiting: true } : {}),
+        confirmedEntriesWaiting: { count: input.seen.count, reportedAt: input.seen.reportedAt },
       },
     });
     if (data) {
@@ -37,8 +41,8 @@ export async function withdrawDevice(
       revalidatePath(`/settings/devices/${deviceId}`);
       return { ok: true, data };
     }
-    // Entries reported since the page loaded: the manager is asked to confirm them, in words
-    // tied to the box, never told to try again (accessibility review H1).
+    // What the phone reported changed since the page loaded (a different count or report, H-1535):
+    // the manager reloads and confirms it, in words tied to the box, never told to try again.
     if ((error as { code?: unknown } | undefined)?.code === "entries_waiting") {
       return refused(t("devices.withdraw.entriesArrived"), "entries_waiting", ["confirm"]);
     }

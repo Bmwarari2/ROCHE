@@ -37619,7 +37619,7 @@ export interface paths {
     put?: never;
     /**
      * Revoke a lost or withdrawn Care mode device
-     * @description Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. The sessions bound to it are not ended: every request from one is refused with 403 device_revoked whatever device it names, except its device report, which may raise or hurry the hold's task but never close it. When the device last reported entries waiting, the revocation needs confirmEntriesWaiting (409 entries_waiting otherwise), and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing but hurries that task again. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.
+     * @description Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. The sessions bound to it are not ended: every request from one is refused with 403 device_revoked whatever device it names, except its device report, which may raise or hurry the hold's task but never close it. When the device last reported entries waiting, the revocation needs a confirmation (409 entries_waiting otherwise): confirmedEntriesWaiting, the exact count and report time the manager saw, refused with 409 entries_waiting when the count or the report time is now different (H-1535), checked only once the caller reaches the device; or, from older clients, confirmEntriesWaiting, taken only when nothing is waiting, and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing but hurries that task again. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.
      */
     post: {
       parameters: {
@@ -75284,7 +75284,13 @@ export interface components {
     RevokeDevice: {
       /** @enum {string} */
       reasonCode: "lost_or_stolen" | "staff_left" | "access_withdrawn" | "replaced" | "other";
+      /** @deprecated */
       confirmEntriesWaiting?: boolean;
+      confirmedEntriesWaiting?: {
+        count: number;
+        /** Format: date-time */
+        reportedAt: string | null;
+      };
     };
     SyncRefusedEntryResult: {
       /** Format: uuid */

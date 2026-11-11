@@ -60,7 +60,7 @@ export const devicesRouter = createRouter()
       tags: ["platform"],
       summary: "Revoke a lost or withdrawn Care mode device",
       description:
-        "Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. The sessions bound to it are not ended: every request from one is refused with 403 device_revoked whatever device it names, except its device report, which may raise or hurry the hold's task but never close it. When the device last reported entries waiting, the revocation needs confirmEntriesWaiting (409 entries_waiting otherwise), and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing but hurries that task again. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.",
+        "Marks every binding of the device revoked with a coded reason (step-up). At its next sync token or upload the device is refused with 403 device_revoked and wipes, keeping entries not yet sent under the hold rules. The sessions bound to it are not ended: every request from one is refused with 403 device_revoked whatever device it names, except its device report, which may raise or hurry the hold's task but never close it. When the device last reported entries waiting, the revocation needs a confirmation (409 entries_waiting otherwise): confirmedEntriesWaiting, the exact count and report time the manager saw, refused with 409 entries_waiting when the count or the report time is now different (H-1535), checked only once the caller reaches the device; or, from older clients, confirmEntriesWaiting, taken only when nothing is waiting, and its hold's task falls due at once, urgent, with a notice to the manager. A device already revoked changes nothing but hurries that task again. A device no member the caller manages has used reads as not found; a location role may not revoke a device staff it does not manage have also used.",
       security,
       request: {
         params: z.object({ deviceId: z.uuid() }),
@@ -76,22 +76,18 @@ export const devicesRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "platform.device.revoke");
       const { deviceId: param } = c.req.valid("param");
-      const { reasonCode, confirmEntriesWaiting } = c.req.valid("json");
+      const { reasonCode, confirmEntriesWaiting, confirmedEntriesWaiting } = c.req.valid("json");
       const deviceId = param.toLowerCase();
       const services = c.get("services");
       const now = new Date();
-      // The manager is told how many entries the device last reported waiting before it is
-      // withdrawn: they stay on it until handed over or deleted (#25 review round 2, M4).
-      const last = (
-        await inSystemView(services.db, access, (tx) => lastReportedWaiting(tx, [deviceId]))
-      ).get(deviceId);
-      const waiting = last?.waiting ?? 0;
+      // The manager confirms what the device last reported, checked inside the revocation under
+      // the lock its reports take and after the caller's reach (H-1535; #25 review round 2, M4).
       const result = await revokeDevice(services.db, access, {
         deviceId,
         reasonCode,
         now,
         requestId: c.get("requestId"),
-        unconfirmedWaiting: confirmEntriesWaiting === true ? 0 : waiting,
+        confirmed: confirmedEntriesWaiting ?? (confirmEntriesWaiting === true ? "legacy" : null),
       });
       if (!result) throw problems.notFound();
       // The sessions bound to the device stay: the tenant middleware refuses them with
@@ -99,7 +95,7 @@ export const devicesRouter = createRouter()
       // hurries the hold again, moving only what is not yet due and urgent (round 3, low).
       await hurryRevokedHold(services.db, access, {
         deviceId,
-        waiting,
+        waiting: result.waiting,
         now,
         requestId: c.get("requestId"),
       });
@@ -109,8 +105,8 @@ export const devicesRouter = createRouter()
           revokedAt: result.revokedAt.toISOString(),
           replay: result.replay,
           bindings: result.bindings,
-          entriesWaiting: waiting,
-          lastReportedAt: last?.at.toISOString() ?? null,
+          entriesWaiting: result.waiting,
+          lastReportedAt: result.lastReportedAt?.toISOString() ?? null,
         },
         200,
       );

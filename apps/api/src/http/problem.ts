@@ -128,6 +128,21 @@ export const problems = {
       `${count} ${count === 1 ? "entry is" : "entries are"} waiting on it. Confirm to withdraw it anyway: they stay on the device until handed over or deleted, and its task is due at once.`,
     ),
   /**
+   * What a device reported has changed since the manager looked (H-1535): a different count or
+   * report time. They reload and confirm what it says now. Told only to a caller who reaches it.
+   */
+  entriesChanged: (count: number, reported: boolean) =>
+    new HttpProblem(
+      409,
+      "entries_waiting",
+      "What this device reported has changed since you looked.",
+      !reported
+        ? "It has never reported what it holds. Reload to see, then confirm again."
+        : count === 0
+          ? "It now reports nothing waiting. Reload to see what it reports, then confirm again."
+          : `It now reports ${count} ${count === 1 ? "entry" : "entries"} waiting. Reload to see what it reports, then confirm again: they stay on the device until handed over or deleted, and its task is due at once.`,
+    ),
+  /**
    * A sign-out asked for without confirming the entries the member's devices last reported waiting
    * (#40 review M2): the phone loses its care record until they sign in again.
    */

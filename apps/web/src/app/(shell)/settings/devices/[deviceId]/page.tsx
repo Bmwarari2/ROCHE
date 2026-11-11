@@ -93,7 +93,7 @@ export default async function DevicePage({
             <DeviceWithdrawForm
               deviceId={device.deviceId}
               entriesWaiting={device.entriesWaiting}
-              reported={device.lastReportedAt !== null}
+              lastReportedAt={device.lastReportedAt}
             />
           </div>
         </Card>

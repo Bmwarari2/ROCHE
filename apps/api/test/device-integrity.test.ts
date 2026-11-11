@@ -108,6 +108,19 @@ const call = (
     headers: { ...(init.device ? { [DEVICE_HEADER]: init.device } : {}), ...init.headers },
   });
 
+/**
+ * What the owner, who reaches every device, sees the device last reported: the exact count and
+ * report time a manager confirms when withdrawing it (H-1535).
+ */
+async function seenOf(device: string): Promise<{ count: number; reportedAt: string | null }> {
+  const response = await call("owner", "/v1/devices");
+  const { items } = (await response.json()) as {
+    items: { deviceId: string; entriesWaiting: number; lastReportedAt: string | null }[];
+  };
+  const item = items.find((d) => d.deviceId === device);
+  return { count: item?.entriesWaiting ?? 0, reportedAt: item?.lastReportedAt ?? null };
+}
+
 const syncToken = (who: As, device?: string) =>
   call(who, "/v1/sync/token", { method: "POST", ...(device ? { device } : {}) });
 
@@ -287,11 +300,24 @@ describe("part 2: revocation", () => {
     expect([...CONTRACT_REASONS]).toEqual([...TABLE_REASONS]);
   });
 
-  const revoke = (who: As, device: string, reasonCode = "lost_or_stolen", confirm?: boolean) =>
+  /**
+   * A revocation; `confirm` sends the exact count and report time the device shows now, as a
+   * manager who looked at it would (H-1535).
+   */
+  const revoke = async (
+    who: As,
+    device: string,
+    reasonCode = "lost_or_stolen",
+    confirm?: boolean,
+  ) =>
     call(who, `/v1/devices/${device}/revoke`, {
       method: "POST",
-      body: { reasonCode, ...(confirm === undefined ? {} : { confirmEntriesWaiting: confirm }) },
+      body: {
+        reasonCode,
+        ...(confirm ? { confirmedEntriesWaiting: await seenOf(device) } : {}),
+      },
     });
+
   const listed = async (who: As, query = "") =>
     (
       await json<{
@@ -383,7 +409,13 @@ describe("part 2: revocation", () => {
       {
         actor: DEMO.users.owner.id,
         reason: "staff_left",
-        scope: { reasonCode: "staff_left", bindings: 1, memberIds: [DEMO.users.owner.id] },
+        scope: {
+          reasonCode: "staff_left",
+          bindings: 1,
+          memberIds: [DEMO.users.owner.id],
+          confirmed: "exact",
+          entriesWaiting: 1,
+        },
       },
     ]);
     // Its hold can now drain only by a hand-over or a recorded deletion: due at once, urgent, and
@@ -1474,7 +1506,7 @@ describe("part 6: hand-over of held entries", () => {
       (
         await call(owner, `/v1/devices/${device}/revoke`, {
           method: "POST",
-          body: { reasonCode: "lost_or_stolen", confirmEntriesWaiting: true },
+          body: { reasonCode: "lost_or_stolen", confirmedEntriesWaiting: await seenOf(device) },
         })
       ).status,
     ).toBe(200);
@@ -2099,5 +2131,113 @@ describe("hazard HZ-006 a device's lost key is put on record with a review (H-15
     await expect(insert("key_invalidated", null, "device_key_lost", dev(13))).rejects.toThrow(
       /device_discard_record_key_lost_key/,
     );
+  });
+});
+
+// Placed last: each case raises a hold for the owner, whose daily cap the tests above rely on.
+describe("hazard HZ-006 a withdrawal confirms the exact count the manager saw (H-1535)", () => {
+  const listed = async (who: As) =>
+    (
+      await json<{
+        items: { deviceId: string; entriesWaiting: number; lastReportedAt: string | null }[];
+      }>(await call(who, "/v1/devices"))
+    ).items;
+
+  it.each([
+    ["the same count and report", 0, 200],
+    ["a higher count reported since", 3, 409],
+    ["a lower count reported since", 1, 409],
+    ["the same count reported again, later", 2, 409],
+  ] as const)(
+    "hazard HZ-006 a withdrawal confirms the exact count the manager saw (H-1535): %s",
+    async (_label, since, status) => {
+      const device = `0199d000-0000-4000-8000-00000b15${status}${since}`;
+      const user = await freshSession("owner");
+      const revoker = await freshSession("owner");
+      await syncToken(user, device);
+      expect((await report(user, { held: 2 }, device)).status).toBe(204);
+      const seen = (await listed("owner")).find((d) => d.deviceId === device);
+      expect(seen?.entriesWaiting).toBe(2);
+      if (since > 0) {
+        // A later report: the clock moves on at least a millisecond.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        expect((await report(user, { held: since }, device)).status).toBe(204);
+      }
+      const response = await call(revoker, `/v1/devices/${device}/revoke`, {
+        method: "POST",
+        body: {
+          reasonCode: "lost_or_stolen",
+          confirmedEntriesWaiting: { count: 2, reportedAt: seen?.lastReportedAt ?? null },
+        },
+      });
+      expect(response.status).toBe(status);
+      if (status === 409) {
+        expect(await json(response)).toMatchObject({ code: "entries_waiting" });
+        const revoked = await asTenant(
+          "SELECT 1 FROM device_binding WHERE device_id = $1 AND revoked_at IS NOT NULL",
+          [device],
+        );
+        expect(revoked).toEqual([]);
+      }
+    },
+  );
+
+  it("hazard HZ-006 an older client's bare confirmation is refused while entries are waiting, and both together are refused (H-1535)", async () => {
+    const device = "0199d000-0000-4000-8000-00000b159801";
+    const user = await freshSession("owner");
+    const revoker = await freshSession("owner");
+    await syncToken(user, device);
+    expect((await report(user, { held: 1 }, device)).status).toBe(204);
+    const bare = await call(revoker, `/v1/devices/${device}/revoke`, {
+      method: "POST",
+      body: { reasonCode: "lost_or_stolen", confirmEntriesWaiting: true },
+    });
+    expect(bare.status).toBe(409);
+    const both = await call(revoker, `/v1/devices/${device}/revoke`, {
+      method: "POST",
+      body: {
+        reasonCode: "lost_or_stolen",
+        confirmEntriesWaiting: true,
+        confirmedEntriesWaiting: await seenOf(device),
+      },
+    });
+    expect(both.status).toBe(422);
+    const audit = await asTenant<{ scope: Record<string, unknown> }>(
+      "SELECT scope FROM audit_event WHERE action = 'platform.device.revoked' AND resource_id = $1",
+      [device],
+    );
+    expect(audit).toEqual([]);
+  });
+
+  it("hazard HZ-040 tells no count for a device the caller does not reach: it reads as not found (H-1535)", async () => {
+    // The organisation-wide quality lead's device: the home's Registered Manager does not reach it.
+    const device = "0199d000-0000-4000-8000-00000b159802";
+    await asTenant(
+      "INSERT INTO device_binding (tenant_id, device_id, tenant_user_id) VALUES ($1, $2, $3)",
+      [DEMO.tenantId, device, LODGE.qualityLeadId],
+    );
+    const response = await call("manager", `/v1/devices/${device}/revoke`, {
+      method: "POST",
+      body: {
+        reasonCode: "lost_or_stolen",
+        confirmedEntriesWaiting: { count: 99, reportedAt: null },
+      },
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it("hazard HZ-006 a device that never reported is withdrawn on a count of none confirmed as never reported (H-1535)", async () => {
+    const device = "0199d000-0000-4000-8000-0000000b1599";
+    const user = await freshSession("owner");
+    const revoker = await freshSession("owner");
+    await syncToken(user, device);
+    const send = (reportedAt: string | null) =>
+      call(revoker, `/v1/devices/${device}/revoke`, {
+        method: "POST",
+        body: { reasonCode: "replaced", confirmedEntriesWaiting: { count: 0, reportedAt } },
+      });
+    // A report time it never had is refused; none, as the manager saw, is taken.
+    expect((await send(new Date().toISOString())).status).toBe(409);
+    expect((await send(null)).status).toBe(200);
   });
 });
