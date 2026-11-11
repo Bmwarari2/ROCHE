@@ -1030,6 +1030,13 @@
       "when": 1794160345993,
       "tag": "0161_development_attribute_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1794168626474,
+      "tag": "0162_retention_batches",
+      "breakpoints": true
     }
   ]
 }

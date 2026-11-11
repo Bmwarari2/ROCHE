@@ -25,6 +25,10 @@ overrides below); every override is versioned, audited and needs a recorded reas
   [the retention sweeps plan](../plans/retention-sweeps.md); until then a hold is placed by hand).
 - **No period, no destruction**: records of a `tenant_policy` class are never offered for destruction
   until the organisation sets a period (provisional, H-1585).
+- **Proposals before slice 12**: a destruction batch never proposes a record about a person with an
+  open DSAR case (about them or one of their contacts), complaint or safeguarding concern, or a
+  record about a member of staff, whose employee relations cases the sweep cannot read yet
+  (provisional, H-1612 and H-1621).
 - **Staff files**: the organisation's `staff_file_option`, chosen at onboarding, picks the staff file
   row; the keep-until date is worked out again whenever the period or the date of birth changes
   (provisional, H-1583).
@@ -158,7 +162,7 @@ record is deleted (provisional, H-1560).
 | `document_signature` | the class of the signed document |
 | `signature_request` ([integrations.md](integrations.md) section 11, slice 79) | the class of the document asked to be signed (organisation documents: `organisation_document`) |
 | `ocr_extraction`, `ocr_field` ([integrations.md](integrations.md) section 11, slice 79) | care_record: the scanned MAR chart and the values a person decided from it are part of the person's medicines record, kept with the image document |
-| `legal_hold`, `destruction_certificate` | kept permanently (proof of records management); never destroyed by the engine |
+| `legal_hold`, `destruction_certificate`, `destruction_batch`, `destruction_batch_item` | kept permanently (proof of records management); never destroyed by the engine (batches and their items: provisional, H-1622) |
 | `task`, `task_series`, `workflow_instance`, `workflow_transition` | the class of the record they concern (care_record for tasks about a person) |
 | `handover`, `handover_item`, `handover_note`, `handover_acknowledgement` ([care.md](care.md) rule 8) | care_record: a handover is a record of the care handed over at a location, kept as long as the care records it lists |
 | `downtime_pack` ([operations.md](operations.md)) | downtime_pack, or downtime_record when in force during a declared outage |

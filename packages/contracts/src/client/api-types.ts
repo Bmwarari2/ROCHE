@@ -11003,6 +11003,219 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/retention/batches": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Destruction batches the retention sweep proposed
+     * @description Newest first, a page at a time (pass nextCursor back as cursor); optionally by status. A batch is a proposal only: nothing is destroyed or hidden. Tenant-wide holders of platform.retention.manage, with step-up.
+     */
+    get: {
+      parameters: {
+        query?: {
+          status?: "proposed" | "cancelled";
+          cursor?: string;
+          limit?: number;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Batches */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DestructionBatchList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/retention/batches/{id}/items": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A destruction batch and the records it proposes
+     * @description The batch and its items (table, record id, class, dates, whom it is about), a page at a time in the order proposed. Tenant-wide holders of platform.retention.manage, with step-up; audited with the batch id.
+     */
+    get: {
+      parameters: {
+        query?: {
+          cursor?: string;
+          limit?: number;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The batch and its items */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DestructionBatchItemList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/retention/batches/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a proposed destruction batch
+     * @description With expectedVersion and a reason code. The batch stays, cancelled, with who and when; its records are kept and may be proposed again by a later sweep. A stale version is refused (409), and so is a batch already decided. Tenant-wide holders of platform.retention.manage, with step-up.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CancelDestructionBatch"];
+        };
+      };
+      responses: {
+        /** @description Cancelled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DestructionBatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/documents/{id}/signature-requests": {
     parameters: {
       query?: never;
@@ -67859,7 +68072,7 @@ export interface components {
     /** @description The latest retention report: counts per table and class, no record ids */
     RetentionDue: {
       /** @enum {string} */
-      mode: "off" | "report";
+      mode: "off" | "report" | "propose";
       report: {
         /** Format: uuid */
         id: string;
@@ -67886,6 +68099,68 @@ export interface components {
       recordClass: string | null;
       reason: string | null;
       counts: components["schemas"]["RetentionReportCounts"];
+    };
+    DestructionBatchList: {
+      items: components["schemas"]["DestructionBatch"][];
+      nextCursor: string | null;
+    };
+    /** @description Records of one class proposed for destruction, for a person to review */
+    DestructionBatch: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      status: "proposed" | "cancelled";
+      recordClass: string;
+      rule: {
+        recordClass: string;
+        period: number;
+        unit: string;
+        trigger: string;
+        origin: string;
+      };
+      itemCount: number;
+      tables: {
+        [key: string]: number;
+      };
+      /** Format: date-time */
+      proposedAt: string;
+      /** Format: date-time */
+      cancelledAt: string | null;
+      /** Format: uuid */
+      cancelledBy: string | null;
+      cancelReason: components["schemas"]["DestructionBatchCancelReason"];
+      version: number;
+    };
+    /** @enum {string|null} */
+    DestructionBatchCancelReason:
+      | "records_still_needed"
+      | "rule_under_review"
+      | "proposed_in_error"
+      | "other"
+      | null;
+    DestructionBatchItemList: {
+      batch: components["schemas"]["DestructionBatch"];
+      items: components["schemas"]["DestructionBatchItem"][];
+      nextCursor: string | null;
+    };
+    DestructionBatchItem: {
+      /** Format: uuid */
+      id: string;
+      tableName: string;
+      /** Format: uuid */
+      recordId: string;
+      recordClass: string;
+      /** Format: date */
+      triggerOn: string | null;
+      /** Format: date */
+      dueOn: string;
+      /** @enum {string} */
+      subjectKind: "person" | "applicant" | "none";
+      subjectIds: string[];
+    };
+    CancelDestructionBatch: {
+      expectedVersion: number;
+      reason: components["schemas"]["DestructionBatchCancelReason"];
     };
     SignatureRequestItem: {
       /** Format: uuid */

@@ -24,6 +24,7 @@ import {
   STAFF_FILE_OPTIONS,
   type StaffFileOption,
   type SweepRules,
+  sweepModeOf,
   tally,
 } from "@harbour/domain";
 import { eq, isNull, type SQL, sql } from "drizzle-orm";
@@ -38,10 +39,15 @@ import { rateNumber } from "./rates";
  */
 
 export const RETENTION_SWEEP_FLAG = "platform.retention.sweep_report";
+/** Propose mode (slice 6): on top of the report flag, one step at a time (`sweepModeOf`). */
+export const RETENTION_PROPOSE_FLAG = "platform.retention.sweep_propose";
 export const SWEEP_REPORTED_ACTION = "platform.retention.sweep_reported";
 const BIRTHDAY_AGE_KEY = "retention.staff_file.birthday_age";
 
-/** The organisation's sweep mode: `report` when its flag is on, else `off` (the default). */
+/**
+ * The organisation's sweep mode from its flags: `off` (the default), `report`, or `propose` when
+ * the propose flag is on as well (never propose without report).
+ */
 export async function retentionSweepMode(tx: Transaction): Promise<RetentionSweepMode> {
   const rows = await tx
     .select({
@@ -51,11 +57,14 @@ export async function retentionSweepMode(tx: Transaction): Promise<RetentionSwee
     })
     .from(featureFlag)
     .where(isNull(featureFlag.deletedAt));
-  return evaluateFlag(RETENTION_SWEEP_FLAG, rows, null) ? "report" : "off";
+  return sweepModeOf({
+    report: evaluateFlag(RETENTION_SWEEP_FLAG, rows, null),
+    propose: evaluateFlag(RETENTION_PROPOSE_FLAG, rows, null),
+  });
 }
 
-const id = (name: string) => sql.identifier(name);
-const ref = (column: string) => sql`t.${id(column)}`;
+export const id = (name: string) => sql.identifier(name);
+export const ref = (column: string) => sql`t.${id(column)}`;
 
 /** One date source as a SQL expression over the row `t` (one level of lookup, never a loop). */
 function dateOf(source: ReadableSource): SQL {
@@ -88,9 +97,14 @@ const LIVE = sql.join(
   sql`, `,
 );
 
-/** The grouped count of one table's rows under a read plan. */
-function groupQuery(entry: RetentionTableEntry, plan: Extract<ReportPlan, { kind: "read" }>) {
-  const f = plan.facts;
+/**
+ * An unreleased legal hold on the row `t` or on the person it names, as a boolean expression
+ * (today's holds: a record or a person; slice 12 adds the wider scopes).
+ */
+export function heldCondition(
+  entry: RetentionTableEntry,
+  plan: Extract<ReportPlan, { kind: "read" }>,
+): SQL {
   const hasId = "id" in (EXPORT_TABLES[`public.${entry.table}`]?.columns ?? {});
   const holdTargets: SQL[] = [];
   if (hasId)
@@ -98,11 +112,23 @@ function groupQuery(entry: RetentionTableEntry, plan: Extract<ReportPlan, { kind
   // The person column may be one id or a list of them (an incident's `person_ids`).
   if (plan.personColumn)
     holdTargets.push(sql`to_jsonb(${ref(plan.personColumn)}) @> to_jsonb(h.person_id)`);
-  const held =
-    holdTargets.length === 0
-      ? sql`false`
-      : sql`EXISTS (SELECT 1 FROM legal_hold h WHERE h.released_at IS NULL
-                    AND (${sql.join(holdTargets, sql` OR `)}))`;
+  return holdTargets.length === 0
+    ? sql`false`
+    : sql`EXISTS (SELECT 1 FROM legal_hold h WHERE h.released_at IS NULL
+                  AND (${sql.join(holdTargets, sql` OR `)}))`;
+}
+
+/**
+ * The facts of one table's rows under a read plan, as the select list of a query over `t`: the
+ * class, the hold, whether the person is in care and each trigger date (the report groups by
+ * them; propose mode reads them per row).
+ */
+export function factColumns(
+  entry: RetentionTableEntry,
+  plan: Extract<ReportPlan, { kind: "read" }>,
+): SQL {
+  const f = plan.facts;
+  const held = heldCondition(entry, plan);
   const care = f.careEnded?.from === "person_care_ended" ? f.careEnded.column : null;
   const receiving = care
     ? sql`COALESCE((SELECT p.status::text IN (${LIVE}) FROM person p WHERE p.id = ${ref(care)}), false)`
@@ -113,15 +139,20 @@ function groupQuery(entry: RetentionTableEntry, plan: Extract<ReportPlan, { kind
           WHERE ${leaving.via === "staff_profile" ? sql`s.id` : sql`s.tenant_user_id`} = ${ref(leaving.column)}), 'YYYY-MM-DD')`
     : sql`NULL::text`;
   const recordClass = plan.classColumn ? sql`${ref(plan.classColumn)}::text` : sql`NULL::text`;
-  return sql`SELECT ${recordClass} AS record_class, ${held} AS held, ${receiving} AS receiving_care,
+  return sql`${recordClass} AS record_class, ${held} AS held, ${receiving} AS receiving_care,
       ${day(f.careEnded)} AS care_ended, ${day(f.entryDates)} AS entry_date,
       ${day(f.closedAt)} AS closed_at, ${day(f.employmentEndedAt)} AS employment_ended_at,
       ${dateOfBirth} AS date_of_birth, ${day(f.createdAt)} AS created_at,
-      ${day(f.periodEndsAt)} AS period_ends_at, count(*)::int AS n
+      ${day(f.periodEndsAt)} AS period_ends_at`;
+}
+
+/** The grouped count of one table's rows under a read plan. */
+function groupQuery(entry: RetentionTableEntry, plan: Extract<ReportPlan, { kind: "read" }>) {
+  return sql`SELECT ${factColumns(entry, plan)}, count(*)::int AS n
     FROM ${id(entry.table)} t GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10`;
 }
 
-interface GroupRow extends Record<string, unknown> {
+export interface GroupRow extends Record<string, unknown> {
   record_class: string | null;
   held: boolean;
   receiving_care: boolean;
@@ -137,7 +168,7 @@ interface GroupRow extends Record<string, unknown> {
 
 const asDate = (s: string | null) => (s ? new Date(`${s}T00:00:00Z`) : null);
 
-function toGroup(r: GroupRow): ReportGroup {
+export function toGroup(r: GroupRow): ReportGroup {
   return {
     recordClass: r.record_class,
     held: r.held,
@@ -153,7 +184,11 @@ function toGroup(r: GroupRow): ReportGroup {
   };
 }
 
-async function sweepRules(tx: Transaction, tenantId: string, now: Date): Promise<SweepRules> {
+export async function sweepRules(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+): Promise<SweepRules> {
   const rows = await tx.select().from(retentionClass);
   const [own] = await tx
     .select({ option: tenant.staffFileOption })
@@ -182,7 +217,10 @@ async function sweepRules(tx: Transaction, tenantId: string, now: Date): Promise
 }
 
 /** The registry tables the application role may read (equality monitoring, for one, it may not). */
-async function readableTables(tx: Transaction, tables: readonly string[]): Promise<Set<string>> {
+export async function readableTables(
+  tx: Transaction,
+  tables: readonly string[],
+): Promise<Set<string>> {
   const result = await tx.execute<{ name: string }>(
     sql`SELECT name FROM unnest(${`{${tables.join(",")}}`}::text[]) AS name
         WHERE to_regclass('public.' || quote_ident(name)) IS NOT NULL
@@ -193,12 +231,14 @@ async function readableTables(tx: Transaction, tables: readonly string[]): Promi
 
 export interface ReportResult {
   readonly id: string;
+  readonly mode: Exclude<RetentionSweepMode, "off">;
   readonly lines: readonly ReportLine[];
 }
 
 /**
- * Writes the organisation's retention report as at `now` when its sweep is in report mode, or
- * does nothing (null) when it is off. Runs in the organisation's context as the system.
+ * Writes the organisation's retention report as at `now` when its sweep is in report or propose
+ * mode, or does nothing (null) when it is off. Runs in the organisation's context as the system.
+ * Propose mode's batches follow it (`proposeBatches`), from the same report.
  */
 export async function reportRetention(
   tx: Transaction,
@@ -206,7 +246,8 @@ export async function reportRetention(
   now: Date,
   clock: () => number = Date.now,
 ): Promise<ReportResult | null> {
-  if ((await retentionSweepMode(tx)) !== "report") return null;
+  const mode = await retentionSweepMode(tx);
+  if (mode === "off") return null;
   const started = clock();
   // Days are read in UTC, whatever the server's time zone (transaction-local).
   await tx.execute(sql`SELECT set_config('TimeZone', 'UTC', true)`);
@@ -250,7 +291,7 @@ export async function reportRetention(
   const [saved] = await tx
     .insert(retentionReport)
     .values({
-      mode: "report",
+      mode,
       asOf: now,
       durationMs: Math.max(0, Math.round(clock() - started)),
       tablesRead,
@@ -266,7 +307,7 @@ export async function reportRetention(
     action: SWEEP_REPORTED_ACTION,
     resourceType: "retention_report",
     resourceId: reportId,
-    scope: { mode: "report", tablesRead, tablesSkipped, totals, byClass: countsByClass(all) },
+    scope: { mode, tablesRead, tablesSkipped, totals, byClass: countsByClass(all) },
   });
-  return { id: reportId, lines: all };
+  return { id: reportId, mode, lines: all };
 }

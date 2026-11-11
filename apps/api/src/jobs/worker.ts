@@ -305,8 +305,9 @@ await work(QUEUES.loneWorkers, async () => {
 await work(QUEUES.pulseSurveyClose, async () => {
   await closeEndedSurveysJob(deps);
 });
-// The retention sweep (retention sweeps plan 5.4): report mode only, counts only, for each
-// organisation whose flag is on; it destroys nothing.
+// The retention sweep (retention sweeps plan 5.4): the report (counts only) and, in propose mode,
+// destruction batches for a person to review, for each organisation whose flags are on; it
+// destroys nothing.
 await work(QUEUES.retentionSweep, async () => {
   await sweepRetentionReports(deps);
 });
@@ -382,7 +383,7 @@ await boss.schedule(QUEUES.dmdFreshness, "23 6 * * *");
 
 // Hourly: a survey closes, and its answers are released, within the hour after its last day.
 await boss.schedule(QUEUES.pulseSurveyClose, "17 * * * *");
-// Nightly, outside the busy hours: the retention report (plan 5.4).
+// Nightly, outside the busy hours: the retention report and proposals (plan 5.4).
 await boss.schedule(QUEUES.retentionSweep, "29 2 * * *");
 
 logger.info("Thapsus Care worker started");

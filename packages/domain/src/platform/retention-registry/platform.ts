@@ -5,6 +5,7 @@
 
 import {
   AS_PARENT,
+  applicant,
   asLinked,
   careEndedOf,
   childOf,
@@ -63,6 +64,17 @@ export const PLATFORM_REGISTRY: RegistryContext = {
       },
     ),
     entry("destruction_certificate", PERMANENT, {}, NO_SUBJECT, { method: NEVER }),
+    entry("destruction_batch", PERMANENT, {}, staff("cancelled_by"), {
+      method: NEVER,
+      provisional: ["H-1622"],
+      note: "A proposed destruction batch (plan 5.4, slice 6): class, rule, counts, and the member of staff who cancelled it. Kept as proof of records management, like certificates",
+    }),
+    entry("destruction_batch_item", PERMANENT, {}, person("subject_ids"), {
+      otherSubjects: [applicant("subject_ids")],
+      method: NEVER,
+      provisional: ["H-1622", "H-1623"],
+      note: "A record proposed for destruction (plan 5.4, slice 6): its table, id and the ids of the person or applicant it is about. Kept as proof of records management, like certificates",
+    }),
     entry(
       "device_binding",
       classes("audit_event"),

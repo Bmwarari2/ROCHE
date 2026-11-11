@@ -145,6 +145,15 @@ export const FLAGS = {
     defaultEnabled: false,
     licensed: false,
   },
+  // Propose mode (retention sweeps plan 5.4, slice 6): on top of the report, the sweep proposes
+  // destruction batches of records due. Only with the report flag on (one step at a time);
+  // proposals destroy nothing. Organisation-wide, every class (provisional, H-1620).
+  "platform.retention.sweep_propose": {
+    description:
+      "Nightly destruction batches: proposes records past retention for a person to review (destroys nothing)",
+    defaultEnabled: false,
+    licensed: false,
+  },
 } as const satisfies Record<string, FlagDefinition>;
 
 /** The organisation-wide flag that lets phones use Care mode (H-381). */

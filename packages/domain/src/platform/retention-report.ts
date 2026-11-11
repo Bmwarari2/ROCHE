@@ -11,7 +11,12 @@
 
 import type { DateSource, RetentionTableEntry, TriggerSources } from "./retention-registry";
 import { PERIOD_END_CLASSES } from "./retention-registry";
-import { type SweepRules, sweepDecision, type TriggerFacts } from "./retention-sweep";
+import {
+  type SweepDecision,
+  type SweepRules,
+  sweepDecision,
+  type TriggerFacts,
+} from "./retention-sweep";
 
 export const REPORT_STATUSES = [
   "due",
@@ -25,9 +30,21 @@ export const REPORT_STATUSES = [
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export type ReportCounts = Record<ReportStatus, number>;
 
-/** The modes of plan 5.4 this slice supports: `propose` and `destroy` come with later slices. */
-export const RETENTION_SWEEP_MODES = ["off", "report"] as const;
+/** The modes of plan 5.4 built so far: `destroy` comes with slice 10. */
+export const RETENTION_SWEEP_MODES = ["off", "report", "propose"] as const;
 export type RetentionSweepMode = (typeof RETENTION_SWEEP_MODES)[number];
+
+/**
+ * The organisation's mode from its two flags, one step at a time: report on gives `report`, report
+ * and propose on give `propose`; propose on without report gives `off`, never a skipped step.
+ */
+export function sweepModeOf(flags: {
+  readonly report: boolean;
+  readonly propose: boolean;
+}): RetentionSweepMode {
+  if (!flags.report) return "off";
+  return flags.propose ? "propose" : "report";
+}
 
 /** The date sources the report reads in the same query as the row (one level of lookup). */
 export type ReadableSource = Extract<
@@ -163,8 +180,16 @@ export function groupStatus(
   now: Date,
 ): ReportStatus {
   if (group.held) return "held";
+  return groupDecision(plan, group, rules, now).status;
+}
+
+/** The trigger facts of a group, as `sweepDecision` reads them. */
+export function groupFacts(
+  plan: Extract<ReportPlan, { kind: "read" }>,
+  group: ReportGroup,
+): TriggerFacts {
   const recordClasses = groupClasses(plan, group);
-  const facts: TriggerFacts = {
+  return {
     diedAt: group.careEnded,
     receivingCare: group.receivingCare,
     entryDates: group.entryDate ? [group.entryDate] : [],
@@ -174,19 +199,30 @@ export function groupStatus(
     periodEndsAt: group.periodEndsAt,
     countsFromPeriodEnd: recordClasses.some((c) => PERIOD_END_CLASSES.includes(c)),
   };
-  const decision = sweepDecision(
+}
+
+/**
+ * `sweepDecision` for a group, its hold left to the caller (the query found it). The decision
+ * carries the rule and, when due, the date it fell due.
+ */
+export function groupDecision(
+  plan: Extract<ReportPlan, { kind: "read" }>,
+  group: ReportGroup,
+  rules: SweepRules,
+  now: Date,
+): SweepDecision {
+  return sweepDecision(
     {
       subjectType: "report",
       subjectId: "report",
-      recordClasses,
-      facts,
+      recordClasses: groupClasses(plan, group),
+      facts: groupFacts(plan, group),
       dateOfBirth: group.dateOfBirth,
     },
     rules,
     { legalHolds: [], openCases: [] },
     now,
   );
-  return decision.status;
 }
 
 /** One line of the report: a table and a class, with its counts. */

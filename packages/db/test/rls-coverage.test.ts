@@ -28,6 +28,7 @@ const APPEND_ONLY_TABLES = [
   "elearning_statement",
   "document_signature",
   "destruction_certificate",
+  "destruction_batch_item",
   "care_note",
   "observation",
   "body_map_mark",
