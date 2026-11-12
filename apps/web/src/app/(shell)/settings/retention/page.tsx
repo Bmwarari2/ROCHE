@@ -3,10 +3,11 @@ import { FileCheck2, Lock, LockOpen, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DestroyForm, PlaceHoldForm, ReleaseHoldForm } from "@/components/retention/RetentionForms";
+import { RetentionReport } from "@/components/retention/RetentionReport";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
-import { failWith, getShellContext, tenantApi } from "@/lib/api";
+import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
@@ -29,7 +30,8 @@ const count = (value: string | undefined) => {
  * and released, placing and releasing one; the documents past their retention period with no hold
  * (only what the API offers, which never includes held records or people still receiving care),
  * destroyed only after a reason, an acknowledgement and a confirmation that say it cannot be
- * undone; and the destruction certificates. Every route needs a fresh step-up, so the page sends
+ * undone; the nightly retention report's counts per kind of record (counts only); and the
+ * destruction certificates. Every route needs a fresh step-up, so the page sends
  * the person to confirm it is them first and back here.
  */
 export default async function RetentionPage({
@@ -41,15 +43,20 @@ export default async function RetentionPage({
   const title = t("retention.title");
   if (!retentionShown(me.permissions)) return <SafetyForbidden title={title} />;
   const api = await tenantApi();
-  const [holds, candidates, certificates, people] = await Promise.all([
+  const [holds, candidates, certificates, people, due] = await Promise.all([
     api.GET("/v1/legal-holds"),
     api.GET("/v1/retention/candidates"),
     api.GET("/v1/destruction-certificates"),
     api.GET("/v1/people", {}).catch(() => null),
+    api.GET("/v1/retention/due"),
   ]);
   if (!holds.data) failWith(holds.error, holds.response, RETENTION_PAGE);
   if (!candidates.data) failWith(candidates.error, candidates.response, RETENTION_PAGE);
   if (!certificates.data) failWith(certificates.error, certificates.response, RETENTION_PAGE);
+  // The report needs the role organisation-wide; a narrower one is told so in the section.
+  if (!due.data && problemCode(due.error) !== "missing_permission") {
+    failWith(due.error, due.response, RETENTION_PAGE);
+  }
   const { inForce, released } = splitHolds(holds.data.items);
   const peopleList = people?.data?.items ?? [];
   const names = new Map(peopleList.map((p) => [p.id, personNames(p).full]));
@@ -127,6 +134,7 @@ export default async function RetentionPage({
           <PlaceHoldForm people={personOptions} />
         </div>
       </Card>
+      <RetentionReport due={due.data ?? null} />
       <Card as="section" title={t("retention.destroy.title")} headingLevel={2}>
         <div className="flex flex-col gap-3">
           <p className="m-0 max-w-prose">{t("retention.destroy.about")}</p>

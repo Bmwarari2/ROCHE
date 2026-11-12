@@ -47,6 +47,20 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Retention report screen (08/11/2026)
+
+`feat/platform-retention-report-screen` (retention sweeps plan slice 5), stacked on
+`feat/platform-retention-report` (#215): **Records due for destruction** on `/settings/retention`
+reads `GET /v1/retention/due` through the typed client and shows the latest nightly report's counts
+per kind of record (due, held, not yet due, never offered, not evaluated, total), the totals, when
+it counted (UK time) and the tables read; or that the report is off (ask Thapsus Care support: the
+flag has no screen) or has not run yet. It says it only counts and nothing has been destroyed; a
+role narrower than the organisation is told why it is not shown. Component tests with axe-core for
+each state; the e2e checks the state the database is in with axe in light and dark. New guide
+[How to read the retention report](../user-guides/data-protection-lead/read-the-retention-report.md).
+No data changed, no personal data, not clinical. See
+`docs/changelog-dev/2026-11-08-feat-platform-retention-report-screen.md`.
+
 ## Retention report (08/11/2026)
 
 `feat/platform-retention-report` (retention sweeps plan slice 4), from `main` at 8d9b4cc8: the

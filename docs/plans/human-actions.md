@@ -1474,3 +1474,13 @@ development does not wait.
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
 | H-1535 | Decide the web withdrawal of a Care mode phone (#217, HZ-006, HZ-040): (a) the API is told only that the manager confirmed a count they saw, not which count or report time, so a count that changed between two non-zero values since the page opened is not refused; binding the confirmation to the count and report time needs a contract change; (b) a phone that never reported, or reported long ago, is withdrawn after the same single tick, with wording that says it may hold unsent entries; (c) whether HZ-040 needs its own row for the web screen. Owner-accepted recommendation, pending CSO review at the testing phase | CSO | Clinical review of #217 (08/11/2026) | Nothing | provisional: owner-accepted recommendation, pending CSO review at the testing phase (ADR-0132) |
+
+## Phase 2: retention report screen (retention sweeps slice 5)
+
+Logged on 8 November 2026 from building the report screen. Each takes its recommended answer;
+development does not wait.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1614 | Decide whether organisations turn the retention report on themselves on a screen, or by asking Thapsus Care support (today: a `feature_flag` row with no screen). Owner-accepted recommendation, pending DPO review at the testing phase: by asking support during the pilot, as the screen says; a switch on `/settings/retention` comes with propose mode (slice 6) | DPO | Retention sweeps plan slice 5 | Slice 6 | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
+| H-1615 | Review the plain-English names the report screen gives each retention class (`retention.due.class` in the en-GB catalogue, for example "Staff files, kept to a birthday") and its five columns, which fold "retain" and "no trigger yet" into "Not yet due" and "tenant policy" and "never offered" into "Never offered". Owner-accepted recommendation, pending DPO review at the testing phase: use them as written; the DPO corrects any name in the catalogue | DPO | Retention sweeps plan slice 5; `packages/i18n/src/messages/en-GB.json` | None | provisional: owner-accepted recommendation, pending DPO review at the testing phase (ADR-0132) |
