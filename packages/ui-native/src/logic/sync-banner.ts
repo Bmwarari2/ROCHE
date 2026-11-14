@@ -171,3 +171,26 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     accessibilityLabel,
   };
 }
+
+/** Above this text size a calm banner is drawn as one paragraph (`nativeMetrics.wrapFontScale`). */
+export const COMPACT_BANNER_FONT_SCALE = 1.3;
+
+/**
+ * Whether the banner is drawn compactly: its title and detail run on as one paragraph, without the
+ * line break and gap between them. At the largest text sizes the full banner took almost half the
+ * screen and never scrolled away (iOS device check, 14/11/2026). Nothing is dropped: when it was,
+ * "Last synced" and the count of changes waiting to upload went missing for sighted readers of
+ * large text (accessibility re-check, High, WCAG 1.4.4; clinical re-check, HZ-006). Anything
+ * urgent, stale, refused or failed keeps the full layout (HZ-002, HZ-006).
+ */
+export function compactSyncBanner(content: SyncBannerContent, fontScale: number): boolean {
+  return (
+    fontScale > COMPACT_BANNER_FONT_SCALE &&
+    !content.urgent &&
+    content.warning === null &&
+    content.reason === null &&
+    !content.showRetry &&
+    content.tone !== "warning" &&
+    content.tone !== "danger"
+  );
+}

@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
-import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
-import { describeSyncBanner, type SyncConnectionState } from "../logic/sync-banner";
-import { toneAppearance } from "../logic/theme";
+import { AccessibilityInfo, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import {
+  compactSyncBanner,
+  describeSyncBanner,
+  type SyncConnectionState,
+} from "../logic/sync-banner";
+import { bannerAppearance } from "../logic/theme";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH, iconByName } from "./icons";
 import { Text } from "./Text";
@@ -88,12 +92,19 @@ export function SyncBanner({
     if (announcement) announce(announcement);
   }, [announcement, announce]);
 
-  const filled = content.tone === "warning" || content.tone === "danger";
-  const fill = toneAppearance(content.tone);
-  const background = filled ? fill.background : theme.colors.card;
-  const iconColour = filled ? fill.foreground : fill.background;
-  const textTone = filled ? "onAccent" : "primary";
-  const detailTone = filled ? "onAccent" : "secondary";
+  // Calm states sit on the card colour with a quiet icon; a warning (stale, never synced, access
+  // too wide) is filled with the warning colour and a failure with the alarm fill, each with its
+  // own text colour, so either stands apart from the page and the calm banner (HZ-002).
+  const { fontScale } = useWindowDimensions();
+  const compact = compactSyncBanner(content, fontScale);
+  const look = bannerAppearance(content.tone, theme.colors);
+  const filled = look.filled;
+  const fill = look;
+  const background = look.background;
+  const iconColour = look.icon;
+  const textTone = "primary";
+  const detailTone = filled ? "primary" : "secondary";
+  const onFill = filled ? { color: fill.foreground } : undefined;
   const Icon = iconByName(content.icon);
 
   return (
@@ -103,7 +114,10 @@ export function SyncBanner({
         styles.container,
         {
           backgroundColor: background,
-          borderBottomColor: theme.colors.border,
+          borderBottomColor: look.border ?? theme.colors.border,
+          borderTopColor: look.border ?? "transparent",
+          borderTopWidth: look.border ? 2 : 0,
+          borderBottomWidth: look.border ? 2 : StyleSheet.hairlineWidth,
           paddingHorizontal: theme.space[2],
           paddingVertical: theme.space[1],
           gap: theme.space[1.5],
@@ -126,19 +140,52 @@ export function SyncBanner({
           importantForAccessibility="no"
         />
         <View style={styles.text}>
-          <Text variant="bodyDense" tone={textTone} emphasis testID={`${testID}-title`}>
-            {content.title}
-          </Text>
-          {content.reason ? (
-            <Text variant="bodyDense" tone={textTone} testID={`${testID}-reason`}>
-              {content.reason}
+          {compact ? (
+            <Text variant="bodyDense" tone={detailTone} style={onFill} testID={`${testID}-title`}>
+              <Text variant="bodyDense" tone={textTone} emphasis style={onFill}>
+                {`${content.title}. `}
+              </Text>
+              {content.detail}
             </Text>
-          ) : null}
-          <Text variant="bodyDense" tone={detailTone} testID={`${testID}-detail`}>
-            {content.detail}
-          </Text>
+          ) : (
+            <>
+              <Text
+                variant="bodyDense"
+                tone={textTone}
+                emphasis
+                style={onFill}
+                testID={`${testID}-title`}
+              >
+                {content.title}
+              </Text>
+              {content.reason ? (
+                <Text
+                  variant="bodyDense"
+                  tone={textTone}
+                  style={onFill}
+                  testID={`${testID}-reason`}
+                >
+                  {content.reason}
+                </Text>
+              ) : null}
+              <Text
+                variant="bodyDense"
+                tone={detailTone}
+                style={onFill}
+                testID={`${testID}-detail`}
+              >
+                {content.detail}
+              </Text>
+            </>
+          )}
           {content.warning ? (
-            <Text variant="bodyDense" tone={textTone} emphasis testID={`${testID}-warning`}>
+            <Text
+              variant="bodyDense"
+              tone={textTone}
+              emphasis
+              style={onFill}
+              testID={`${testID}-warning`}
+            >
               {content.warning}
             </Text>
           ) : null}
@@ -161,13 +208,13 @@ export function SyncBanner({
               minHeight: theme.touchTarget,
               minWidth: theme.touchTarget,
               borderRadius: theme.radius.pill,
-              borderColor: fill.foreground,
+              borderColor: filled ? fill.foreground : theme.colors.outline,
               paddingHorizontal: theme.space[2],
               opacity: pressed ? 0.75 : 1,
             },
           ]}
         >
-          <Text variant="bodyDense" tone={textTone} emphasis>
+          <Text variant="bodyDense" tone={textTone} emphasis style={onFill}>
             Retry
           </Text>
         </Pressable>

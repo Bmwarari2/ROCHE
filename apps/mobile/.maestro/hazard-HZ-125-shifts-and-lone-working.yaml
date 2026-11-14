@@ -10,8 +10,10 @@ tags:
   - demo
 ---
 - runFlow: sign-in.yaml
-- tapOn:
-    id: "tab-shifts"
+- runFlow:
+    file: open-more.yaml
+    env:
+      DESTINATION: "shifts"
 - extendedWaitUntil:
     visible:
       id: "shifts-screen"

@@ -60,5 +60,5 @@ carers, clinical leads or nurses, Registered Managers and deputy managers.
 
 ## Good to know
 
-- To change mode later, go to **Settings** and choose "Change mode". Only Care mode works today.
+- To change mode later, go to **More**, then **Settings**, and choose "Change mode". Only Care mode works today.
 - Sign in on the web: see [How to sign in](../all-staff/sign-in.md).

@@ -46,6 +46,8 @@ export function FormLayout({
         testID="form-keyboard"
       >
         <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustsScrollIndicatorInsets
           contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
           keyboardShouldPersistTaps="handled"
           testID="form-scroll"

@@ -55,7 +55,7 @@ it. It happens on its own whenever Thapsus Care is open and the phone has a conn
 
 ## Good to know
 
-- If records look wrong or incomplete, and support asks you to, go to **Settings** and choose
+- If records look wrong or incomplete, and support asks you to, go to **More**, then **Settings**, and choose
   "Download all data again". You need a connection. The phone refuses while changes are waiting to
   upload, for example "1 change has not uploaded yet. Connect to the internet and wait for it to
   upload, then try again."

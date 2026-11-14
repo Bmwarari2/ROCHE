@@ -10,7 +10,13 @@ screens (#128, `docs/user-guides/`).
 **Merged on 14/11/2026 (#227):** `chore/ci-ubicloud` (no register row; ADR-0137). CI runs on
 Ubicloud instead of GitHub's hosted runners, except the jobs that hold credentials; the owner gave
 the Ubicloud GitHub App access to this repository (H-1643, steps 1 to 3).
-**Pushed on 14/11/2026, PR open:** `fix/mobile-ios-demo-findings` (MOB-001 and MOB-002 stay
+**Pushed on 14/11/2026:** `feat/mobile-native-look` (MOB-001 and MOB-002 stay `partial`;
+ADR-0138). The phone app's native look: Material 3 on Android, Liquid Glass on iOS, from the
+Thapsus teal scheme; native tabs (five at most, the rest under More) and headers. Review fixes
+pushed the same day: an open lone-working session and the handover on Today, outlines and focus
+states, AA proven in every theme, links to moved pages mapped. Device check H-1645, tab label size
+H-1644, CSO decisions H-1646 to H-1648.
+**Merged on 14/11/2026 (#228):** `fix/mobile-ios-demo-findings` (MOB-001 and MOB-002 stay
 `partial`). Fixes from the first iOS Simulator run: Today crashed because Hermes lacks
 `Intl.PluralRules` (polyfills now load first), the mode chooser had no demo label, and
 `InteractionManager` is deprecated. Cut-off tab labels are fixed by the native tabs change next.

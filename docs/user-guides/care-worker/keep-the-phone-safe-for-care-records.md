@@ -14,8 +14,8 @@ Thapsus Care can read them), locks itself and blocks screenshots, but some thing
 2. Keep the phone's software up to date, with the date and time set automatically. Do not change
    the phone's clock.
 3. Never root or jailbreak the phone, or use Thapsus Care on one that has been.
-4. Choose "Lock now" in **Settings** whenever you put the phone down, and never let anyone else use
-   Thapsus Care under your sign-in.
+4. Choose "Lock now" in **More**, then **Settings**, whenever you put the phone down, and never
+   let anyone else use Thapsus Care under your sign-in.
 5. If the phone is lost or stolen, tell the person in charge at once. See
    [How to handle a lost or stolen phone](../all-staff/handle-a-lost-or-stolen-phone.md).
 
@@ -44,6 +44,6 @@ tell the person in charge or use Thapsus Care on the web.
 
 ## Good to know
 
-- Under "About" in **Settings**, "Local database:" should say "Encrypted (SQLCipher, AES-256)". If it
+- Under "About" in **More**, then **Settings**, "Local database:" should say "Encrypted (SQLCipher, AES-256)". If it
   says anything else, stop using the phone for care and tell your manager.
 - How the lock works: see [How to lock and unlock Thapsus Care on the phone](lock-and-unlock-the-phone.md).

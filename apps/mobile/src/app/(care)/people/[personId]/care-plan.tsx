@@ -52,7 +52,11 @@ export default function CarePlanScreen() {
   return (
     <Screen testID="care-plan-screen">
       <Stack.Screen options={{ title: t("mobile.carePlan.title") }} />
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+      >
         <CarePersonHeader personId={id} />
         {view ? (
           <>

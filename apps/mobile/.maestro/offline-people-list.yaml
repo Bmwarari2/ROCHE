@@ -13,8 +13,11 @@ env:
   HARBOUR_EXPECTED_PERSON: ${HARBOUR_EXPECTED_PERSON || "Ada Example"}
 ---
 - runFlow: sign-in.yaml
-- tapOn:
-    id: "tab-people"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "people"
+      LABEL: "People"
 # Wait for the first sync to finish.
 - extendedWaitUntil:
     visible:
@@ -38,8 +41,11 @@ env:
     visible:
       id: "today-screen"
     timeout: 30000
-- tapOn:
-    id: "tab-people"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "people"
+      LABEL: "People"
 - assertVisible:
     id: "people-list"
 - assertVisible:

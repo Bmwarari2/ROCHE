@@ -3,18 +3,18 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { View } from "react-native";
 import { WebView } from "react-native-webview";
-import { useSession } from "../../../app-state/session";
-import { Screen } from "../../../components/Screen";
-import { t } from "../../../i18n/t";
-import { useOfflineCourse } from "../../../training/hooks";
-import { isInsideFolder } from "../../../training/offline-plan";
+import { useSession } from "../../../../app-state/session";
+import { Screen } from "../../../../components/Screen";
+import { t } from "../../../../i18n/t";
+import { useOfflineCourse } from "../../../../training/hooks";
+import { isInsideFolder } from "../../../../training/offline-plan";
 import {
   isPage,
   offlineLaunchQuery,
   offlineRuntimeSource,
   parseRuntimeMessage,
-} from "../../../training/offline-runtime";
-import { courseFolder, launchFile } from "../../../training/store";
+} from "../../../../training/offline-runtime";
+import { courseFolder, launchFile } from "../../../../training/store";
 
 /**
  * A course taken offline (workforce.md section 14.5; mobile slice 72). The package's own launch
@@ -103,6 +103,9 @@ export default function OfflineCourseScreen() {
         ) : null}
       </View>
       <WebView
+        // The course's own Next and Submit at the foot of the page clear the floating tab bar
+        // (accessibility re-check M1).
+        contentInsetAdjustmentBehavior="automatic"
         source={{ uri: source.uri }}
         injectedJavaScriptBeforeContentLoaded={source.script}
         originWhitelist={["file://*"]}

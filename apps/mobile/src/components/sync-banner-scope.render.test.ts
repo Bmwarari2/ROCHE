@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { AccessibilityInfo } from "react-native";
 import { describe, expect, it } from "vitest";
 import { announceRefusalOnce, setScopeRefused } from "../sync/scope-refusal-store";
+import { testWindow } from "../test-support/react-native-stub";
 import { render } from "../test-support/render";
 
 /**
@@ -64,5 +65,29 @@ describe("hazard HZ-138 the banner when a phone is refused for too wide access",
     await render(banner(fresh));
     expect(announced).toHaveLength(3);
     setScopeRefused(false);
+  });
+});
+
+describe("hazard HZ-002 hazard HZ-006 the banner at the largest text sizes (iOS device check, 14/11/2026)", () => {
+  it("keeps when it last synced and the changes waiting to upload in sight, as one paragraph", async () => {
+    const before = testWindow.fontScale;
+    testWindow.fontScale = 2;
+    try {
+      const view = await render(
+        createElement(SyncBanner, {
+          state: "offline",
+          lastSyncedAt: new Date(Date.now() - 2 * 60_000),
+          staleAfterMs: 15 * 60_000,
+          queuedChanges: 2,
+        }),
+      );
+      const texts = view.texts().join(" ");
+      expect(texts).toContain("Offline. ");
+      expect(texts).toContain("Last synced");
+      expect(texts).toContain("2 changes waiting to upload.");
+      expect(view.find("sync-banner-detail")).toBeNull();
+    } finally {
+      testWindow.fontScale = before;
+    }
   });
 });

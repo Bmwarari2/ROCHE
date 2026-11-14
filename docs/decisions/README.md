@@ -97,6 +97,7 @@ Items Brian may want to confirm (each ADR says how to change it):
 | [0135](0135-retention-row-destruction.md) | Destroying database rows when their retention class ends (number to be confirmed at merge) | proposed | 2026-11-08 | Phase 2 |
 | [0136](0136-development-reads-follow-attribute-scope.md) | Development reads follow attribute scope (number to be confirmed at merge) | proposed | 2026-11-08 | Phase 2 |
 | [0137](0137-ci-on-ubicloud.md) | CI runs on Ubicloud, not on GitHub's hosted runners | accepted | 2026-11-14 | All |
+| [0138](0138-phone-native-look.md) | The phone app looks native: Material 3 on Android, Liquid Glass on iOS | accepted | 2026-11-14 | Phase 2 |
 
 ## Open items carried by these ADRs
 

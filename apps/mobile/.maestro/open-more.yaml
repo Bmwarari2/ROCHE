@@ -1,0 +1,15 @@
+# Opens a destination under More (ADR-0138): Handover, Shifts, Training or Settings. runFlow with
+# env DESTINATION ("handover", "shifts", "training" or "settings"). Not a flow of its own.
+appId: uk.co.thapsus.harbour
+---
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "more"
+      LABEL: "More"
+- extendedWaitUntil:
+    visible:
+      id: "more-screen"
+    timeout: 15000
+- tapOn:
+    id: "more-${DESTINATION}"

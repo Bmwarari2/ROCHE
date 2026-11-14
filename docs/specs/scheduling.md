@@ -1938,9 +1938,12 @@ for a clock-in come from the shift under way or starting within `CLOCK_IN_EARLY_
 product setting), else the member's only location; with neither the phone records nothing and says
 so. A break or clock-out takes the clock-in's location and shift.
 
-### 22.3 The Shifts tab
+### 22.3 The Shifts screen
 
-Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check_in`.
+Shown to holders of `scheduling.timesheet.self` or `scheduling.lone_worker.check_in`, under More
+([ADR-0138](../decisions/0138-phone-native-look.md); it was a tab before). While a lone-working
+session is open, Today also shows the lone-working panel (item 4), so check-in and Ask for help
+are one tap away (HZ-125, H-1647).
 
 1. "Needs attention" first, so a refused clock-in is never out of sight.
 2. The clock: the state in words ("Not clocked in", "Clocked in at 07:02", "On a break since

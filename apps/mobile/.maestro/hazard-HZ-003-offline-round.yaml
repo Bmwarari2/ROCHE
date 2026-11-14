@@ -21,8 +21,11 @@ env:
     visible:
       text: "Up to date.*"
     timeout: 60000
-- tapOn:
-    id: "tab-medicines"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "medicines"
+      LABEL: "Medicines"
 - extendedWaitUntil:
     visible:
       id: "medicines-round"

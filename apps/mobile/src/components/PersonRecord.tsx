@@ -132,6 +132,8 @@ export function PersonRecord({ personId, task, onOpenScreen }: PersonRecordProps
 
   return (
     <FlatList
+      contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustsScrollIndicatorInsets
       testID="person-entries"
       data={person ? entries : []}
       keyExtractor={(item) => item.id}

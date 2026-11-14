@@ -1,6 +1,7 @@
 import { useTheme } from "@harbour/ui-native";
 import { Stack } from "expo-router";
 import { announceReturned } from "../../../care/announce-after-return";
+import { rootScreen, stackScreenOptions } from "../../../components/stack-options";
 import { t } from "../../../i18n/t";
 
 /**
@@ -17,15 +18,9 @@ export default function RoundLayout() {
           if (!event.data.closing) announceReturned();
         },
       }}
-      screenOptions={{
-        headerStyle: { backgroundColor: theme.colors.bg },
-        headerTintColor: theme.colors.accent,
-        headerTitleStyle: { color: theme.colors.text, fontSize: theme.type.body.fontSize },
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: theme.colors.bgSecondary },
-      }}
+      screenOptions={stackScreenOptions(theme)}
     >
-      <Stack.Screen name="index" options={{ title: t("mobile.round.title") }} />
+      <Stack.Screen name="index" options={rootScreen(theme, t("mobile.round.title"))} />
       <Stack.Screen name="[personId]/note" options={{ title: t("mobile.note.title") }} />
       <Stack.Screen name="[personId]/chart" options={{ title: t("mobile.chart.choose") }} />
       <Stack.Screen name="[personId]/body-map" options={{ title: t("mobile.bodyMap.title") }} />

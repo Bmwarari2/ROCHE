@@ -10,18 +10,21 @@ until someone acknowledges the alarm.
 
 ## Steps
 
-1. Go to **Shifts** and choose **Open lone working**.
-2. Read the line at the top: "Next check-in due at 10:30", or "Check-in overdue since 10:30. Check
+1. Go to **Today**. While your session is open, it shows the lone-working panel with **Check in**
+   and **Ask for help**. You can also go to **More** in the tab bar, choose **Shifts**, then
+   **Open lone working**.
+2. Read the line at the top of the panel: "Next check-in due at 10:30", or "Check-in overdue since 10:30. Check
    in now." with a warning icon. When a check-in becomes overdue, the phone also says it aloud if
    you use a screen reader.
 3. Choose **Check in**. The phone says, for example, "Checked in at 10:02." The next check-in time
    moves on.
-4. Your check-ins show under **This session**, for example "Checked in at 10:02". One not sent yet
+4. On the lone-working screen, your check-ins show under **This session**, for example "Checked in at 10:02". One not sent yet
    says **Waiting to send**.
 
 ## What happens if you miss a check-in
 
-1. As soon as the due time passes, the lone-working screen shows the check-in as overdue.
+1. As soon as the due time passes, **Today** and the lone-working screen show the check-in as
+   overdue.
 2. After a short grace period set by your organisation, an alarm is raised. Your organisation's on-call person or role is
    told first, then the Registered Manager. The alarm is sent again until someone acknowledges it.
 3. At launch they are told by email and in Thapsus Care on the web. There are no text messages yet,

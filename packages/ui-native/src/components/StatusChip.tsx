@@ -1,5 +1,7 @@
 import type { ClinicalStatus } from "@harbour/ui/tokens";
-import { StyleSheet, View } from "react-native";
+import { nativeMetrics } from "@harbour/ui/tokens";
+import { useState } from "react";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { statusAppearance, type Tone, toneAppearance } from "../logic/theme";
 import { useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH, iconByName, type LucideIcon } from "./icons";
@@ -10,6 +12,8 @@ interface ChipBodyProps {
   readonly label: string;
   readonly background: string;
   readonly foreground: string;
+  /** A 2 pt edge where the fill alone would not stand out (warning, and danger in dark mode). */
+  readonly border?: string;
   readonly accessibilityLabel: string;
   readonly testID?: string;
 }
@@ -23,10 +27,20 @@ function ChipBody({
   label,
   background,
   foreground,
+  border,
   accessibilityLabel,
   testID,
 }: ChipBodyProps) {
   const theme = useTheme();
+  const android = theme.platform === "android";
+  // A capsule only while the words fit on one line: a chip whose words wrap, at large text or in a
+  // narrow card, keeps smaller corners so no word runs past the fill (accessibility review H3).
+  const { fontScale } = useWindowDimensions();
+  const [wrapped, setWrapped] = useState(false);
+  const radius =
+    wrapped || fontScale > nativeMetrics.wrapFontScale
+      ? Math.min(theme.radius.chip, nativeMetrics.wrapRadius)
+      : theme.radius.chip;
   return (
     <View
       accessible
@@ -37,9 +51,12 @@ function ChipBody({
         styles.chip,
         {
           backgroundColor: background,
-          borderRadius: theme.radius.chip,
-          paddingHorizontal: theme.space[1],
-          minHeight: 28,
+          borderRadius: radius,
+          borderWidth: border ? nativeMetrics.statusOutline : 0,
+          borderColor: border ?? "transparent",
+          // A capsule badge on iOS; a Material 3 chip, 32 dp tall, on Android.
+          paddingHorizontal: android ? theme.space[1] : nativeMetrics.chipPaddingXIos,
+          minHeight: nativeMetrics.chipMinHeight[theme.platform],
         },
       ]}
     >
@@ -50,7 +67,13 @@ function ChipBody({
         accessibilityElementsHidden
         importantForAccessibility="no"
       />
-      <Text variant="bodyDense" tone="onAccent" emphasis style={{ color: foreground }}>
+      <Text
+        variant="bodyDense"
+        tone="onAccent"
+        emphasis
+        style={[styles.label, { color: foreground }]}
+        onTextLayout={(event) => setWrapped(event.nativeEvent.lines.length > 1)}
+      >
         {label}
       </Text>
     </View>
@@ -66,7 +89,8 @@ export interface StatusChipProps {
 
 /** Clinical status chip: overdue, due, done or not applicable, from the shared tokens. */
 export function StatusChip({ status, label, testID }: StatusChipProps) {
-  const appearance = statusAppearance(status);
+  const theme = useTheme();
+  const appearance = statusAppearance(status, theme.colors);
   const text = label ?? appearance.label;
   return (
     <ChipBody
@@ -74,6 +98,7 @@ export function StatusChip({ status, label, testID }: StatusChipProps) {
       label={text}
       background={appearance.background}
       foreground={appearance.foreground}
+      border={appearance.border}
       accessibilityLabel={text}
       testID={testID}
     />
@@ -90,13 +115,15 @@ export interface FlagChipProps {
 
 /** A safety flag (allergies, communication needs) in the same icon-plus-word chip shape. */
 export function FlagChip({ tone, icon, label, accessibilityLabel, testID }: FlagChipProps) {
-  const { background, foreground } = toneAppearance(tone);
+  const theme = useTheme();
+  const { background, foreground, border } = toneAppearance(tone, theme.colors);
   return (
     <ChipBody
       icon={icon}
       label={label}
       background={background}
       foreground={foreground}
+      border={border}
       accessibilityLabel={accessibilityLabel ?? label}
       testID={testID}
     />
@@ -108,7 +135,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    // Never wider than what holds it: a long word wraps inside the chip rather than running past
+    // the card's edge (iOS device check, 14/11/2026).
+    maxWidth: "100%",
+    flexShrink: 1,
     gap: 4,
     paddingVertical: 2,
   },
+  label: { flexShrink: 1 },
 });

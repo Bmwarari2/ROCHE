@@ -1,0 +1,19 @@
+# Opens a Care mode tab (ADR-0138), for the other flows: runFlow with env TAB (the route, such as
+# "round") and LABEL (its visible word, such as "Round"). The tab bar is the platform's own: on iOS
+# Maestro finds a tab by its test id; on Android a native tab's id is not readable, so it taps the
+# label. Not a flow of its own (not in config.yaml).
+appId: uk.co.thapsus.harbour
+---
+- runFlow:
+    when:
+      visible:
+        id: "tab-${TAB}"
+    commands:
+      - tapOn:
+          id: "tab-${TAB}"
+- runFlow:
+    when:
+      notVisible:
+        id: "tab-${TAB}"
+    commands:
+      - tapOn: "${LABEL}"

@@ -105,7 +105,11 @@ export default function MedicinesConflictsScreen() {
 
   return (
     <Screen testID="medicines-conflicts">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[1.5] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[1.5] }}
+      >
         <Text>{t("mobile.meds.conflictIntro")}</Text>
         {failed ? <StatusLine tone="warning">{t("mobile.meds.conflictOffline")}</StatusLine> : null}
         {conflicts === null ? (

@@ -12,7 +12,8 @@ not need to be in a session to ask for help.
 ## Steps
 
 1. If you are in danger, call 999 first.
-2. Go to **Shifts** and choose **Open lone working**.
+2. If your lone-working session is open, **Ask for help** is on **Today**, in the lone-working
+   panel. Otherwise go to **More** in the tab bar, choose **Shifts**, then **Open lone working**.
 3. Choose **Ask for help**. It is set apart from the other buttons.
 4. Read the line under it. It says only what is true:
    - **Your request for help is being sent. If you are in danger, call 999.**

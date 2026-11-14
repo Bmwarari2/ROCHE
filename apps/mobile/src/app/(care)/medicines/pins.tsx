@@ -111,7 +111,11 @@ export default function MedicinesPinsScreen() {
 
   return (
     <Screen testID="medicines-pins">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[1.5] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[1.5] }}
+      >
         <Text>{t("mobile.meds.pinIntro")}</Text>
         <Text variant="callout" accessibilityRole="header">
           {t("mobile.meds.pinWho")}

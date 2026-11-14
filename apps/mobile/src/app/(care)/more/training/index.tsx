@@ -3,12 +3,12 @@ import { useStatus } from "@powersync/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, ScrollView, View } from "react-native";
-import { Card } from "../../../components/Card";
-import { Screen } from "../../../components/Screen";
-import { TrainingCourseCard } from "../../../components/TrainingCourseCard";
-import { UploadIssues } from "../../../components/UploadIssues";
-import { t } from "../../../i18n/t";
-import { useTraining } from "../../../training/hooks";
+import { Card } from "../../../../components/Card";
+import { Screen } from "../../../../components/Screen";
+import { TrainingCourseCard } from "../../../../components/TrainingCourseCard";
+import { UploadIssues } from "../../../../components/UploadIssues";
+import { t } from "../../../../i18n/t";
+import { useTraining } from "../../../../training/hooks";
 
 /**
  * Training courses on the phone (workforce.md section 14.5; MOB-007, WORK-006; mobile slice 72):
@@ -45,7 +45,11 @@ export default function TrainingScreen() {
 
   return (
     <Screen testID="training-screen">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+      >
         <UploadIssues />
         <Card title={t("mobile.training.title")}>
           <View accessible style={{ gap: theme.space[0.5] }}>
@@ -82,7 +86,7 @@ export default function TrainingScreen() {
               onDownload={() => void onDownload(item.courseId)}
               onOpen={() =>
                 router.push({
-                  pathname: "/training/[courseId]",
+                  pathname: "/more/training/[courseId]",
                   params: { courseId: item.courseId },
                 })
               }

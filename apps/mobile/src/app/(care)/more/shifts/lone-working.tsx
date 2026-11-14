@@ -1,11 +1,11 @@
 import { useTheme } from "@harbour/ui-native";
 import { useStatus } from "@powersync/react";
 import { ScrollView } from "react-native";
-import { useSession } from "../../../app-state/session";
-import { LoneWorkingPanel } from "../../../components/LoneWorkingPanel";
-import { Screen } from "../../../components/Screen";
-import { UploadIssues } from "../../../components/UploadIssues";
-import { useClock, useLoneWorker, useMinute } from "../../../scheduling/hooks";
+import { useSession } from "../../../../app-state/session";
+import { LoneWorkingPanel } from "../../../../components/LoneWorkingPanel";
+import { Screen } from "../../../../components/Screen";
+import { UploadIssues } from "../../../../components/UploadIssues";
+import { useClock, useLoneWorker, useMinute } from "../../../../scheduling/hooks";
 
 /**
  * Lone working on the phone (scheduling.md sections 17 and 18; SCHED-012, HZ-125). Duress is
@@ -21,7 +21,11 @@ export default function LoneWorkingScreen() {
   const locationName = (me?.locations ?? []).find((l) => l.id === clock.locationId)?.name ?? null;
   return (
     <Screen testID="lone-working-screen">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+      >
         <LoneWorkingPanel
           view={view}
           connected={status.connected}

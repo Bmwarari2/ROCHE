@@ -31,3 +31,20 @@ export function stripInternalParams(path: string): string {
   const rest = query.toString();
   return `${base}${rest ? `?${rest}` : ""}${hash}`;
 }
+
+/**
+ * Pages that moved under More when the tab bar was cut to five (ADR-0138). A link written before
+ * the move (`harbour:///shifts/lone-working`, a saved shortcut) still opens the page, at its new
+ * place, rather than the app's not-found screen.
+ */
+const MOVED_UNDER_MORE: readonly string[] = ["handover", "settings", "shifts", "training"];
+
+/** The path with a page that moved under More pointed at its new place; any other path as it came. */
+export function movedPath(path: string): string {
+  const match = /^((?:[a-z][a-z0-9+.-]*:\/\/)?\/?)([^/?#]+)(.*)$/i.exec(path);
+  if (!match) return path;
+  const [, start = "", first = "", rest = ""] = match;
+  if (!MOVED_UNDER_MORE.includes(first)) return path;
+  if (rest !== "" && !/^[/?#]/.test(rest)) return path;
+  return `${start}more/${first}${rest}`;
+}

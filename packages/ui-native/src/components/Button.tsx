@@ -1,4 +1,4 @@
-import { button } from "@harbour/ui/tokens";
+import { button, nativeMetrics } from "@harbour/ui/tokens";
 import Check from "lucide-react-native/icons/check";
 import type { Ref } from "react";
 import {
@@ -7,14 +7,16 @@ import {
   Pressable,
   type StyleProp,
   StyleSheet,
+  useWindowDimensions,
   View,
   type ViewStyle,
 } from "react-native";
+import { type ButtonVariant, buttonAppearance } from "../logic/theme";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH, type LucideIcon } from "./icons";
 import { Text } from "./Text";
 
-export type ButtonVariant = "primary" | "secondary" | "destructive";
+export type { ButtonVariant };
 export type ButtonHaptic = "selection" | "success" | "warning" | "none";
 
 export interface ButtonProps {
@@ -51,7 +53,14 @@ export interface ButtonProps {
   readonly selection?: { readonly kind: "radio" | "checkbox"; readonly selected: boolean };
 }
 
-/** Pill button from the tokens: 44 pt minimum target, 8 x 16 padding, 17 pt label. */
+/**
+ * A button in the platform's own style (ADR-0138), always at least the platform's touch target
+ * (44 pt on iOS, 48 dp on Android) and a full capsule:
+ * - Android, Material 3: primary is a filled button, secondary a tonal one, destructive filled in
+ *   the error colour; pressing shows the platform ripple.
+ * - iOS 26: primary is a prominent capsule in the brand tint, secondary a grey capsule with tinted
+ *   words, destructive filled in red; pressing dims it, as UIKit does.
+ */
 export function Button({
   label,
   onPress,
@@ -73,20 +82,19 @@ export function Button({
   const theme = useTheme();
   const haptics = useHaptics();
   const inactive = disabled || loading;
+  // A capsule while the label fits on one line; smaller corners at large text, so a wrapped label
+  // never runs into the rounded ends (accessibility review H3).
+  const { fontScale } = useWindowDimensions();
+  const radius =
+    fontScale > nativeMetrics.wrapFontScale ? nativeMetrics.wrapRadius : theme.radius.pill;
   if (selection) {
     variant = selection.selected ? "primary" : "secondary";
     if (selection.selected) Icon = Check;
   }
 
   const palette = theme.colors;
-  const background =
-    variant === "primary"
-      ? palette.accent
-      : variant === "destructive"
-        ? palette.danger
-        : palette.bgSecondary;
-  const foreground = variant === "secondary" ? palette.text : palette.onAccent;
-  const textTone = variant === "secondary" ? "primary" : "onAccent";
+  const android = theme.platform === "android";
+  const { background, foreground, border } = buttonAppearance(variant, theme);
   const feedback: ButtonHaptic = haptic ?? (variant === "destructive" ? "warning" : "selection");
 
   const handlePress = (event: GestureResponderEvent) => {
@@ -119,16 +127,24 @@ export function Button({
       delayLongPress={delayLongPress}
       testID={testID}
       hitSlop={4}
+      android_ripple={android ? { color: rippleColour(foreground), foreground: true } : undefined}
       style={({ pressed }) => [
         styles.base,
         {
           minHeight: Math.max(button.minHeight, theme.touchTarget),
           paddingVertical: button.paddingY,
-          paddingHorizontal: button.paddingX,
-          borderRadius: theme.radius.pill,
+          paddingHorizontal: android ? theme.space[3] : theme.space[2],
+          borderRadius: radius,
           backgroundColor: background,
-          borderColor: theme.highContrast ? palette.text : "transparent",
-          opacity: inactive ? 0.5 : pressed ? 0.75 : 1,
+          // A destructive button keeps the alarm's bright edge (clinical re-check M2); high
+          // contrast outlines every button in the text colour.
+          borderColor: theme.highContrast ? palette.text : (border ?? "transparent"),
+          borderWidth: border ? nativeMetrics.statusOutline : 1,
+          // Android clips its ripple to the shape; iOS never clips the label.
+          overflow: android ? "hidden" : "visible",
+          // Disabled is dimmed the same on both, so the label stays readable (review L6); the
+          // ripple is Android's press feedback.
+          opacity: inactive ? nativeMetrics.disabledOpacity : pressed && !android ? 0.7 : 1,
         },
         fullWidth && styles.fullWidth,
         style,
@@ -146,12 +162,22 @@ export function Button({
             importantForAccessibility="no"
           />
         ) : null}
-        <Text variant="body" tone={textTone} emphasis numberOfLines={2} style={styles.label}>
+        <Text
+          variant="body"
+          emphasis
+          numberOfLines={2}
+          style={[styles.label, { color: foreground }]}
+        >
           {label}
         </Text>
       </View>
     </Pressable>
   );
+}
+
+/** The press ripple: the button's own text colour at 12% (Material 3's pressed state layer). */
+function rippleColour(foreground: string): string {
+  return /^#[0-9a-f]{6}$/i.test(foreground) ? `${foreground}1f` : "rgba(0,0,0,0.12)";
 }
 
 const styles = StyleSheet.create({
