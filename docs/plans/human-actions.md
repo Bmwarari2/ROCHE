@@ -1474,3 +1474,9 @@ development does not wait.
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
 | H-1535 | Decide the web withdrawal of a Care mode phone (#217, HZ-006, HZ-040): (a) the API is told only that the manager confirmed a count they saw, not which count or report time, so a count that changed between two non-zero values since the page opened is not refused; binding the confirmation to the count and report time needs a contract change; (b) a phone that never reported, or reported long ago, is withdrawn after the same single tick, with wording that says it may hold unsent entries; (c) whether HZ-040 needs its own row for the web screen. Owner-accepted recommendation, pending CSO review at the testing phase | CSO | Clinical review of #217 (08/11/2026) | Nothing | provisional: owner-accepted recommendation, pending CSO review at the testing phase (ADR-0132) |
+
+## CI on Ubicloud (ADR-0137, 14/11/2026)
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1643 | Give the Ubicloud runners access to this repository, the same as Thapsus-HR: (1) on GitHub, open Settings, Applications, Installed GitHub Apps, Ubicloud Managed Runners, Configure, and under Repository access add `Bmwarari2/ROCHE`; (2) in the Ubicloud console, check the spending alert also covers this repository's runs; (3) note where Ubicloud runs its runners in the sub-processor register's supplier line; (4) after the first weekly mobile run, if it stopped with "This runner has no /dev/kvm", choose a runner with KVM for the Android emulator and set the repository variable `MOBILE_RUNNER` to its label. Until (1), every CI job waits for a runner and nothing can merge | Owner | [ADR-0137](../decisions/0137-ci-on-ubicloud.md) | Every pull request's checks, from the merge of ADR-0137 | Open |
