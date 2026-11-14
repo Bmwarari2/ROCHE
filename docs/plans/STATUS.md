@@ -7,6 +7,9 @@ gate passes on `main` (section 19, definition of complete).
 **Overall: 2% done** (4 of 234 register rows `done`; 119 `partial`, 111 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
+**Merged on 14/11/2026 (#227):** `chore/ci-ubicloud` (no register row; ADR-0137). CI runs on
+Ubicloud instead of GitHub's hosted runners, except the jobs that hold credentials; the owner gave
+the Ubicloud GitHub App access to this repository (H-1643, steps 1 to 3).
 **Pushed on 14/11/2026, PR open:** `fix/mobile-ios-demo-findings` (MOB-001 and MOB-002 stay
 `partial`). Fixes from the first iOS Simulator run: Today crashed because Hermes lacks
 `Intl.PluralRules` (polyfills now load first), the mode chooser had no demo label, and

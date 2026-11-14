@@ -9,6 +9,10 @@
 # staging and prod). A deny policy keeps every CI account away from secret values, data and logs.
 # Until Brian applies the bootstrap and sets the GCP_* repository variables, the plan, apply and
 # release jobs skip cleanly. See infra/README.md for the variables this workflow reads.
+#
+# Runners (ADR-0137): the static checks, the Trivy scan and the access check run on Ubicloud
+# (CI_RUNNER_SMALL, default ubicloud-standard-2). The plan, apply and release stay on GitHub's
+# runner: they ask for a Google Cloud identity (id-token), which never goes to a third-party runner.
 
 name: Terraform
 
@@ -37,7 +41,7 @@ env:
 jobs:
   static:
     name: Format, validate, test and lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'ubicloud-standard-2' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -95,7 +99,7 @@ jobs:
 
   security:
     name: Trivy configuration scan
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'ubicloud-standard-2' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -108,7 +112,7 @@ jobs:
 
   gcp-gate:
     name: Check for Google Cloud access
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'ubicloud-standard-2' }}
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
     steps:
