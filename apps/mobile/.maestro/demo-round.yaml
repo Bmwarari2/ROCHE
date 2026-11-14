@@ -12,8 +12,11 @@ tags:
     file: sign-in.yaml
     env:
       HARBOUR_EXPECT_DEMO: "true"
-- tapOn:
-    id: "tab-round"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "round"
+      LABEL: "Round"
 - extendedWaitUntil:
     visible:
       id: "round-screen"

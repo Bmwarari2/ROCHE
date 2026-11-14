@@ -772,5 +772,6 @@
   "mobile.mode.manageHint": "Approvals, alerts and dashboards. Not ready yet.",
   "mobile.mode.family": "Family",
   "mobile.mode.familyHint": "Updates and messages for families. Not ready yet.",
-  "mobile.resetNotice.dismiss": "Hide message"
+  "mobile.resetNotice.dismiss": "Hide message",
+  "mobile.tabs.more": "More"
 }

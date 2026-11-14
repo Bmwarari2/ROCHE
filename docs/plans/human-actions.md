@@ -1474,3 +1474,11 @@ development does not wait.
 | ID | Action | Owner | Source | Blocks | Status |
 | --- | --- | --- | --- | --- | --- |
 | H-1535 | Decide the web withdrawal of a Care mode phone (#217, HZ-006, HZ-040): (a) the API is told only that the manager confirmed a count they saw, not which count or report time, so a count that changed between two non-zero values since the page opened is not refused; binding the confirmation to the count and report time needs a contract change; (b) a phone that never reported, or reported long ago, is withdrawn after the same single tick, with wording that says it may hold unsent entries; (c) whether HZ-040 needs its own row for the web screen. Owner-accepted recommendation, pending CSO review at the testing phase | CSO | Clinical review of #217 (08/11/2026) | Nothing | provisional: owner-accepted recommendation, pending CSO review at the testing phase (ADR-0132) |
+
+## The phone app's native look (ADR-0138, 14/11/2026)
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1644 | Accept or reject that the native tab bar's labels are the platform's size (about 10 pt on iOS, 12 sp on Android), below the 15-point minimum, because iOS shows a large version on a long press (Large Content Viewer) and Android scales them with the font size. Every other text stays at 15 points or more. If rejected, the bar's label size is set in `apps/mobile/src/app/(care)/_layout.tsx` (`labelStyle`), and the labels may need shortening | Owner, accessibility lead | [ADR-0138](../decisions/0138-phone-native-look.md) | Nothing (provisional default in force) | Open (provisional) |
+| H-1645 | Check the new look on devices: run the app in demo mode on the iOS Simulator (iOS 26, so the tab bar is Liquid Glass) and an Android emulator or phone (Material 3 navigation bar). Look at Today, People, a person's record, a note form, More and Settings in light and dark mode, with large text, and send screenshots. The look was checked in a web preview of the components only | Owner | [ADR-0138](../decisions/0138-phone-native-look.md) | Release of the new look | Open |
+

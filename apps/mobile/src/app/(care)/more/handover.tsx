@@ -10,8 +10,8 @@ import {
 import { useQuery, useStatus } from "@powersync/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
-import { useSession } from "../../app-state/session";
-import { useVault } from "../../app-state/vault";
+import { useSession } from "../../../app-state/session";
+import { useVault } from "../../../app-state/vault";
 import {
   type AcknowledgementRow,
   acknowledgementState,
@@ -23,8 +23,8 @@ import {
   handoverHeader,
   handoverItems,
   shownItems,
-} from "../../care/handover-view";
-import { useAcknowledgeHandover, useTenantId } from "../../care/hooks";
+} from "../../../care/handover-view";
+import { useAcknowledgeHandover, useTenantId } from "../../../care/hooks";
 import {
   HANDOVER_ITEMS_SQL,
   HANDOVER_LOCATIONS_SQL,
@@ -33,23 +33,23 @@ import {
   HANDOVERS_SQL,
   META_VALUE_SQL,
   MY_ACKNOWLEDGEMENT_SQL,
-} from "../../care/queries";
-import { homePane } from "../../care/split-selection";
-import { Card } from "../../components/Card";
-import { HandoverLocationCard } from "../../components/HandoverLocationCard";
-import { Screen } from "../../components/Screen";
-import { UploadIssues } from "../../components/UploadIssues";
-import { appEnv } from "../../config/app-env";
-import { t } from "../../i18n/t";
-import { useRecordScreenProtection } from "../../security/use-record-protection";
+} from "../../../care/queries";
+import { homePane } from "../../../care/split-selection";
+import { Card } from "../../../components/Card";
+import { HandoverLocationCard } from "../../../components/HandoverLocationCard";
+import { Screen } from "../../../components/Screen";
+import { UploadIssues } from "../../../components/UploadIssues";
+import { appEnv } from "../../../config/app-env";
+import { t } from "../../../i18n/t";
+import { useRecordScreenProtection } from "../../../security/use-record-protection";
 import {
   HANDOVER_SHIFTS_META_ID,
   type HandoverShifts,
   parseCachedHandoverConfig,
-} from "../../sync/handover-shifts";
-import { OFFLINE_DAYS_META_ID, parseCachedOfflineDays } from "../../sync/offline-days";
-import { lastSyncedAtOf } from "../../sync/sync-state";
-import { useWriteScope } from "../../sync/write-scope-store";
+} from "../../../sync/handover-shifts";
+import { OFFLINE_DAYS_META_ID, parseCachedOfflineDays } from "../../../sync/offline-days";
+import { lastSyncedAtOf } from "../../../sync/sync-state";
+import { useWriteScope } from "../../../sync/write-scope-store";
 
 /** The time, again each minute, so the expected handover moves on when a shift changes. */
 function useMinute(): Date {

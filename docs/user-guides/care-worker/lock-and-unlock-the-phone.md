@@ -18,7 +18,7 @@ deputy managers.
 
 ## Lock it yourself
 
-1. Go to **Settings** at the bottom of the screen.
+1. Go to **More** at the bottom of the screen and choose **Settings**.
 2. Under "Security", choose "Lock now".
 
 Lock it whenever you put the phone down, even for a moment.

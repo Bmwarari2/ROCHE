@@ -1,4 +1,4 @@
-import { SplitView, Text, useSplitLayout, useTheme } from "@harbour/ui-native";
+import { ListSectionItem, SplitView, Text, useSplitLayout, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -61,15 +61,17 @@ export default function PeopleScreen() {
     wasSplit.current = split;
   }, [split, router]);
   const renderItem = useCallback(
-    ({ item }: { item: PersonView }) => (
-      <PersonListItem
-        person={item}
-        onOpen={open}
-        opensBeside={split}
-        selected={item.id === selectedId}
-      />
+    ({ item, index }: { item: PersonView; index: number }) => (
+      <ListSectionItem index={index} count={people.length}>
+        <PersonListItem
+          person={item}
+          onOpen={open}
+          opensBeside={split}
+          selected={item.id === selectedId}
+        />
+      </ListSectionItem>
     ),
-    [open, split, selectedId],
+    [open, split, selectedId, people.length],
   );
 
   const list = (
@@ -88,6 +90,10 @@ export default function PeopleScreen() {
         extraData={selectedId}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        contentContainerStyle={{
+          paddingHorizontal: theme.space[2],
+          paddingBottom: theme.space[3],
+        }}
         initialNumToRender={12}
         maxToRenderPerBatch={12}
         windowSize={7}
@@ -95,7 +101,7 @@ export default function PeopleScreen() {
         accessibilityRole="list"
         ListHeaderComponent={
           people.length > 0 ? (
-            <View style={{ paddingHorizontal: theme.space[2], paddingVertical: theme.space[1] }}>
+            <View style={{ paddingHorizontal: theme.space[2], paddingVertical: theme.space[1.5] }}>
               <Text variant="bodyDense" tone="secondary" testID="people-count">
                 {people.length === 1 ? "1 person" : `${people.length} people`}
               </Text>

@@ -9,9 +9,14 @@ interface CardProps {
   readonly testID?: string;
 }
 
-/** A bordered card on the screen background, with an optional heading. */
+/**
+ * A card on the screen background, with an optional heading (ADR-0138): a Material 3 filled card on
+ * Android, an inset grouped panel on iOS. Tone, not a border, sets it off from the page; high
+ * contrast adds the border back.
+ */
 export function Card({ title, children, testID }: CardProps) {
   const theme = useTheme();
+  const android = theme.platform === "android";
   return (
     <View
       testID={testID}
@@ -19,13 +24,13 @@ export function Card({ title, children, testID }: CardProps) {
         backgroundColor: theme.colors.card,
         borderRadius: theme.radius.card,
         borderColor: theme.colors.border,
-        borderWidth: 1,
+        borderWidth: theme.highContrast ? 1 : 0,
         padding: theme.space[2],
         gap: theme.space[1.5],
       }}
     >
       {title ? (
-        <Text variant="bodyDense" tone="secondary" emphasis accessibilityRole="header">
+        <Text variant={android ? "eyebrow" : "body"} emphasis={!android} accessibilityRole="header">
           {title}
         </Text>
       ) : null}

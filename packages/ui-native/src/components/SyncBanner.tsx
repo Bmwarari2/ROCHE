@@ -88,12 +88,15 @@ export function SyncBanner({
     if (announcement) announce(announcement);
   }, [announcement, announce]);
 
+  // Calm states sit on the page itself, quietly; warnings and failures take their tone's fill
+  // (filled red for danger, the warning container for warnings), with that fill's own text colour.
   const filled = content.tone === "warning" || content.tone === "danger";
-  const fill = toneAppearance(content.tone);
-  const background = filled ? fill.background : theme.colors.card;
-  const iconColour = filled ? fill.foreground : fill.background;
-  const textTone = filled ? "onAccent" : "primary";
-  const detailTone = filled ? "onAccent" : "secondary";
+  const fill = toneAppearance(content.tone, theme.colors);
+  const background = filled ? fill.background : theme.colors.bgSecondary;
+  const iconColour = filled ? fill.foreground : theme.colors.textSecondary;
+  const textTone = "primary";
+  const detailTone = filled ? "primary" : "secondary";
+  const onFill = filled ? { color: fill.foreground } : undefined;
   const Icon = iconByName(content.icon);
 
   return (
@@ -126,19 +129,31 @@ export function SyncBanner({
           importantForAccessibility="no"
         />
         <View style={styles.text}>
-          <Text variant="bodyDense" tone={textTone} emphasis testID={`${testID}-title`}>
+          <Text
+            variant="bodyDense"
+            tone={textTone}
+            emphasis
+            style={onFill}
+            testID={`${testID}-title`}
+          >
             {content.title}
           </Text>
           {content.reason ? (
-            <Text variant="bodyDense" tone={textTone} testID={`${testID}-reason`}>
+            <Text variant="bodyDense" tone={textTone} style={onFill} testID={`${testID}-reason`}>
               {content.reason}
             </Text>
           ) : null}
-          <Text variant="bodyDense" tone={detailTone} testID={`${testID}-detail`}>
+          <Text variant="bodyDense" tone={detailTone} style={onFill} testID={`${testID}-detail`}>
             {content.detail}
           </Text>
           {content.warning ? (
-            <Text variant="bodyDense" tone={textTone} emphasis testID={`${testID}-warning`}>
+            <Text
+              variant="bodyDense"
+              tone={textTone}
+              emphasis
+              style={onFill}
+              testID={`${testID}-warning`}
+            >
               {content.warning}
             </Text>
           ) : null}
@@ -161,13 +176,13 @@ export function SyncBanner({
               minHeight: theme.touchTarget,
               minWidth: theme.touchTarget,
               borderRadius: theme.radius.pill,
-              borderColor: fill.foreground,
+              borderColor: filled ? fill.foreground : theme.colors.outline,
               paddingHorizontal: theme.space[2],
               opacity: pressed ? 0.75 : 1,
             },
           ]}
         >
-          <Text variant="bodyDense" tone={textTone} emphasis>
+          <Text variant="bodyDense" tone={textTone} emphasis style={onFill}>
             Retry
           </Text>
         </Pressable>

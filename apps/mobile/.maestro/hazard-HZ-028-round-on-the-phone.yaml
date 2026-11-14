@@ -19,8 +19,11 @@ env:
     visible:
       text: "Up to date.*"
     timeout: 60000
-- tapOn:
-    id: "tab-round"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "round"
+      LABEL: "Round"
 - extendedWaitUntil:
     visible:
       id: "round-screen"

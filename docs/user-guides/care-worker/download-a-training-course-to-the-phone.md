@@ -4,15 +4,15 @@ Download an e-learning course while you have a connection, so you can take it la
 
 **Who can do this**: staff who take training in Thapsus Care: care and support workers, team leaders
 or senior carers, nurses and clinical leads, Registered Managers, deputy managers, owners,
-activities, catering, housekeeping and maintenance staff, and agency or bank workers. The
-**Training** tab shows only for staff who can see their own training.
+activities, catering, housekeeping and maintenance staff, and agency or bank workers.
+**Training** shows under **More** only for staff who can see their own training.
 
 **Register rows**: WORK-006, MOB-007.
 
 ## Steps
 
 1. Connect to the internet, ideally Wi-Fi.
-2. Choose **Training** at the bottom of the screen. You can also go to **Settings** and,
+2. Choose **More** at the bottom of the screen, then **Training**. You can also go to **Settings** and,
    under **Training**, choose **Open training courses**.
 3. Find the course. **Not on this phone** means it is not downloaded yet.
 4. Choose **Download**. The screen shows "Downloading: 3 of 40 files", for example.

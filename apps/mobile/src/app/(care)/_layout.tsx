@@ -1,150 +1,84 @@
 import { useTheme } from "@harbour/ui-native";
-import { Tabs } from "expo-router";
-import CalendarDays from "lucide-react-native/icons/calendar-days";
-import ClipboardList from "lucide-react-native/icons/clipboard-list";
-import Clock from "lucide-react-native/icons/clock";
-import GraduationCap from "lucide-react-native/icons/graduation-cap";
-import ListChecks from "lucide-react-native/icons/list-checks";
-import Pill from "lucide-react-native/icons/pill";
-import Settings from "lucide-react-native/icons/settings";
-import Users from "lucide-react-native/icons/users";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { careDestinations } from "../../app-state/care-destinations";
 import { useSession } from "../../app-state/session";
 import { t } from "../../i18n/t";
 import { useDmdSubsetRefresh } from "../../medicines/use-dmd-subset";
-import { TRAINING_SELF } from "../../training/hooks";
-
-/** Who takes part in the handover, as the API and the handover streams decide (care.md rule 14). */
-const HANDOVER_PERMISSION = "care.handover.manage";
-
-/** Who has a Medicines tab: those the medicines streams reach (slice 69; ADR-0130). */
-const MEDICINES_PERMISSION = "medicines.emar.administer";
-
-/** Who has a Shifts tab: those who clock their own time or work alone (scheduling.md section 18). */
-const SHIFTS_PERMISSIONS = ["scheduling.timesheet.self", "scheduling.lone_worker.check_in"];
 
 /**
- * Care mode: Today, Round, Handover (only for those who take part in the handover, whose phone
- * receives it), Shifts (only for those who clock their own time or work alone), Training beside it
- * (only for those who read their own training; H-1365), People and Settings
- * tabs. Tab icons are Lucide (never SF Symbols); see the
- * README for the planned move to expo-router native tabs once they leave "unstable".
+ * Care mode's tab bar (ADR-0138): the platform's own, so iOS 26 draws it in Liquid Glass and
+ * Android draws Material 3's navigation bar. Five tabs at most, as both platforms require: Today,
+ * Round, Medicines (only for those the medicines streams reach), People and More, which holds
+ * Handover, Shifts, Training and Settings (`app-state/care-destinations.ts`).
+ *
+ * Icons are Lucide, drawn as template images (`scripts/tab-icons.mjs`), never SF Symbols; the
+ * platform tints them. The bar's labels are the platform's own size: iOS shows a large version of
+ * an item on a long press (Large Content Viewer) and Android scales them with the font size
+ * (ADR-0138 records this exception to the 15 pt minimum).
  */
 export default function CareLayout() {
   const theme = useTheme();
   // The dm+d rows the MARs need, kept fresh while connected (slice 68).
   useDmdSubsetRefresh();
   const { me } = useSession();
-  const handover = (me?.permissions ?? []).includes(HANDOVER_PERMISSION);
-  const shifts = SHIFTS_PERMISSIONS.some((p) => (me?.permissions ?? []).includes(p));
-  const medicines = (me?.permissions ?? []).includes(MEDICINES_PERMISSION);
-  const training = (me?.permissions ?? []).includes(TRAINING_SELF);
+  const destinations = careDestinations(me?.permissions ?? []);
+  const android = theme.platform === "android";
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: theme.colors.accent,
-        tabBarInactiveTintColor: theme.colors.textSecondary,
-        tabBarStyle: { backgroundColor: theme.colors.bg, borderTopColor: theme.colors.border },
-        // Type never goes below 15 pt on mobile (section 8), tab labels included.
-        tabBarLabelStyle: { fontSize: theme.minFontSize },
-        tabBarAllowFontScaling: true,
-        headerStyle: { backgroundColor: theme.colors.bg },
-        headerTitleStyle: { color: theme.colors.text, fontSize: theme.type.body.fontSize },
-        headerShadowVisible: false,
+    <NativeTabs
+      tintColor={theme.colors.accent}
+      iconColor={{
+        default: theme.colors.textSecondary,
+        selected: android ? theme.colors.onAccentContainer : theme.colors.accent,
       }}
+      labelStyle={{
+        default: { color: theme.colors.textSecondary },
+        selected: { color: android ? theme.colors.text : theme.colors.accent },
+      }}
+      // Android only: the Material 3 bar on the container surface, with its active-indicator pill.
+      // iOS sets no background, so the system draws the Liquid Glass bar.
+      backgroundColor={android ? theme.colors.nav : undefined}
+      indicatorColor={theme.colors.accentContainer}
+      rippleColor={theme.colors.pressed}
+      labelVisibilityMode="labeled"
+      disableTransparentOnScrollEdge
     >
-      <Tabs.Screen
+      <NativeTabs.Trigger
         name="today"
-        options={{
-          title: t("mobile.today.title"),
-          tabBarButtonTestID: "tab-today",
-          tabBarAccessibilityLabel: t("mobile.today.title"),
-          tabBarIcon: ({ color, size }) => (
-            <CalendarDays color={color} size={size} strokeWidth={1.5} />
-          ),
-        }}
-      />
-      <Tabs.Screen
+        testID="tab-today"
+        accessibilityLabel={t("mobile.today.title")}
+      >
+        <NativeTabs.Trigger.Icon src={require("../../../assets/tabs/today.png")} />
+        <NativeTabs.Trigger.Label>{t("mobile.today.title")}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger
         name="round"
-        options={{
-          title: t("mobile.round.title"),
-          // The round has its own stack (round/_layout.tsx), which draws the header.
-          headerShown: false,
-          tabBarButtonTestID: "tab-round",
-          tabBarAccessibilityLabel: t("mobile.round.title"),
-          tabBarIcon: ({ color, size }) => (
-            <ListChecks color={color} size={size} strokeWidth={1.5} />
-          ),
-        }}
-      />
-      <Tabs.Screen
+        testID="tab-round"
+        accessibilityLabel={t("mobile.round.title")}
+      >
+        <NativeTabs.Trigger.Icon src={require("../../../assets/tabs/round.png")} />
+        <NativeTabs.Trigger.Label>{t("mobile.round.title")}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger
         name="medicines"
-        options={{
-          title: t("mobile.meds.title"),
-          headerShown: false,
-          tabBarButtonTestID: "tab-medicines",
-          tabBarAccessibilityLabel: t("mobile.meds.title"),
-          href: medicines ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Pill color={color} size={size} strokeWidth={1.5} />,
-        }}
-      />
-      <Tabs.Screen
-        name="handover"
-        options={{
-          title: t("mobile.handover.title"),
-          tabBarButtonTestID: "tab-handover",
-          tabBarAccessibilityLabel: t("mobile.handover.title"),
-          // Hidden for those the handover streams send nothing to, so the phone never says
-          // "not compiled yet" for a handover it could never receive.
-          href: handover ? undefined : null,
-          tabBarIcon: ({ color, size }) => (
-            <ClipboardList color={color} size={size} strokeWidth={1.5} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="shifts"
-        options={{
-          title: t("mobile.tabs.shifts"),
-          headerShown: false,
-          tabBarButtonTestID: "tab-shifts",
-          tabBarAccessibilityLabel: t("mobile.tabs.shifts"),
-          href: shifts ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Clock color={color} size={size} strokeWidth={1.5} />,
-        }}
-      />
-      <Tabs.Screen
-        name="training"
-        options={{
-          // Beside Shifts (H-1365): the member's own courses, for holders of TRAINING_SELF.
-          title: t("mobile.training.title"),
-          headerShown: false,
-          tabBarButtonTestID: "tab-training",
-          tabBarAccessibilityLabel: t("mobile.training.title"),
-          href: training ? undefined : null,
-          tabBarIcon: ({ color, size }) => (
-            <GraduationCap color={color} size={size} strokeWidth={1.5} />
-          ),
-        }}
-      />
-      <Tabs.Screen
+        testID="tab-medicines"
+        accessibilityLabel={t("mobile.meds.title")}
+        hidden={!destinations.medicines}
+      >
+        <NativeTabs.Trigger.Icon src={require("../../../assets/tabs/medicines.png")} />
+        <NativeTabs.Trigger.Label>{t("mobile.meds.title")}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger
         name="people"
-        options={{
-          title: t("mobile.tabs.people"),
-          headerShown: false,
-          tabBarButtonTestID: "tab-people",
-          tabBarAccessibilityLabel: t("mobile.tabs.people"),
-          tabBarIcon: ({ color, size }) => <Users color={color} size={size} strokeWidth={1.5} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: t("mobile.tabs.settings"),
-          tabBarButtonTestID: "tab-settings",
-          tabBarAccessibilityLabel: t("mobile.tabs.settings"),
-          tabBarIcon: ({ color, size }) => <Settings color={color} size={size} strokeWidth={1.5} />,
-        }}
-      />
-    </Tabs>
+        testID="tab-people"
+        accessibilityLabel={t("mobile.tabs.people")}
+      >
+        <NativeTabs.Trigger.Icon src={require("../../../assets/tabs/people.png")} />
+        <NativeTabs.Trigger.Label>{t("mobile.tabs.people")}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="more" testID="tab-more" accessibilityLabel={t("mobile.tabs.more")}>
+        <NativeTabs.Trigger.Icon src={require("../../../assets/tabs/more.png")} />
+        <NativeTabs.Trigger.Label>{t("mobile.tabs.more")}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

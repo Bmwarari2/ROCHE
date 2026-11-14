@@ -8,7 +8,7 @@ export interface TextProps extends RNTextProps {
   /** A type-scale token. Native sizes never go below 15. Defaults to body. */
   readonly variant?: TypeVariant;
   readonly tone?: TextTone;
-  /** Semibold emphasis without changing size. */
+  /** Emphasis without changing size: semibold on iOS, medium on Android. */
   readonly emphasis?: boolean;
 }
 
@@ -34,7 +34,7 @@ export function Text({
           color: theme.textColors[tone],
           fontSize: type.fontSize,
           lineHeight: type.lineHeight,
-          fontWeight: emphasis ? "600" : type.fontWeight,
+          fontWeight: emphasis ? theme.emphasisWeight : type.fontWeight,
           letterSpacing: type.letterSpacing,
         },
         style,

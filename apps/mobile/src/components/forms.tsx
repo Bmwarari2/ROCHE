@@ -87,19 +87,31 @@ export function ChoiceGroup<T extends string>({
             accessibilityState={{ selected, checked: selected }}
             accessibilityLabel={option.detail ? `${option.label}. ${option.detail}` : option.label}
             onPress={() => onChange(option.value)}
-            style={{
+            android_ripple={{ color: theme.colors.pressed }}
+            style={({ pressed }) => ({
               minHeight: theme.touchTarget,
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
               gap: theme.space[1],
-              borderRadius: theme.radius.input,
-              borderWidth: selected ? 2 : 1,
-              borderColor: selected ? theme.colors.accent : theme.colors.border,
-              backgroundColor: theme.colors.card,
-              paddingHorizontal: theme.space[1.5],
-              paddingVertical: theme.space[1],
-            }}
+              overflow: "hidden",
+              // A choice is a row in the platform's shape: the selected one takes the selection
+              // container and a 2-point brand outline, and says "Selected", never colour alone.
+              borderRadius: theme.platform === "android" ? theme.radius.chip : theme.radius.input,
+              borderWidth: selected
+                ? 2
+                : theme.platform === "android" || theme.highContrast
+                  ? 1
+                  : 0,
+              borderColor: selected ? theme.colors.accent : theme.colors.outline,
+              backgroundColor: selected
+                ? theme.colors.accentContainer
+                : pressed && theme.platform === "ios"
+                  ? theme.colors.pressed
+                  : theme.colors.card,
+              paddingHorizontal: theme.space[2],
+              paddingVertical: theme.space[1.5],
+            })}
           >
             <View style={{ flex: 1 }}>
               <Text emphasis={selected}>{option.label}</Text>

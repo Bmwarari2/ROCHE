@@ -201,7 +201,7 @@ reads op-sqlite's SQLCipher switch from the repository root `package.json` (abov
   blocked on Android until the modules that need them ship; their iOS usage strings are ready.
 - EAS Update only for JavaScript and asset fixes within the published native capabilities.
 - App icon, splash screen and store artwork are still to come.
-- Native tabs: Care mode uses expo-router's JavaScript tabs with Lucide icons. Move to
-  `NativeTabs` (Liquid Glass on iOS 26, Material 3 on Android) when it leaves
-  `expo-router/unstable-native-tabs`, rendering Lucide glyphs from the `lucide-static` font through
-  `expo-font`'s `renderToImageAsync`, never SF Symbols.
+- Native tabs (ADR-0138): Care mode uses `expo-router/unstable-native-tabs`, so iOS 26 draws the Liquid
+  Glass tab bar and Android the Material 3 navigation bar. Five tabs at most (Today, Round,
+  Medicines, People, More); More holds Handover, Shifts, Training and Settings. The icons are Lucide,
+  drawn as template PNGs by `scripts/tab-icons.mjs` (`assets/tabs/`), never SF Symbols.

@@ -1,8 +1,10 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
-import { AccessibilityInfo, useColorScheme } from "react-native";
+import { AccessibilityInfo, Platform, useColorScheme } from "react-native";
 import {
   buildTheme,
   defaultThemePreference,
+  type NativePlatform,
+  resolvePlatform,
   resolveScheme,
   type Theme,
   type ThemePreference,
@@ -63,12 +65,18 @@ export interface ThemeProviderProps {
   /** The user's choice; "system" follows the device light or dark setting. */
   readonly preference?: ThemePreference;
   readonly haptics?: HapticsAdapter | null;
+  /**
+   * The look (ADR-0138): Material 3 on Android, iOS 26 on iOS. Defaults to the running platform;
+   * set only by previews and tests.
+   */
+  readonly platform?: NativePlatform;
   readonly children: ReactNode;
 }
 
 export function ThemeProvider({
   preference = defaultThemePreference,
   haptics = null,
+  platform = resolvePlatform(Platform.OS),
   children,
 }: ThemeProviderProps) {
   const systemScheme = useColorScheme();
@@ -77,15 +85,15 @@ export function ThemeProvider({
   const highContrast = preference.highContrast || systemHighContrast;
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ theme: buildTheme(scheme, highContrast), preference, haptics }),
-    [scheme, highContrast, preference, haptics],
+    () => ({ theme: buildTheme(scheme, highContrast, platform), preference, haptics }),
+    [scheme, highContrast, platform, preference, haptics],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 const fallback: ThemeContextValue = {
-  theme: buildTheme("light", false),
+  theme: buildTheme("light", false, resolvePlatform(Platform.OS)),
   preference: defaultThemePreference,
   haptics: null,
 };

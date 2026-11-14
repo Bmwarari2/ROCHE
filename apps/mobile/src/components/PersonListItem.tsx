@@ -37,7 +37,7 @@ export const PersonListItem = memo(function PersonListItem({
             givenName: person.givenName,
             familyName: person.familyName,
           }}
-          size={48}
+          size={40}
         />
       }
       accessories={

@@ -26,8 +26,11 @@ env:
     visible:
       text: "Up to date.*"
     timeout: 60000
-- tapOn:
-    id: "tab-medicines"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "medicines"
+      LABEL: "Medicines"
 - assertNotVisible:
     id: "medicines-blocked"
 - tapOn: "Medicines PINs on this phone"

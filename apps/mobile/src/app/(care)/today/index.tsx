@@ -1,31 +1,31 @@
 import { ukIsoDate } from "@harbour/domain";
-import { FlagChip, iconByName, Text, useTheme } from "@harbour/ui-native";
+import { FlagChip, iconByName, ListSectionItem, Text, useTheme } from "@harbour/ui-native";
 import { useQuery, useStatus } from "@powersync/react";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { FlatList, View } from "react-native";
-import { useSession } from "../../app-state/session";
-import { useVault } from "../../app-state/vault";
+import { useSession } from "../../../app-state/session";
+import { useVault } from "../../../app-state/vault";
 import {
   useHeldEntryCount,
   useQueuedChanges,
   useTenantId,
   useUploadIssueState,
-} from "../../care/hooks";
-import { resuscitationFlag } from "../../care/person-summary";
-import { type AdvanceCareRow, ALL_ADVANCE_CARE_SQL, byPerson } from "../../care/queries";
-import { syncSummary } from "../../care/sync-summary";
-import { Card } from "../../components/Card";
-import { PersonListItem } from "../../components/PersonListItem";
-import { Screen } from "../../components/Screen";
-import { UploadIssues } from "../../components/UploadIssues";
-import { appEnv } from "../../config/app-env";
-import { STALE_AFTER_MS } from "../../config/constants";
-import { t } from "../../i18n/t";
-import { type PersonView, toPersonView } from "../../people/person-view";
-import { PEOPLE_LIST_SQL, type PersonRow, peopleListParams } from "../../people/queries";
-import { useRecordScreenProtection } from "../../security/use-record-protection";
-import { lastSyncedAtOf } from "../../sync/sync-state";
+} from "../../../care/hooks";
+import { resuscitationFlag } from "../../../care/person-summary";
+import { type AdvanceCareRow, ALL_ADVANCE_CARE_SQL, byPerson } from "../../../care/queries";
+import { syncSummary } from "../../../care/sync-summary";
+import { Card } from "../../../components/Card";
+import { PersonListItem } from "../../../components/PersonListItem";
+import { Screen } from "../../../components/Screen";
+import { UploadIssues } from "../../../components/UploadIssues";
+import { appEnv } from "../../../config/app-env";
+import { STALE_AFTER_MS } from "../../../config/constants";
+import { t } from "../../../i18n/t";
+import { type PersonView, toPersonView } from "../../../people/person-view";
+import { PEOPLE_LIST_SQL, type PersonRow, peopleListParams } from "../../../people/queries";
+import { useRecordScreenProtection } from "../../../security/use-record-protection";
+import { lastSyncedAtOf } from "../../../sync/sync-state";
 
 /**
  * Today (section 17.1): the people assigned to this user, from the encrypted database, and the
@@ -74,16 +74,18 @@ export default function TodayScreen() {
     [router],
   );
   const renderItem = useCallback(
-    ({ item }: { item: PersonView }) => (
-      <PersonListItem person={item} onOpen={open} additionalFlags={flags.get(item.id) ?? []} />
+    ({ item, index }: { item: PersonView; index: number }) => (
+      <ListSectionItem index={index} count={people.length}>
+        <PersonListItem person={item} onOpen={open} additionalFlags={flags.get(item.id) ?? []} />
+      </ListSectionItem>
     ),
-    [open, flags],
+    [open, flags, people.length],
   );
 
   const header = (
-    <View style={{ padding: theme.space[2], gap: theme.space[2] }}>
+    <View style={{ paddingVertical: theme.space[2], gap: theme.space[2] }}>
       <View style={{ gap: theme.space[0.5] }}>
-        <Text variant="title" accessibilityRole="header">
+        <Text variant="intro" emphasis accessibilityRole="header">
           {me
             ? t("mobile.today.greeting", { name: me.user.name.split(" ")[0] ?? "" })
             : t("mobile.today.title")}
@@ -117,7 +119,12 @@ export default function TodayScreen() {
         </View>
       </Card>
       <UploadIssues />
-      <Text variant="eyebrow" accessibilityRole="header" testID="today-people-count">
+      <Text
+        variant="eyebrow"
+        accessibilityRole="header"
+        testID="today-people-count"
+        style={{ paddingHorizontal: theme.space[0.5] }}
+      >
         {t("mobile.today.peopleCount", { count: people.length })}
       </Text>
     </View>
@@ -130,6 +137,10 @@ export default function TodayScreen() {
         data={people}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        contentContainerStyle={{
+          paddingHorizontal: theme.space[2],
+          paddingBottom: theme.space[3],
+        }}
         ListHeaderComponent={header}
         ListEmptyComponent={
           <View style={{ paddingHorizontal: theme.space[3] }} testID="today-empty">

@@ -8,8 +8,11 @@ env:
   HARBOUR_EXPECTED_PERSON: ${HARBOUR_EXPECTED_PERSON || "Ada Example"}
 ---
 - runFlow: sign-in.yaml
-- tapOn:
-    id: "tab-people"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "people"
+      LABEL: "People"
 - extendedWaitUntil:
     visible:
       text: "Up to date.*"

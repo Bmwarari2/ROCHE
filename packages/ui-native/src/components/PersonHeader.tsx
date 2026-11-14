@@ -72,7 +72,9 @@ export function PersonHeader({
         styles.container,
         {
           backgroundColor: theme.colors.card,
+          // Tone sets the header off from the page; high contrast adds the outline back.
           borderColor: theme.colors.border,
+          borderWidth: theme.highContrast ? 1 : 0,
           borderRadius: theme.radius.card,
           padding: theme.space[2],
           gap: theme.space[1.5],
@@ -132,7 +134,7 @@ export function PersonHeader({
 }
 
 const styles = StyleSheet.create({
-  container: { borderWidth: StyleSheet.hairlineWidth },
+  container: {},
   identity: { flexDirection: "row", alignItems: "center" },
   names: { flex: 1 },
 });

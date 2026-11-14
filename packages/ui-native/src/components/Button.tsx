@@ -51,7 +51,14 @@ export interface ButtonProps {
   readonly selection?: { readonly kind: "radio" | "checkbox"; readonly selected: boolean };
 }
 
-/** Pill button from the tokens: 44 pt minimum target, 8 x 16 padding, 17 pt label. */
+/**
+ * A button in the platform's own style (ADR-0138), always at least the platform's touch target
+ * (44 pt on iOS, 48 dp on Android) and a full capsule:
+ * - Android, Material 3: primary is a filled button, secondary a tonal one, destructive filled in
+ *   the error colour; pressing shows the platform ripple.
+ * - iOS 26: primary is a prominent capsule in the brand tint, secondary a grey capsule with tinted
+ *   words, destructive filled in red; pressing dims it, as UIKit does.
+ */
 export function Button({
   label,
   onPress,
@@ -79,14 +86,23 @@ export function Button({
   }
 
   const palette = theme.colors;
+  const android = theme.platform === "android";
   const background =
     variant === "primary"
       ? palette.accent
       : variant === "destructive"
         ? palette.danger
-        : palette.bgSecondary;
-  const foreground = variant === "secondary" ? palette.text : palette.onAccent;
-  const textTone = variant === "secondary" ? "primary" : "onAccent";
+        : android
+          ? palette.accentContainer
+          : palette.surfaceHigh;
+  const foreground =
+    variant === "primary"
+      ? palette.onAccent
+      : variant === "destructive"
+        ? palette.onDanger
+        : android
+          ? palette.onAccentContainer
+          : theme.textColors.accent;
   const feedback: ButtonHaptic = haptic ?? (variant === "destructive" ? "warning" : "selection");
 
   const handlePress = (event: GestureResponderEvent) => {
@@ -119,16 +135,18 @@ export function Button({
       delayLongPress={delayLongPress}
       testID={testID}
       hitSlop={4}
+      android_ripple={android ? { color: rippleColour(foreground), foreground: true } : undefined}
       style={({ pressed }) => [
         styles.base,
         {
           minHeight: Math.max(button.minHeight, theme.touchTarget),
           paddingVertical: button.paddingY,
-          paddingHorizontal: button.paddingX,
+          paddingHorizontal: android ? theme.space[3] : theme.space[2],
           borderRadius: theme.radius.pill,
           backgroundColor: background,
           borderColor: theme.highContrast ? palette.text : "transparent",
-          opacity: inactive ? 0.5 : pressed ? 0.75 : 1,
+          // Material 3 dims a disabled button to 38%; the ripple is the press feedback there.
+          opacity: inactive ? (android ? 0.38 : 0.5) : pressed && !android ? 0.7 : 1,
         },
         fullWidth && styles.fullWidth,
         style,
@@ -146,7 +164,12 @@ export function Button({
             importantForAccessibility="no"
           />
         ) : null}
-        <Text variant="body" tone={textTone} emphasis numberOfLines={2} style={styles.label}>
+        <Text
+          variant="body"
+          emphasis
+          numberOfLines={2}
+          style={[styles.label, { color: foreground }]}
+        >
           {label}
         </Text>
       </View>
@@ -154,11 +177,17 @@ export function Button({
   );
 }
 
+/** The press ripple: the button's own text colour at 12% (Material 3's pressed state layer). */
+function rippleColour(foreground: string): string {
+  return /^#[0-9a-f]{6}$/i.test(foreground) ? `${foreground}1f` : "rgba(0,0,0,0.12)";
+}
+
 const styles = StyleSheet.create({
   base: {
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
+    overflow: "hidden",
   },
   fullWidth: { alignSelf: "stretch" },
   content: { flexDirection: "row", alignItems: "center", gap: 8 },

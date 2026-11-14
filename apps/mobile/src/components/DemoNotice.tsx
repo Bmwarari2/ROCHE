@@ -14,14 +14,14 @@ export function DemoNotice() {
       style={[
         styles.notice,
         {
-          backgroundColor: theme.colors.card,
+          backgroundColor: theme.colors.accentContainer,
           borderBottomColor: theme.colors.border,
           paddingHorizontal: theme.space[2],
-          paddingVertical: theme.space[0.5],
+          paddingVertical: theme.space[1],
         },
       ]}
     >
-      <Text variant="bodyDense" tone="secondary">
+      <Text variant="bodyDense" style={{ color: theme.colors.onAccentContainer }}>
         {t("mobile.demo.notice")}
       </Text>
     </View>

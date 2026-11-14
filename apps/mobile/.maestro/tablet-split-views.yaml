@@ -11,8 +11,11 @@ env:
   HARBOUR_EXPECTED_PERSON: ${HARBOUR_EXPECTED_PERSON || "Ada Example"}
 ---
 - runFlow: sign-in.yaml
-- tapOn:
-    id: "tab-people"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "people"
+      LABEL: "People"
 - extendedWaitUntil:
     visible:
       text: "${HARBOUR_EXPECTED_PERSON}.*"
@@ -50,8 +53,11 @@ env:
           id: "people-list"
 # The round: on a tablet, "Show record" opens the person beside the round; on a phone the button
 # is not there.
-- tapOn:
-    id: "tab-round"
+- runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "round"
+      LABEL: "Round"
 - extendedWaitUntil:
     visible:
       id: "round-screen"
@@ -84,12 +90,17 @@ env:
 # The handover, for those who take part in it: on a tablet the locations are listed beside the
 # handover; on a phone every location's handover is one list.
 - runFlow:
+    file: open-tab.yaml
+    env:
+      TAB: "more"
+      LABEL: "More"
+- runFlow:
     when:
       visible:
-        id: "tab-handover"
+        id: "more-handover"
     commands:
       - tapOn:
-          id: "tab-handover"
+          id: "more-handover"
       - extendedWaitUntil:
           visible:
             id: "handover-screen"

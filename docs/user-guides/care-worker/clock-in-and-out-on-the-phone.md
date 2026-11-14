@@ -11,7 +11,7 @@ catering, housekeeping and maintenance staff, and agency or bank workers.
 
 ## Steps
 
-1. Go to **Shifts** at the bottom of the screen.
+1. Go to **More** at the bottom of the screen and choose **Shifts**.
 2. Check **Not saved: needs attention** first, if it shows (see "If it was not accepted" below).
 3. Under **Clock in and out**, check the line under your state:
    - **For:** and the shift name: the shift under way, or the next one starting within an hour.

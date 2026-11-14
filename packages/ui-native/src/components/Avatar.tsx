@@ -31,8 +31,8 @@ export function Avatar({ photo, name, size = 48, testID }: AvatarProps) {
     width: size,
     height: size,
     borderRadius: size / 2,
-    backgroundColor: theme.colors.bgSecondary,
-    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.primaryContainer,
+    borderColor: theme.highContrast ? theme.colors.text : "transparent",
   };
 
   if (photo?.uri && !failed) {
@@ -61,13 +61,17 @@ export function Avatar({ photo, name, size = 48, testID }: AvatarProps) {
         <Text
           variant={size >= 64 ? "eyebrow" : "body"}
           emphasis
-          tone="secondary"
           maxFontSizeMultiplier={1}
+          style={{ color: theme.colors.onPrimaryContainer }}
         >
           {initials}
         </Text>
       ) : (
-        <User color={theme.colors.textSecondary} size={size / 2} strokeWidth={ICON_STROKE_WIDTH} />
+        <User
+          color={theme.colors.onPrimaryContainer}
+          size={size / 2}
+          strokeWidth={ICON_STROKE_WIDTH}
+        />
       )}
     </View>
   );

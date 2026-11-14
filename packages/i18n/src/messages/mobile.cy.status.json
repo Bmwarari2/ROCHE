@@ -773,6 +773,7 @@
     "mobile.mode.manageHint",
     "mobile.mode.family",
     "mobile.mode.familyHint",
-    "mobile.resetNotice.dismiss"
+    "mobile.resetNotice.dismiss",
+    "mobile.tabs.more"
   ]
 }

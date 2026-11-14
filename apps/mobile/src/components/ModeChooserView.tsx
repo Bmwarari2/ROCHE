@@ -1,4 +1,4 @@
-import { ListItem, Text, useTheme } from "@harbour/ui-native";
+import { ListItem, ListSection, Text, useTheme } from "@harbour/ui-native";
 import { ScrollView, View } from "react-native";
 import type { AppMode } from "../app-state/preferences-model";
 import { type MessageKey, t } from "../i18n/t";
@@ -32,14 +32,7 @@ export function ModeChooserView({ demo, onChoose }: ModeChooserViewProps) {
           </Text>
           <Text tone="secondary">{t("mobile.mode.hint")}</Text>
         </View>
-        <View
-          style={{
-            borderRadius: theme.radius.card,
-            overflow: "hidden",
-            borderColor: theme.colors.border,
-            borderWidth: 1,
-          }}
-        >
+        <ListSection>
           {modes.map((item) => (
             <ListItem
               key={item.mode}
@@ -49,7 +42,7 @@ export function ModeChooserView({ demo, onChoose }: ModeChooserViewProps) {
               onPress={() => onChoose(item.mode)}
             />
           ))}
-        </View>
+        </ListSection>
       </ScrollView>
     </View>
   );

@@ -12,7 +12,7 @@ see **Shifts**, your role does not include it: ask your manager.
 
 ## Steps
 
-1. Open the Thapsus Care app and go to **Shifts** at the bottom of the screen.
+1. Open the Thapsus Care app and go to **More** at the bottom of the screen and choose **Shifts**.
 2. Check **Not saved: needs attention** first, if it shows. It lists anything Thapsus Care did not
    accept, such as a refused clock-in, with the reason.
 3. Scroll to **My shifts**. Each shift shows:

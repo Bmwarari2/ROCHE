@@ -90,7 +90,7 @@ describe("Care mode screens", () => {
     const fsName = "node:fs";
     const fs = (await import(/* @vite-ignore */ fsName)) as Fs;
     const today = fs.readFileSync(
-      decodeURIComponent(new URL("../app/(care)/today.tsx", import.meta.url).pathname),
+      decodeURIComponent(new URL("../app/(care)/today/index.tsx", import.meta.url).pathname),
       "utf8",
     );
     expect(today).toContain("syncSummary(");

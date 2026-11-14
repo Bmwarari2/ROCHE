@@ -1,18 +1,18 @@
 import { Button, useTheme } from "@harbour/ui-native";
 import { useRouter } from "expo-router";
 import { ScrollView } from "react-native";
-import { useSession } from "../../../app-state/session";
-import { ClockCard } from "../../../components/ClockCard";
-import { Screen } from "../../../components/Screen";
-import { ShiftList } from "../../../components/ShiftList";
-import { UploadIssues } from "../../../components/UploadIssues";
-import { t } from "../../../i18n/t";
+import { useSession } from "../../../../app-state/session";
+import { ClockCard } from "../../../../components/ClockCard";
+import { Screen } from "../../../../components/Screen";
+import { ShiftList } from "../../../../components/ShiftList";
+import { UploadIssues } from "../../../../components/UploadIssues";
+import { t } from "../../../../i18n/t";
 import {
   LONE_WORKER_CHECK_IN,
   TIMESHEET_SELF,
   useClock,
   useMinute,
-} from "../../../scheduling/hooks";
+} from "../../../../scheduling/hooks";
 
 /**
  * The member's own shifts and clock on the phone (scheduling.md section 18; SCHED-002, SCHED-004):
@@ -38,7 +38,7 @@ export default function ShiftsScreen() {
           <Button
             label={t("mobile.lone.open")}
             variant="secondary"
-            onPress={() => router.push("/shifts/lone-working")}
+            onPress={() => router.push("/more/shifts/lone-working")}
             testID="shifts-lone-working"
           />
         ) : null}

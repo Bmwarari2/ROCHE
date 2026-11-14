@@ -38,8 +38,9 @@ function ChipBody({
         {
           backgroundColor: background,
           borderRadius: theme.radius.chip,
-          paddingHorizontal: theme.space[1],
-          minHeight: 28,
+          // A capsule badge on iOS; a Material 3 chip, 32 dp tall, on Android.
+          paddingHorizontal: theme.platform === "android" ? theme.space[1] : 10,
+          minHeight: theme.platform === "android" ? 32 : 28,
         },
       ]}
     >
@@ -66,7 +67,8 @@ export interface StatusChipProps {
 
 /** Clinical status chip: overdue, due, done or not applicable, from the shared tokens. */
 export function StatusChip({ status, label, testID }: StatusChipProps) {
-  const appearance = statusAppearance(status);
+  const theme = useTheme();
+  const appearance = statusAppearance(status, theme.colors);
   const text = label ?? appearance.label;
   return (
     <ChipBody
@@ -90,7 +92,8 @@ export interface FlagChipProps {
 
 /** A safety flag (allergies, communication needs) in the same icon-plus-word chip shape. */
 export function FlagChip({ tone, icon, label, accessibilityLabel, testID }: FlagChipProps) {
-  const { background, foreground } = toneAppearance(tone);
+  const theme = useTheme();
+  const { background, foreground } = toneAppearance(tone, theme.colors);
   return (
     <ChipBody
       icon={icon}

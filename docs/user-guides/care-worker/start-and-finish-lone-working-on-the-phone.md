@@ -12,7 +12,7 @@ have switched lone working on.
 
 ## Steps
 
-1. Go to **Shifts** at the bottom of the screen and choose **Open lone working**.
+1. Go to **More** at the bottom of the screen and choose **Shifts** and choose **Open lone working**.
 2. Check **Where:** shows the right location: the location of your shift, or your only work
    location.
 3. Under **Kind of work**, choose **Home visit**, **Night shift** or **Other work**.

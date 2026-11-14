@@ -4,22 +4,22 @@ import * as Application from "expo-application";
 import { useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { Alert, Pressable, ScrollView, Switch, View } from "react-native";
-import { usePreferences } from "../../app-state/preferences";
-import { mayChangeDeviceMode, mayChangeLockTime } from "../../app-state/preferences-model";
-import { useSession } from "../../app-state/session";
-import { useVault } from "../../app-state/vault";
-import { platformFetch } from "../../auth/clients";
-import { Screen } from "../../components/Screen";
-import { SignOutControl } from "../../components/SignOutControl";
-import { appEnv } from "../../config/app-env";
-import { t } from "../../i18n/t";
+import { usePreferences } from "../../../app-state/preferences";
+import { mayChangeDeviceMode, mayChangeLockTime } from "../../../app-state/preferences-model";
+import { useSession } from "../../../app-state/session";
+import { useVault } from "../../../app-state/vault";
+import { platformFetch } from "../../../auth/clients";
+import { Screen } from "../../../components/Screen";
+import { SignOutControl } from "../../../components/SignOutControl";
+import { appEnv } from "../../../config/app-env";
+import { t } from "../../../i18n/t";
 import {
   deletionMessage,
   organisationWords,
   requestAccountDeletion,
-} from "../../platform/account-deletion";
-import { describeTimeout, SHARED_AUTO_LOCK_CHOICES_MS } from "../../security/auto-lock";
-import { TRAINING_SELF } from "../../training/hooks";
+} from "../../../platform/account-deletion";
+import { describeTimeout, SHARED_AUTO_LOCK_CHOICES_MS } from "../../../security/auto-lock";
+import { TRAINING_SELF } from "../../../training/hooks";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const theme = useTheme();
@@ -184,7 +184,7 @@ export default function SettingsScreen() {
             <Button
               label={t("mobile.training.open")}
               variant="secondary"
-              onPress={() => router.push("/training")}
+              onPress={() => router.push("/more/training")}
               testID="settings-training"
             />
           </Section>

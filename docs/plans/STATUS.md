@@ -7,6 +7,10 @@ gate passes on `main` (section 19, definition of complete).
 **Overall: 2% done** (4 of 234 register rows `done`; 119 `partial`, 111 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
+**Pushed on 14/11/2026:** `feat/mobile-native-look` (MOB-001 and MOB-002 stay `partial`;
+ADR-0138). The phone app's native look: Material 3 on Android, Liquid Glass on iOS, from the
+Thapsus teal scheme; native tabs (five at most, the rest under More) and headers. Device check
+H-1645, tab label size H-1644.
 **Pushed on 14/11/2026, PR open:** `fix/mobile-ios-demo-findings` (MOB-001 and MOB-002 stay
 `partial`). Fixes from the first iOS Simulator run: Today crashed because Hermes lacks
 `Intl.PluralRules` (polyfills now load first), the mode chooser had no demo label, and

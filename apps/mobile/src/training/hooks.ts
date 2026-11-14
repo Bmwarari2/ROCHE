@@ -33,7 +33,8 @@ import type { RuntimeMessage } from "./offline-runtime";
 import { downloadCourse, freeBytes, removeCourseFiles } from "./store";
 import { courseItems, type OnlineCourse } from "./view";
 
-export const TRAINING_SELF = "workforce.self.read";
+/** Reading one's own training (H-1365); defined with the other Care mode destinations. */
+export { TRAINING_SELF } from "../app-state/care-destinations";
 
 const WRITE_META_SQL = "INSERT OR REPLACE INTO sync_meta (id, key, value) VALUES (?, ?, ?)";
 const KEPT_SQL = "SELECT id, value FROM sync_meta WHERE id LIKE ? ORDER BY id";

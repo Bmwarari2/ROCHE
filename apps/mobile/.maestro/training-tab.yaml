@@ -1,13 +1,15 @@
-# The Training tab beside Shifts (slice 72 leftover, H-1365): a member with their own training
-# reaches it from the tab bar; the Settings link stays as a second way in (training-offline.yaml).
-# Needs the live API stack and a test member holding the training self permission. Written with the
-# tab and not yet run on a device or emulator.
+# Training under More (slice 72 leftover, H-1365; ADR-0138 moved it from its own tab): a member with
+# their own training reaches it from More; the Settings link stays as a second way in
+# (training-offline.yaml). Needs the live API stack and a test member holding the training self
+# permission. Not yet run on a device or emulator.
 appId: uk.co.thapsus.harbour
-name: Training reached from its tab
+name: Training reached from More
 ---
 - runFlow: sign-in.yaml
-- tapOn:
-    id: "tab-training"
+- runFlow:
+    file: open-more.yaml
+    env:
+      DESTINATION: "training"
 - extendedWaitUntil:
     visible:
       id: "training-screen"

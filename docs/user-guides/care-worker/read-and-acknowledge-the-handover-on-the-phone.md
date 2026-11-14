@@ -1,6 +1,6 @@
 # How to read and acknowledge the shift handover on the phone
 
-The **Handover** tab shows the handover from the shift that has just ended, for each home whose
+**Handover**, under **More**, shows the handover from the shift that has just ended, for each home whose
 handover your phone receives. Read it before you start, then record that you have read it. The
 phone sends your acknowledgement when it connects.
 
@@ -12,7 +12,7 @@ the people you may see. If you do not see **Handover**, your role does not take 
 
 ## Steps
 
-1. Go to **Handover** at the bottom of the screen.
+1. Go to **More** at the bottom of the screen and choose **Handover**.
 2. Read **The handover on this phone** first. It says which handovers the phone holds and when it
    last synced.
 3. Under your home's name, check the state of the handover:

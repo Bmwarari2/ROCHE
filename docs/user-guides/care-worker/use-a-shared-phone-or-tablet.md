@@ -12,7 +12,7 @@ Managers and deputy managers.
 ## Set the device as shared
 
 1. Sign in as yourself. See [How to sign in on the phone](sign-in-on-the-phone.md).
-2. Go to **Settings** at the bottom of the screen.
+2. Go to **More** at the bottom of the screen and choose **Settings**.
 3. Under "Security", under "This device is", choose "Shared with colleagues".
 4. Under "Lock a shared device after", choose "30 seconds", "1 minute", "1 minute 30 seconds" or
    "2 minutes", as your home has agreed. The line above then says, for example, "Thapsus Care locks
