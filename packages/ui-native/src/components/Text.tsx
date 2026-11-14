@@ -1,4 +1,9 @@
-import { Text as RNText, type TextProps as RNTextProps, StyleSheet } from "react-native";
+import {
+  Text as RNText,
+  type TextProps as RNTextProps,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
 import type { TextTone, TypeVariant } from "../logic/theme";
 import { useTheme } from "../theme/ThemeProvider";
 
@@ -25,8 +30,13 @@ export function Text({
 }: TextProps) {
   const theme = useTheme();
   const type = theme.type[variant];
+  // When the system text size changes while the app is open, iOS kept some text at its old size
+  // and some blank until a relaunch (iOS device check, 14/11/2026). Drawing the text afresh at
+  // each text size makes it measure again; a text holds no state, so nothing is lost.
+  const { fontScale } = useWindowDimensions();
   return (
     <RNText
+      key={fontScale}
       maxFontSizeMultiplier={maxFontSizeMultiplier}
       style={[
         styles.base,

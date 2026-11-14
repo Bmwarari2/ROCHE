@@ -779,5 +779,6 @@
   "mobile.more.handoverHint": "Read and acknowledge the handover",
   "mobile.more.shiftsHint": "{kind, select, both {Clock in and out, and lone working} clock {Clock in and out} other {Lone working}}",
   "mobile.more.trainingHint": "Your courses, also without a signal",
-  "mobile.more.settingsHint": "Account, sync, security and display"
+  "mobile.more.settingsHint": "Account, sync, security and display",
+  "mobile.demo.noticeShort": "Demo: invented people"
 }

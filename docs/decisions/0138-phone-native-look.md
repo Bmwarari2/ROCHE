@@ -95,7 +95,9 @@ applies Liquid Glass and Android applies Material 3 automatically".
   draws the five tab icons as template PNGs at 1x, 2x and 3x, which each platform tints. Never SF
   Symbols or Material Symbols.
 - **Lists.** Grouped lists in each platform's style (`ListSection`): an inset grouped list with
-  inset dividers on iOS; Material 3 Expressive segmented rows on Android. On Android a row outside
+  inset dividers on iOS; Material 3 Expressive segmented rows on Android. A form's choices are a
+  grouped list too: a checkmark and the word "Selected" on iOS, a radio button and the word on
+  Android (iOS device check, 14/11/2026). On Android a row outside
   a group keeps a line under it, so the medicines round's and the handover's rows never merge
   (accessibility review H2). A row's `leadingSize` sets where the iOS divider starts (L2). People's
   rows keep a 48 pt photo or initials, large enough to tell people apart (clinical review L3,

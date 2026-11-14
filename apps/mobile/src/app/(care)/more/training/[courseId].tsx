@@ -103,6 +103,9 @@ export default function OfflineCourseScreen() {
         ) : null}
       </View>
       <WebView
+        // The course's own Next and Submit at the foot of the page clear the floating tab bar
+        // (accessibility re-check M1).
+        contentInsetAdjustmentBehavior="automatic"
         source={{ uri: source.uri }}
         injectedJavaScriptBeforeContentLoaded={source.script}
         originWhitelist={["file://*"]}

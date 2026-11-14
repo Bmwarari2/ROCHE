@@ -11,11 +11,12 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import { type ButtonVariant, buttonAppearance } from "../logic/theme";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH, type LucideIcon } from "./icons";
 import { Text } from "./Text";
 
-export type ButtonVariant = "primary" | "secondary" | "destructive";
+export type { ButtonVariant };
 export type ButtonHaptic = "selection" | "success" | "warning" | "none";
 
 export interface ButtonProps {
@@ -93,22 +94,7 @@ export function Button({
 
   const palette = theme.colors;
   const android = theme.platform === "android";
-  const background =
-    variant === "primary"
-      ? palette.accent
-      : variant === "destructive"
-        ? palette.danger
-        : android
-          ? palette.accentContainer
-          : palette.surfaceHigh;
-  const foreground =
-    variant === "primary"
-      ? palette.onAccent
-      : variant === "destructive"
-        ? palette.onDanger
-        : android
-          ? palette.onAccentContainer
-          : theme.textColors.accent;
+  const { background, foreground, border } = buttonAppearance(variant, theme);
   const feedback: ButtonHaptic = haptic ?? (variant === "destructive" ? "warning" : "selection");
 
   const handlePress = (event: GestureResponderEvent) => {
@@ -150,7 +136,10 @@ export function Button({
           paddingHorizontal: android ? theme.space[3] : theme.space[2],
           borderRadius: radius,
           backgroundColor: background,
-          borderColor: theme.highContrast ? palette.text : "transparent",
+          // A destructive button keeps the alarm's bright edge (clinical re-check M2); high
+          // contrast outlines every button in the text colour.
+          borderColor: theme.highContrast ? palette.text : (border ?? "transparent"),
+          borderWidth: border ? nativeMetrics.statusOutline : 1,
           // Android clips its ripple to the shape; iOS never clips the label.
           overflow: android ? "hidden" : "visible",
           // Disabled is dimmed the same on both, so the label stays readable (review L6); the

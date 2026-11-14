@@ -402,6 +402,27 @@ export function bannerAppearance(tone: Tone, palette: Palette): BannerAppearance
   };
 }
 
+export type ButtonVariant = "primary" | "secondary" | "destructive";
+
+/**
+ * A button's colours (ADR-0138). Primary is the brand fill. Destructive actions (Ask for help,
+ * Delete) take the same alarm fill and edge as a danger chip, so in dark mode Ask for help is a
+ * deep red with a bright red edge, never a pale pink as bright as the mint Check in beside it
+ * (clinical re-check M2; HZ-008, HZ-125). Secondary is the tonal container on Android and the raised
+ * fill on iOS.
+ */
+export function buttonAppearance(
+  variant: ButtonVariant,
+  theme: Pick<Theme, "colors" | "textColors" | "platform">,
+): ToneAppearance {
+  const palette = theme.colors;
+  if (variant === "primary") return { background: palette.accent, foreground: palette.onAccent };
+  if (variant === "destructive") return toneAppearance("danger", palette);
+  return theme.platform === "android"
+    ? { background: palette.accentContainer, foreground: palette.onAccentContainer }
+    : { background: palette.surfaceHigh, foreground: theme.textColors.accent };
+}
+
 /**
  * Colours for a selected row or choice: the selection container with its own text colour for
  * every word on it, and the brand colour for its edge (accessibility review B1).

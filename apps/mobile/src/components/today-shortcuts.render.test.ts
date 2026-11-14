@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { act, createElement, useState } from "react";
 import { describe, expect, it } from "vitest";
 import type { WriteOutcome } from "../scheduling/hooks";
 import {
@@ -7,7 +7,9 @@ import {
   loneWorkerView,
   type Mine,
 } from "../scheduling/lone-worker-view";
+import { AccessibilityInfo } from "../test-support/react-native-stub";
 import { type RenderedNode, render } from "../test-support/render";
+import { LoneWorkingPanel, resetOverdueAnnouncement } from "./LoneWorkingPanel";
 import { HandoverShortcut, TodayLoneWorking } from "./TodayShortcuts";
 
 const LOCATION = "0199d000-0000-7000-8000-000000000401";
@@ -87,5 +89,38 @@ describe("Today's shortcuts (ADR-0138)", () => {
     expect(buttonLabels(view.nodes())).toEqual(["Open handover"]);
     await view.press("today-handover-open");
     expect(opened).toBe(1);
+  });
+
+  it("hazard HZ-125 says an overdue check-in once when the panel is open on Today and on Lone working", async () => {
+    resetOverdueAnnouncement();
+    AccessibilityInfo.announced.length = 0;
+    const before = loneWorkerView(open, [], NOW);
+    const after = loneWorkerView(open, [], new Date("2026-10-11T10:05:00.000Z"));
+    expect(before.overdue).toBe(false);
+    expect(after.overdue).toBe(true);
+    const setters: Array<(view: LoneWorkerView) => void> = [];
+    function Panel() {
+      const [view, setView] = useState<LoneWorkerView>(before);
+      setters.push(setView);
+      return createElement(LoneWorkingPanel, {
+        view,
+        connected: true,
+        answeredAt: null,
+        locationId: LOCATION,
+        locationName: "Example House",
+        now: () => NOW,
+        onStart: async () => "saved" as WriteOutcome,
+        onEvent: async () => "saved" as WriteOutcome,
+      });
+    }
+    await render(createElement(Panel));
+    const setToday = setters.at(-1);
+    await render(createElement(Panel));
+    const setLoneWorking = setters.at(-1);
+    await act(async () => {
+      setToday?.(after);
+      setLoneWorking?.(after);
+    });
+    expect(AccessibilityInfo.announced).toEqual([after.due]);
   });
 });

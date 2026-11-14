@@ -3,9 +3,19 @@
  * a border (never colour alone), 44 pt targets, visible labels and errors announced to screen
  * readers. Words come from the catalogue through the callers.
  */
-import { nativeMetrics, selectionColors, Text, useTheme, withAlpha } from "@harbour/ui-native";
+import {
+  ICON_STROKE_WIDTH,
+  ListSectionItem,
+  nativeMetrics,
+  selectionColors,
+  Text,
+  useListPosition,
+  useTheme,
+  withAlpha,
+} from "@harbour/ui-native";
+import Check from "lucide-react-native/icons/check";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { CORRECTION_REASON_LIMITS, type FieldError } from "../care/entries";
 import {
   ambiguousTime,
@@ -78,26 +88,33 @@ export function ChoiceGroup<T extends string>({
           {hint}
         </Text>
       ) : null}
-      {options.map((option) => (
-        <ChoiceRow
-          key={option.value}
-          label={option.label}
-          detail={option.detail}
-          selected={option.value === value}
-          onPress={() => onChange(option.value)}
-          testID={`${testID}-${option.value}`}
-        />
-      ))}
+      <View>
+        {options.map((option, index) => (
+          <ListSectionItem key={option.value} index={index} count={options.length}>
+            <ChoiceRow
+              label={option.label}
+              detail={option.detail}
+              selected={option.value === value}
+              onPress={() => onChange(option.value)}
+              testID={`${testID}-${option.value}`}
+            />
+          </ListSectionItem>
+        ))}
+      </View>
       <FieldMessage error={error} />
     </View>
   );
 }
 
 /**
- * One choice in a group, in the platform's shape. Unselected, it has a 1 pt outline at 3:1
- * (WCAG 1.4.11). Selected, it takes the selection container, a 2 pt brand outline and the words
- * "Selected", every word in the selection's own text colour (accessibility review B1). A
- * keyboard or switch user sees a 2 pt focus outline (review M1).
+ * One choice in a group, as a row of the platform's own grouped list (ADR-0138; iOS device check,
+ * 14/11/2026):
+ * - iOS: an inset grouped list, the chosen row marked with a checkmark and the word "Selected" in
+ *   the brand colour, as Settings marks a choice;
+ * - Android: Material 3 segmented rows with a radio button, the chosen row on the selection
+ *   container with the word "Selected", every word in the selection's own text colour
+ *   (accessibility review B1).
+ * Never colour alone: a mark and a word. Focus draws a 2 pt ring (review M1).
  */
 function ChoiceRow({
   label,
@@ -114,9 +131,13 @@ function ChoiceRow({
 }) {
   const theme = useTheme();
   const android = theme.platform === "android";
+  const position = useListPosition();
   const [focused, setFocused] = useState(false);
   const selection = selectionColors(theme.colors);
-  const onSelected = selected ? { color: selection.text } : undefined;
+  // Only Android fills the chosen row, so only there do its words take the selection's colour.
+  const filled = selected && android;
+  const onSelected = filled ? { color: selection.text } : undefined;
+  const mark = filled ? selection.text : theme.textColors.accent;
   return (
     <Pressable
       testID={testID}
@@ -128,25 +149,35 @@ function ChoiceRow({
       onBlur={() => setFocused(false)}
       android_ripple={{ color: withAlpha(theme.colors.text, 0.12) }}
       style={({ pressed }) => ({
-        minHeight: theme.touchTarget,
+        minHeight: Math.max(theme.touchTarget, android ? nativeMetrics.fieldHeightAndroid : 0),
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
-        gap: theme.space[1],
-        overflow: "hidden",
-        borderRadius: android ? theme.radius.chip : theme.radius.input,
-        borderWidth: selected || focused ? nativeMetrics.focusOutline : nativeMetrics.outline,
-        borderColor: selected || focused ? selection.edge : theme.colors.outline,
-        backgroundColor: selected
+        gap: theme.space[1.5],
+        backgroundColor: filled
           ? selection.background
           : pressed && !android
             ? theme.colors.pressed
             : theme.colors.card,
         paddingHorizontal: theme.space[2],
-        paddingVertical: theme.space[1.5],
+        paddingVertical: android ? theme.space[1.5] : nativeMetrics.rowPaddingYIos,
       })}
     >
-      <View style={{ flex: 1 }}>
+      {android ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[
+            styles.radio,
+            {
+              borderColor: selected ? selection.text : theme.colors.outline,
+              borderWidth: nativeMetrics.focusOutline,
+            },
+          ]}
+        >
+          {selected ? <View style={[styles.dot, { backgroundColor: selection.text }]} /> : null}
+        </View>
+      ) : null}
+      <View style={styles.words}>
         <Text emphasis={selected} style={onSelected}>
           {label}
         </Text>
@@ -157,13 +188,57 @@ function ChoiceRow({
         ) : null}
       </View>
       {selected ? (
-        <Text emphasis style={onSelected}>
-          {t("mobile.common.selected")}
-        </Text>
+        <View style={[styles.chosen, { gap: theme.space[0.5] }]}>
+          {android ? null : (
+            <Check
+              color={mark}
+              size={20}
+              strokeWidth={ICON_STROKE_WIDTH + 1}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+          )}
+          <Text emphasis style={{ color: mark }}>
+            {t("mobile.common.selected")}
+          </Text>
+        </View>
+      ) : null}
+      {focused ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.focus,
+            { borderColor: theme.colors.accent, borderWidth: nativeMetrics.focusOutline },
+          ]}
+        />
+      ) : null}
+      {!android && position && !position.last ? (
+        <View
+          pointerEvents="none"
+          style={[styles.divider, { left: theme.space[2], backgroundColor: theme.colors.border }]}
+        />
       ) : null}
     </Pressable>
   );
 }
+
+/** Material 3's radio button: a 20 dp ring, a 10 dp dot when chosen. */
+const RADIO = 20;
+
+const styles = StyleSheet.create({
+  radio: {
+    width: RADIO,
+    height: RADIO,
+    borderRadius: RADIO / 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dot: { width: RADIO / 2, height: RADIO / 2, borderRadius: RADIO / 4 },
+  words: { flex: 1 },
+  chosen: { flexDirection: "row", alignItems: "center" },
+  focus: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+  divider: { position: "absolute", right: 0, bottom: 0, height: StyleSheet.hairlineWidth },
+});
 
 interface YesNoProps {
   readonly label: string;

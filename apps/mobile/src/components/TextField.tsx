@@ -66,7 +66,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
             // colour, and to 3 pt on a field in error, so focus always shows (review M1).
             borderWidth:
               focused && invalid
-                ? 3
+                ? nativeMetrics.focusOutlineStrong
                 : focused || invalid
                   ? nativeMetrics.focusOutline
                   : nativeMetrics.outline,

@@ -171,3 +171,24 @@ export function describeSyncBanner(input: SyncBannerInput): SyncBannerContent {
     accessibilityLabel,
   };
 }
+
+/** Above this text size a calm banner keeps to one line (`nativeMetrics.wrapFontScale`). */
+export const COMPACT_BANNER_FONT_SCALE = 1.3;
+
+/**
+ * Whether the banner shows only its title. At the largest text sizes the full banner took almost
+ * half the screen and never scrolled away (iOS device check, 14/11/2026), so a calm banner (synced,
+ * syncing, offline with recent data) keeps to its title, and its detail is still spoken. Anything
+ * urgent, stale, refused or failed always shows in full (HZ-002, HZ-006).
+ */
+export function compactSyncBanner(content: SyncBannerContent, fontScale: number): boolean {
+  return (
+    fontScale > COMPACT_BANNER_FONT_SCALE &&
+    !content.urgent &&
+    content.warning === null &&
+    content.reason === null &&
+    !content.showRetry &&
+    content.tone !== "warning" &&
+    content.tone !== "danger"
+  );
+}

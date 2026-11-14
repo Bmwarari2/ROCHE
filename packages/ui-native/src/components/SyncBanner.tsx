@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
-import { describeSyncBanner, type SyncConnectionState } from "../logic/sync-banner";
+import { AccessibilityInfo, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import {
+  compactSyncBanner,
+  describeSyncBanner,
+  type SyncConnectionState,
+} from "../logic/sync-banner";
 import { bannerAppearance } from "../logic/theme";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH, iconByName } from "./icons";
@@ -91,6 +95,8 @@ export function SyncBanner({
   // Calm states sit on the card colour with a quiet icon; a warning (stale, never synced, access
   // too wide) is filled with the warning colour and a failure with the alarm fill, each with its
   // own text colour, so either stands apart from the page and the calm banner (HZ-002).
+  const { fontScale } = useWindowDimensions();
+  const compact = compactSyncBanner(content, fontScale);
   const look = bannerAppearance(content.tone, theme.colors);
   const filled = look.filled;
   const fill = look;
@@ -148,9 +154,11 @@ export function SyncBanner({
               {content.reason}
             </Text>
           ) : null}
-          <Text variant="bodyDense" tone={detailTone} style={onFill} testID={`${testID}-detail`}>
-            {content.detail}
-          </Text>
+          {compact ? null : (
+            <Text variant="bodyDense" tone={detailTone} style={onFill} testID={`${testID}-detail`}>
+              {content.detail}
+            </Text>
+          )}
           {content.warning ? (
             <Text
               variant="bodyDense"

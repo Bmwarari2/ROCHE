@@ -33,6 +33,14 @@ export const LONE_HOURS = [2, 4, 8] as const;
 export const LONE_INTERVALS = [30, 60] as const;
 const WORK_KINDS: readonly LoneWorkKind[] = ["domiciliary_visit", "night_shift", "other"];
 
+/** The overdue check-in last said aloud, by session and due time, so two panels say it once. */
+let lastOverdueSaid: string | null = null;
+
+/** Forgets what was said, for tests. */
+export function resetOverdueAnnouncement(): void {
+  lastOverdueSaid = null;
+}
+
 /** How long Check in is held for duress: long enough not to happen by accident. */
 export const DURESS_HOLD_MS = 1500;
 
@@ -146,14 +154,20 @@ export function LoneWorkingPanel({
     giveAnswer(outcome === "saved" ? { kind: "started" } : { kind: "problem", outcome });
   };
 
-  // An overdue check-in is said aloud when it becomes overdue, not only shown.
+  // An overdue check-in is said aloud when it becomes overdue, not only shown. The panel can be
+  // open twice, on Today and on Lone working (both stay mounted under native tabs), so it is said
+  // once for each time it falls due, by whichever panel sees it first (accessibility re-check M3).
   const wasOverdue = useRef(view.overdue);
   useEffect(() => {
     if (view.overdue && !wasOverdue.current && view.due) {
-      AccessibilityInfo.announceForAccessibility(view.due);
+      const key = `${view.sessionId ?? ""}|${view.due}`;
+      if (key !== lastOverdueSaid) {
+        lastOverdueSaid = key;
+        AccessibilityInfo.announceForAccessibility(view.due);
+      }
     }
     wasOverdue.current = view.overdue;
-  }, [view.overdue, view.due]);
+  }, [view.overdue, view.due, view.sessionId]);
 
   const answerText = wordsFor(answer);
   const Warning = iconByName("circle-alert");

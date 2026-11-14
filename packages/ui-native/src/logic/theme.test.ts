@@ -5,6 +5,7 @@ import {
   bannerAppearance,
   buildPalette,
   buildTheme,
+  buttonAppearance,
   type NativePlatform,
   nativeTypeStyle,
   resolvePlatform,
@@ -183,6 +184,27 @@ describe("status and flag chips", () => {
         // In dark mode the danger fill is deep red, never the brightness of the light teal button.
         expect(danger.background).toBe(m3Scheme.dark.errorContainer);
         expect(contrastRatio(danger.background, palette.accent)).toBeGreaterThanOrEqual(
+          AA_NON_TEXT,
+        );
+      }
+    },
+  );
+
+  it.each(COMBOS)(
+    "hazard HZ-008 hazard HZ-125 Ask for help, a destructive button, takes the danger fill and edge and stands apart from Check in (%s %s, high contrast: %s)",
+    (platform, scheme, hc) => {
+      const palette = buildPalette(scheme, hc, platform);
+      const theme = buildTheme(scheme, hc, platform);
+      const help = buttonAppearance("destructive", theme);
+      const checkIn = buttonAppearance("primary", theme);
+      expect(help).toEqual(toneAppearance("danger", palette));
+      expect(contrastRatio(help.foreground, help.background)).toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastRatio(checkIn.foreground, checkIn.background)).toBeGreaterThanOrEqual(AA_TEXT);
+      // In light mode both are dark fills with white words, told apart by hue and their words. In
+      // dark mode the pale pink once matched the mint's brightness (1.0:1); now the deep red fill
+      // differs in brightness, so they are told apart without hue as well.
+      if (scheme === "dark") {
+        expect(contrastRatio(help.background, checkIn.background)).toBeGreaterThanOrEqual(
           AA_NON_TEXT,
         );
       }

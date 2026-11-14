@@ -1,5 +1,6 @@
 import type { ClinicalStatus } from "@harbour/ui/tokens";
 import { nativeMetrics } from "@harbour/ui/tokens";
+import { useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { statusAppearance, type Tone, toneAppearance } from "../logic/theme";
 import { useTheme } from "../theme/ThemeProvider";
@@ -32,11 +33,12 @@ function ChipBody({
 }: ChipBodyProps) {
   const theme = useTheme();
   const android = theme.platform === "android";
-  // A capsule only while the words fit on one line: at large text a wrapped chip keeps smaller
-  // corners so no word runs past the fill (accessibility review H3).
+  // A capsule only while the words fit on one line: a chip whose words wrap, at large text or in a
+  // narrow card, keeps smaller corners so no word runs past the fill (accessibility review H3).
   const { fontScale } = useWindowDimensions();
+  const [wrapped, setWrapped] = useState(false);
   const radius =
-    fontScale > nativeMetrics.wrapFontScale
+    wrapped || fontScale > nativeMetrics.wrapFontScale
       ? Math.min(theme.radius.chip, nativeMetrics.wrapRadius)
       : theme.radius.chip;
   return (
@@ -65,7 +67,13 @@ function ChipBody({
         accessibilityElementsHidden
         importantForAccessibility="no"
       />
-      <Text variant="bodyDense" tone="onAccent" emphasis style={{ color: foreground }}>
+      <Text
+        variant="bodyDense"
+        tone="onAccent"
+        emphasis
+        style={[styles.label, { color: foreground }]}
+        onTextLayout={(event) => setWrapped(event.nativeEvent.lines.length > 1)}
+      >
         {label}
       </Text>
     </View>
@@ -127,7 +135,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    // Never wider than what holds it: a long word wraps inside the chip rather than running past
+    // the card's edge (iOS device check, 14/11/2026).
+    maxWidth: "100%",
+    flexShrink: 1,
     gap: 4,
     paddingVertical: 2,
   },
+  label: { flexShrink: 1 },
 });

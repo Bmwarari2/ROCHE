@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  compactSyncBanner,
   describeSyncBanner,
   NEVER_SYNCED_WARNING,
   REFUSED_TITLE,
@@ -218,4 +219,48 @@ describe("hazard HZ-138 a phone refused because the member's access is too wide 
       expect(content.accessibilityLabel).toContain(SCOPE_TOO_LARGE_REASON);
     },
   );
+});
+
+describe("hazard HZ-002 hazard HZ-006 the banner at the largest text sizes (iOS device check, 14/11/2026)", () => {
+  const largest = 2;
+  const calm = (state: "synced" | "offline" | "syncing") =>
+    describeSyncBanner({ state, lastSyncedAt: minutesAgo(2), now, staleAfterMs });
+
+  it("keeps a calm banner to its title, with the detail still spoken", () => {
+    for (const state of ["synced", "offline", "syncing"] as const) {
+      const content = calm(state);
+      expect(compactSyncBanner(content, largest)).toBe(true);
+      expect(content.accessibilityLabel).toContain(content.detail);
+    }
+  });
+
+  it("shows every banner in full at ordinary text sizes", () => {
+    expect(compactSyncBanner(calm("synced"), 1)).toBe(false);
+    expect(compactSyncBanner(calm("offline"), 1.3)).toBe(false);
+  });
+
+  it("never shortens a stale, refused or failed banner", () => {
+    const stale = describeSyncBanner({
+      state: "offline",
+      lastSyncedAt: minutesAgo(600),
+      now,
+      staleAfterMs,
+    });
+    const failed = describeSyncBanner({
+      state: "failed",
+      lastSyncedAt: minutesAgo(2),
+      now,
+      staleAfterMs,
+    });
+    const refused = describeSyncBanner({
+      state: "synced",
+      lastSyncedAt: minutesAgo(2),
+      now,
+      staleAfterMs,
+      refusedEntries: 2,
+    });
+    for (const content of [stale, failed, refused]) {
+      expect(compactSyncBanner(content, largest)).toBe(false);
+    }
+  });
 });

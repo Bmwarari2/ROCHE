@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { testWindow } from "../test-support/react-native-stub";
 import { render } from "../test-support/render";
 import { ModeChooserView } from "./ModeChooserView";
 
@@ -41,5 +42,20 @@ describe("mode chooser", () => {
     );
     await view.press("mode-care");
     expect(onChoose).toHaveBeenCalledWith("care");
+  });
+
+  it("keeps the demo line short at the largest text sizes, and still speaks all of it", async () => {
+    const before = testWindow.fontScale;
+    testWindow.fontScale = 2;
+    try {
+      const view = await render(createElement(ModeChooserView, { demo: true, onChoose: vi.fn() }));
+      expect(view.texts()).toContain("Demo: invented people");
+      const line = view.nodes().length ? JSON.stringify(view.nodes()) : "";
+      expect(line).toContain(
+        '"accessibilityLabel":"Demo mode: invented people, not real records."',
+      );
+    } finally {
+      testWindow.fontScale = before;
+    }
   });
 });

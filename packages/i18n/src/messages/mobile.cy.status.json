@@ -780,6 +780,7 @@
     "mobile.more.handoverHint",
     "mobile.more.shiftsHint",
     "mobile.more.trainingHint",
-    "mobile.more.settingsHint"
+    "mobile.more.settingsHint",
+    "mobile.demo.noticeShort"
   ]
 }

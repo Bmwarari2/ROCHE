@@ -136,6 +136,8 @@ export const nativeMetrics = {
   /** Outlines: a control's edge, a focused control, a status chip's edge. */
   outline: 1,
   focusOutline: 2,
+  /** Focus on something already edged at 2 pt (a selected choice, a field in error). */
+  focusOutlineStrong: 3,
   statusOutline: 2,
   /** The opacity of a disabled control, on both platforms (review L6). */
   disabledOpacity: 0.5,

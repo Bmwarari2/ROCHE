@@ -120,6 +120,45 @@ The clinical safety reviewer and the accessibility reviewer (agents) reviewed th
   scale 2.0 on a 360 dp phone; never `fontSize` in `labelStyle`) are in H-1644 and the
   accessibility checklist's decisions.
 
+## iOS Simulator check and re-checks (14/11/2026)
+
+The owner ran 730b6e792 in demo mode on the iPhone 17 Pro simulator. It built and ran, with no
+Intl crash, the Liquid Glass tab bar, the Large Content Viewer on a long press and Increase Contrast
+bringing outlines back. What it found, and what changed:
+
+- **Today would not scroll; the greeting sat under the large title; large titles never shrank.**
+  Already fixed in 0ed5e3e3b, which the check did not include: every Care scroll view now adjusts
+  for the header and the floating tab bar (`contentInsetAdjustmentBehavior="automatic"`), and large
+  titles are off until each screen's scroll view is its first child, which the pinned banners
+  prevent today. To be confirmed in the next run (H-1645).
+- **Chips ran past their card's edge.** A chip is never wider than what holds it: its words wrap
+  inside it, and a wrapped chip takes the smaller corners (`StatusChip.tsx`).
+- **After a text-size change, a banner went blank and chips stayed tall until a relaunch.** The
+  shared `Text` is drawn afresh at each system text size, so iOS measures it again. Not reproducible
+  here: to be confirmed on the simulator.
+- **At the largest text the banners took almost half the screen.** A calm sync banner keeps to its
+  title above 1.3 times text, with its detail still spoken; a stale, refused or failed banner always
+  shows in full (`compactSyncBanner`, HZ-002, HZ-006). The demo line says "Demo: invented people"
+  and still speaks the whole sentence.
+- **The note's choices were separate cards.** Choices are one grouped list: on iOS an inset
+  grouped list with a checkmark and the word "Selected" on the chosen row, as Settings does; on
+  Android Material 3 segmented rows with a radio button and the chosen row on the selection
+  container. Focus draws a 2 pt ring.
+- The grey gear at the top right is the development client's tools button, not the app.
+
+Re-checks of 0ed5e3e3b:
+
+- **Clinical (one gap, Medium):** in dark mode Ask for help was a pale pink as bright as the mint
+  Check in beside it. A destructive button now takes the danger chip's deep red fill and bright
+  edge (`buttonAppearance`; `hazard HZ-008 hazard HZ-125 Ask for help, a destructive button, ...`).
+  Lows left as they were: Ask for help with no open session is under More (H-1647); the help line's
+  state is not shared between Today and Lone working; info and neutral chips look alike to
+  protanopes (L2, H-1646).
+- **Accessibility (no High; three Mediums, all fixed):** the training course's page clears the
+  tab bar; an overdue check-in is said once when the panel is open on Today and on Lone working
+  (`hazard HZ-125 says an overdue check-in once ...`); focus on a selected choice is visible (the
+  choices' redesign above draws a ring; fields in error use `focusOutlineStrong`, 3 pt).
+
 ## What is next
 
 - H-1645: run it on the iOS Simulator and an Android emulator or phone, with the CSO and the
