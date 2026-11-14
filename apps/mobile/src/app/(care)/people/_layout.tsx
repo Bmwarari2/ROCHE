@@ -1,5 +1,6 @@
 import { useTheme } from "@harbour/ui-native";
 import { Stack } from "expo-router";
+import { announceReturned } from "../../../care/announce-after-return";
 import { t } from "../../../i18n/t";
 
 /**
@@ -10,6 +11,12 @@ export default function PeopleLayout() {
   const theme = useTheme();
   return (
     <Stack
+      // A form's save confirmation is said once the screen it returns to has appeared (HZ-001).
+      screenListeners={{
+        transitionEnd: (event) => {
+          if (!event.data.closing) announceReturned();
+        },
+      }}
       screenOptions={{
         headerStyle: { backgroundColor: theme.colors.bg },
         headerTintColor: theme.colors.accent,

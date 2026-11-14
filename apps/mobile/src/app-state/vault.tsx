@@ -40,6 +40,7 @@ import {
 import { AppState, Platform } from "react-native";
 import type { Me } from "../auth/auth-client";
 import { authClient, platformFetch } from "../auth/clients";
+import { setAnnouncementsAllowed } from "../care/announce-after-return";
 import { FORGET_ANSWER_FOR_ENTRY_SQL } from "../care/answered-tasks";
 import { DELETE_UPLOAD_ISSUE_SQL } from "../care/queries";
 import { clearSavedNotice } from "../care/saved-notice";
@@ -403,8 +404,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const [resetNotice, setResetNotice] = useState<string | null>(null);
   // A save confirmation names a person: it never outlives the unlocked session, so the next
   // person to unlock a shared phone never sees it (save confirmation clinical review, H1).
+  // The spoken confirmation is never said while locked, nor after the phone locks (HZ-001).
   useEffect(() => {
     if (status !== "unlocked") clearSavedNotice();
+    setAnnouncementsAllowed(status === "unlocked");
   }, [status]);
   const [offlineWindowDays, setOfflineWindowDays] = useState<number | null>(null);
   const [clockToleranceMinutes, setClockToleranceMinutes] = useState(FAIL_SAFE_TOLERANCE_MINUTES);

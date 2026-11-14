@@ -4,7 +4,7 @@
   "private": true,
   "description": "Harbour iOS and Android app (Expo): Care mode, offline-first with PowerSync and SQLCipher",
   "type": "module",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "start": "expo start --dev-client",
     "start:demo": "EXPO_PUBLIC_DEMO_MODE=1 expo start --dev-client",
@@ -17,6 +17,8 @@
     "e2e": "maestro test .maestro"
   },
   "dependencies": {
+    "@formatjs/intl-locale": "^5.4.3",
+    "@formatjs/intl-pluralrules": "^7.0.4",
     "@harbour/domain": "workspace:*",
     "@harbour/i18n": "workspace:*",
     "@harbour/sync": "workspace:*",

@@ -8,7 +8,10 @@ name: The round in demo mode
 tags:
   - demo
 ---
-- runFlow: sign-in.yaml
+- runFlow:
+    file: sign-in.yaml
+    env:
+      HARBOUR_EXPECT_DEMO: "true"
 - tapOn:
     id: "tab-round"
 - extendedWaitUntil:
