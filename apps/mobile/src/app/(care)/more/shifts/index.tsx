@@ -30,7 +30,11 @@ export default function ShiftsScreen() {
   const lone = permissions.includes(LONE_WORKER_CHECK_IN);
   return (
     <Screen testID="shifts-screen">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+      >
         <UploadIssues />
         {timesheet ? <ClockCard view={view} onAction={record} /> : null}
         {timesheet ? <ShiftList items={view.shifts} /> : null}

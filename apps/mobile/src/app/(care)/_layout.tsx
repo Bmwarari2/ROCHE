@@ -1,5 +1,6 @@
-import { useTheme } from "@harbour/ui-native";
+import { useTheme, withAlpha } from "@harbour/ui-native";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { useState } from "react";
 import { careDestinations } from "../../app-state/care-destinations";
 import { useSession } from "../../app-state/session";
 import { t } from "../../i18n/t";
@@ -21,26 +22,33 @@ export default function CareLayout() {
   // The dm+d rows the MARs need, kept fresh while connected (slice 68).
   useDmdSubsetRefresh();
   const { me } = useSession();
-  const destinations = careDestinations(me?.permissions ?? []);
+  // The tab set is fixed when Care mode opens: changing it would rebuild the navigator and lose the
+  // member's place and screen reader focus (review L1). A permission given later shows next time;
+  // one taken away is still refused by the screen itself.
+  const [destinations] = useState(() => careDestinations(me?.permissions ?? []));
   const android = theme.platform === "android";
+  // iOS: only the brand tint, so the system keeps Liquid Glass's own contrast over any content,
+  // Increase Contrast and Reduce Transparency included (review M3). Android: the Material 3 bar,
+  // its selected item marked by the indicator, the text-coloured icon and a bold label (review M2).
+  const androidColours = android
+    ? {
+        iconColor: { default: theme.colors.textSecondary, selected: theme.colors.text },
+        labelStyle: {
+          default: { color: theme.colors.textSecondary },
+          selected: { color: theme.colors.text, fontWeight: "700" as const },
+        },
+        backgroundColor: theme.colors.nav,
+        indicatorColor: theme.colors.accentContainer,
+        rippleColor: withAlpha(theme.colors.text, 0.12),
+        labelVisibilityMode: "labeled" as const,
+      }
+    : {};
   return (
     <NativeTabs
       tintColor={theme.colors.accent}
-      iconColor={{
-        default: theme.colors.textSecondary,
-        selected: android ? theme.colors.onAccentContainer : theme.colors.accent,
-      }}
-      labelStyle={{
-        default: { color: theme.colors.textSecondary },
-        selected: { color: android ? theme.colors.text : theme.colors.accent },
-      }}
-      // Android only: the Material 3 bar on the container surface, with its active-indicator pill.
-      // iOS sets no background, so the system draws the Liquid Glass bar.
-      backgroundColor={android ? theme.colors.nav : undefined}
-      indicatorColor={theme.colors.accentContainer}
-      rippleColor={theme.colors.pressed}
-      labelVisibilityMode="labeled"
+      minimizeBehavior="never"
       disableTransparentOnScrollEdge
+      {...androidColours}
     >
       <NativeTabs.Trigger
         name="today"

@@ -1484,9 +1484,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     phone cannot tell (L8); the round says it is loading while it reads (L9); medicines tasks are
     never marked here before eMAR (L10); an escalated overdue task says so (L11).
 
-  The handover screen is built (`apps/mobile/src/app/(care)/handover.tsx`, `care/handover-view.ts`;
+  The handover screen is built (`apps/mobile/src/app/(care)/more/handover.tsx`, `care/handover-view.ts`;
   3(c)). It covers gate items (a), (d) and (e) for the handover:
-  - The tab shows only for members with `care.handover.manage`, whose phones the handover streams
+  - Handover (under More since [ADR-0138](../decisions/0138-phone-native-look.md), with a card on
+    Today) shows only for members with `care.handover.manage`, whose phones the handover streams
     reach, so the phone never says "not compiled yet" for a handover it could never receive.
   - The connector reads `handover_shifts` from every sync token and keeps it in `sync_meta`, so it
     is known offline (`sync/handover-shifts.ts`). A nation whose figures are missing or unreadable

@@ -14,8 +14,14 @@ export const HANDOVER_PERMISSION = "care.handover.manage";
 /** Who has a Medicines tab: those the medicines streams reach (slice 69; ADR-0130). */
 export const MEDICINES_PERMISSION = "medicines.emar.administer";
 
+/** Who clocks their own time (scheduling.md section 18). */
+export const TIMESHEET_SELF = "scheduling.timesheet.self";
+
+/** Who works alone and checks in (scheduling.md section 17; HZ-125). */
+export const LONE_WORKER_CHECK_IN = "scheduling.lone_worker.check_in";
+
 /** Who has Shifts: those who clock their own time or work alone (scheduling.md section 18). */
-export const SHIFTS_PERMISSIONS = ["scheduling.timesheet.self", "scheduling.lone_worker.check_in"];
+export const SHIFTS_PERMISSIONS = [TIMESHEET_SELF, LONE_WORKER_CHECK_IN];
 
 export interface CareDestinations {
   readonly medicines: boolean;

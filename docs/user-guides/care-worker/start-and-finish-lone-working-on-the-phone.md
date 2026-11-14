@@ -12,7 +12,7 @@ have switched lone working on.
 
 ## Steps
 
-1. Go to **More** at the bottom of the screen and choose **Shifts** and choose **Open lone working**.
+1. Go to **More** in the tab bar, choose **Shifts**, then **Open lone working**.
 2. Check **Where:** shows the right location: the location of your shift, or your only work
    location.
 3. Under **Kind of work**, choose **Home visit**, **Night shift** or **Other work**.
@@ -20,7 +20,8 @@ have switched lone working on.
 5. Under **Check in every**, choose **30 minutes** or **60 minutes**. Your choice says "chosen".
 6. Choose **Start lone working**. The screen shows when the next check-in is due, for example
    "Next check-in due at 10:30", and "Session until 14:00".
-7. Check in each time one is due. See
+7. Check in each time one is due. While the session is open, **Today** shows when the next
+   check-in is due, with **Check in** and **Ask for help**. See
    [How to check in while lone working on the phone](check-in-while-lone-working-on-the-phone.md).
 8. When you are no longer alone, choose **Finish lone working**. Thapsus Care asks
    **Finish lone working?** and says **Nobody will expect your check-ins after this.** Choose

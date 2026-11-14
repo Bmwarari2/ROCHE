@@ -250,7 +250,11 @@ export default function HandoverScreen() {
   if (layout.mode !== "split") {
     return (
       <Screen testID="handover-screen">
-        <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustsScrollIndicatorInsets
+          contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+        >
           {top}
           {homes.map(({ location, entries }) => (
             <LocationHandover
@@ -275,6 +279,8 @@ export default function HandoverScreen() {
         detailTitle={shownHome ? t("mobile.split.handoverOf", { home: shownName }) : null}
         list={
           <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
+            automaticallyAdjustsScrollIndicatorInsets
             contentContainerStyle={{ paddingVertical: theme.space[2], gap: theme.space[2] }}
           >
             <View style={{ paddingHorizontal: theme.space[2], gap: theme.space[2] }}>{top}</View>
@@ -329,6 +335,8 @@ export default function HandoverScreen() {
         detail={
           shownHome ? (
             <ScrollView
+              contentInsetAdjustmentBehavior="automatic"
+              automaticallyAdjustsScrollIndicatorInsets
               key={shownHome.location.id}
               contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
             >

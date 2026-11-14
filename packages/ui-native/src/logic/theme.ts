@@ -52,6 +52,15 @@ export type Palette = { readonly [K in keyof ColorScheme]: string } & {
   /** A pressed row. */
   readonly pressed: string;
   readonly onDanger: string;
+  /**
+   * The danger fill (overdue, allergies, a do-not-resuscitate decision): the error colour in light;
+   * in dark, a deep red with a bright red edge (`alarmEdge`), so it keeps a red hue and stands apart
+   * from the light primary button (clinical review M2; HZ-008).
+   */
+  readonly alarm: string;
+  readonly onAlarm: string;
+  readonly alarmEdge: string;
+  readonly onWarning: string;
   readonly dangerContainer: string;
   readonly onDangerContainer: string;
   readonly warningContainer: string;
@@ -130,7 +139,14 @@ function m3Theme(scheme: SchemeName, highContrast: boolean): M3Theme {
 /** Brand and status roles from the Material 3 scheme, the same on both platforms. */
 function brandRoles(scheme: SchemeName, highContrast: boolean) {
   const m = m3Scheme[m3Theme(scheme, highContrast)];
+  // In dark mode the alarm fill is the dark scheme's deep red container in every contrast, edged
+  // in the theme's own error colour.
+  const dark = scheme === "dark";
   return {
+    alarm: dark ? m3Scheme.dark.errorContainer : m.error,
+    onAlarm: dark ? m3Scheme.dark.onErrorContainer : m.onError,
+    alarmEdge: m.error,
+    onWarning: m.onWarning,
     link: m.primary,
     accent: m.primary,
     accentHover: m.primaryContainer,
@@ -317,20 +333,28 @@ export type Tone = "danger" | "warning" | "success" | "info" | "neutral";
 export interface ToneAppearance {
   readonly background: string;
   readonly foreground: string;
+  /** A 2 pt edge, where the fill alone would not stand out from its surface. */
+  readonly border?: string;
 }
 
 /**
- * Chip colours for a tone. Danger is a filled error colour, the strongest signal, kept for what
- * must not be missed (overdue, allergies, a do-not-resuscitate decision); the others are tonal
- * containers with their matching text colour. Every pair is at least 4.5:1 in every theme, and a
- * chip always carries an icon and a word as well.
+ * Chip colours for a tone (ADR-0138). Danger is the alarm fill, the strongest signal, kept for
+ * what must not be missed (overdue, allergies, a do-not-resuscitate decision), with a bright edge
+ * in dark mode. Warning (something not recorded, due soon) is the warning container with a
+ * 2 pt warning edge, so it stands out from the card (clinical review M1; HZ-007, HZ-015, HZ-016).
+ * The rest are tonal containers. Every pair is at least 4.5:1 in every theme, and a chip always
+ * carries an icon and a word as well.
  */
 export function toneAppearance(tone: Tone, palette: Palette): ToneAppearance {
   switch (tone) {
     case "danger":
-      return { background: palette.danger, foreground: palette.onDanger };
+      return { background: palette.alarm, foreground: palette.onAlarm, border: palette.alarmEdge };
     case "warning":
-      return { background: palette.warningContainer, foreground: palette.onWarningContainer };
+      return {
+        background: palette.warningContainer,
+        foreground: palette.onWarningContainer,
+        border: palette.warning,
+      };
     case "success":
       return { background: palette.successContainer, foreground: palette.onSuccessContainer };
     case "info":
@@ -338,6 +362,69 @@ export function toneAppearance(tone: Tone, palette: Palette): ToneAppearance {
     case "neutral":
       return { background: palette.surfaceHigh, foreground: palette.text };
   }
+}
+
+export interface BannerAppearance extends ToneAppearance {
+  readonly icon: string;
+  /** Warnings and failures are filled so they cannot be missed. */
+  readonly filled: boolean;
+}
+
+/**
+ * The sync banner's colours (HZ-002). Calm states (synced, offline with fresh data) sit on the card
+ * colour with a quiet icon; a warning (stale, never synced, access too wide) is filled with the
+ * warning colour itself, and a failure with the alarm fill, so either stands apart from the page
+ * and from the calm banner at 3:1 or more in every theme (clinical review H1).
+ */
+export function bannerAppearance(tone: Tone, palette: Palette): BannerAppearance {
+  if (tone === "warning") {
+    return {
+      background: palette.warning,
+      foreground: palette.onWarning,
+      icon: palette.onWarning,
+      filled: true,
+    };
+  }
+  if (tone === "danger") {
+    return {
+      background: palette.alarm,
+      foreground: palette.onAlarm,
+      border: palette.alarmEdge,
+      icon: palette.onAlarm,
+      filled: true,
+    };
+  }
+  return {
+    background: palette.card,
+    foreground: palette.text,
+    icon: palette.textSecondary,
+    filled: false,
+  };
+}
+
+/**
+ * Colours for a selected row or choice: the selection container with its own text colour for
+ * every word on it, and the brand colour for its edge (accessibility review B1).
+ */
+export function selectionColors(palette: Palette): {
+  readonly background: string;
+  readonly text: string;
+  readonly edge: string;
+} {
+  return {
+    background: palette.accentContainer,
+    text: palette.onAccentContainer,
+    edge: palette.accent,
+  };
+}
+
+/** A colour at an opacity, for press ripples over any surface (accessibility review M1). */
+export function withAlpha(hex: string, alpha: number): string {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const byte = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `${hex}${byte}`;
 }
 
 export interface StatusAppearance extends ToneAppearance {

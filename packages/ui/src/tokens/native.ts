@@ -107,3 +107,36 @@ export const nativeShape = {
 
 /** Minimum touch target: 44 points (Apple) and 48 dp (Material 3). */
 export const nativeTouchTarget = { ios: 44, android: 48 } as const;
+
+/**
+ * Sizes the native components use, kept here rather than as literals (accessibility review L5).
+ * `wrapRadius` replaces a capsule once text is large enough to wrap, so words never run past the
+ * rounded ends (review H3).
+ */
+export const nativeMetrics = {
+  /** Material 3's small top app bar title. */
+  headerTitleAndroid: 22,
+  /** iOS table rows: 11 pt above and below the text. */
+  rowPaddingYIos: 11,
+  /** Horizontal padding inside an iOS capsule badge. */
+  chipPaddingXIos: 10,
+  chipMinHeight: { ios: 28, android: 32 },
+  /** Material 3's text field height. */
+  fieldHeightAndroid: 56,
+  /** Material 3's two-line list item height. */
+  twoLineRowAndroid: 72,
+  /** An icon or small avatar on a row's leading edge. */
+  leadingSize: 40,
+  /** A person's photo in a list row: large enough to tell people apart (HZ-001). */
+  personPhoto: 48,
+  /** The corner radius for capsules once text is larger than 1.3x. */
+  wrapRadius: 16,
+  /** Above this text scale, capsules take `wrapRadius`. */
+  wrapFontScale: 1.3,
+  /** Outlines: a control's edge, a focused control, a status chip's edge. */
+  outline: 1,
+  focusOutline: 2,
+  statusOutline: 2,
+  /** The opacity of a disabled control, on both platforms (review L6). */
+  disabledOpacity: 0.5,
+} as const;

@@ -11,7 +11,7 @@ deputy managers.
 
 ## Steps
 
-1. Go to **Round** at the bottom of the screen.
+1. Go to **Round** in the tab bar.
 2. Read **The round on this phone** first. It says which tasks the phone holds, for example "This
    phone holds the open tasks due from 07/11/2026 at 00:00 to 09/11/2026 at 23:59.", and when it
    last synced.

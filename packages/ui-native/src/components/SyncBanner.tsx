@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
 import { describeSyncBanner, type SyncConnectionState } from "../logic/sync-banner";
-import { toneAppearance } from "../logic/theme";
+import { bannerAppearance } from "../logic/theme";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH, iconByName } from "./icons";
 import { Text } from "./Text";
@@ -88,12 +88,14 @@ export function SyncBanner({
     if (announcement) announce(announcement);
   }, [announcement, announce]);
 
-  // Calm states sit on the page itself, quietly; warnings and failures take their tone's fill
-  // (filled red for danger, the warning container for warnings), with that fill's own text colour.
-  const filled = content.tone === "warning" || content.tone === "danger";
-  const fill = toneAppearance(content.tone, theme.colors);
-  const background = filled ? fill.background : theme.colors.bgSecondary;
-  const iconColour = filled ? fill.foreground : theme.colors.textSecondary;
+  // Calm states sit on the card colour with a quiet icon; a warning (stale, never synced, access
+  // too wide) is filled with the warning colour and a failure with the alarm fill, each with its
+  // own text colour, so either stands apart from the page and the calm banner (HZ-002).
+  const look = bannerAppearance(content.tone, theme.colors);
+  const filled = look.filled;
+  const fill = look;
+  const background = look.background;
+  const iconColour = look.icon;
   const textTone = "primary";
   const detailTone = filled ? "primary" : "secondary";
   const onFill = filled ? { color: fill.foreground } : undefined;
@@ -106,7 +108,10 @@ export function SyncBanner({
         styles.container,
         {
           backgroundColor: background,
-          borderBottomColor: theme.colors.border,
+          borderBottomColor: look.border ?? theme.colors.border,
+          borderTopColor: look.border ?? "transparent",
+          borderTopWidth: look.border ? 2 : 0,
+          borderBottomWidth: look.border ? 2 : StyleSheet.hairlineWidth,
           paddingHorizontal: theme.space[2],
           paddingVertical: theme.space[1],
           gap: theme.space[1.5],

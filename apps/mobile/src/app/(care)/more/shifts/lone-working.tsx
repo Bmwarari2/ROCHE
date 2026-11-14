@@ -21,7 +21,11 @@ export default function LoneWorkingScreen() {
   const locationName = (me?.locations ?? []).find((l) => l.id === clock.locationId)?.name ?? null;
   return (
     <Screen testID="lone-working-screen">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+      >
         <LoneWorkingPanel
           view={view}
           connected={status.connected}

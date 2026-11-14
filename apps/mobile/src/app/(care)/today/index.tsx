@@ -4,6 +4,7 @@ import { useQuery, useStatus } from "@powersync/react";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { FlatList, View } from "react-native";
+import { HANDOVER_PERMISSION } from "../../../app-state/care-destinations";
 import { useSession } from "../../../app-state/session";
 import { useVault } from "../../../app-state/vault";
 import {
@@ -18,12 +19,19 @@ import { syncSummary } from "../../../care/sync-summary";
 import { Card } from "../../../components/Card";
 import { PersonListItem } from "../../../components/PersonListItem";
 import { Screen } from "../../../components/Screen";
+import { HandoverShortcut, TodayLoneWorking } from "../../../components/TodayShortcuts";
 import { UploadIssues } from "../../../components/UploadIssues";
 import { appEnv } from "../../../config/app-env";
 import { STALE_AFTER_MS } from "../../../config/constants";
 import { t } from "../../../i18n/t";
 import { type PersonView, toPersonView } from "../../../people/person-view";
 import { PEOPLE_LIST_SQL, type PersonRow, peopleListParams } from "../../../people/queries";
+import {
+  LONE_WORKER_CHECK_IN,
+  useClock,
+  useLoneWorker,
+  useMinute,
+} from "../../../scheduling/hooks";
 import { useRecordScreenProtection } from "../../../security/use-record-protection";
 import { lastSyncedAtOf } from "../../../sync/sync-state";
 
@@ -31,6 +39,9 @@ import { lastSyncedAtOf } from "../../../sync/sync-state";
  * Today (section 17.1): the people assigned to this user, from the encrypted database, and the
  * sync status spelled out: last successful sync, changes waiting to upload, and entries the
  * server refused (HZ-002, HZ-006). Tasks, alerts and handover join in slice 10 part 2.
+ *
+ * An open lone-working session shows in full at the top (HZ-125), and those who take part in the
+ * handover have it one tap away, since both now sit under More (ADR-0138).
  */
 export default function TodayScreen() {
   useRecordScreenProtection("today");
@@ -43,6 +54,9 @@ export default function TodayScreen() {
   const queued = useQueuedChanges();
   const issues = useUploadIssueState().count;
   const held = useHeldEntryCount();
+  const permissions = me?.permissions ?? [];
+  const loneWorker = permissions.includes(LONE_WORKER_CHECK_IN);
+  const handover = permissions.includes(HANDOVER_PERMISSION);
 
   const peopleParams = useMemo(() => peopleListParams(tenantId), [tenantId]);
   const { data: rows } = useQuery<PersonRow>(PEOPLE_LIST_SQL, peopleParams);
@@ -92,6 +106,7 @@ export default function TodayScreen() {
         </Text>
         {me ? <Text tone="secondary">{me.tenant.name}</Text> : null}
       </View>
+      {loneWorker ? <TodayLoneWorkingLive /> : null}
       <Card title={t("mobile.sync.title")} testID="today-sync">
         <FlagChip
           tone={summary.tone}
@@ -118,6 +133,7 @@ export default function TodayScreen() {
           ) : null}
         </View>
       </Card>
+      {handover ? <HandoverShortcut onOpen={() => router.push("/more/handover")} /> : null}
       <UploadIssues />
       <Text
         variant="eyebrow"
@@ -133,6 +149,8 @@ export default function TodayScreen() {
   return (
     <Screen testID="today-screen">
       <FlatList
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
         testID="today-people"
         data={people}
         keyExtractor={(item) => item.id}
@@ -153,5 +171,30 @@ export default function TodayScreen() {
         removeClippedSubviews
       />
     </Screen>
+  );
+}
+
+/**
+ * The member's lone-working session, read as the Lone working screen reads it. Mounted only for
+ * those who work alone, so no one else asks the server about a session.
+ */
+function TodayLoneWorkingLive() {
+  const status = useStatus();
+  const { me } = useSession();
+  const now = useMinute();
+  const { view: clock } = useClock(now);
+  const { view, answeredAt, start, event } = useLoneWorker(now);
+  const locationName = (me?.locations ?? []).find((l) => l.id === clock.locationId)?.name ?? null;
+  return (
+    <TodayLoneWorking
+      view={view}
+      connected={status.connected}
+      answeredAt={answeredAt}
+      locationId={clock.locationId}
+      locationName={locationName}
+      now={() => new Date()}
+      onStart={start}
+      onEvent={event}
+    />
   );
 }

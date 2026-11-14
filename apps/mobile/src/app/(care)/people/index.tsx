@@ -85,6 +85,8 @@ export default function PeopleScreen() {
         </View>
       ) : null}
       <FlatList
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
         testID="people-list"
         data={people}
         extraData={selectedId}

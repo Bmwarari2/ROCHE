@@ -164,6 +164,8 @@ export default function RoundScreen() {
 
   const list = (
     <FlatList
+      contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustsScrollIndicatorInsets
       testID="round-tasks"
       data={items}
       keyExtractor={(item) => item.id}

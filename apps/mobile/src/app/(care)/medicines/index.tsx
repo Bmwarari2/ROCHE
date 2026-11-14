@@ -74,6 +74,8 @@ export default function MedicinesRoundScreen() {
         </View>
       ) : (
         <FlatList
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustsScrollIndicatorInsets
           data={slots}
           keyExtractor={(s) => `${s.date} ${s.time}`}
           ListHeaderComponent={

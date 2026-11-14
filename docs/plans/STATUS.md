@@ -9,8 +9,10 @@ only when they link spec, code, tests and user documentation; user guides exist 
 screens (#128, `docs/user-guides/`).
 **Pushed on 14/11/2026:** `feat/mobile-native-look` (MOB-001 and MOB-002 stay `partial`;
 ADR-0138). The phone app's native look: Material 3 on Android, Liquid Glass on iOS, from the
-Thapsus teal scheme; native tabs (five at most, the rest under More) and headers. Device check
-H-1645, tab label size H-1644.
+Thapsus teal scheme; native tabs (five at most, the rest under More) and headers. Review fixes
+pushed the same day: an open lone-working session and the handover on Today, outlines and focus
+states, AA proven in every theme, links to moved pages mapped. Device check H-1645, tab label size
+H-1644, CSO decisions H-1646 to H-1648.
 **Pushed on 14/11/2026, PR open:** `fix/mobile-ios-demo-findings` (MOB-001 and MOB-002 stay
 `partial`). Fixes from the first iOS Simulator run: Today crashed because Hermes lacks
 `Intl.PluralRules` (polyfills now load first), the mode chooser had no demo label, and

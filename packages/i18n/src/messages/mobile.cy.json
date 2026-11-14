@@ -773,5 +773,11 @@
   "mobile.mode.family": "Family",
   "mobile.mode.familyHint": "Updates and messages for families. Not ready yet.",
   "mobile.resetNotice.dismiss": "Hide message",
-  "mobile.tabs.more": "More"
+  "mobile.tabs.more": "More",
+  "mobile.today.handoverHint": "Read what has changed and acknowledge it.",
+  "mobile.today.handoverOpen": "Open handover",
+  "mobile.more.handoverHint": "Read and acknowledge the handover",
+  "mobile.more.shiftsHint": "{kind, select, both {Clock in and out, and lone working} clock {Clock in and out} other {Lone working}}",
+  "mobile.more.trainingHint": "Your courses, also without a signal",
+  "mobile.more.settingsHint": "Account, sync, security and display"
 }

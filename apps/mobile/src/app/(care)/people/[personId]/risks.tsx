@@ -38,7 +38,11 @@ export default function RisksScreen() {
   return (
     <Screen testID="risks-screen">
       <Stack.Screen options={{ title: t("mobile.risks.title") }} />
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+      >
         <CarePersonHeader personId={id} />
         {risks.length === 0 ? (
           <Text tone="secondary" testID="risks-none">

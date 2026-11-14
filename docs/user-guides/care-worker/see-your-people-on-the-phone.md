@@ -25,7 +25,7 @@ managers (everyone receiving care at their home).
 4. Under it, the phone says how many people it holds, for example "12 people on this device". Each
    person shows their photo or initials, the name they like to be called, their room, and their
    allergy, communication and resuscitation flags.
-5. Choose a person to open their record. Or go to **People** at the bottom of the screen for the
+5. Choose a person to open their record. Or go to **People** in the tab bar for the
    same people. The **People** list shows the allergy and communication flags but not the
    resuscitation flag: that shows only on **Today**, and on the person's record.
 

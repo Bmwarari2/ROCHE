@@ -18,14 +18,14 @@ deputy managers.
 
 ## Lock it yourself
 
-1. Go to **More** at the bottom of the screen and choose **Settings**.
+1. Go to **More** in the tab bar, then choose **Settings**.
 2. Under "Security", choose "Lock now".
 
 Lock it whenever you put the phone down, even for a moment.
 
 ## Check when it locks
 
-1. Go to **Settings**.
+1. Go to **More**, then **Settings**.
 2. Under "Security", read the line, for example "Thapsus Care locks after 2 minutes without use."
 3. Under "This device is", check the right choice is selected:
    - "My own device": it locks after 2 minutes without use.

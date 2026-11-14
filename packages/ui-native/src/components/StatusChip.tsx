@@ -1,5 +1,6 @@
 import type { ClinicalStatus } from "@harbour/ui/tokens";
-import { StyleSheet, View } from "react-native";
+import { nativeMetrics } from "@harbour/ui/tokens";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { statusAppearance, type Tone, toneAppearance } from "../logic/theme";
 import { useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH, iconByName, type LucideIcon } from "./icons";
@@ -10,6 +11,8 @@ interface ChipBodyProps {
   readonly label: string;
   readonly background: string;
   readonly foreground: string;
+  /** A 2 pt edge where the fill alone would not stand out (warning, and danger in dark mode). */
+  readonly border?: string;
   readonly accessibilityLabel: string;
   readonly testID?: string;
 }
@@ -23,10 +26,19 @@ function ChipBody({
   label,
   background,
   foreground,
+  border,
   accessibilityLabel,
   testID,
 }: ChipBodyProps) {
   const theme = useTheme();
+  const android = theme.platform === "android";
+  // A capsule only while the words fit on one line: at large text a wrapped chip keeps smaller
+  // corners so no word runs past the fill (accessibility review H3).
+  const { fontScale } = useWindowDimensions();
+  const radius =
+    fontScale > nativeMetrics.wrapFontScale
+      ? Math.min(theme.radius.chip, nativeMetrics.wrapRadius)
+      : theme.radius.chip;
   return (
     <View
       accessible
@@ -37,10 +49,12 @@ function ChipBody({
         styles.chip,
         {
           backgroundColor: background,
-          borderRadius: theme.radius.chip,
+          borderRadius: radius,
+          borderWidth: border ? nativeMetrics.statusOutline : 0,
+          borderColor: border ?? "transparent",
           // A capsule badge on iOS; a Material 3 chip, 32 dp tall, on Android.
-          paddingHorizontal: theme.platform === "android" ? theme.space[1] : 10,
-          minHeight: theme.platform === "android" ? 32 : 28,
+          paddingHorizontal: android ? theme.space[1] : nativeMetrics.chipPaddingXIos,
+          minHeight: nativeMetrics.chipMinHeight[theme.platform],
         },
       ]}
     >
@@ -76,6 +90,7 @@ export function StatusChip({ status, label, testID }: StatusChipProps) {
       label={text}
       background={appearance.background}
       foreground={appearance.foreground}
+      border={appearance.border}
       accessibilityLabel={text}
       testID={testID}
     />
@@ -93,13 +108,14 @@ export interface FlagChipProps {
 /** A safety flag (allergies, communication needs) in the same icon-plus-word chip shape. */
 export function FlagChip({ tone, icon, label, accessibilityLabel, testID }: FlagChipProps) {
   const theme = useTheme();
-  const { background, foreground } = toneAppearance(tone, theme.colors);
+  const { background, foreground, border } = toneAppearance(tone, theme.colors);
   return (
     <ChipBody
       icon={icon}
       label={label}
       background={background}
       foreground={foreground}
+      border={border}
       accessibilityLabel={accessibilityLabel ?? label}
       testID={testID}
     />

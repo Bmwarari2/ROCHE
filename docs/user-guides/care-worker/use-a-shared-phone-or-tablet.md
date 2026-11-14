@@ -12,7 +12,7 @@ Managers and deputy managers.
 ## Set the device as shared
 
 1. Sign in as yourself. See [How to sign in on the phone](sign-in-on-the-phone.md).
-2. Go to **More** at the bottom of the screen and choose **Settings**.
+2. Go to **More** in the tab bar, then choose **Settings**.
 3. Under "Security", under "This device is", choose "Shared with colleagues".
 4. Under "Lock a shared device after", choose "30 seconds", "1 minute", "1 minute 30 seconds" or
    "2 minutes", as your home has agreed. The line above then says, for example, "Thapsus Care locks
@@ -24,7 +24,7 @@ Managers and deputy managers.
    **No changes waiting to upload**. If it cannot send (for example, there is no connection), keep
    the device signed in, keep it with you or give it to the person in charge, and make sure nobody
    else uses it until it says **No changes waiting to upload**.
-2. Go to **Settings** and choose **Sign out**. See [How to sign out of the phone](sign-out-of-the-phone.md).
+2. Go to **More**, then **Settings**, and choose **Sign out**. See [How to sign out of the phone](sign-out-of-the-phone.md).
 3. The next person signs in as themselves.
 
 If the device shows someone else's name ("Signed in as ..."), do not unlock it, record on it or

@@ -45,7 +45,11 @@ export default function TrainingScreen() {
 
   return (
     <Screen testID="training-screen">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[2] }}
+      >
         <UploadIssues />
         <Card title={t("mobile.training.title")}>
           <View accessible style={{ gap: theme.space[0.5] }}>

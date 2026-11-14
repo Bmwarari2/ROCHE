@@ -166,7 +166,11 @@ export default function SettingsScreen() {
 
   return (
     <Screen testID="settings-screen">
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[3] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[3] }}
+      >
         <Section title="Account">
           <Text emphasis>{session.me?.user.name ?? "Signed in"}</Text>
           <Text tone="secondary">{session.me?.tenant.name}</Text>

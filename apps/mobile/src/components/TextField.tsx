@@ -1,4 +1,4 @@
-import { Text, useTheme } from "@harbour/ui-native";
+import { nativeMetrics, Text, useTheme } from "@harbour/ui-native";
 import { forwardRef, useState } from "react";
 import { StyleSheet, TextInput, type TextInputProps, View } from "react-native";
 
@@ -56,11 +56,20 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         style={[
           styles.input,
           {
-            minHeight: Math.max(android ? FIELD_HEIGHT_ANDROID : theme.touchTarget, minHeight ?? 0),
+            minHeight: Math.max(
+              android ? nativeMetrics.fieldHeightAndroid : theme.touchTarget,
+              minHeight ?? 0,
+            ),
             borderRadius: theme.radius.input,
-            // The field's edge: an outline at 3:1 on Android, none on iOS until focused; red on an
-            // error, which the words below also say. Focus thickens it to 2.
-            borderWidth: focused || invalid ? 2 : android || theme.highContrast ? 1 : 0,
+            // The field's edge: an outline at 3:1 on both platforms (WCAG 1.4.11); red on an
+            // error, which the words below also say. Focus thickens it to 2 pt in the brand
+            // colour, and to 3 pt on a field in error, so focus always shows (review M1).
+            borderWidth:
+              focused && invalid
+                ? 3
+                : focused || invalid
+                  ? nativeMetrics.focusOutline
+                  : nativeMetrics.outline,
             borderColor: invalid
               ? theme.colors.danger
               : focused
@@ -93,9 +102,6 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
     </View>
   );
 });
-
-/** Material 3's text field height. */
-const FIELD_HEIGHT_ANDROID = 56;
 
 const styles = StyleSheet.create({
   input: { includeFontPadding: false },

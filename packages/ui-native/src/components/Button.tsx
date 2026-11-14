@@ -1,4 +1,4 @@
-import { button } from "@harbour/ui/tokens";
+import { button, nativeMetrics } from "@harbour/ui/tokens";
 import Check from "lucide-react-native/icons/check";
 import type { Ref } from "react";
 import {
@@ -7,6 +7,7 @@ import {
   Pressable,
   type StyleProp,
   StyleSheet,
+  useWindowDimensions,
   View,
   type ViewStyle,
 } from "react-native";
@@ -80,6 +81,11 @@ export function Button({
   const theme = useTheme();
   const haptics = useHaptics();
   const inactive = disabled || loading;
+  // A capsule while the label fits on one line; smaller corners at large text, so a wrapped label
+  // never runs into the rounded ends (accessibility review H3).
+  const { fontScale } = useWindowDimensions();
+  const radius =
+    fontScale > nativeMetrics.wrapFontScale ? nativeMetrics.wrapRadius : theme.radius.pill;
   if (selection) {
     variant = selection.selected ? "primary" : "secondary";
     if (selection.selected) Icon = Check;
@@ -142,11 +148,14 @@ export function Button({
           minHeight: Math.max(button.minHeight, theme.touchTarget),
           paddingVertical: button.paddingY,
           paddingHorizontal: android ? theme.space[3] : theme.space[2],
-          borderRadius: theme.radius.pill,
+          borderRadius: radius,
           backgroundColor: background,
           borderColor: theme.highContrast ? palette.text : "transparent",
-          // Material 3 dims a disabled button to 38%; the ripple is the press feedback there.
-          opacity: inactive ? (android ? 0.38 : 0.5) : pressed && !android ? 0.7 : 1,
+          // Android clips its ripple to the shape; iOS never clips the label.
+          overflow: android ? "hidden" : "visible",
+          // Disabled is dimmed the same on both, so the label stays readable (review L6); the
+          // ripple is Android's press feedback.
+          opacity: inactive ? nativeMetrics.disabledOpacity : pressed && !android ? 0.7 : 1,
         },
         fullWidth && styles.fullWidth,
         style,
@@ -187,7 +196,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    overflow: "hidden",
   },
   fullWidth: { alignSelf: "stretch" },
   content: { flexDirection: "row", alignItems: "center", gap: 8 },

@@ -39,8 +39,8 @@ import {
   WRITE_META_SQL,
 } from "./queries";
 
-export const TIMESHEET_SELF = "scheduling.timesheet.self";
-export const LONE_WORKER_CHECK_IN = "scheduling.lone_worker.check_in";
+// Kept with the other destinations, where screens can read them without the session (ADR-0138).
+export { LONE_WORKER_CHECK_IN, TIMESHEET_SELF } from "../app-state/care-destinations";
 
 export type WriteOutcome = "saved" | "no_location" | "not_saved";
 

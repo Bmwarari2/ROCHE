@@ -180,7 +180,11 @@ export default function PersonMedicinesScreen() {
   return (
     <Screen testID="medicines-person">
       <Stack.Screen options={{ title: t("mobile.meds.personTitleFor", { person: name }) }} />
-      <ScrollView contentContainerStyle={{ padding: theme.space[2], gap: theme.space[1.5] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={{ padding: theme.space[2], gap: theme.space[1.5] }}
+      >
         {personId ? <CarePersonHeader personId={personId} /> : null}
         {allergy.warning ? (
           <StatusLine tone="warning" testID="person-allergy-line">

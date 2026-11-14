@@ -2,6 +2,7 @@ import { clinicalStatus, iosNeutral, layout, m3Scheme, typeScale } from "@harbou
 import { describe, expect, it } from "vitest";
 import { contrastRatio } from "./contrast";
 import {
+  bannerAppearance,
   buildPalette,
   buildTheme,
   type NativePlatform,
@@ -9,11 +10,13 @@ import {
   resolvePlatform,
   resolveScheme,
   type SchemeName,
+  selectionColors,
   statusAppearance,
   statusTone,
   type Tone,
   type TypeVariant,
   toneAppearance,
+  withAlpha,
 } from "./theme";
 
 const AA_TEXT = 4.5;
@@ -145,14 +148,90 @@ describe("status and flag chips", () => {
 
   it("fills danger in the error colour, the strongest signal, and uses containers for the rest", () => {
     const palette = buildPalette("light", false, "android");
-    expect(toneAppearance("danger", palette)).toEqual({
-      background: palette.danger,
-      foreground: palette.onDanger,
-    });
+    expect(toneAppearance("danger", palette).background).toBe(palette.danger);
+    expect(toneAppearance("danger", palette).foreground).toBe(palette.onDanger);
     expect(toneAppearance("warning", palette).background).toBe(palette.warningContainer);
     expect(toneAppearance("info", palette).background).toBe(palette.accentContainer);
   });
 
+  it.each(COMBOS)(
+    "hazard HZ-007 hazard HZ-015 hazard HZ-016 a not-recorded flag stands out from its surface (%s %s, high contrast: %s)",
+    (platform, scheme, hc) => {
+      const palette = buildPalette(scheme, hc, platform);
+      const { border } = toneAppearance("warning", palette);
+      expect(border).toBeDefined();
+      for (const surface of [palette.card, palette.bgSecondary, palette.bg]) {
+        expect(contrastRatio(border ?? "", surface)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+      }
+    },
+  );
+
+  it.each(COMBOS)(
+    "hazard HZ-008 danger is a red fill with an edge that stands out, apart from the primary button (%s %s, high contrast: %s)",
+    (platform, scheme, hc) => {
+      const palette = buildPalette(scheme, hc, platform);
+      const danger = toneAppearance("danger", palette);
+      expect(contrastRatio(danger.foreground, danger.background)).toBeGreaterThanOrEqual(AA_TEXT);
+      for (const surface of [palette.card, palette.bgSecondary]) {
+        const edge = Math.max(
+          contrastRatio(danger.background, surface),
+          contrastRatio(danger.border ?? danger.background, surface),
+        );
+        expect(edge).toBeGreaterThanOrEqual(AA_NON_TEXT);
+      }
+      if (scheme === "dark") {
+        // In dark mode the danger fill is deep red, never the brightness of the light teal button.
+        expect(danger.background).toBe(m3Scheme.dark.errorContainer);
+        expect(contrastRatio(danger.background, palette.accent)).toBeGreaterThanOrEqual(
+          AA_NON_TEXT,
+        );
+      }
+    },
+  );
+});
+
+describe("the sync banner", () => {
+  it.each(COMBOS)(
+    "hazard HZ-002 the stale warning stands apart from the calm banner and the page (%s %s, high contrast: %s)",
+    (platform, scheme, hc) => {
+      const palette = buildPalette(scheme, hc, platform);
+      const calm = bannerAppearance("neutral", palette);
+      for (const tone of ["warning", "danger"] as const) {
+        const loud = bannerAppearance(tone, palette);
+        expect(loud.filled).toBe(true);
+        expect(contrastRatio(loud.foreground, loud.background)).toBeGreaterThanOrEqual(AA_TEXT);
+        // The fill, or where it is deep (danger in dark mode) its bright edge, stands out.
+        for (const surface of [calm.background, palette.bgSecondary]) {
+          const edge = Math.max(
+            contrastRatio(loud.background, surface),
+            contrastRatio(loud.border ?? loud.background, surface),
+          );
+          expect(edge, tone).toBeGreaterThanOrEqual(AA_NON_TEXT);
+        }
+      }
+      expect(calm.filled).toBe(false);
+      expect(contrastRatio(calm.foreground, calm.background)).toBeGreaterThanOrEqual(AA_TEXT);
+    },
+  );
+});
+
+describe("selection (accessibility review B1)", () => {
+  it.each(COMBOS)(
+    "%s %s (high contrast: %s): every word on a selected row or choice is AA, and its edge 3:1",
+    (platform, scheme, hc) => {
+      const palette = buildPalette(scheme, hc, platform);
+      const selected = selectionColors(palette);
+      expect(contrastRatio(selected.text, selected.background)).toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastRatio(selected.edge, palette.card)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    },
+  );
+
+  it("makes a press ripple translucent", () => {
+    expect(withAlpha("#181c1c", 0.12)).toBe("#181c1c1f");
+  });
+});
+
+describe("status chips by clinical status", () => {
   it.each(Object.keys(clinicalStatus) as Array<keyof typeof clinicalStatus>)(
     "%s pairs an icon and a word with its tone",
     (status) => {

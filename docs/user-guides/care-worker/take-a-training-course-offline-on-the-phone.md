@@ -10,8 +10,8 @@ phone and sent to Thapsus Care when it connects.
 
 ## Steps
 
-1. Choose **More** at the bottom of the screen, then **Training**. You can also go to **Settings** and,
-   under **Training**, choose **Open training courses**.
+1. Choose **More** in the tab bar, then **Training**. You can also go to **More**, then
+   **Settings**, and under **Training**, choose **Open training courses**.
 2. Find the course that says **On this phone** and choose **Open**.
 3. The course opens with its name at the top and the line **Your progress is saved on this phone
    and sent to Thapsus Care when there is a connection.**

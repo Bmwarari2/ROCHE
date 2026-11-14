@@ -12,7 +12,7 @@ been sent first.
 
 1. Connect to the internet. On **Today**, check the **Sync** card says **No changes waiting to
    upload** and that nothing is under **Not saved: needs attention**.
-2. Go to **Settings** and choose **Sign out**.
+2. Go to **More**, then **Settings**, and choose **Sign out**.
 3. If nothing is waiting, the phone asks **Sign out and remove data?** Choose **Sign out**.
 4. You see the sign-in screen. The care records have been removed from the phone.
 
@@ -34,7 +34,7 @@ example **2 entries have not reached the server and will be deleted.**
 - Never sign out, reset the phone or delete the app to get past a problem while entries are
   waiting. Deleted entries cannot be recovered, and the care they record is lost from
   the person's record (HZ-006, HZ-040). Tell the person in charge instead.
-- The lock screen has **Sign out** too. Unlock first, then sign out from **Settings**, so you can
+- The lock screen has **Sign out** too. Unlock first, then sign out from **More**, then **Settings**, so you can
   see what is waiting. If the app has just been opened, the lock screen cannot count it, and says
   **This device may hold entries that have not reached the server. They will be deleted.**
 - You need a connection to sign in again, so with no connection you cannot use Care mode until you

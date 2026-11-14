@@ -2,6 +2,9 @@
  * Harbour native components. Brand comes only from the shared tokens (`@harbour/ui/tokens`);
  * navigation chrome is left to the platform (expo-router stack and tabs).
  */
+
+/** Native sizes from the shared tokens, for the app's own components (ADR-0138). */
+export { nativeMetrics } from "@harbour/ui/tokens";
 export { Avatar, type AvatarProps } from "./components/Avatar";
 export {
   Button,

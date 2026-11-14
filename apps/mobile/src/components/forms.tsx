@@ -3,7 +3,8 @@
  * a border (never colour alone), 44 pt targets, visible labels and errors announced to screen
  * readers. Words come from the catalogue through the callers.
  */
-import { Text, useTheme } from "@harbour/ui-native";
+import { nativeMetrics, selectionColors, Text, useTheme, withAlpha } from "@harbour/ui-native";
+import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { CORRECTION_REASON_LIMITS, type FieldError } from "../care/entries";
 import {
@@ -77,60 +78,90 @@ export function ChoiceGroup<T extends string>({
           {hint}
         </Text>
       ) : null}
-      {options.map((option) => {
-        const selected = option.value === value;
-        return (
-          <Pressable
-            key={option.value}
-            testID={`${testID}-${option.value}`}
-            accessibilityRole="radio"
-            accessibilityState={{ selected, checked: selected }}
-            accessibilityLabel={option.detail ? `${option.label}. ${option.detail}` : option.label}
-            onPress={() => onChange(option.value)}
-            android_ripple={{ color: theme.colors.pressed }}
-            style={({ pressed }) => ({
-              minHeight: theme.touchTarget,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: theme.space[1],
-              overflow: "hidden",
-              // A choice is a row in the platform's shape: the selected one takes the selection
-              // container and a 2-point brand outline, and says "Selected", never colour alone.
-              borderRadius: theme.platform === "android" ? theme.radius.chip : theme.radius.input,
-              borderWidth: selected
-                ? 2
-                : theme.platform === "android" || theme.highContrast
-                  ? 1
-                  : 0,
-              borderColor: selected ? theme.colors.accent : theme.colors.outline,
-              backgroundColor: selected
-                ? theme.colors.accentContainer
-                : pressed && theme.platform === "ios"
-                  ? theme.colors.pressed
-                  : theme.colors.card,
-              paddingHorizontal: theme.space[2],
-              paddingVertical: theme.space[1.5],
-            })}
-          >
-            <View style={{ flex: 1 }}>
-              <Text emphasis={selected}>{option.label}</Text>
-              {option.detail ? (
-                <Text variant="bodyDense" tone="secondary">
-                  {option.detail}
-                </Text>
-              ) : null}
-            </View>
-            {selected ? (
-              <Text tone="accent" emphasis>
-                {t("mobile.common.selected")}
-              </Text>
-            ) : null}
-          </Pressable>
-        );
-      })}
+      {options.map((option) => (
+        <ChoiceRow
+          key={option.value}
+          label={option.label}
+          detail={option.detail}
+          selected={option.value === value}
+          onPress={() => onChange(option.value)}
+          testID={`${testID}-${option.value}`}
+        />
+      ))}
       <FieldMessage error={error} />
     </View>
+  );
+}
+
+/**
+ * One choice in a group, in the platform's shape. Unselected, it has a 1 pt outline at 3:1
+ * (WCAG 1.4.11). Selected, it takes the selection container, a 2 pt brand outline and the words
+ * "Selected", every word in the selection's own text colour (accessibility review B1). A
+ * keyboard or switch user sees a 2 pt focus outline (review M1).
+ */
+function ChoiceRow({
+  label,
+  detail,
+  selected,
+  onPress,
+  testID,
+}: {
+  readonly label: string;
+  readonly detail?: string | null;
+  readonly selected: boolean;
+  readonly onPress: () => void;
+  readonly testID: string;
+}) {
+  const theme = useTheme();
+  const android = theme.platform === "android";
+  const [focused, setFocused] = useState(false);
+  const selection = selectionColors(theme.colors);
+  const onSelected = selected ? { color: selection.text } : undefined;
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="radio"
+      accessibilityState={{ selected, checked: selected }}
+      accessibilityLabel={detail ? `${label}. ${detail}` : label}
+      onPress={onPress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      android_ripple={{ color: withAlpha(theme.colors.text, 0.12) }}
+      style={({ pressed }) => ({
+        minHeight: theme.touchTarget,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: theme.space[1],
+        overflow: "hidden",
+        borderRadius: android ? theme.radius.chip : theme.radius.input,
+        borderWidth: selected || focused ? nativeMetrics.focusOutline : nativeMetrics.outline,
+        borderColor: selected || focused ? selection.edge : theme.colors.outline,
+        backgroundColor: selected
+          ? selection.background
+          : pressed && !android
+            ? theme.colors.pressed
+            : theme.colors.card,
+        paddingHorizontal: theme.space[2],
+        paddingVertical: theme.space[1.5],
+      })}
+    >
+      <View style={{ flex: 1 }}>
+        <Text emphasis={selected} style={onSelected}>
+          {label}
+        </Text>
+        {detail ? (
+          <Text variant="bodyDense" tone="secondary" style={onSelected}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+      {selected ? (
+        <Text emphasis style={onSelected}>
+          {t("mobile.common.selected")}
+        </Text>
+      ) : null}
+    </Pressable>
   );
 }
 

@@ -1,4 +1,4 @@
-import { Avatar, type HeaderFlag, ListItem, PersonFlags } from "@harbour/ui-native";
+import { Avatar, type HeaderFlag, ListItem, nativeMetrics, PersonFlags } from "@harbour/ui-native";
 import { memo } from "react";
 import { t } from "../i18n/t";
 import type { PersonView } from "../people/person-view";
@@ -29,6 +29,8 @@ export const PersonListItem = memo(function PersonListItem({
       testID={`person-row-${person.id}`}
       title={person.displayName}
       subtitle={person.subtitle}
+      // 48 pt, large enough to tell faces apart before giving care (clinical review L3, HZ-001).
+      leadingSize={nativeMetrics.personPhoto}
       leading={
         <Avatar
           photo={photo}
@@ -37,7 +39,7 @@ export const PersonListItem = memo(function PersonListItem({
             givenName: person.givenName,
             familyName: person.familyName,
           }}
-          size={40}
+          size={nativeMetrics.personPhoto}
         />
       }
       accessories={
