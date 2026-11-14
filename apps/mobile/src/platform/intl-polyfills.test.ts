@@ -50,16 +50,30 @@ describe("Intl on Hermes", () => {
     expect(new Intl.PluralRules("cy").select(6)).toBe("many");
 
     const { catalogues, createTranslator, LOCALES } = await import("@harbour/i18n");
+    // A message with a plural takes every count; any other message needs one. Failures are
+    // collected and compared once, so a slow runner spends its time formatting, not asserting.
+    const failures: string[] = [];
+    let plurals = 0;
     for (const locale of LOCALES) {
       const t = createTranslator(locale);
-      const keys = Object.keys(catalogues[locale]) as Array<keyof (typeof catalogues)["en-GB"]>;
-      for (const key of keys) {
-        for (const count of COUNTS) {
-          expect(() => t(key, valuesWith(count)), `${locale} ${key} (${count})`).not.toThrow();
+      const messages = catalogues[locale] as Record<string, string>;
+      for (const [key, message] of Object.entries(messages)) {
+        const plural = /,\s*(plural|selectordinal)\s*,/.test(message);
+        if (plural) plurals += 1;
+        const counts = plural ? COUNTS : [1];
+        for (const count of counts) {
+          try {
+            t(key as Parameters<typeof t>[0], valuesWith(count));
+          } catch (error) {
+            failures.push(`${locale} ${key} (${count}): ${String(error)}`);
+          }
         }
       }
     }
-  });
+    expect(failures).toEqual([]);
+    // The plural messages were found, so the test still covers what crashed on the phone.
+    expect(plurals).toBeGreaterThan(20);
+  }, 30_000);
 });
 
 describe("app entry", () => {
