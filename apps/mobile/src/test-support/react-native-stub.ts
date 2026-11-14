@@ -55,6 +55,9 @@ export const AccessibilityInfo = {
   announceForAccessibility(text: string) {
     AccessibilityInfo.announced.push(text);
   },
+  announceForAccessibilityWithOptions(text: string, _options: { queue?: boolean }) {
+    AccessibilityInfo.announced.push(text);
+  },
   isDarkerSystemColorsEnabled: async () => false,
   isHighTextContrastEnabled: async () => false,
   isReduceMotionEnabled: async () => false,

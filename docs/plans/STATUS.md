@@ -7,6 +7,10 @@ gate passes on `main` (section 19, definition of complete).
 **Overall: 2% done** (4 of 234 register rows `done`; 119 `partial`, 111 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
 screens (#128, `docs/user-guides/`).
+**Pushed on 14/11/2026, PR open:** `fix/mobile-ios-demo-findings` (MOB-001 and MOB-002 stay
+`partial`). Fixes from the first iOS Simulator run: Today crashed because Hermes lacks
+`Intl.PluralRules` (polyfills now load first), the mode chooser had no demo label, and
+`InteractionManager` is deprecated. Cut-off tab labels are fixed by the native tabs change next.
 **Pushed on 11/11/2026, PR open:** `fix/vuln-exceptions-2026-11-14` (no register row). It clears
 the three vulnerability exceptions due on 14/11/2026 by upgrading: zod (high), extract-zip (high)
 and glob with minimatch (moderate). All five advisory ids leave the exceptions record, `ignoreGhsas`

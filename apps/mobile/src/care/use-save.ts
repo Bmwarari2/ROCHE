@@ -1,7 +1,7 @@
 import type { OfflineWindowTable } from "@harbour/sync/client";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { AccessibilityInfo, InteractionManager } from "react-native";
+import { AccessibilityInfo } from "react-native";
 import { useCarePerson } from "../components/CarePersonHeader";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
@@ -41,9 +41,11 @@ export function useSaveAndReturn(personId: string) {
         router.back();
         // Said once the record is on screen, so the screen change does not cut it off
         // (accessibility review M1); the line itself is not a live region, so it is heard once.
-        InteractionManager.runAfterInteractions(() => {
-          AccessibilityInfo.announceForAccessibility(words);
-        });
+        // Queued behind what VoiceOver is already saying about the new screen. InteractionManager,
+        // used here before, is deprecated in React Native 0.86, where it only waits for the next tick.
+        setTimeout(() => {
+          AccessibilityInfo.announceForAccessibilityWithOptions(words, { queue: true });
+        }, 0);
       } catch {
         setSaveFailed(true);
       } finally {

@@ -763,6 +763,15 @@
     "mobile.meds.cdRecordingUnknown",
     "mobile.meds.cdWitnessRequired",
     "mobile.meds.cdWitnessRulesUnknown",
-    "mobile.meds.conflictCdOnWeb"
+    "mobile.meds.conflictCdOnWeb",
+    "mobile.demo.notice",
+    "mobile.mode.title",
+    "mobile.mode.hint",
+    "mobile.mode.care",
+    "mobile.mode.careHint",
+    "mobile.mode.manage",
+    "mobile.mode.manageHint",
+    "mobile.mode.family",
+    "mobile.mode.familyHint"
   ]
 }
