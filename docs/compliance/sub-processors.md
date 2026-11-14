@@ -49,6 +49,7 @@ needs the DPA check, the DPIA update and tenant notice before it processes famil
 | PowerSync (sync service and its bucket-storage Postgres) | Self-hosted by Thapsus on Cloud Run in Google Cloud europe-west2, under the Google Cloud entry above; the vendor receives no tenant data |
 | Flagsmith (feature flags) | Self-hosted by Thapsus in Google Cloud europe-west2; flag evaluations use tenant, location and role IDs only |
 | pg-boss, Typst, Playwright (PDF), antivirus scanning | Run inside Thapsus's Google Cloud projects (antivirus as a ClamAV sidecar beside the API on Cloud Run) |
+| Ubicloud managed GitHub Actions runners (CI, [ADR-0137](../decisions/0137-ci-on-ubicloud.md)) | A supplier, not a sub-processor: it runs the quality gates on the source code and fictional test data only (invented people, `example.invalid` email addresses, 999-range NHS numbers). No secret, cloud identity or tenant data reaches it; `scripts/check-ci-runners.mjs` keeps jobs with credentials on GitHub's runner |
 
 Download sources are not sub-processors either. The NHSBSA dm+d release, downloaded from TRUD (NHS
 England) for the medicines reference data, is national reference data Thapsus Care fetches; TRUD receives
@@ -106,6 +107,7 @@ organisation's own records) and the DPIA. The mock is refused in production.
 | 11 October 2026 | Pending entries for family notifications: SES for family email and a UK SMS gateway (Phase 1, slice 12) | Not applicable (no live tenants); notice due before they process family data |
 | 31 October 2026 | The NHSBSA dm+d release from TRUD recorded as a download source, not a sub-processor (Phase 2 slice 10, ADR-0080) | Not applicable (no personal data) |
 | 31 October 2026 | Pending entries for the vetting and identity ports (Phase 2, slice 77; ADR-0094); none switched on | Not applicable (no provider chosen) |
+| 14 November 2026 | Ubicloud recorded as a CI supplier that receives no personal data, not a sub-processor (ADR-0137) | Not applicable (no personal data) |
 
 ## Payroll providers (Phase 2, slice 76; ADR-0097)
 

@@ -1,10 +1,16 @@
 # Quality gates (master prompt section 7). Every job must pass before a pull request merges.
 #
-# Minutes: GitHub bills each job rounded up to the whole minute, and every job pays for its own
+# Runners (ADR-0137): every job runs on Ubicloud, not on GitHub's hosted runners. CI_RUNNER (default
+# ubicloud-standard-4) names the runner for the heavy jobs and CI_RUNNER_SMALL (default
+# ubicloud-standard-2) for the quick ones; setting a repository variable moves those jobs with no
+# change here. No job here reads a secret or asks for a cloud identity
+# (scripts/check-ci-runners.mjs fails if one does).
+#
+# Minutes: each job is billed rounded up to the whole minute, and every job pays for its own
 # checkout and install. The cheap checks therefore share one job; the database tests and the web
 # journeys keep their own jobs because they need a Postgres service; and work that a change cannot
 # affect is skipped (`changes` below). A skipped job counts as passed for required checks.
-# When hosted minutes run out, run the same gates locally with scripts/ci-local.sh.
+# The same gates run locally with scripts/ci-local.sh.
 name: ci
 
 on:
@@ -37,7 +43,7 @@ env:
 jobs:
   changes:
     name: What changed
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'ubicloud-standard-2' }}
     outputs:
       code: ${{ steps.paths.outputs.code }}
       web: ${{ steps.paths.outputs.web }}
@@ -76,7 +82,7 @@ jobs:
 
   checks:
     name: Lint, types, API contract, builds and security
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.CI_RUNNER || 'ubicloud-standard-4' }}
     needs: [changes]
     env:
       CODE: ${{ needs.changes.outputs.code }}
@@ -146,6 +152,8 @@ jobs:
       # ADR-0127: people read "Thapsus Care"; the codename stays only in technical identifiers.
       - name: The old product name does not come back where people read it
         run: node scripts/rename-product.mjs --check
+      - name: Jobs run on Ubicloud unless they need a secret or a cloud identity (ADR-0137)
+        run: node scripts/check-ci-runners.mjs
       # Trivy's --ignore-unfixed hides an unfixed advisory whatever its exp: date, and pnpm's
       # ignoreGhsas never expires, so this fails once an exception's review date has passed or is
       # later than its cap, or when the exceptions record, ignoreGhsas, .trivyignore and the inline
@@ -192,7 +200,7 @@ jobs:
 
   test:
     name: Unit, domain and RLS isolation tests
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.CI_RUNNER || 'ubicloud-standard-4' }}
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     services:
@@ -228,7 +236,7 @@ jobs:
 
   e2e-web:
     name: Web journeys and accessibility (Playwright and axe)
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.CI_RUNNER || 'ubicloud-standard-4' }}
     needs: [changes]
     if: needs.changes.outputs.web == 'true'
     services:
@@ -301,7 +309,7 @@ jobs:
   # operating-system packages only; `pnpm audit --prod` above covers the API's npm dependencies.
   images:
     name: Container images build and scan
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.CI_RUNNER || 'ubicloud-standard-4' }}
     needs: [changes]
     if: needs.changes.outputs.images == 'true' || (github.event_name != 'pull_request' && needs.changes.outputs.code == 'true')
     permissions:

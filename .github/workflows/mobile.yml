@@ -14,6 +14,10 @@
 # the tablet the People, round and handover screens show their list and detail side by side, and
 # the flows find the same test ids in either layout. Rotation is fixed at the device's natural
 # orientation (portrait on the phone, landscape on the tablet) so a flow never turns it.
+#
+# Runners (ADR-0137): the emulator jobs run on Ubicloud (MOBILE_RUNNER, else CI_RUNNER, else
+# ubicloud-standard-4). The EAS build stays on GitHub's runner: it reads EXPO_TOKEN, and no secret
+# goes to a third-party runner.
 name: mobile
 
 on:
@@ -31,7 +35,7 @@ jobs:
   # independent of the backend.
   maestro-android-demo:
     name: Maestro flows (Android ${{ matrix.device.name }}, demo mode)
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.MOBILE_RUNNER || vars.CI_RUNNER || 'ubicloud-standard-4' }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -56,6 +60,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Enable KVM
         run: |
+          # The emulator needs hardware virtualisation. Stop here, with the reason, on a runner that
+          # has none rather than crawl through software emulation to the timeout (ADR-0137).
+          if [ ! -e /dev/kvm ]; then
+            echo "::error::This runner has no /dev/kvm, so the Android emulator cannot run. Set the repository variable MOBILE_RUNNER to a runner label with KVM (ADR-0137)."
+            exit 1
+          fi
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
@@ -95,7 +105,7 @@ jobs:
   # src/config/env.ts).
   maestro-android-live:
     name: Maestro offline journeys (Android ${{ matrix.device.name }}, live API and PowerSync)
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.MOBILE_RUNNER || vars.CI_RUNNER || 'ubicloud-standard-4' }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -143,6 +153,12 @@ jobs:
         run: node apps/mobile/scripts/sync-smoke.mjs >> "$GITHUB_OUTPUT"
       - name: Enable KVM
         run: |
+          # The emulator needs hardware virtualisation. Stop here, with the reason, on a runner that
+          # has none rather than crawl through software emulation to the timeout (ADR-0137).
+          if [ ! -e /dev/kvm ]; then
+            echo "::error::This runner has no /dev/kvm, so the Android emulator cannot run. Set the repository variable MOBILE_RUNNER to a runner label with KVM (ADR-0137)."
+            exit 1
+          fi
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm

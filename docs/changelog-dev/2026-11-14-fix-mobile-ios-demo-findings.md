@@ -50,8 +50,10 @@ mode, 14/11/2026) found these. Every person on screen was invented.
 
 - `src/platform/intl-polyfills.test.ts` (3): with `Intl.PluralRules` and `Intl.Locale` removed as on
   Hermes, a plural message throws without the polyfills (red before this change, with
-  `mobile.today.peopleCount`); with them, every en-GB and Welsh message formats for 0, 1, 2, 3, 6 and
-  7, which reaches all six Welsh plural forms; the app entry loads them before expo-router.
+  `mobile.today.peopleCount`); with them, every en-GB and Welsh message formats, and each plural
+  message for 0, 1, 2, 3, 6 and 7, which reaches all six Welsh plural forms; the app entry loads them
+  before expo-router. The first CI run on Ubicloud timed this out at 5 seconds (7.2 s with one
+  assertion per call), so failures are now collected and compared once, with a 30-second limit.
 - `src/components/mode-chooser.render.test.ts` (3): the demo line in a demo build and not in a live
   one; the three modes from the catalogue.
 - `apps/mobile`: 89 files, 1,618 tests pass; `packages/i18n`: 48 pass; typecheck and Biome clean.
