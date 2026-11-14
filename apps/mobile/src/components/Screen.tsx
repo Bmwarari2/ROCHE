@@ -64,7 +64,11 @@ export function Screen({ children, syncBanner = true, testID }: ScreenProps) {
           <Text tone="warning" emphasis>
             {vault.resetNotice}
           </Text>
-          <Button label="Dismiss" variant="secondary" onPress={vault.dismissResetNotice} />
+          <Button
+            label={t("mobile.resetNotice.dismiss")}
+            variant="secondary"
+            onPress={vault.dismissResetNotice}
+          />
         </View>
       ) : null}
       <View style={styles.content}>{children}</View>

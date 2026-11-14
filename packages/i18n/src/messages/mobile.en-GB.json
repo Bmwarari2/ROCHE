@@ -767,9 +767,10 @@
   "mobile.mode.title": "Choose how you will use Thapsus Care",
   "mobile.mode.hint": "You can change this later in Settings.",
   "mobile.mode.care": "Care",
-  "mobile.mode.careHint": "For carers, nurses and coordinators: your people, today's work, offline.",
+  "mobile.mode.careHint": "For carers, nurses and coordinators. Your people and today's work, even with no signal.",
   "mobile.mode.manage": "Manage",
-  "mobile.mode.manageHint": "Approvals, alerts and dashboards. Coming in a later release.",
+  "mobile.mode.manageHint": "Approvals, alerts and dashboards. Not ready yet.",
   "mobile.mode.family": "Family",
-  "mobile.mode.familyHint": "Updates and messages for families. Coming in a later release."
+  "mobile.mode.familyHint": "Updates and messages for families. Not ready yet.",
+  "mobile.resetNotice.dismiss": "Hide message"
 }

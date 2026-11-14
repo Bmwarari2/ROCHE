@@ -772,6 +772,7 @@
     "mobile.mode.manage",
     "mobile.mode.manageHint",
     "mobile.mode.family",
-    "mobile.mode.familyHint"
+    "mobile.mode.familyHint",
+    "mobile.resetNotice.dismiss"
   ]
 }

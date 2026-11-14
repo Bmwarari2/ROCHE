@@ -55,13 +55,32 @@ export const AccessibilityInfo = {
   announceForAccessibility(text: string) {
     AccessibilityInfo.announced.push(text);
   },
-  announceForAccessibilityWithOptions(text: string, _options: { queue?: boolean }) {
+  /** Announcements with their options, so a test can check one was queued. */
+  announcedWith: [] as Array<{ text: string; options: { queue?: boolean } }>,
+  announceForAccessibilityWithOptions(text: string, options: { queue?: boolean }) {
     AccessibilityInfo.announced.push(text);
+    AccessibilityInfo.announcedWith.push({ text, options });
   },
   isDarkerSystemColorsEnabled: async () => false,
   isHighTextContrastEnabled: async () => false,
   isReduceMotionEnabled: async () => false,
-  addEventListener: () => ({ remove: () => undefined }),
+  /** Listeners by event, so a test can send what the platform would (`emit`). */
+  listeners: [] as Array<{ event: string; handler: (payload: never) => void }>,
+  addEventListener(event: string, handler: (payload: never) => void) {
+    const entry = { event, handler };
+    AccessibilityInfo.listeners.push(entry);
+    return {
+      remove: () => {
+        const at = AccessibilityInfo.listeners.indexOf(entry);
+        if (at >= 0) AccessibilityInfo.listeners.splice(at, 1);
+      },
+    };
+  },
+  emit(event: string, payload: unknown) {
+    for (const entry of [...AccessibilityInfo.listeners]) {
+      if (entry.event === event) entry.handler(payload as never);
+    }
+  },
   focused: [] as unknown[],
   setAccessibilityFocus(node: unknown) {
     AccessibilityInfo.focused.push(node);

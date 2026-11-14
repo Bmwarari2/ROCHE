@@ -1,10 +1,11 @@
 import type { OfflineWindowTable } from "@harbour/sync/client";
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { AccessibilityInfo } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { useVault } from "../app-state/vault";
 import { useCarePerson } from "../components/CarePersonHeader";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
+import { announceAfterReturn } from "./announce-after-return";
 import type { EntryRow } from "./entries";
 import { useSaveEntry } from "./hooks";
 import { savedNoticeWords, setSavedNotice } from "./saved-notice";
@@ -18,6 +19,10 @@ import { savedNoticeWords, setSavedNotice } from "./saved-notice";
 export function useSaveAndReturn(personId: string) {
   const router = useRouter();
   const save = useSaveEntry();
+  const vault = useVault();
+  // Read when the confirmation is said, after this screen has gone: nothing is said while locked.
+  const unlocked = useRef(false);
+  unlocked.current = vault.status === "unlocked";
   const { person } = useCarePerson(personId);
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -38,14 +43,11 @@ export function useSaveAndReturn(personId: string) {
           setSavedNotice(notice);
           words = savedNoticeWords(notice, t, appEnv.demoMode);
         }
+        // Said once the screen returned to has appeared, so the screen change does not cut it off
+        // (accessibility reviews M1 and H1): the stack calls announceReturned when it has. The line
+        // on the record is not a live region, so the confirmation is heard once.
+        announceAfterReturn(words, () => unlocked.current);
         router.back();
-        // Said once the record is on screen, so the screen change does not cut it off
-        // (accessibility review M1); the line itself is not a live region, so it is heard once.
-        // Queued behind what VoiceOver is already saying about the new screen. InteractionManager,
-        // used here before, is deprecated in React Native 0.86, where it only waits for the next tick.
-        setTimeout(() => {
-          AccessibilityInfo.announceForAccessibilityWithOptions(words, { queue: true });
-        }, 0);
       } catch {
         setSaveFailed(true);
       } finally {

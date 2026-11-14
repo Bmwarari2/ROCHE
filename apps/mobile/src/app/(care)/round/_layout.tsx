@@ -1,5 +1,7 @@
 import { useTheme } from "@harbour/ui-native";
 import { Stack } from "expo-router";
+import { useVault } from "../../../app-state/vault";
+import { announceReturned } from "../../../care/announce-after-return";
 import { t } from "../../../i18n/t";
 
 /**
@@ -8,8 +10,15 @@ import { t } from "../../../i18n/t";
  */
 export default function RoundLayout() {
   const theme = useTheme();
+  const vault = useVault();
   return (
     <Stack
+      // A form's save confirmation is said once the screen it returns to has appeared (HZ-001).
+      screenListeners={{
+        transitionEnd: (event) => {
+          if (!event.data.closing) announceReturned(vault.status === "unlocked");
+        },
+      }}
       screenOptions={{
         headerStyle: { backgroundColor: theme.colors.bg },
         headerTintColor: theme.colors.accent,
