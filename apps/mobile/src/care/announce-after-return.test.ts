@@ -1,10 +1,11 @@
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, AppState } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ANNOUNCE_FALLBACK_MS,
   announceAfterReturn,
   announceReturned,
   resetPendingAnnouncement,
+  setAnnouncementsAllowed,
 } from "./announce-after-return";
 
 /**
@@ -19,6 +20,8 @@ const stub = AccessibilityInfo as unknown as {
   emit(event: string, payload: unknown): void;
 };
 
+const appState = AppState as unknown as { listeners: unknown[]; emit(next: string): void };
+
 const WORDS = "Note saved for Ada Example at 14:05, on this device.";
 
 beforeEach(() => {
@@ -26,7 +29,9 @@ beforeEach(() => {
   stub.announced.length = 0;
   stub.announcedWith.length = 0;
   stub.listeners.length = 0;
+  appState.listeners.length = 0;
   resetPendingAnnouncement();
+  setAnnouncementsAllowed(true);
 });
 
 afterEach(() => {
@@ -35,44 +40,58 @@ afterEach(() => {
 
 describe("the save confirmation after returning", () => {
   it("is not said while the screen changes, and is said once, queued, when it has appeared", () => {
-    announceAfterReturn(WORDS, () => true);
+    announceAfterReturn(WORDS);
     vi.advanceTimersByTime(ANNOUNCE_FALLBACK_MS - 1);
     expect(stub.announced).toEqual([]);
-    announceReturned(true);
+    announceReturned();
     expect(stub.announcedWith).toEqual([{ text: WORDS, options: { queue: true } }]);
-    announceReturned(true);
+    announceReturned();
     vi.advanceTimersByTime(ANNOUNCE_FALLBACK_MS * 2);
     expect(stub.announced).toEqual([WORDS]);
   });
 
   it("is said by the fallback when no transition event comes", () => {
-    announceAfterReturn(WORDS, () => true);
+    announceAfterReturn(WORDS);
     vi.advanceTimersByTime(ANNOUNCE_FALLBACK_MS);
     expect(stub.announcedWith).toEqual([{ text: WORDS, options: { queue: true } }]);
   });
 
   it("is never said while the app is locked, and is dropped rather than said later", () => {
-    announceAfterReturn(WORDS, () => true);
-    announceReturned(false);
+    setAnnouncementsAllowed(false);
+    announceAfterReturn(WORDS);
+    announceReturned();
     vi.advanceTimersByTime(ANNOUNCE_FALLBACK_MS * 2);
-    expect(stub.announced).toEqual([]);
-
-    announceAfterReturn(WORDS, () => false);
-    vi.advanceTimersByTime(ANNOUNCE_FALLBACK_MS);
     expect(stub.announced).toEqual([]);
   });
 
+  it("is dropped when the phone locks after the form has gone, before the fallback fires", () => {
+    announceAfterReturn(WORDS);
+    setAnnouncementsAllowed(false);
+    vi.advanceTimersByTime(ANNOUNCE_FALLBACK_MS);
+    setAnnouncementsAllowed(true);
+    announceReturned();
+    expect(stub.announced).toEqual([]);
+  });
+
+  it("is dropped when the app leaves the foreground, so a timer firing on return says nothing", () => {
+    announceAfterReturn(WORDS);
+    appState.emit("background");
+    vi.advanceTimersByTime(ANNOUNCE_FALLBACK_MS);
+    expect(stub.announced).toEqual([]);
+    expect(appState.listeners).toHaveLength(0);
+  });
+
   it("says only the newest confirmation when two wait", () => {
-    announceAfterReturn("First.", () => true);
-    announceAfterReturn(WORDS, () => true);
-    announceReturned(true);
+    announceAfterReturn("First.");
+    announceAfterReturn(WORDS);
+    announceReturned();
     vi.advanceTimersByTime(ANNOUNCE_FALLBACK_MS * 2);
     expect(stub.announced).toEqual([WORDS]);
   });
 
   it("is said once more on iOS when VoiceOver reports it was cut off, and no more after that", () => {
-    announceAfterReturn(WORDS, () => true);
-    announceReturned(true);
+    announceAfterReturn(WORDS);
+    announceReturned();
     stub.emit("announcementFinished", { announcement: "Something else", success: false });
     expect(stub.announced).toEqual([WORDS]);
     stub.emit("announcementFinished", { announcement: WORDS, success: false });
@@ -86,8 +105,8 @@ describe("the save confirmation after returning", () => {
   });
 
   it("stops listening once VoiceOver says it finished", () => {
-    announceAfterReturn(WORDS, () => true);
-    announceReturned(true);
+    announceAfterReturn(WORDS);
+    announceReturned();
     stub.emit("announcementFinished", { announcement: WORDS, success: true });
     expect(stub.announced).toEqual([WORDS]);
     expect(stub.listeners).toHaveLength(0);

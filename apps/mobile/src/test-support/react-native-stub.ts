@@ -49,6 +49,23 @@ export const Platform = {
   select: <T>(options: { ios?: T; default?: T }): T | undefined => options.ios ?? options.default,
 };
 
+/** App state changes a test sends (`emit`), as the platform would on going to the background. */
+export const AppState = {
+  listeners: [] as Array<(next: string) => void>,
+  addEventListener(_event: "change", handler: (next: string) => void) {
+    AppState.listeners.push(handler);
+    return {
+      remove: () => {
+        const at = AppState.listeners.indexOf(handler);
+        if (at >= 0) AppState.listeners.splice(at, 1);
+      },
+    };
+  },
+  emit(next: string) {
+    for (const handler of [...AppState.listeners]) handler(next);
+  },
+};
+
 export const AccessibilityInfo = {
   /** What would be read out, so a render test can check a screen reader hears it. */
   announced: [] as string[],

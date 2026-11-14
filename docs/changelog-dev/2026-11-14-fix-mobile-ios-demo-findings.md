@@ -22,7 +22,8 @@ mode, 14/11/2026) found these. Every person on screen was invented.
   the record or list the form returns to has appeared (`care/announce-after-return.ts`): the People
   and Round stacks call it on `transitionEnd`, with a 1-second fallback. It is queued behind what
   VoiceOver is saying (iOS only; Android ignores the option), said once more if VoiceOver reports
-  it was cut off, and never said while the app is locked.
+  it was cut off, and never said while the app is locked: the vault tells it when it locks, and a
+  confirmation still waiting is dropped then or when the app leaves the foreground.
 - The lockfile gains only the polyfills' 46 lines. pnpm 10.28.0 also wants to drop 42 `libc:` lines
   that another pnpm version wrote; that churn is left out.
 
@@ -55,9 +56,10 @@ mode, 14/11/2026) found these. Every person on screen was invented.
   one; the three modes from the catalogue.
 - `apps/mobile`: 89 files, 1,618 tests pass; `packages/i18n`: 48 pass; typecheck and Biome clean.
 - `expo export --platform ios` bundles from the new entry.
-- `src/care/announce-after-return.test.ts` (6): nothing is said while the screen changes; once,
-  queued, when it has appeared; by the fallback with no event; never while locked; only the newest
-  of two; once more on iOS when VoiceOver reports it was cut off, then no more.
+- `src/care/announce-after-return.test.ts` (8): nothing is said while the screen changes; once,
+  queued, when it has appeared; by the fallback with no event; never while locked; dropped when the
+  phone locks after the form has gone, or when the app leaves the foreground; only the newest of
+  two; once more on iOS when VoiceOver reports it was cut off, then no more.
 
 ## Review rounds
 
@@ -67,3 +69,8 @@ mode, 14/11/2026) found these. Every person on screen was invented.
   signal", "Not ready yet"); L3, tests that the demo line is heard before the heading, the title is
   a heading, and the demo build's Maestro flow sees the line on the mode chooser; L4, the reset
   notice's "Dismiss" is now "Hide message" from the catalogue.
+- Accessibility re-check (14/11/2026): all six resolved; two new Lows fixed. N1, the fallback read a
+  lock state the closed form could no longer update: the vault now allows or stops announcements
+  itself, and a waiting one is dropped on lock or on leaving the foreground. N2, the Care hint
+  needed three lines and was cut off: now "For carers, nurses and coordinators. Works with no
+  signal."

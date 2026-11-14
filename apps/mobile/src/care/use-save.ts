@@ -1,7 +1,6 @@
 import type { OfflineWindowTable } from "@harbour/sync/client";
 import { useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
-import { useVault } from "../app-state/vault";
+import { useCallback, useState } from "react";
 import { useCarePerson } from "../components/CarePersonHeader";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
@@ -19,10 +18,6 @@ import { savedNoticeWords, setSavedNotice } from "./saved-notice";
 export function useSaveAndReturn(personId: string) {
   const router = useRouter();
   const save = useSaveEntry();
-  const vault = useVault();
-  // Read when the confirmation is said, after this screen has gone: nothing is said while locked.
-  const unlocked = useRef(false);
-  unlocked.current = vault.status === "unlocked";
   const { person } = useCarePerson(personId);
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -46,7 +41,7 @@ export function useSaveAndReturn(personId: string) {
         // Said once the screen returned to has appeared, so the screen change does not cut it off
         // (accessibility reviews M1 and H1): the stack calls announceReturned when it has. The line
         // on the record is not a live region, so the confirmation is heard once.
-        announceAfterReturn(words, () => unlocked.current);
+        announceAfterReturn(words);
         router.back();
       } catch {
         setSaveFailed(true);

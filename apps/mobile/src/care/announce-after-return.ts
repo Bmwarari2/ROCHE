@@ -11,9 +11,11 @@
  * `queue: true` makes VoiceOver wait for what it is already saying; Android ignores the option.
  * On iOS, if VoiceOver reports the confirmation was cut off, it is said once more.
  *
- * The words name a person, so nothing is said while the app is locked.
+ * The words name a person, so nothing is said while the app is locked: the vault reports whether
+ * it is unlocked (`setAnnouncementsAllowed`), and a confirmation still waiting is dropped when it
+ * locks or the app leaves the foreground, since the fallback timer can fire on the way back.
  */
-import { AccessibilityInfo, Platform } from "react-native";
+import { AccessibilityInfo, AppState, Platform } from "react-native";
 
 /** Said anyway after this long if the stack sends no transition event. */
 export const ANNOUNCE_FALLBACK_MS = 1000;
@@ -23,33 +25,47 @@ const FINISHED_LISTEN_MS = 15_000;
 
 interface Pending {
   readonly words: string;
-  readonly canSpeak: () => boolean;
   readonly timer: ReturnType<typeof setTimeout>;
+  readonly appState: { remove(): void };
 }
 
 let pending: Pending | null = null;
+let allowed = false;
 
-/**
- * Leaves the confirmation to be said when the screen returned to appears. A newer one replaces
- * one not yet said. `canSpeak` is asked at that moment (false while the app is locked).
- */
-export function announceAfterReturn(words: string, canSpeak: () => boolean): void {
-  if (pending) clearTimeout(pending.timer);
-  const timer = setTimeout(() => announceReturned(), ANNOUNCE_FALLBACK_MS);
-  pending = { words, canSpeak, timer };
+function take(): Pending | null {
+  const current = pending;
+  pending = null;
+  if (current) {
+    clearTimeout(current.timer);
+    current.appState.remove();
+  }
+  return current;
 }
 
 /**
- * Says the waiting confirmation, once. Called by the stack when a screen has appeared, with whether
- * the app is unlocked now; the fallback timer asks the form's own check instead.
+ * Whether a confirmation may be said: true only while the vault is unlocked. Called by the vault
+ * whenever its state changes; false also drops a confirmation still waiting.
  */
-export function announceReturned(unlocked?: boolean): void {
-  const current = pending;
-  if (!current) return;
-  pending = null;
-  clearTimeout(current.timer);
-  if (!(unlocked ?? current.canSpeak())) return;
-  speak(current.words);
+export function setAnnouncementsAllowed(unlocked: boolean): void {
+  allowed = unlocked;
+  if (!unlocked) take();
+}
+
+/** Leaves the confirmation to be said when the screen returned to appears; replaces one waiting. */
+export function announceAfterReturn(words: string): void {
+  take();
+  if (!allowed) return;
+  const timer = setTimeout(() => announceReturned(), ANNOUNCE_FALLBACK_MS);
+  const appState = AppState.addEventListener("change", (next: string) => {
+    if (next !== "active") take();
+  });
+  pending = { words, timer, appState };
+}
+
+/** Says the waiting confirmation, once. Called by the stack when a screen has appeared. */
+export function announceReturned(): void {
+  const current = take();
+  if (current && allowed) speak(current.words);
 }
 
 function speak(words: string): void {
@@ -75,8 +91,8 @@ function speak(words: string): void {
   }
 }
 
-/** Tests only: forgets a waiting confirmation. */
+/** Tests only: forgets a waiting confirmation and the vault's last state. */
 export function resetPendingAnnouncement(): void {
-  if (pending) clearTimeout(pending.timer);
-  pending = null;
+  take();
+  allowed = false;
 }
