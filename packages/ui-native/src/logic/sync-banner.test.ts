@@ -226,7 +226,7 @@ describe("hazard HZ-002 hazard HZ-006 the banner at the largest text sizes (iOS 
   const calm = (state: "synced" | "offline" | "syncing") =>
     describeSyncBanner({ state, lastSyncedAt: minutesAgo(2), now, staleAfterMs });
 
-  it("keeps a calm banner to its title, with the detail still spoken", () => {
+  it("draws a calm banner as one paragraph, its detail still shown and spoken", () => {
     for (const state of ["synced", "offline", "syncing"] as const) {
       const content = calm(state);
       expect(compactSyncBanner(content, largest)).toBe(true);

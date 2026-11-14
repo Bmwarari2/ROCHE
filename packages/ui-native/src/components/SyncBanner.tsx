@@ -140,24 +140,43 @@ export function SyncBanner({
           importantForAccessibility="no"
         />
         <View style={styles.text}>
-          <Text
-            variant="bodyDense"
-            tone={textTone}
-            emphasis
-            style={onFill}
-            testID={`${testID}-title`}
-          >
-            {content.title}
-          </Text>
-          {content.reason ? (
-            <Text variant="bodyDense" tone={textTone} style={onFill} testID={`${testID}-reason`}>
-              {content.reason}
-            </Text>
-          ) : null}
-          {compact ? null : (
-            <Text variant="bodyDense" tone={detailTone} style={onFill} testID={`${testID}-detail`}>
+          {compact ? (
+            <Text variant="bodyDense" tone={detailTone} style={onFill} testID={`${testID}-title`}>
+              <Text variant="bodyDense" tone={textTone} emphasis style={onFill}>
+                {`${content.title}. `}
+              </Text>
               {content.detail}
             </Text>
+          ) : (
+            <>
+              <Text
+                variant="bodyDense"
+                tone={textTone}
+                emphasis
+                style={onFill}
+                testID={`${testID}-title`}
+              >
+                {content.title}
+              </Text>
+              {content.reason ? (
+                <Text
+                  variant="bodyDense"
+                  tone={textTone}
+                  style={onFill}
+                  testID={`${testID}-reason`}
+                >
+                  {content.reason}
+                </Text>
+              ) : null}
+              <Text
+                variant="bodyDense"
+                tone={detailTone}
+                style={onFill}
+                testID={`${testID}-detail`}
+              >
+                {content.detail}
+              </Text>
+            </>
           )}
           {content.warning ? (
             <Text

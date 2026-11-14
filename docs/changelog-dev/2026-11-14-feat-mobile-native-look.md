@@ -136,10 +136,13 @@ bringing outlines back. What it found, and what changed:
 - **After a text-size change, a banner went blank and chips stayed tall until a relaunch.** The
   shared `Text` is drawn afresh at each system text size, so iOS measures it again. Not reproducible
   here: to be confirmed on the simulator.
-- **At the largest text the banners took almost half the screen.** A calm sync banner keeps to its
-  title above 1.3 times text, with its detail still spoken; a stale, refused or failed banner always
-  shows in full (`compactSyncBanner`, HZ-002, HZ-006). The demo line says "Demo: invented people"
-  and still speaks the whole sentence.
+- **At the largest text the banners took almost half the screen.** Above 1.3 times text a calm
+  sync banner runs its title and detail on as one paragraph ("Offline. Last synced 2 minutes ago.
+  2 changes waiting to upload."), so nothing is dropped; a stale, refused or failed banner keeps its
+  full layout (`compactSyncBanner`, HZ-002, HZ-006). A first version dropped the detail line, which
+  the accessibility re-check rated High (WCAG 1.4.4: "Last synced" and the waiting count went
+  missing for sighted readers of large text) and the clinical re-check Low (HZ-006). The demo line
+  says "Demo: invented people" and still speaks the whole sentence.
 - **The note's choices were separate cards.** Choices are one grouped list: on iOS an inset
   grouped list with a checkmark and the word "Selected" on the chosen row, as Settings does; on
   Android Material 3 segmented rows with a radio button and the chosen row on the selection
