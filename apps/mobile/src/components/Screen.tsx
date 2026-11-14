@@ -5,6 +5,7 @@ import { useVault } from "../app-state/vault";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
 import { AppSyncBanner } from "./AppSyncBanner";
+import { DemoNotice } from "./DemoNotice";
 import { RestoreProblemNotice } from "./RestoreProblemNotice";
 
 interface ScreenProps {
@@ -26,24 +27,7 @@ export function Screen({ children, syncBanner = true, testID }: ScreenProps) {
   return (
     <View testID={testID} style={[styles.root, { backgroundColor: theme.colors.bgSecondary }]}>
       {syncBanner ? <AppSyncBanner /> : null}
-      {appEnv.demoMode ? (
-        <View
-          testID="demo-notice"
-          style={[
-            styles.demo,
-            {
-              backgroundColor: theme.colors.card,
-              borderBottomColor: theme.colors.border,
-              paddingHorizontal: theme.space[2],
-              paddingVertical: theme.space[0.5],
-            },
-          ]}
-        >
-          <Text variant="bodyDense" tone="secondary">
-            Demo mode: invented people, not real records.
-          </Text>
-        </View>
-      ) : null}
+      {appEnv.demoMode ? <DemoNotice /> : null}
       {vault.integrity?.status === "compromised" ? (
         <View
           testID="integrity-warning"
@@ -80,7 +64,11 @@ export function Screen({ children, syncBanner = true, testID }: ScreenProps) {
           <Text tone="warning" emphasis>
             {vault.resetNotice}
           </Text>
-          <Button label="Dismiss" variant="secondary" onPress={vault.dismissResetNotice} />
+          <Button
+            label={t("mobile.resetNotice.dismiss")}
+            variant="secondary"
+            onPress={vault.dismissResetNotice}
+          />
         </View>
       ) : null}
       <View style={styles.content}>{children}</View>
@@ -90,7 +78,6 @@ export function Screen({ children, syncBanner = true, testID }: ScreenProps) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  demo: { borderBottomWidth: StyleSheet.hairlineWidth },
   notice: { borderBottomWidth: StyleSheet.hairlineWidth },
   content: { flex: 1 },
 });

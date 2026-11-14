@@ -109,3 +109,4 @@ Tenants that are public sector bodies may need to publish an accessibility state
 | Release | Date | Tester | Assistive technology and platforms | Journeys | Issues found (links) | Result |
 | --- | --- | --- | --- | --- | --- | --- |
 | v0.0 Phase 0 | `[date]` | `[name]` | | Sign in, tenant and location switcher, person list and header (web and mobile), sync banner states (including "This phone cannot sync" for too wide access, ADR-0134: announced once, reason and stale warning both read, legible at the largest text size) | | `[pending]` |
+| Phone save confirmation (14/11/2026) | `[date]` | `[name]` | VoiceOver on a real iPhone, TalkBack on a real Android phone (the Simulator has no VoiceOver) | Write a note for a person, save, and hear "Note saved for ..." in full once the record is back on screen, not cut off by the screen change (HZ-001; accessibility review H1 of `fix/mobile-ios-demo-findings`) | | `[pending]` |

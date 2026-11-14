@@ -1,10 +1,10 @@
 import type { OfflineWindowTable } from "@harbour/sync/client";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { AccessibilityInfo, InteractionManager } from "react-native";
 import { useCarePerson } from "../components/CarePersonHeader";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
+import { announceAfterReturn } from "./announce-after-return";
 import type { EntryRow } from "./entries";
 import { useSaveEntry } from "./hooks";
 import { savedNoticeWords, setSavedNotice } from "./saved-notice";
@@ -38,12 +38,11 @@ export function useSaveAndReturn(personId: string) {
           setSavedNotice(notice);
           words = savedNoticeWords(notice, t, appEnv.demoMode);
         }
+        // Said once the screen returned to has appeared, so the screen change does not cut it off
+        // (accessibility reviews M1 and H1): the stack calls announceReturned when it has. The line
+        // on the record is not a live region, so the confirmation is heard once.
+        announceAfterReturn(words);
         router.back();
-        // Said once the record is on screen, so the screen change does not cut it off
-        // (accessibility review M1); the line itself is not a live region, so it is heard once.
-        InteractionManager.runAfterInteractions(() => {
-          AccessibilityInfo.announceForAccessibility(words);
-        });
       } catch {
         setSaveFailed(true);
       } finally {

@@ -49,16 +49,55 @@ export const Platform = {
   select: <T>(options: { ios?: T; default?: T }): T | undefined => options.ios ?? options.default,
 };
 
+/** App state changes a test sends (`emit`), as the platform would on going to the background. */
+export const AppState = {
+  listeners: [] as Array<(next: string) => void>,
+  addEventListener(_event: "change", handler: (next: string) => void) {
+    AppState.listeners.push(handler);
+    return {
+      remove: () => {
+        const at = AppState.listeners.indexOf(handler);
+        if (at >= 0) AppState.listeners.splice(at, 1);
+      },
+    };
+  },
+  emit(next: string) {
+    for (const handler of [...AppState.listeners]) handler(next);
+  },
+};
+
 export const AccessibilityInfo = {
   /** What would be read out, so a render test can check a screen reader hears it. */
   announced: [] as string[],
   announceForAccessibility(text: string) {
     AccessibilityInfo.announced.push(text);
   },
+  /** Announcements with their options, so a test can check one was queued. */
+  announcedWith: [] as Array<{ text: string; options: { queue?: boolean } }>,
+  announceForAccessibilityWithOptions(text: string, options: { queue?: boolean }) {
+    AccessibilityInfo.announced.push(text);
+    AccessibilityInfo.announcedWith.push({ text, options });
+  },
   isDarkerSystemColorsEnabled: async () => false,
   isHighTextContrastEnabled: async () => false,
   isReduceMotionEnabled: async () => false,
-  addEventListener: () => ({ remove: () => undefined }),
+  /** Listeners by event, so a test can send what the platform would (`emit`). */
+  listeners: [] as Array<{ event: string; handler: (payload: never) => void }>,
+  addEventListener(event: string, handler: (payload: never) => void) {
+    const entry = { event, handler };
+    AccessibilityInfo.listeners.push(entry);
+    return {
+      remove: () => {
+        const at = AccessibilityInfo.listeners.indexOf(entry);
+        if (at >= 0) AccessibilityInfo.listeners.splice(at, 1);
+      },
+    };
+  },
+  emit(event: string, payload: unknown) {
+    for (const entry of [...AccessibilityInfo.listeners]) {
+      if (entry.event === event) entry.handler(payload as never);
+    }
+  },
   focused: [] as unknown[],
   setAccessibilityFocus(node: unknown) {
     AccessibilityInfo.focused.push(node);

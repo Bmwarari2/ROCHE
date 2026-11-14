@@ -12,6 +12,8 @@ env:
   HARBOUR_EMAIL: ${HARBOUR_EMAIL || "carer@example.invalid"}
   HARBOUR_PASSWORD: ${HARBOUR_PASSWORD || "correct horse battery staple"}
   HARBOUR_TOTP: ${HARBOUR_TOTP || "123456"}
+  # Set to "true" by flows that run against a demo build, which says so on the mode chooser.
+  HARBOUR_EXPECT_DEMO: ${HARBOUR_EXPECT_DEMO || "false"}
 ---
 - launchApp:
     clearState: true
@@ -53,6 +55,12 @@ env:
     visible:
       id: "mode-screen"
     timeout: 30000
+- runFlow:
+    when:
+      true: ${HARBOUR_EXPECT_DEMO == "true"}
+    commands:
+      - assertVisible:
+          id: "demo-notice"
 - tapOn:
     id: "mode-care"
 - extendedWaitUntil:
